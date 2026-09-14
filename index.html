@@ -394,626 +394,68 @@ button {
 /* =========================
    FUEL STATUS
 ========================= */
-
-.fuels {
-  display: grid;
-
-  grid-template-columns:
-    repeat(3, 1fr);
-
-  gap: 7px;
-
-  padding: 6px;
-
-  border-radius: 19px;
-
-  background: #f5f8fc;
-}
-
-.fuel {
-  padding: 9px 5px;
-
-  text-align: center;
-
-  border-radius: 14px;
-}
-
-.fuel-name {
-  font-size: 13px;
-
-  font-weight: 800;
-}
-
-.fuel-status {
-  display: flex;
-
-  align-items: center;
-  justify-content: center;
-
-  gap: 5px;
-
-  margin-top: 5px;
-
-  font-size: 11px;
-
-  font-weight: 700;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-
-  border-radius: 50%;
-
-  display: inline-block;
-}
-
-.dot.green {
-  background: #1bb978;
-}
-
-.dot.red {
-  background: #ef5350;
-}
-
-.dot.gray {
-  background: #a7b1c1;
-}
-
-.yes {
-  color: #168d61;
-}
-
-.no {
-  color: #d64d51;
-}
-
-.unknown {
-  color: #7c899e;
-}
+.fuels { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:5px; border-radius:16px; background:#f5f8fc; }
+.fuel { padding:8px 4px; text-align:center; border-radius:12px; background:#fff; }
+.fuel-name { font-size:12px; font-weight:800; }
+.fuel-status { display:flex; align-items:center; justify-content:center; gap:4px; margin-top:4px; font-size:11px; font-weight:700; }
+.fuel-conf { margin-top:2px; color:#93a1b8; font-size:10px; font-weight:600; }
+.dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+.dot.green { background:#1bb978; }
+.dot.red { background:#ef5350; }
+.dot.gray { background:#a7b1c1; }
+.yes { color:#168d61; }
+.no { color:#d64d51; }
+.unknown { color:#7c899e; }
 
 /* =========================
-   MAIN FORECAST
+   FORECAST: две колонки
 ========================= */
-
-.forecast {
-  position: relative;
-
-  margin-top: 11px;
-
-  padding: 17px;
-
-  overflow: hidden;
-
-  border-radius: 23px;
-
-  background:
-    radial-gradient(
-      circle at 100% 0%,
-      rgba(66,130,255,.13),
-      transparent 34%
-    ),
-    linear-gradient(
-      135deg,
-      #eafaf4,
-      #edf4ff
-    );
-
-  border: 1px solid #d9eae7;
-}
-
-.forecast::after {
-  content: "";
-
-  position: absolute;
-
-  width: 110px;
-  height: 110px;
-
-  right: -45px;
-  bottom: -55px;
-
-  border-radius: 50%;
-
-  background:
-    rgba(63,132,255,.08);
-
-  pointer-events: none;
-}
-
-.forecast-top {
-  display: flex;
-
-  align-items: center;
-
-  gap: 8px;
-}
-
-.forecast-icon {
-  width: 31px;
-  height: 31px;
-
-  display: grid;
-  place-items: center;
-
-  border-radius: 11px;
-
-  background: #d8f5e9;
-
-  color: #15966c;
-
-  font-size: 17px;
-}
-
-.forecast-label {
-  color: #168d67;
-
-  font-size: 12px;
-
-  font-weight: 850;
-
-  text-transform: uppercase;
-
-  letter-spacing: .6px;
-}
-
-.forecast-title {
-  margin-top: 12px;
-
-  color: #627593;
-
-  font-size: 12px;
-}
-
-.forecast-time {
-  margin-top: 3px;
-
-  font-size: 32px;
-
-  line-height: 1.05;
-
-  font-weight: 900;
-
-  letter-spacing: -1.5px;
-}
-
-.forecast-confidence {
-  margin-top: 10px;
-
-  color: #657694;
-
-  font-size: 12px;
-}
-
-.forecast-confidence strong {
-  color: var(--text);
-}
-
-.confidence-bar {
-  height: 7px;
-
-  margin-top: 7px;
-
-  overflow: hidden;
-
-  border-radius: 99px;
-
-  background: #d7e8e4;
-}
-
-.confidence-bar span {
-  display: block;
-
-  height: 100%;
-
-  border-radius: 99px;
-
-  background:
-    linear-gradient(
-      90deg,
-      #21b986,
-      #4284ff
-    );
-}
-
-.forecast-note {
-  margin-top: 10px;
-
-  padding-top: 9px;
-
-  border-top:
-    1px solid rgba(178,203,220,.45);
-
-  color: #6e7e99;
-
-  font-size: 11px;
-
-  line-height: 1.4;
-}
+.forecast { position:relative; margin-top:9px; padding:12px; border-radius:18px; background:linear-gradient(135deg,#eafaf4,#edf4ff); border:1px solid #d9eae7; display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow:hidden; }
+.forecast-left { min-width:0; }
+.forecast-top { display:flex; align-items:center; gap:6px; }
+.forecast-icon { width:26px; height:26px; display:grid; place-items:center; border-radius:9px; background:#d8f5e9; color:#15966c; font-size:14px; }
+.forecast-label { color:#168d67; font-size:10px; font-weight:850; text-transform:uppercase; letter-spacing:.5px; }
+.forecast-title { margin-top:8px; color:#627593; font-size:10px; }
+.forecast-time { margin-top:2px; font-size:21px; line-height:1.05; font-weight:900; letter-spacing:-1px; }
+.forecast-confidence { margin-top:6px; color:#657694; font-size:10px; }
+.forecast-confidence strong { color:var(--text); }
+.confidence-bar { height:5px; margin-top:5px; overflow:hidden; border-radius:99px; background:#d7e8e4; }
+.confidence-bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#21b986,#4284ff); }
+.forecast-right { min-width:0; display:flex; flex-direction:column; }
+.graph-title { font-size:10px; font-weight:800; color:#5b6b86; }
+.chart { position:relative; flex:1; min-height:54px; display:flex; align-items:flex-end; gap:3px; margin-top:6px; padding:0 1px; border-bottom:1px solid #e9edf5; }
+.bar-wrap { position:relative; flex:1; height:100%; display:flex; align-items:flex-end; justify-content:center; }
+.bar { width:100%; max-width:9px; min-height:4px; border-radius:4px 4px 2px 2px; background:linear-gradient(180deg,#78a4ff,#d6e3ff); }
+.bar.good { background:linear-gradient(180deg,#35c894,#b9eedc); }
+.bar.bad { background:linear-gradient(180deg,#ff9f9a,#ffd7d4); }
+.bar.current { background:linear-gradient(180deg,#397cff,#8eb4ff); box-shadow:0 0 0 2px rgba(57,124,255,.12); }
+.chart-axis { display:flex; justify-content:space-between; margin-top:3px; color:#8998ae; font-size:8px; }
+.soon-badge { position:absolute; top:-4px; left:50%; transform:translateX(-50%); background:#2465ee; color:#fff; font-size:8px; font-weight:800; padding:2px 6px; border-radius:8px; white-space:nowrap; }
 
 /* =========================
-   GRAPH
+   INFO: три ячейки
 ========================= */
-
-.graph {
-  margin-top: 11px;
-
-  padding: 14px;
-
-  border:
-    1px solid #e5eaf3;
-
-  border-radius: 22px;
-
-  background: white;
-}
-
-.graph-header {
-  display: flex;
-
-  align-items: center;
-
-  justify-content: space-between;
-
-  gap: 10px;
-}
-
-.graph-title {
-  font-size: 13px;
-
-  font-weight: 850;
-}
-
-.graph-subtitle {
-  color: #8b99af;
-
-  font-size: 10px;
-}
-
-.chart {
-  position: relative;
-
-  height: 115px;
-
-  display: flex;
-
-  align-items: flex-end;
-
-  gap: 5px;
-
-  margin-top: 17px;
-
-  padding:
-    0 3px
-    21px;
-
-  border-bottom:
-    1px solid #e9edf5;
-}
-
-.chart-line {
-  position: absolute;
-
-  left: 0;
-  right: 0;
-
-  border-top:
-    1px dashed #edf1f7;
-}
-
-.chart-line.one {
-  top: 30%;
-}
-
-.chart-line.two {
-  top: 62%;
-}
-
-.bar-wrap {
-  position: relative;
-
-  z-index: 2;
-
-  flex: 1;
-
-  height: 100%;
-
-  display: flex;
-
-  align-items: flex-end;
-
-  justify-content: center;
-}
-
-.bar {
-  width: 100%;
-
-  max-width: 23px;
-
-  min-height: 5px;
-
-  border-radius:
-    7px 7px 3px 3px;
-
-  background:
-    linear-gradient(
-      180deg,
-      #78a4ff,
-      #d6e3ff
-    );
-}
-
-.bar.good {
-  background:
-    linear-gradient(
-      180deg,
-      #35c894,
-      #b9eedc
-    );
-}
-
-.bar.bad {
-  background:
-    linear-gradient(
-      180deg,
-      #ff9f9a,
-      #ffd7d4
-    );
-}
-
-.bar.current {
-  background:
-    linear-gradient(
-      180deg,
-      #397cff,
-      #8eb4ff
-    );
-
-  box-shadow:
-    0 0 0 3px
-    rgba(57,124,255,.10);
-}
-
-.bar-time {
-  position: absolute;
-
-  bottom: -20px;
-
-  color: #8998ae;
-
-  font-size: 9px;
-}
-
-.graph-footer {
-  display: flex;
-
-  align-items: center;
-
-  justify-content: space-between;
-
-  margin-top: 26px;
-
-  color: #8391a8;
-
-  font-size: 10px;
-}
+.info-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
+.info { padding:8px 9px; border-radius:13px; background:#f7f9fc; min-width:0; }
+.info-label { color:#8291a9; font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.info-value { margin-top:3px; color:var(--text); font-size:11px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* =========================
-   INFO
+   FEEDBACK: тонкая полоса
 ========================= */
-
-.info-row {
-  display: grid;
-
-  grid-template-columns:
-    repeat(2, 1fr);
-
-  gap: 8px;
-
-  margin-top: 9px;
-}
-
-.info {
-  padding: 11px 12px;
-
-  border-radius: 17px;
-
-  background: #f7f9fc;
-}
-
-.info-label {
-  color: #8291a9;
-
-  font-size: 10px;
-}
-
-.info-value {
-  margin-top: 4px;
-
-  color: var(--text);
-
-  font-size: 13px;
-
-  font-weight: 800;
-}
-
-/* =========================
-   FEEDBACK
-========================= */
-
-.feedback {
-  margin-top: 10px;
-
-  padding: 13px;
-
-  border-radius: 21px;
-
-  background:
-    linear-gradient(
-      135deg,
-      #eafaf5,
-      #eff5ff
-    );
-
-  border:
-    1px solid #dcebe9;
-}
-
-.feedback-header {
-  display: flex;
-
-  align-items: center;
-
-  gap: 10px;
-}
-
-.feedback-icon {
-  width: 41px;
-  height: 41px;
-
-  display: grid;
-  place-items: center;
-
-  flex: 0 0 auto;
-
-  border-radius: 14px;
-
-  background: #d7f5e9;
-
-  color: #15976d;
-
-  font-size: 21px;
-
-  font-weight: 700;
-}
-
-.feedback-title {
-  font-size: 13px;
-
-  font-weight: 850;
-}
-
-.feedback-sub {
-  margin-top: 3px;
-
-  color: #7485a0;
-
-  font-size: 10px;
-
-  line-height: 1.35;
-}
-
-.feedback-button {
-  width: 100%;
-
-  margin-top: 10px;
-
-  padding: 12px 14px;
-
-  border: 0;
-
-  border-radius: 17px;
-
-  background:
-    linear-gradient(
-      135deg,
-      #20b989,
-      #397cff
-    );
-
-  color: white;
-
-  font-size: 13px;
-
-  font-weight: 850;
-
-  cursor: pointer;
-
-  box-shadow:
-    0 7px 17px
-    rgba(54,139,198,.16);
-}
-
-/* =========================
-   FEEDBACK PANEL
-========================= */
-
-.feedback-panel {
-  display: none;
-
-  margin-top: 9px;
-
-  padding: 10px;
-
-  border:
-    1px solid #e4eaf3;
-
-  border-radius: 18px;
-
-  background: white;
-}
-
-.feedback-panel.open {
-  display: block;
-}
-
-.feedback-question {
-  margin:
-    2px
-    2px
-    9px;
-
-  font-size: 12px;
-
-  font-weight: 850;
-}
-
-.feedback-grid {
-  display: grid;
-
-  grid-template-columns:
-    repeat(2, 1fr);
-
-  gap: 7px;
-}
-
-.feedback-option {
-  padding: 10px 6px;
-
-  border:
-    1px solid #e0e6ef;
-
-  border-radius: 14px;
-
-  background: #f8fafc;
-
-  color: #33445f;
-
-  font-size: 11px;
-
-  font-weight: 700;
-
-  cursor: pointer;
-}
-
-.feedback-option:active,
-.feedback-option.selected {
-  background: #e7f8f1;
-
-  border-color: #8bd8ba;
-
-  color: #13845e;
-}
-
-.recent {
-  margin-top: 9px;
-
-  color: #8492a8;
-
-  font-size: 9px;
-
-  line-height: 1.4;
-}
+.feedback { margin-top:8px; padding:10px 12px; border-radius:16px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; }
+.feedback-header { display:flex; align-items:center; gap:9px; }
+.feedback-icon { width:32px; height:32px; display:grid; place-items:center; flex:0 0 auto; border-radius:11px; background:#d7f5e9; color:#15976d; font-size:16px; font-weight:700; }
+.feedback-title { font-size:12px; font-weight:850; }
+.feedback-sub { margin-top:2px; color:#7485a0; font-size:9px; line-height:1.3; }
+.feedback-button { margin-left:auto; flex:0 0 auto; border:0; border-radius:13px; padding:9px 12px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:11px; font-weight:850; cursor:pointer; box-shadow:0 5px 12px rgba(54,139,198,.16); }
+.feedback-panel { display:none; margin-top:8px; padding:8px; border:1px solid #e4eaf3; border-radius:14px; background:#fff; }
+.feedback-panel.open { display:block; }
+.feedback-question { margin:2px 2px 7px; font-size:11px; font-weight:850; }
+.feedback-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+.feedback-option { padding:8px 5px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:10px; font-weight:700; cursor:pointer; }
+.feedback-option:active, .feedback-option.selected { background:#e7f8f1; border-color:#8bd8ba; color:#13845e; }
+.recent { margin-top:7px; color:#8492a8; font-size:9px; line-height:1.4; }
 
 /* =========================
    MOBILE
@@ -1263,6 +705,7 @@ let allStations = [];
 let allObservations = [];
 let allPredictions = [];
 let allFeedback = [];
+let allEvents = [];
 
 
 /* =====================================================
@@ -1594,202 +1037,29 @@ function stationHistory(
    GRAPH
 ===================================================== */
 
-function createGraph(
-  stationId
-) {
-
-  const history =
-    stationHistory(
-      stationId
-    );
-
+function createGraph(stationId) {
+  const history = stationHistory(stationId);
   const hours = {};
-
-  for (
-    const obs of history
-  ) {
-
-    const date =
-      new Date(
-        obs.timestamp
-      );
-
-    const key =
-      date.getFullYear() +
-      '-' +
-      String(
-        date.getMonth()+1
-      ).padStart(2,'0') +
-      '-' +
-      String(
-        date.getDate()
-      ).padStart(2,'0') +
-      '-' +
-      String(
-        date.getHours()
-      ).padStart(2,'0');
-
-    if (!hours[key]) {
-
-      hours[key] = {
-
-        hour:
-          date.getHours(),
-
-        available: 0,
-
-        total: 0,
-
-        timestamp:
-          date.getTime()
-
-      };
-
-    }
-
+  for (const obs of history) {
+    const date = new Date(obs.timestamp);
+    const key = date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0')+'-'+String(date.getHours()).padStart(2,'0');
+    if (!hours[key]) hours[key] = { hour: date.getHours(), available: 0, total: 0, timestamp: date.getTime() };
     hours[key].total++;
-
-    if (
-      obs.fuel_95_status === true
-    ) {
-
-      hours[key].available++;
-
-    }
-
+    if (obs.fuel_95_status === true) hours[key].available++;
   }
-
-
-  let points =
-    Object.values(hours)
-      .sort(
-        (a,b) =>
-          a.timestamp -
-          b.timestamp
-      )
-      .slice(-12);
-
-
-  /*
-    Если истории пока мало,
-    создаём визуальные пустые точки.
-  */
-
-  if (
-    points.length === 0
-  ) {
-
-    points =
-      Array
-        .from(
-          {length:12},
-          (_,i) => ({
-
-            hour:
-              (i + 9) % 24,
-
-            available: 0,
-
-            total: 0,
-
-            timestamp: 0
-
-          })
-        );
-
-  }
-
-
-  const ratios =
-    points.map(
-      p =>
-        p.total
-          ? p.available / p.total
-          : 0
-    );
-
-
-  const max =
-    Math.max(
-      1,
-      ...ratios
-    );
-
-
-  return points
-    .map(
-      (p,index) => {
-
-        const ratio =
-          p.total
-            ? p.available /
-              p.total
-            : 0;
-
-        const height =
-          p.total
-            ? Math.max(
-                10,
-                Math.round(
-                  ratio /
-                  max *
-                  82
-                )
-              )
-            : 7;
-
-        let cls =
-          'bar';
-
-        if (
-          p.total &&
-          ratio >= .7
-        ) {
-          cls +=
-            ' good';
-        }
-
-        if (
-          p.total &&
-          ratio <= .3
-        ) {
-          cls +=
-            ' bad';
-        }
-
-        if (
-          index ===
-          points.length - 1
-        ) {
-          cls +=
-            ' current';
-        }
-
-
-        return `
-
-          <div class="bar-wrap">
-
-            <div
-              class="${cls}"
-              style="
-                height:${height}px
-              "
-            ></div>
-
-            <div class="bar-time">
-              ${String(
-                p.hour
-              ).padStart(2,'0')}:00
-            </div>
-
-          </div>
-
-        `;
-
-      }
-    )
-    .join('');
+  let points = Object.values(hours).sort((a,b)=>a.timestamp-b.timestamp).slice(-14);
+  if (!points.length) points = Array.from({length:14},(_,i)=>({hour:(i+8)%24,available:0,total:0,timestamp:0}));
+  const ratios = points.map(p=>p.total?p.available/p.total:0);
+  const max = Math.max(1,...ratios);
+  return points.map((p,index)=>{
+    const ratio = p.total?p.available/p.total:0;
+    const height = p.total?Math.max(6,Math.round(ratio/max*46)):5;
+    let cls='bar';
+    if(p.total&&ratio>=.7)cls+=' good';
+    if(p.total&&ratio<=.3)cls+=' bad';
+    if(index===points.length-1)cls+=' current';
+    return '<div class="bar-wrap"><div class="'+cls+'" style="height:'+height+'px"></div></div>';
+  }).join('');
 }
 
 
@@ -1986,365 +1256,119 @@ function feedbackPanel(
    STATION CARD
 ===================================================== */
 
-function stationCard(
-  station,
-  obs,
-  pred
-) {
+function confPercent(obs) {
+  if (!obs || obs.data_freshness_minutes === null || obs.data_freshness_minutes === undefined) return null;
+  return Math.max(8, Math.round(95 * Math.exp(-obs.data_freshness_minutes / 720)));
+}
 
-  const prediction =
-    getPrediction(
-      pred
-    );
+function fuelConfLine(obs, status) {
+  const c = confPercent(obs);
+  if (c === null || status === null || status === undefined) return '—';
+  return '≈ ' + (status ? c : Math.max(3, 100 - c)) + '%';
+}
 
+function lastRestoration(id) {
+  const ev = (allEvents || [])
+    .filter(e => e.station_id === id)
+    .sort((a,b) => new Date(b.detected_at) - new Date(a.detected_at))[0];
+  if (!ev || !ev.detected_at) return 'ещё не было';
+  const t0 = new Date(ev.detected_at).getTime();
+  if (!Number.isFinite(t0)) return 'ещё не было';
+  const d = new Date(t0);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  const hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+  if (days <= 0) return 'сегодня, ' + hh;
+  if (days === 1) return 'вчера, ' + hh;
+  return days + ' дн назад, ' + hh;
+}
 
-  const history =
-    stationHistory(
-      station.id
-    );
+function accuracyLabel(id) {
+  const v = allPredictions.filter(p => p.station_id === id && p.is_verified);
+  if (v.length < 10) return 'мало данных';
+  const s = v.filter(p => p.result === 'SUCCESS').length;
+  return Math.round(s / v.length * 100) + '%';
+}
 
+function isSoon(pred) {
+  if (!pred || !pred.from_time) return false;
+  const [h, m] = pred.from_time.split(':').map(Number);
+  const now = new Date();
+  const diff = (h * 60 + m) - (now.getHours() * 60 + now.getMinutes());
+  return diff <= 120 && diff >= -60;
+}
 
-  const graph =
-    createGraph(
-      station.id
-    );
-
-
-  let confidenceWidth =
-    prediction.confidence;
-
-
-  if (
-    confidenceWidth === 0
-  ) {
-    confidenceWidth = 8;
-  }
-
+function stationCard(station, obs, pred) {
+  const prediction = getPrediction(pred);
+  const graph = createGraph(station.id);
+  const cw = prediction.confidence || 8;
+  const hc = stationHistory(station.id).length;
 
   return `
-
     <article class="station">
-
-
-      <!-- STATION HEADER -->
-
       <div class="station-header">
-
-        <div class="station-logo">
-          ${stationEmoji(
-            station
-          )}
-        </div>
-
-
+        <div class="station-logo">${stationEmoji(station)}</div>
         <div class="station-info">
-
-          <div class="station-name">
-            ${escapeHtml(
-              station.name ||
-              'АЗС'
-            )}
-          </div>
-
-          <div class="station-address">
-
-            ${escapeHtml(
-              station.brand
-                ? station.brand + ' · '
-                : ''
-            )}
-
-            ${escapeHtml(
-              station.address ||
-              ''
-            )}
-
-          </div>
-
+          <div class="station-name">${escapeHtml(station.name || 'АЗС')}</div>
+          <div class="station-address">${escapeHtml(station.brand ? station.brand + ' · ' : '')}${escapeHtml(station.address || '')}</div>
         </div>
-
-
-        <button
-          class="favorite"
-          data-station-id="${station.id}"
-          onclick="toggleFavorite(this)"
-        >
-          ${isFavorite(station.id) ? '♥' : '♡'}
-        </button>
-
+        <button class="favorite" data-station-id="${station.id}" onclick="toggleFavorite(this)">${isFavorite(station.id) ? '♥' : '♡'}</button>
       </div>
-
-
-      <!-- FUELS -->
 
       <div class="fuels">
-
         <div class="fuel">
-
-          <div class="fuel-name">
-            АИ-92
-          </div>
-
-          <div class="fuel-status">
-
-            ${fuelHtml(
-              obs?.fuel_92_status
-            )}
-
-          </div>
-
+          <div class="fuel-name">АИ-92</div>
+          <div class="fuel-status">${fuelHtml(obs?.fuel_92_status)}</div>
+          <div class="fuel-conf">${fuelConfLine(obs, obs?.fuel_92_status)}</div>
         </div>
-
-
         <div class="fuel">
-
-          <div class="fuel-name">
-            АИ-95
-          </div>
-
-          <div class="fuel-status">
-
-            ${fuelHtml(
-              obs?.fuel_95_status
-            )}
-
-          </div>
-
+          <div class="fuel-name">АИ-95</div>
+          <div class="fuel-status">${fuelHtml(obs?.fuel_95_status)}</div>
+          <div class="fuel-conf">${fuelConfLine(obs, obs?.fuel_95_status)}</div>
         </div>
-
-
         <div class="fuel">
-
-          <div class="fuel-name">
-            Дизель
-          </div>
-
-          <div class="fuel-status">
-
-            ${fuelHtml(
-              obs?.diesel_status
-            )}
-
-          </div>
-
+          <div class="fuel-name">Дизель</div>
+          <div class="fuel-status">${fuelHtml(obs?.diesel_status)}</div>
+          <div class="fuel-conf">${fuelConfLine(obs, obs?.diesel_status)}</div>
         </div>
-
       </div>
-
-
-      <!-- =====================
-           FORECAST
-      ====================== -->
 
       <section class="forecast">
-
-        <div class="forecast-top">
-
-          <div class="forecast-icon">
-            ◷
+        <div class="forecast-left">
+          <div class="forecast-top">
+            <div class="forecast-icon">◷</div>
+            <div class="forecast-label">Прогноз</div>
           </div>
-
-          <div class="forecast-label">
-            ПРОГНОЗ
-          </div>
-
+          <div class="forecast-title">${pred ? 'Пополнение АИ-95' : 'Когда лучше заехать'}</div>
+          <div class="forecast-time">${prediction.time}</div>
+          <div class="forecast-confidence">${prediction.confidence ? 'Вероятность: <strong>' + prediction.confidence + '%</strong>' : 'Пока недостаточно данных'}</div>
+          <div class="confidence-bar"><span style="width:${cw}%"></span></div>
         </div>
-
-
-        <div class="forecast-title">
-
-          ${
-            pred
-              ? 'Вероятное пополнение АИ-95'
-              : 'Когда лучше заехать'
-          }
-
+        <div class="forecast-right">
+          <div class="graph-title">История АИ-95</div>
+          <div class="chart">${graph}${pred && isSoon(pred) ? '<div class="soon-badge">🚛 Скоро</div>' : ''}</div>
+          <div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div>
         </div>
-
-
-        <div class="forecast-time">
-
-          ${prediction.time}
-
-        </div>
-
-
-        <div class="forecast-confidence">
-
-          ${
-            prediction.confidence
-              ? `
-                Вероятность:
-                <strong>
-                  ${prediction.confidence}%
-                </strong>
-              `
-              : `
-                Пока недостаточно данных
-              `
-          }
-
-        </div>
-
-
-        <div class="confidence-bar">
-
-          <span
-            style="
-              width:${confidenceWidth}%
-            "
-          ></span>
-
-        </div>
-
-
-        <div class="forecast-note">
-
-          ${prediction.note}
-
-        </div>
-
       </section>
-
-
-      <!-- =====================
-           GRAPH
-      ====================== -->
-
-      <section class="graph">
-
-        <div class="graph-header">
-
-          <div class="graph-title">
-            📈 История АИ-95
-          </div>
-
-          <div class="graph-subtitle">
-            наличие по времени
-          </div>
-
-        </div>
-
-
-        <div class="chart">
-
-          <div class="chart-line one"></div>
-          <div class="chart-line two"></div>
-
-          ${graph}
-
-        </div>
-
-
-        <div class="graph-footer">
-
-          <span>
-            меньше наличия
-          </span>
-
-          <span>
-            больше наличия
-          </span>
-
-        </div>
-
-      </section>
-
-
-      <!-- =====================
-           INFO
-      ====================== -->
 
       <div class="info-row">
-
-        <div class="info">
-
-          <div class="info-label">
-            Последняя отметка
-          </div>
-
-          <div class="info-value">
-            ${freshnessText(
-              obs
-            )}
-          </div>
-
-        </div>
-
-
-        <div class="info">
-
-          <div class="info-label">
-            Наблюдений
-          </div>
-
-          <div class="info-value">
-            ${history.length}
-          </div>
-
-        </div>
-
+        <div class="info"><div class="info-label">На основе</div><div class="info-value">${hc} наблюдений</div></div>
+        <div class="info"><div class="info-label">Последнее пополнение</div><div class="info-value">${lastRestoration(station.id)}</div></div>
+        <div class="info"><div class="info-label">Точность</div><div class="info-value">${accuracyLabel(station.id)}</div></div>
       </div>
 
-
-      <!-- =====================
-           FEEDBACK
-      ====================== -->
-
       <section class="feedback">
-
         <div class="feedback-header">
-
-          <div class="feedback-icon">
-            ＋
-          </div>
-
+          <div class="feedback-icon">＋</div>
           <div>
-
-            <div class="feedback-title">
-              Вы были на этой АЗС?
-            </div>
-
-            <div class="feedback-sub">
-              Одна отметка помогает
-              сделать следующий прогноз точнее.
-            </div>
-
+            <div class="feedback-title">Вы были на этой АЗС?</div>
+            <div class="feedback-sub">Отметка сделает прогноз точнее</div>
           </div>
-
+          <button class="feedback-button" onclick="toggleFeedback('${station.id}')">Отметить</button>
         </div>
-
-
-        <button
-          class="feedback-button"
-          onclick="
-            toggleFeedback(
-              '${station.id}'
-            )
-          "
-        >
-          ＋ Оставить отметку
-        </button>
-
-
-        ${feedbackPanel(
-          station.id
-        )}
-
-
-        <div class="recent">
-
-          ${recentFeedback(
-            station.id
-          )}
-
-        </div>
-
+        ${feedbackPanel(station.id)}
+        <div class="recent">${recentFeedback(station.id)}</div>
       </section>
-
-
     </article>
-
   `;
 }
 
@@ -2423,38 +1447,35 @@ function renderStations(
             4. Остальные
           */
 
+          const freshMin =
+            obs?.data_freshness_minutes;
+
+          const trusted =
+            freshMin !== null &&
+            freshMin !== undefined &&
+            freshMin <= 360;
+
+          const f95 =
+            trusted
+              ? obs.fuel_95_status
+              : null;
+
           let score = 1;
 
-
-          if (
-            pred &&
-            obs?.fuel_95_status ===
-              false
-          ) {
-
+          if (pred && f95 === false) {
             score = 4;
-
-          } else if (
-            pred
-          ) {
-
+          } else if (pred) {
             score = 3;
-
-          } else if (
-            obs?.fuel_95_status ===
-              true
-          ) {
-
+          } else if (f95 === true) {
             score = 2;
-
           }
-
 
           return {
             station,
             obs,
             pred,
-            score
+            score,
+            freshMin
           };
 
         }
@@ -2465,7 +1486,9 @@ function renderStations(
             ? 0
             : (isFavorite(b.station.id) -
                isFavorite(a.station.id)) ||
-              (b.score - a.score)
+              (b.score - a.score) ||
+              ((a.freshMin ?? 1e9) -
+               (b.freshMin ?? 1e9))
       );
 
 
@@ -2502,6 +1525,7 @@ async function start() {
       stations,
       observations,
       predictions,
+      events,
       feedback
     ] =
       await Promise.all([
@@ -2515,7 +1539,11 @@ async function start() {
         ),
 
         dbQuery(
-          '/rest/v1/predictions?result=eq.PENDING&select=*'
+          '/rest/v1/predictions?select=*'
+        ),
+
+        dbQuery(
+          '/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'
         ),
 
         dbQuery(
@@ -2536,6 +1564,9 @@ async function start() {
 
     allFeedback =
       feedback;
+
+    allEvents =
+      events;
 
 
     if (
