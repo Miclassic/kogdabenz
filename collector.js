@@ -193,7 +193,33 @@ async function main() {
     await sbPost('events', commentEvents);
     console.log('   Событий из комментариев: ' + commentEvents.length);
   }
-
+  // === ШАГ 7: превращаем народные отметки user_feedback в события ===
+  console.log('7) Обрабатываю народные отметки...');
+  const unprocessed = await sbGet(
+    '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,created_at&limit=500'
+  );
+  if (unprocessed.length) {
+    const fbEvents = unprocessed.map(f => ({
+      station_id: f.station_id,
+      event_type:
+        f.feedback_type === 'delivery' ? 'possible_delivery' :
+        f.feedback_type === 'available' ? 'fuel_available' :
+        f.feedback_type === 'unavailable' ? 'fuel_unavailable' :
+        f.feedback_type === 'queue' ? 'queue_high' :
+        'queue_low',
+      fuel_type: null,
+      detected_at: f.created_at,
+      confidence: 0.85,
+      source: 'user_feedback'
+    }));
+    await sbPost('events', fbEvents);
+    const ids = unprocessed.map(f => f.id).join(',');
+    await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
+    console.log('   Народных отметок превращено в события: ' + fbEvents.length);
+  } else {
+    console.log('   Новых народных отметок нет');
+  }
+  
   console.log('✅ Цикл завершён');
 }
 
