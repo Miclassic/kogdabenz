@@ -1,3 +1,4 @@
+# перезапуск расписания 15.09
 name: collect-novorossiysk
 on:
   schedule:
