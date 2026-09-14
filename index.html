@@ -2,193 +2,3054 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Когда лучше заправиться?</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<title>КогдаБенз — когда лучше заправиться?</title>
+
 <style>
-  body { font-family: Arial, sans-serif; background: linear-gradient(135deg,#667eea,#764ba2); min-height:100vh; padding:16px; color:#333; }
-  h1 { color:#fff; text-align:center; }
-  .sub { color:#eee; text-align:center; margin-bottom:20px; }
-  .card { background:#fff; border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 4px 10px rgba(0,0,0,.15); }
-  .name { font-size:18px; font-weight:700; }
-  .brand { color:#777; font-size:13px; margin-bottom:10px; }
-  .fuels { display:flex; gap:8px; margin-bottom:10px; }
-  .fuel { flex:1; text-align:center; background:#f5f5f7; border-radius:8px; padding:8px 4px; font-size:13px; }
-  .yes { color:#0a8f4d; font-weight:700; }
-  .no { color:#d33; font-weight:700; }
-  .pred { background:#eef6ff; border:1px solid #bcd7ff; border-radius:8px; padding:10px; font-size:14px; margin-bottom:10px; }
-  .fact { background:#f0fff4; border:1px solid #b7e4c7; border-radius:8px; padding:10px; font-size:13px; margin-bottom:10px; }
-  .feedback { background:#fff8f0; border:1px solid #f0c89b; border-radius:8px; padding:10px; font-size:13px; margin-bottom:10px; }
-  .btns { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
-  .btn { flex:1 1 30%; padding:8px 4px; border:1px solid #bbb; background:#fafafa; border-radius:8px; font-size:12px; cursor:pointer; text-align:center; }
-  .btn:active { background:#ddd; }
-  .btn.ok { background:#d4edda; border-color:#8ec7a0; }
-  .feedback-list { font-size:12px; color:#555; }
-  .feedback-item { padding:3px 0; border-bottom:1px dashed #eee; }
-  .status { color:#fff; text-align:center; padding:14px; background:rgba(0,0,0,.25); border-radius:10px; }
-</style>
-</head>
-<body>
-<h1>⛽ Когда лучше заправиться?</h1>
-<p class="sub">Прогноз наличия топлива по истории наблюдений</p>
-<div id="app"><div class="status">⏳ Подключаюсь к базе данных...</div></div>
 
-<script>
-const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
-
-// Уникальный ID устройства (для антиспама: не чаще 3 отметок за 30 мин)
-let deviceId = localStorage.getItem('deviceId');
-if (!deviceId) {
-  deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-  localStorage.setItem('deviceId', deviceId);
+:root {
+  --bg: #f6f8fd;
+  --card: #ffffff;
+  --text: #14213d;
+  --muted: #71809c;
+  --blue: #397cff;
+  --blue-light: #edf4ff;
+  --green: #19b77a;
+  --green-light: #eafaf4;
+  --red: #ef5350;
+  --yellow: #f5b82e;
+  --border: #e6ebf4;
+  --shadow: 0 12px 35px rgba(38, 69, 120, .09);
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Arial,
+    sans-serif;
+
+  color: var(--text);
+
+  background:
+    radial-gradient(
+      circle at 85% 0%,
+      rgba(79, 139, 255, .13),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 0% 35%,
+      rgba(57, 199, 151, .08),
+      transparent 28%
+    ),
+    linear-gradient(
+      145deg,
+      #fbfcff 0%,
+      #f3f7ff 100%
+    );
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page {
+  width: min(100%, 760px);
+  margin: 0 auto;
+
+  padding:
+    calc(16px + env(safe-area-inset-top))
+    16px
+    35px;
+}
+
+/* =========================
+   HEADER
+========================= */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
+  margin-bottom: 28px;
+}
+
+.logo-wrap {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 17px;
+
+  background:
+    linear-gradient(
+      145deg,
+      #ffffff,
+      #edf4ff
+    );
+
+  box-shadow:
+    0 8px 22px rgba(55, 100, 180, .12);
+
+  font-size: 26px;
+}
+
+.logo-title {
+  font-size: 21px;
+  font-weight: 850;
+
+  letter-spacing: -.6px;
+}
+
+.logo-subtitle {
+  margin-top: 2px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+}
+
+.location {
+  border: 1px solid var(--border);
+
+  background: rgba(255,255,255,.85);
+
+  color: var(--text);
+
+  border-radius: 18px;
+
+  padding: 11px 14px;
+
+  font-size: 13px;
+  font-weight: 700;
+
+  box-shadow:
+    0 7px 20px rgba(50,80,130,.06);
+
+  cursor: pointer;
+}
+
+/* =========================
+   HERO
+========================= */
+
+.hero {
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  margin: 0;
+
+  max-width: 600px;
+
+  font-size: clamp(42px, 10vw, 66px);
+
+  line-height: .96;
+
+  letter-spacing: -3px;
+
+  font-weight: 900;
+}
+
+.hero h1 span {
+  display: block;
+
+  color: var(--blue);
+}
+
+.hero-text {
+  max-width: 570px;
+
+  margin: 18px 0 19px;
+
+  color: #647491;
+
+  font-size: 16px;
+
+  line-height: 1.45;
+}
+
+/* =========================
+   SEARCH
+========================= */
+
+.search {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+
+  padding: 7px 8px 7px 15px;
+
+  background: rgba(255,255,255,.94);
+
+  border:
+    1px solid rgba(226,232,244,.95);
+
+  border-radius: 23px;
+
+  box-shadow: var(--shadow);
+}
+
+.search-icon {
+  color: #7890b4;
+
+  font-size: 24px;
+
+  line-height: 1;
+}
+
+.search input {
+  flex: 1;
+
+  min-width: 0;
+
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+
+  color: var(--text);
+
+  font-size: 16px;
+}
+
+.search input::placeholder {
+  color: #94a1b7;
+}
+
+.search-button {
+  width: 47px;
+  height: 47px;
+
+  border: 0;
+
+  border-radius: 17px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #4385ff,
+      #2465ee
+    );
+
+  color: white;
+
+  font-size: 23px;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 8px 18px rgba(57,124,255,.25);
+}
+
+/* =========================
+   STATUS
+========================= */
+
+.status {
+  margin-top: 16px;
+
+  padding: 18px;
+
+  border-radius: 20px;
+
+  background: rgba(255,255,255,.85);
+
+  border: 1px solid var(--border);
+
+  color: var(--muted);
+
+  text-align: center;
+
+  box-shadow: var(--shadow);
+}
+
+/* =========================
+   STATION CARD
+========================= */
+
+.station {
+  margin-top: 17px;
+
+  padding: 15px;
+
+  background: rgba(255,255,255,.96);
+
+  border:
+    1px solid rgba(228,234,245,.95);
+
+  border-radius: 28px;
+
+  box-shadow: var(--shadow);
+}
+
+/* =========================
+   STATION HEADER
+========================= */
+
+.station-header {
+  display: flex;
+  align-items: center;
+
+  gap: 11px;
+
+  margin-bottom: 13px;
+}
+
+.station-logo {
+  width: 51px;
+  height: 51px;
+
+  flex: 0 0 auto;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 16px;
+
+  background: #f3f6fb;
+
+  font-size: 23px;
+}
+
+.station-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.station-name {
+  font-size: 20px;
+
+  font-weight: 850;
+
+  letter-spacing: -.5px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.station-address {
+  margin-top: 3px;
+
+  color: var(--muted);
+
+  font-size: 12px;
+
+  white-space: nowrap;
+
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+}
+
+.favorite {
+  width: 39px;
+  height: 39px;
+
+  border: 0;
+
+  border-radius: 14px;
+
+  background: #f5f7fb;
+
+  color: #7487a7;
+
+  font-size: 19px;
+
+  cursor: pointer;
+}
+
+/* =========================
+   FUEL STATUS
+========================= */
+
+.fuels {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3, 1fr);
+
+  gap: 7px;
+
+  padding: 6px;
+
+  border-radius: 19px;
+
+  background: #f5f8fc;
+}
+
+.fuel {
+  padding: 9px 5px;
+
+  text-align: center;
+
+  border-radius: 14px;
+}
+
+.fuel-name {
+  font-size: 13px;
+
+  font-weight: 800;
+}
+
+.fuel-status {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 5px;
+
+  margin-top: 5px;
+
+  font-size: 11px;
+
+  font-weight: 700;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  display: inline-block;
+}
+
+.dot.green {
+  background: #1bb978;
+}
+
+.dot.red {
+  background: #ef5350;
+}
+
+.dot.gray {
+  background: #a7b1c1;
+}
+
+.yes {
+  color: #168d61;
+}
+
+.no {
+  color: #d64d51;
+}
+
+.unknown {
+  color: #7c899e;
+}
+
+/* =========================
+   MAIN FORECAST
+========================= */
+
+.forecast {
+  position: relative;
+
+  margin-top: 11px;
+
+  padding: 17px;
+
+  overflow: hidden;
+
+  border-radius: 23px;
+
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgba(66,130,255,.13),
+      transparent 34%
+    ),
+    linear-gradient(
+      135deg,
+      #eafaf4,
+      #edf4ff
+    );
+
+  border: 1px solid #d9eae7;
+}
+
+.forecast::after {
+  content: "";
+
+  position: absolute;
+
+  width: 110px;
+  height: 110px;
+
+  right: -45px;
+  bottom: -55px;
+
+  border-radius: 50%;
+
+  background:
+    rgba(63,132,255,.08);
+
+  pointer-events: none;
+}
+
+.forecast-top {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+.forecast-icon {
+  width: 31px;
+  height: 31px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 11px;
+
+  background: #d8f5e9;
+
+  color: #15966c;
+
+  font-size: 17px;
+}
+
+.forecast-label {
+  color: #168d67;
+
+  font-size: 12px;
+
+  font-weight: 850;
+
+  text-transform: uppercase;
+
+  letter-spacing: .6px;
+}
+
+.forecast-title {
+  margin-top: 12px;
+
+  color: #627593;
+
+  font-size: 12px;
+}
+
+.forecast-time {
+  margin-top: 3px;
+
+  font-size: 32px;
+
+  line-height: 1.05;
+
+  font-weight: 900;
+
+  letter-spacing: -1.5px;
+}
+
+.forecast-confidence {
+  margin-top: 10px;
+
+  color: #657694;
+
+  font-size: 12px;
+}
+
+.forecast-confidence strong {
+  color: var(--text);
+}
+
+.confidence-bar {
+  height: 7px;
+
+  margin-top: 7px;
+
+  overflow: hidden;
+
+  border-radius: 99px;
+
+  background: #d7e8e4;
+}
+
+.confidence-bar span {
+  display: block;
+
+  height: 100%;
+
+  border-radius: 99px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #21b986,
+      #4284ff
+    );
+}
+
+.forecast-note {
+  margin-top: 10px;
+
+  padding-top: 9px;
+
+  border-top:
+    1px solid rgba(178,203,220,.45);
+
+  color: #6e7e99;
+
+  font-size: 11px;
+
+  line-height: 1.4;
+}
+
+/* =========================
+   GRAPH
+========================= */
+
+.graph {
+  margin-top: 11px;
+
+  padding: 14px;
+
+  border:
+    1px solid #e5eaf3;
+
+  border-radius: 22px;
+
+  background: white;
+}
+
+.graph-header {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 10px;
+}
+
+.graph-title {
+  font-size: 13px;
+
+  font-weight: 850;
+}
+
+.graph-subtitle {
+  color: #8b99af;
+
+  font-size: 10px;
+}
+
+.chart {
+  position: relative;
+
+  height: 115px;
+
+  display: flex;
+
+  align-items: flex-end;
+
+  gap: 5px;
+
+  margin-top: 17px;
+
+  padding:
+    0 3px
+    21px;
+
+  border-bottom:
+    1px solid #e9edf5;
+}
+
+.chart-line {
+  position: absolute;
+
+  left: 0;
+  right: 0;
+
+  border-top:
+    1px dashed #edf1f7;
+}
+
+.chart-line.one {
+  top: 30%;
+}
+
+.chart-line.two {
+  top: 62%;
+}
+
+.bar-wrap {
+  position: relative;
+
+  z-index: 2;
+
+  flex: 1;
+
+  height: 100%;
+
+  display: flex;
+
+  align-items: flex-end;
+
+  justify-content: center;
+}
+
+.bar {
+  width: 100%;
+
+  max-width: 23px;
+
+  min-height: 5px;
+
+  border-radius:
+    7px 7px 3px 3px;
+
+  background:
+    linear-gradient(
+      180deg,
+      #78a4ff,
+      #d6e3ff
+    );
+}
+
+.bar.good {
+  background:
+    linear-gradient(
+      180deg,
+      #35c894,
+      #b9eedc
+    );
+}
+
+.bar.bad {
+  background:
+    linear-gradient(
+      180deg,
+      #ff9f9a,
+      #ffd7d4
+    );
+}
+
+.bar.current {
+  background:
+    linear-gradient(
+      180deg,
+      #397cff,
+      #8eb4ff
+    );
+
+  box-shadow:
+    0 0 0 3px
+    rgba(57,124,255,.10);
+}
+
+.bar-time {
+  position: absolute;
+
+  bottom: -20px;
+
+  color: #8998ae;
+
+  font-size: 9px;
+}
+
+.graph-footer {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  margin-top: 26px;
+
+  color: #8391a8;
+
+  font-size: 10px;
+}
+
+/* =========================
+   INFO
+========================= */
+
+.info-row {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap: 8px;
+
+  margin-top: 9px;
+}
+
+.info {
+  padding: 11px 12px;
+
+  border-radius: 17px;
+
+  background: #f7f9fc;
+}
+
+.info-label {
+  color: #8291a9;
+
+  font-size: 10px;
+}
+
+.info-value {
+  margin-top: 4px;
+
+  color: var(--text);
+
+  font-size: 13px;
+
+  font-weight: 800;
+}
+
+/* =========================
+   FEEDBACK
+========================= */
+
+.feedback {
+  margin-top: 10px;
+
+  padding: 13px;
+
+  border-radius: 21px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #eafaf5,
+      #eff5ff
+    );
+
+  border:
+    1px solid #dcebe9;
+}
+
+.feedback-header {
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+}
+
+.feedback-icon {
+  width: 41px;
+  height: 41px;
+
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 auto;
+
+  border-radius: 14px;
+
+  background: #d7f5e9;
+
+  color: #15976d;
+
+  font-size: 21px;
+
+  font-weight: 700;
+}
+
+.feedback-title {
+  font-size: 13px;
+
+  font-weight: 850;
+}
+
+.feedback-sub {
+  margin-top: 3px;
+
+  color: #7485a0;
+
+  font-size: 10px;
+
+  line-height: 1.35;
+}
+
+.feedback-button {
+  width: 100%;
+
+  margin-top: 10px;
+
+  padding: 12px 14px;
+
+  border: 0;
+
+  border-radius: 17px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #20b989,
+      #397cff
+    );
+
+  color: white;
+
+  font-size: 13px;
+
+  font-weight: 850;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 7px 17px
+    rgba(54,139,198,.16);
+}
+
+/* =========================
+   FEEDBACK PANEL
+========================= */
+
+.feedback-panel {
+  display: none;
+
+  margin-top: 9px;
+
+  padding: 10px;
+
+  border:
+    1px solid #e4eaf3;
+
+  border-radius: 18px;
+
+  background: white;
+}
+
+.feedback-panel.open {
+  display: block;
+}
+
+.feedback-question {
+  margin:
+    2px
+    2px
+    9px;
+
+  font-size: 12px;
+
+  font-weight: 850;
+}
+
+.feedback-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap: 7px;
+}
+
+.feedback-option {
+  padding: 10px 6px;
+
+  border:
+    1px solid #e0e6ef;
+
+  border-radius: 14px;
+
+  background: #f8fafc;
+
+  color: #33445f;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.feedback-option:active,
+.feedback-option.selected {
+  background: #e7f8f1;
+
+  border-color: #8bd8ba;
+
+  color: #13845e;
+}
+
+.recent {
+  margin-top: 9px;
+
+  color: #8492a8;
+
+  font-size: 9px;
+
+  line-height: 1.4;
+}
+
+/* =========================
+   MOBILE
+========================= */
+
+@media(max-width:520px){
+
+  .page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .header {
+    margin-bottom: 23px;
+  }
+
+  .logo {
+    width: 45px;
+    height: 45px;
+
+    border-radius: 15px;
+  }
+
+  .logo-title {
+    font-size: 18px;
+  }
+
+  .logo-subtitle {
+    font-size: 10px;
+  }
+
+  .location {
+    padding: 9px 11px;
+
+    font-size: 11px;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+
+    letter-spacing: -2px;
+  }
+
+  .hero-text {
+    margin-top: 15px;
+
+    font-size: 14px;
+  }
+
+  .station {
+    padding: 12px;
+
+    border-radius: 24px;
+  }
+
+  .station-logo {
+    width: 47px;
+    height: 47px;
+  }
+
+  .station-name {
+    font-size: 18px;
+  }
+
+  .fuels {
+    gap: 4px;
+  }
+
+  .fuel-name {
+    font-size: 12px;
+  }
+
+  .forecast {
+    padding: 15px;
+  }
+
+  .forecast-time {
+    font-size: 29px;
+  }
+
+  .graph {
+    padding: 12px;
+  }
+
+  .bar {
+    max-width: 19px;
+  }
+
+}
+
+/* =========================
+   EMPTY
+========================= */
+
+.empty-search {
+  padding: 25px;
+
+  margin-top: 15px;
+
+  border-radius: 22px;
+
+  background: rgba(255,255,255,.8);
+
+  border: 1px solid var(--border);
+
+  text-align: center;
+
+  color: var(--muted);
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="page">
+
+  <!-- HEADER -->
+
+  <header class="header">
+
+    <div class="logo-wrap">
+
+      <div class="logo">
+        ⛽
+      </div>
+
+      <div>
+
+        <div class="logo-title">
+          КогдаБенз
+        </div>
+
+        <div class="logo-subtitle">
+          АЗС · прогнозы · наблюдения
+        </div>
+
+      </div>
+
+    </div>
+
+    <button
+      class="location"
+      onclick="findNearby()"
+    >
+      📍 Рядом⌄
+    </button>
+
+  </header>
+
+
+  <!-- HERO -->
+
+  <section class="hero">
+
+    <h1>
+      Когда лучше
+      <span>заправиться?</span>
+    </h1>
+
+    <p class="hero-text">
+      Анализируем историю АЗС и подсказываем,
+      когда вероятнее всего будет топливо
+      и меньше очередей.
+    </p>
+
+
+    <div class="search">
+
+      <span class="search-icon">
+        ⌕
+      </span>
+
+      <input
+        id="searchInput"
+        type="text"
+        placeholder="Найти АЗС или адрес"
+      >
+
+      <button
+        class="search-button"
+        onclick="searchStations()"
+      >
+        →
+      </button>
+
+    </div>
+
+  </section>
+
+
+  <!-- APP -->
+
+  <main id="app">
+
+    <div class="status">
+      ⏳ Подключаюсь к данным...
+    </div>
+
+  </main>
+
+</div>
+
+
+<script>
+
+/* =====================================================
+   SUPABASE
+===================================================== */
+
+const SUPABASE_URL =
+  'https://tiargqbjtraqaooxjafy.supabase.co';
+
+const SUPABASE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
+
+
+/* =====================================================
+   DEVICE ID
+===================================================== */
+
+let deviceId =
+  localStorage.getItem('deviceId');
+
+if (!deviceId) {
+
+  deviceId =
+    'dev_' +
+    Math.random()
+      .toString(36)
+      .slice(2) +
+    Date.now()
+      .toString(36);
+
+  localStorage.setItem(
+    'deviceId',
+    deviceId
+  );
+}
+
+
+/* =====================================================
+   LOCAL DATA
+===================================================== */
+
+let allStations = [];
+let allObservations = [];
+let allPredictions = [];
+let allFeedback = [];
+
+
+/* =====================================================
+   DATABASE
+===================================================== */
+
 async function dbQuery(path) {
-  const r = await fetch(SUPABASE_URL + path, {
-    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
+
+  const r =
+    await fetch(
+      SUPABASE_URL + path,
+      {
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization:
+            'Bearer ' + SUPABASE_KEY
+        }
+      }
+    );
+
+  if (!r.ok) {
+    throw new Error(
+      'HTTP ' + r.status
+    );
+  }
+
   return r.json();
 }
 
-async function dbInsert(table, rows) {
-  const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal'
-    },
-    body: JSON.stringify(rows)
-  });
+
+async function dbInsert(
+  table,
+  rows
+) {
+
+  const r =
+    await fetch(
+      SUPABASE_URL +
+      '/rest/v1/' +
+      table,
+      {
+        method: 'POST',
+
+        headers: {
+          apikey: SUPABASE_KEY,
+
+          Authorization:
+            'Bearer ' +
+            SUPABASE_KEY,
+
+          'Content-Type':
+            'application/json',
+
+          Prefer:
+            'return=minimal'
+        },
+
+        body:
+          JSON.stringify(rows)
+      }
+    );
+
   return r.ok;
 }
 
+
+/* =====================================================
+   HELPERS
+===================================================== */
+
+function escapeHtml(value) {
+
+  return String(value ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+
+
 function fuelHtml(ok) {
-  return ok === null ? '<span>—</span>'
-       : ok ? '<span class="yes">✓ есть</span>'
-       : '<span class="no">✗ нет</span>';
-}
 
-function freshnessHtml(obs) {
-  if (!obs || obs.data_freshness_minutes === null) return '';
-  const m = obs.data_freshness_minutes;
-  if (m < 5) return 'отметка ' + m + ' мин назад';
-  if (m < 60) return 'отметка ' + m + ' мин назад';
-  if (m < 1440) return 'отметка ' + Math.round(m / 60) + ' ч назад';
-  return 'отметка ' + Math.round(m / 1440) + ' дн назад';
-}
+  if (
+    ok === null ||
+    ok === undefined
+  ) {
 
-function predLabel(pred) {
-  if (!pred) return '⚠️ Пока мало данных для прогноза';
-  const pct = Math.round(pred.confidence * 100);
-  const prel = (pred.based_on_observations || 0) < 5 ? ' (предварительный)' : '';
-  return '🔮 Пополнение АИ-95: <b>' + pred.from_time.substring(0,5) + ' – ' + pred.to_time.substring(0,5) + '</b><br>' +
-         '🎯 Надёжность: <b>' + pct + '%</b>' + prel + ' · наблюдений: ' + (pred.based_on_observations||0);
-}
-
-const FEEDBACK_LABELS = {
-  delivery: '🚛 Привезли', available: '⛽ Было', unavailable: '🔴 Не было',
-  queue: '🚗 Очередь', free: '🟢 Свободно'
-};
-
-function feedbackHtml(stationId, feedbackList) {
-  const items = feedbackList.filter(f => f.station_id === stationId).slice(0,3);
-  let list = '';
-  for (const f of items) {
-    const t = new Date(f.created_at);
-    const ago = Math.round((Date.now() - t.getTime()) / 60000);
-    const agoText = ago < 60 ? ago + ' мин' : Math.round(ago/60) + ' ч';
-    list += '<div class="feedback-item">' + FEEDBACK_LABELS[f.feedback_type] + ' · ' + agoText + ' назад</div>';
+    return `
+      <span class="unknown">
+        <span class="dot gray"></span>
+        нет данных
+      </span>
+    `;
   }
-  return '<div class="btns">' +
-    Object.entries(FEEDBACK_LABELS).map(([k,v]) =>
-      '<button class="btn" onclick="sendFeedback(\'' + stationId + '\',\'' + k + '\',this)">' + v + '</button>'
-    ).join('') +
-    '</div>' +
-    (list ? '<div class="feedback-list">Водители сообщали: ' + list + '</div>' : '');
+
+  if (ok) {
+
+    return `
+      <span class="yes">
+        <span class="dot green"></span>
+        есть
+      </span>
+    `;
+
+  }
+
+  return `
+    <span class="no">
+      <span class="dot red"></span>
+      нет
+    </span>
+  `;
 }
 
-async function sendFeedback(stationId, type, btn) {
-  // Антиспам на клиенте
-  const key = 'fb_' + stationId;
-  const history = JSON.parse(localStorage.getItem(key) || '[]');
-  const now = Date.now();
-  const recent = history.filter(t => now - t < 30*60*1000);
-  if (recent.length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
-  recent.push(now);
-  localStorage.setItem(key, JSON.stringify(recent));
 
-  btn.disabled = true;
-  btn.classList.add('ok');
-  const ok = await dbInsert('user_feedback', [{
-    station_id: stationId,
-    feedback_type: type,
-    device_id: deviceId
-  }]);
-  if (!ok) { btn.classList.remove('ok'); btn.disabled = false; alert('Не удалось отправить'); return; }
-  setTimeout(() => { btn.classList.remove('ok'); btn.disabled = false; }, 1500);
+function freshnessText(obs) {
+
+  if (
+    obs &&
+    obs.data_freshness_minutes !== null &&
+    obs.data_freshness_minutes !== undefined
+  ) {
+    const m = obs.data_freshness_minutes;
+    if (m < 1) return 'только что';
+    if (m < 60) return m + ' мин назад';
+    if (m < 1440) return Math.round(m / 60) + ' ч назад';
+    return Math.round(m / 1440) + ' дн назад';
+  }
+
+  if (
+    !obs ||
+    !obs.timestamp
+  ) {
+    return 'нет данных';
+  }
+
+  const t =
+    new Date(
+      obs.timestamp
+    ).getTime();
+
+  if (!Number.isFinite(t)) {
+    return 'нет данных';
+  }
+
+  const min =
+    Math.max(
+      0,
+      Math.round(
+        (Date.now() - t) /
+        60000
+      )
+    );
+
+  if (min < 1) {
+    return 'только что';
+  }
+
+  if (min < 60) {
+    return min + ' мин назад';
+  }
+
+  if (min < 1440) {
+    return (
+      Math.round(min / 60) +
+      ' ч назад'
+    );
+  }
+
+  return (
+    Math.round(min / 1440) +
+    ' дн назад'
+  );
 }
+
+
+function time5(value) {
+
+  if (!value) {
+    return '—';
+  }
+
+  const s =
+    String(value);
+
+  return s.length >= 5
+    ? s.substring(0,5)
+    : s;
+}
+
+
+/* =====================================================
+   PREDICTION
+===================================================== */
+
+function getPrediction(pred) {
+
+  if (!pred) {
+
+    return {
+      time: 'Пока нет прогноза',
+
+      confidence: 0,
+
+      note:
+        'Нужно больше наблюдений, чтобы понять ритм этой АЗС.'
+    };
+  }
+
+  const confidence =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(
+          (pred.confidence || 0) * 100
+        )
+      )
+    );
+
+  return {
+
+    time:
+      time5(pred.from_time) +
+      ' — ' +
+      time5(pred.to_time),
+
+    confidence,
+
+    note:
+      'Расчёт основан на ' +
+      (pred.based_on_observations || 0) +
+      ' наблюдениях.'
+  };
+}
+
+
+/* =====================================================
+   STATION ICON
+===================================================== */
+
+function stationEmoji(st) {
+
+  const text =
+    String(
+      st.brand ||
+      st.name ||
+      ''
+    ).toLowerCase();
+
+  if (
+    text.includes('лукойл')
+  ) {
+    return '🟥';
+  }
+
+  if (
+    text.includes('газпром')
+  ) {
+    return '🔵';
+  }
+
+  if (
+    text.includes('роснефть')
+  ) {
+    return '🟡';
+  }
+
+  if (
+    text.includes('тнк')
+  ) {
+    return '🟠';
+  }
+
+  return '⛽';
+}
+
+
+/* =====================================================
+   LAST OBSERVATION
+===================================================== */
+
+function getLastObservations() {
+
+  const result = {};
+
+  for (
+    const o of allObservations
+  ) {
+
+    if (
+      !result[o.station_id]
+    ) {
+
+      result[o.station_id] = o;
+
+    }
+
+  }
+
+  return result;
+}
+
+
+/* =====================================================
+   HISTORY
+===================================================== */
+
+function stationHistory(
+  stationId
+) {
+
+  return allObservations
+    .filter(
+      o =>
+        o.station_id === stationId &&
+        o.timestamp
+    )
+    .sort(
+      (a,b) =>
+        new Date(a.timestamp) -
+        new Date(b.timestamp)
+    );
+}
+
+
+/* =====================================================
+   GRAPH
+===================================================== */
+
+function createGraph(
+  stationId
+) {
+
+  const history =
+    stationHistory(
+      stationId
+    );
+
+  const hours = {};
+
+  for (
+    const obs of history
+  ) {
+
+    const date =
+      new Date(
+        obs.timestamp
+      );
+
+    const key =
+      date.getFullYear() +
+      '-' +
+      String(
+        date.getMonth()+1
+      ).padStart(2,'0') +
+      '-' +
+      String(
+        date.getDate()
+      ).padStart(2,'0') +
+      '-' +
+      String(
+        date.getHours()
+      ).padStart(2,'0');
+
+    if (!hours[key]) {
+
+      hours[key] = {
+
+        hour:
+          date.getHours(),
+
+        available: 0,
+
+        total: 0,
+
+        timestamp:
+          date.getTime()
+
+      };
+
+    }
+
+    hours[key].total++;
+
+    if (
+      obs.fuel_95_status === true
+    ) {
+
+      hours[key].available++;
+
+    }
+
+  }
+
+
+  let points =
+    Object.values(hours)
+      .sort(
+        (a,b) =>
+          a.timestamp -
+          b.timestamp
+      )
+      .slice(-12);
+
+
+  /*
+    Если истории пока мало,
+    создаём визуальные пустые точки.
+  */
+
+  if (
+    points.length === 0
+  ) {
+
+    points =
+      Array
+        .from(
+          {length:12},
+          (_,i) => ({
+
+            hour:
+              (i + 9) % 24,
+
+            available: 0,
+
+            total: 0,
+
+            timestamp: 0
+
+          })
+        );
+
+  }
+
+
+  const ratios =
+    points.map(
+      p =>
+        p.total
+          ? p.available / p.total
+          : 0
+    );
+
+
+  const max =
+    Math.max(
+      1,
+      ...ratios
+    );
+
+
+  return points
+    .map(
+      (p,index) => {
+
+        const ratio =
+          p.total
+            ? p.available /
+              p.total
+            : 0;
+
+        const height =
+          p.total
+            ? Math.max(
+                10,
+                Math.round(
+                  ratio /
+                  max *
+                  82
+                )
+              )
+            : 7;
+
+        let cls =
+          'bar';
+
+        if (
+          p.total &&
+          ratio >= .7
+        ) {
+          cls +=
+            ' good';
+        }
+
+        if (
+          p.total &&
+          ratio <= .3
+        ) {
+          cls +=
+            ' bad';
+        }
+
+        if (
+          index ===
+          points.length - 1
+        ) {
+          cls +=
+            ' current';
+        }
+
+
+        return `
+
+          <div class="bar-wrap">
+
+            <div
+              class="${cls}"
+              style="
+                height:${height}px
+              "
+            ></div>
+
+            <div class="bar-time">
+              ${String(
+                p.hour
+              ).padStart(2,'0')}:00
+            </div>
+
+          </div>
+
+        `;
+
+      }
+    )
+    .join('');
+}
+
+
+/* =====================================================
+   RECENT FEEDBACK
+===================================================== */
+
+function recentFeedback(
+  stationId
+) {
+
+  const items =
+    allFeedback
+      .filter(
+        f =>
+          f.station_id ===
+          stationId
+      )
+      .slice(0,3);
+
+
+  if (!items.length) {
+
+    return 'Пока отметок нет.';
+
+  }
+
+
+  const labels = {
+
+    delivery:
+      '🚚 Привезли',
+
+    available:
+      '⛽ Топливо было',
+
+    unavailable:
+      '🔴 Топлива не было',
+
+    queue:
+      '🚗 Была очередь',
+
+    free:
+      '🟢 Было свободно'
+
+  };
+
+
+  return items
+    .map(
+      f => {
+
+        const date =
+          new Date(
+            f.created_at
+          );
+
+        const minutes =
+          Math.max(
+            0,
+            Math.round(
+              (
+                Date.now() -
+                date.getTime()
+              ) /
+              60000
+            )
+          );
+
+        const ago =
+          minutes < 60
+            ? minutes + ' мин'
+            : Math.round(
+                minutes / 60
+              ) + ' ч';
+
+
+        return (
+          labels[
+            f.feedback_type
+          ] ||
+          'Отметка'
+        ) +
+        ' · ' +
+        ago +
+        ' назад';
+
+      }
+    )
+    .join('  ·  ');
+}
+
+
+/* =====================================================
+   FEEDBACK PANEL
+===================================================== */
+
+function feedbackPanel(
+  stationId
+) {
+
+  return `
+
+    <div
+      id="feedback-${stationId}"
+      class="feedback-panel"
+    >
+
+      <div class="feedback-question">
+        Что вы увидели на АЗС?
+      </div>
+
+
+      <div class="feedback-grid">
+
+        <button
+          class="feedback-option"
+          onclick="
+            sendFeedback(
+              '${stationId}',
+              'delivery',
+              this
+            )
+          "
+        >
+          🚚 Привезли
+        </button>
+
+
+        <button
+          class="feedback-option"
+          onclick="
+            sendFeedback(
+              '${stationId}',
+              'available',
+              this
+            )
+          "
+        >
+          ⛽ Топливо было
+        </button>
+
+
+        <button
+          class="feedback-option"
+          onclick="
+            sendFeedback(
+              '${stationId}',
+              'unavailable',
+              this
+            )
+          "
+        >
+          🔴 Топлива не было
+        </button>
+
+
+        <button
+          class="feedback-option"
+          onclick="
+            sendFeedback(
+              '${stationId}',
+              'queue',
+              this
+            )
+          "
+        >
+          🚗 Была очередь
+        </button>
+
+
+        <button
+          class="feedback-option"
+          onclick="
+            sendFeedback(
+              '${stationId}',
+              'free',
+              this
+            )
+          "
+        >
+          🟢 Было свободно
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
+}
+
+
+/* =====================================================
+   STATION CARD
+===================================================== */
+
+function stationCard(
+  station,
+  obs,
+  pred
+) {
+
+  const prediction =
+    getPrediction(
+      pred
+    );
+
+
+  const history =
+    stationHistory(
+      station.id
+    );
+
+
+  const graph =
+    createGraph(
+      station.id
+    );
+
+
+  let confidenceWidth =
+    prediction.confidence;
+
+
+  if (
+    confidenceWidth === 0
+  ) {
+    confidenceWidth = 8;
+  }
+
+
+  return `
+
+    <article class="station">
+
+
+      <!-- STATION HEADER -->
+
+      <div class="station-header">
+
+        <div class="station-logo">
+          ${stationEmoji(
+            station
+          )}
+        </div>
+
+
+        <div class="station-info">
+
+          <div class="station-name">
+            ${escapeHtml(
+              station.name ||
+              'АЗС'
+            )}
+          </div>
+
+          <div class="station-address">
+
+            ${escapeHtml(
+              station.brand
+                ? station.brand + ' · '
+                : ''
+            )}
+
+            ${escapeHtml(
+              station.address ||
+              ''
+            )}
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="favorite"
+          data-station-id="${station.id}"
+          onclick="toggleFavorite(this)"
+        >
+          ${isFavorite(station.id) ? '♥' : '♡'}
+        </button>
+
+      </div>
+
+
+      <!-- FUELS -->
+
+      <div class="fuels">
+
+        <div class="fuel">
+
+          <div class="fuel-name">
+            АИ-92
+          </div>
+
+          <div class="fuel-status">
+
+            ${fuelHtml(
+              obs?.fuel_92_status
+            )}
+
+          </div>
+
+        </div>
+
+
+        <div class="fuel">
+
+          <div class="fuel-name">
+            АИ-95
+          </div>
+
+          <div class="fuel-status">
+
+            ${fuelHtml(
+              obs?.fuel_95_status
+            )}
+
+          </div>
+
+        </div>
+
+
+        <div class="fuel">
+
+          <div class="fuel-name">
+            Дизель
+          </div>
+
+          <div class="fuel-status">
+
+            ${fuelHtml(
+              obs?.diesel_status
+            )}
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- =====================
+           FORECAST
+      ====================== -->
+
+      <section class="forecast">
+
+        <div class="forecast-top">
+
+          <div class="forecast-icon">
+            ◷
+          </div>
+
+          <div class="forecast-label">
+            ПРОГНОЗ
+          </div>
+
+        </div>
+
+
+        <div class="forecast-title">
+
+          ${
+            pred
+              ? 'Вероятное пополнение АИ-95'
+              : 'Когда лучше заехать'
+          }
+
+        </div>
+
+
+        <div class="forecast-time">
+
+          ${prediction.time}
+
+        </div>
+
+
+        <div class="forecast-confidence">
+
+          ${
+            prediction.confidence
+              ? `
+                Вероятность:
+                <strong>
+                  ${prediction.confidence}%
+                </strong>
+              `
+              : `
+                Пока недостаточно данных
+              `
+          }
+
+        </div>
+
+
+        <div class="confidence-bar">
+
+          <span
+            style="
+              width:${confidenceWidth}%
+            "
+          ></span>
+
+        </div>
+
+
+        <div class="forecast-note">
+
+          ${prediction.note}
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================
+           GRAPH
+      ====================== -->
+
+      <section class="graph">
+
+        <div class="graph-header">
+
+          <div class="graph-title">
+            📈 История АИ-95
+          </div>
+
+          <div class="graph-subtitle">
+            наличие по времени
+          </div>
+
+        </div>
+
+
+        <div class="chart">
+
+          <div class="chart-line one"></div>
+          <div class="chart-line two"></div>
+
+          ${graph}
+
+        </div>
+
+
+        <div class="graph-footer">
+
+          <span>
+            меньше наличия
+          </span>
+
+          <span>
+            больше наличия
+          </span>
+
+        </div>
+
+      </section>
+
+
+      <!-- =====================
+           INFO
+      ====================== -->
+
+      <div class="info-row">
+
+        <div class="info">
+
+          <div class="info-label">
+            Последняя отметка
+          </div>
+
+          <div class="info-value">
+            ${freshnessText(
+              obs
+            )}
+          </div>
+
+        </div>
+
+
+        <div class="info">
+
+          <div class="info-label">
+            Наблюдений
+          </div>
+
+          <div class="info-value">
+            ${history.length}
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <!-- =====================
+           FEEDBACK
+      ====================== -->
+
+      <section class="feedback">
+
+        <div class="feedback-header">
+
+          <div class="feedback-icon">
+            ＋
+          </div>
+
+          <div>
+
+            <div class="feedback-title">
+              Вы были на этой АЗС?
+            </div>
+
+            <div class="feedback-sub">
+              Одна отметка помогает
+              сделать следующий прогноз точнее.
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="feedback-button"
+          onclick="
+            toggleFeedback(
+              '${station.id}'
+            )
+          "
+        >
+          ＋ Оставить отметку
+        </button>
+
+
+        ${feedbackPanel(
+          station.id
+        )}
+
+
+        <div class="recent">
+
+          ${recentFeedback(
+            station.id
+          )}
+
+        </div>
+
+      </section>
+
+
+    </article>
+
+  `;
+}
+
+
+/* =====================================================
+   RENDER
+===================================================== */
+
+function renderStations(
+  stations,
+  keepOrder
+) {
+
+  const app =
+    document.getElementById(
+      'app'
+    );
+
+
+  const lastObs =
+    getLastObservations();
+
+
+  if (!stations.length) {
+
+    app.innerHTML = `
+
+      <div class="empty-search">
+
+        🔎 Ничего не нашли.
+
+        <br><br>
+
+        <small>
+          Попробуйте другое название
+          АЗС или адрес.
+        </small>
+
+      </div>
+
+    `;
+
+    return;
+
+  }
+
+
+  const scored =
+    stations
+      .map(
+        station => {
+
+          const obs =
+            lastObs[
+              station.id
+            ];
+
+
+          const pred =
+            allPredictions.find(
+              p =>
+                p.station_id ===
+                  station.id &&
+                p.fuel_type ===
+                  '95' &&
+                p.result ===
+                  'PENDING'
+            );
+
+
+          /*
+            Приоритет:
+            1. Нет АИ-95 + есть прогноз
+            2. Есть АИ-95 + есть прогноз
+            3. Просто есть топливо
+            4. Остальные
+          */
+
+          let score = 1;
+
+
+          if (
+            pred &&
+            obs?.fuel_95_status ===
+              false
+          ) {
+
+            score = 4;
+
+          } else if (
+            pred
+          ) {
+
+            score = 3;
+
+          } else if (
+            obs?.fuel_95_status ===
+              true
+          ) {
+
+            score = 2;
+
+          }
+
+
+          return {
+            station,
+            obs,
+            pred,
+            score
+          };
+
+        }
+      )
+      .sort(
+        (a,b) =>
+          keepOrder
+            ? 0
+            : (isFavorite(b.station.id) -
+               isFavorite(a.station.id)) ||
+              (b.score - a.score)
+      );
+
+
+  app.innerHTML =
+    scored
+      .map(
+        item =>
+          stationCard(
+            item.station,
+            item.obs,
+            item.pred
+          )
+      )
+      .join('');
+
+}
+
+
+/* =====================================================
+   START
+===================================================== */
 
 async function start() {
-  const app = document.getElementById('app');
+
+  const app =
+    document.getElementById(
+      'app'
+    );
+
+
   try {
-    const [stations, observations, predictions, feedbackList] = await Promise.all([
-      dbQuery('/rest/v1/stations?select=*'),
-      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=2000'),
-      dbQuery('/rest/v1/predictions?result=eq.PENDING&select=*'),
-      dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=200')
-    ]);
 
-    if (stations.length === 0) {
-      app.innerHTML = '<div class="status">✅ Подключение работает! Но в базе пока нет ни одной АЗС.</div>';
+    const [
+      stations,
+      observations,
+      predictions,
+      feedback
+    ] =
+      await Promise.all([
+
+        dbQuery(
+          '/rest/v1/stations?select=*'
+        ),
+
+        dbQuery(
+          '/rest/v1/observations?order=timestamp.desc&limit=3000'
+        ),
+
+        dbQuery(
+          '/rest/v1/predictions?result=eq.PENDING&select=*'
+        ),
+
+        dbQuery(
+          '/rest/v1/user_feedback?order=created_at.desc&limit=300'
+        )
+
+      ]);
+
+
+    allStations =
+      stations;
+
+    allObservations =
+      observations;
+
+    allPredictions =
+      predictions;
+
+    allFeedback =
+      feedback;
+
+
+    if (
+      !stations.length
+    ) {
+
+      app.innerHTML = `
+
+        <div class="status">
+
+          ✅ База подключена.
+
+          <br>
+
+          <small>
+            Но в ней пока нет АЗС.
+          </small>
+
+        </div>
+
+      `;
+
       return;
+
     }
 
-    // Группируем наблюдения по станции (берём самое свежее)
-    const lastObsBySt = {};
-    for (const o of observations) {
-      if (!lastObsBySt[o.station_id]) lastObsBySt[o.station_id] = o;
-    }
 
-    // Сортировка: сначала АЗС с прогнозом и без топлива (самый ценный кейс),
-    // потом с прогнозом и топливом, потом без прогноза
-    const scored = stations.map(st => {
-      const obs = lastObsBySt[st.id];
-      const pred = predictions.find(p => p.station_id === st.id && p.fuel_type === '95');
-      const has95 = obs && obs.fuel_95_status === true;
-      const no95 = obs && obs.fuel_95_status === false;
-      let score = 0;
-      if (pred && no95) score = 3;
-      else if (pred && has95) score = 2;
-      else score = 1;
-      return { st, obs, pred, score };
-    }).sort((a,b) => b.score - a.score);
+    renderStations(
+      stations
+    );
 
-    let html = '';
-    for (const { st, obs, pred } of scored) {
-      html += '<div class="card">';
-      html += '<div class="name">' + st.name + '</div>';
-      html += '<div class="brand">' + (st.brand || 'АЗС') + ' · ' + (st.address || '') + '</div>';
-      html += '<div class="fact">';
-      html += '<b>ФАКТ:</b> ' + freshnessHtml(obs) + '<br>';
-      html += '<div class="fuels">';
-      html += '<div class="fuel">АИ-92<br>' + fuelHtml(obs?.fuel_92_status) + '</div>';
-      html += '<div class="fuel">АИ-95<br>' + fuelHtml(obs?.fuel_95_status) + '</div>';
-      html += '<div class="fuel">Дизель<br>' + fuelHtml(obs?.diesel_status) + '</div>';
-      html += '</div></div>';
-      html += '<div class="pred"><b>ПРОГНОЗ:</b><br>' + predLabel(pred) + '</div>';
-      html += '<div class="feedback"><b>Я был здесь:</b><br>' + feedbackHtml(st.id, feedbackList) + '</div>';
-      html += '</div>';
-    }
-    app.innerHTML = html;
-  } catch (e) {
-    app.innerHTML = '<div class="status">❌ Ошибка: ' + e.message + '</div>';
+
+  } catch(e) {
+
+    app.innerHTML = `
+
+      <div class="status">
+
+        ❌ Не удалось загрузить данные
+
+        <br><br>
+
+        <small>
+          ${escapeHtml(
+            e.message
+          )}
+        </small>
+
+      </div>
+
+    `;
+
   }
+
 }
 
+
+/* =====================================================
+   FEEDBACK OPEN/CLOSE
+===================================================== */
+
+function toggleFeedback(
+  stationId
+) {
+
+  const panel =
+    document.getElementById(
+      'feedback-' +
+      stationId
+    );
+
+
+  if (!panel) {
+    return;
+  }
+
+
+  panel.classList.toggle(
+    'open'
+  );
+
+}
+
+
+/* =====================================================
+   SEND FEEDBACK
+===================================================== */
+
+async function sendFeedback(
+  stationId,
+  type,
+  button
+) {
+
+  /*
+    Антиспам:
+    максимум 3 отметки
+    за 30 минут на одну АЗС.
+  */
+
+  const key =
+    'fb_' +
+    stationId;
+
+
+  const history =
+    JSON.parse(
+      localStorage.getItem(
+        key
+      ) || '[]'
+    );
+
+
+  const now =
+    Date.now();
+
+
+  const recent =
+    history.filter(
+      t =>
+        now - t <
+        30 * 60 * 1000
+    );
+
+
+  if (
+    recent.length >= 3
+  ) {
+
+    alert(
+      'Слишком много отметок. Попробуйте через полчаса.'
+    );
+
+    return;
+
+  }
+
+
+  button.disabled =
+    true;
+
+  button.classList.add(
+    'selected'
+  );
+
+
+  const ok =
+    await dbInsert(
+      'user_feedback',
+      [
+        {
+          station_id:
+            stationId,
+
+          feedback_type:
+            type,
+
+          device_id:
+            deviceId
+        }
+      ]
+    );
+
+
+  if (!ok) {
+
+    button.disabled =
+      false;
+
+    button.classList.remove(
+      'selected'
+    );
+
+    alert(
+      'Не удалось отправить отметку.'
+    );
+
+    return;
+
+  }
+
+
+  recent.push(
+    now
+  );
+
+
+  localStorage.setItem(
+    key,
+    JSON.stringify(
+      recent
+    )
+  );
+
+
+  allFeedback.unshift({
+
+    station_id:
+      stationId,
+
+    feedback_type:
+      type,
+
+    created_at:
+      new Date()
+        .toISOString()
+
+  });
+
+
+  const station =
+    button.closest(
+      '.station'
+    );
+
+
+  const recentElement =
+    station
+      ?.querySelector(
+        '.recent'
+      );
+
+
+  if (
+    recentElement
+  ) {
+
+    recentElement.textContent =
+      '✓ Спасибо! Ваша отметка учтена в данных.';
+
+  }
+
+
+  setTimeout(
+    () => {
+
+      button.disabled =
+        false;
+
+      button.classList.remove(
+        'selected'
+      );
+
+    },
+    1800
+  );
+
+}
+
+
+/* =====================================================
+   FAVORITE
+===================================================== */
+
+function getFavorites() {
+  return JSON.parse(
+    localStorage.getItem('favorites') || '[]'
+  );
+}
+
+function isFavorite(id) {
+  return getFavorites().includes(id);
+}
+
+function toggleFavorite(
+  button
+) {
+  const id = button.dataset.stationId;
+  let favs = getFavorites();
+
+  if (favs.includes(id)) {
+    favs = favs.filter(x => x !== id);
+    button.textContent = '♡';
+  } else {
+    favs.push(id);
+    button.textContent = '♥';
+  }
+
+  localStorage.setItem(
+    'favorites',
+    JSON.stringify(favs)
+  );
+}
+
+
+/* =====================================================
+   SEARCH
+===================================================== */
+
+function searchStations() {
+
+  const input =
+    document.getElementById(
+      'searchInput'
+    );
+
+
+  const query =
+    input.value
+      .trim()
+      .toLowerCase();
+
+
+  if (!query) {
+
+    renderStations(
+      allStations
+    );
+
+    return;
+
+  }
+
+
+  const filtered =
+    allStations.filter(
+      station => {
+
+        const text =
+          [
+            station.name || '',
+            station.brand || '',
+            station.address || ''
+          ]
+          .join(' ')
+          .toLowerCase();
+
+
+        return text.includes(
+          query
+        );
+
+      }
+    );
+
+
+  renderStations(
+    filtered
+  );
+
+}
+
+
+/* =====================================================
+   LOCATION
+===================================================== */
+
+function findNearby() {
+
+  if (
+    !navigator.geolocation
+  ) {
+
+    alert(
+      'Ваш браузер не поддерживает определение местоположения.'
+    );
+
+    return;
+
+  }
+
+
+  navigator.geolocation.getCurrentPosition(
+
+    position => {
+
+      const lat =
+        position.coords.latitude;
+
+      const lon =
+        position.coords.longitude;
+
+
+      const sorted =
+        allStations
+          .map(
+            station => {
+
+              const sLat =
+                Number(
+                  station.lat ??
+                  station.latitude
+                );
+
+
+              const sLon =
+                Number(
+                  station.lon ??
+                  station.lng ??
+                  station.longitude
+                );
+
+
+              if (
+                !Number.isFinite(
+                  sLat
+                ) ||
+                !Number.isFinite(
+                  sLon
+                )
+              ) {
+
+                return {
+                  station,
+                  distance:
+                    Infinity
+                };
+
+              }
+
+
+              const dLat =
+                (
+                  sLat -
+                  lat
+                ) * 111;
+
+
+              const dLon =
+                (
+                  sLon -
+                  lon
+                ) *
+                111 *
+                Math.cos(
+                  lat *
+                  Math.PI /
+                  180
+                );
+
+
+              const distance =
+                Math.sqrt(
+                  dLat*dLat +
+                  dLon*dLon
+                );
+
+
+              return {
+                station,
+                distance
+              };
+
+            }
+          )
+          .sort(
+            (a,b) =>
+              a.distance -
+              b.distance
+          )
+          .map(
+            x =>
+              x.station
+          );
+
+
+      renderStations(
+        sorted,
+        true
+      );
+
+
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+
+    },
+
+    () => {
+
+      alert(
+        'Не удалось определить местоположение.'
+      );
+
+    }
+
+  );
+
+}
+
+
+/* =====================================================
+   ENTER SEARCH
+===================================================== */
+
+document
+  .getElementById(
+    'searchInput'
+  )
+  .addEventListener(
+    'keydown',
+    event => {
+
+      if (
+        event.key ===
+        'Enter'
+      ) {
+
+        searchStations();
+
+      }
+
+    }
+  );
+
+
+/* =====================================================
+   START APP
+===================================================== */
+
 start();
+
 </script>
+
 </body>
 </html>
