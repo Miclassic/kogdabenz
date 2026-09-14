@@ -1,26 +1,11 @@
-// ===== Сборщик Новороссийска (v2: с паспортом браузера и повторами) =====
+// ===== Сборщик Новороссийска v2 =====
+// Запускается сам на GitHub каждые 10 минут. Без внешних библиотек.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.62&lon1=37.62&lat2=44.82&lon2=38.00';
 
-// "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
-const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-  'Referer': 'https://gdebenz.ru/'
-};
-
-async function fetchGdebenz() {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const r = await fetch(GDEBENZ_URL, { headers: BROWSER_HEADERS });
-    if (r.ok) return r.json();
-    console.log('   Попытка ' + attempt + ': статус ' + r.status + ', жду 10 сек и повторю...');
-    await new Promise(res => setTimeout(res, 10000));
-  }
-  throw new Error('GdeBenz не ответил после 3 попыток');
-}
+// ===== Вспомогательные функции =====
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -45,6 +30,13 @@ async function sbPost(path, rows, prefer) {
   return (prefer || '').includes('representation') ? r.json() : null;
 }
 
+// Задержка (чтобы не долбить API)
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ===== Обработка топлива =====
+
 function fuelSet(fuelsNow) {
   const empty = !fuelsNow;
   const list = (fuelsNow || '').split(',');
@@ -66,9 +58,13 @@ function freshnessMinutes(pricesNow) {
   return Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
 }
 
+// ===== Главная функция =====
+
 async function main() {
   console.log('1) Качаю GdeBenz (Новороссийск)...');
-  const list = await fetchGdebenz();
+  const g = await fetch(GDEBENZ_URL);
+  if (!g.ok) throw new Error('GdeBenz ответил ' + g.status);
+  const list = await g.json();
   console.log('   Станций в ответе: ' + list.length);
 
   console.log('2) Сохраняю станции...');
@@ -94,7 +90,7 @@ async function main() {
   if (ids.length) {
     const last = await sbGet(
       '/rest/v1/observations?station_id=in.(' + ids.map(i => '"' + i + '"').join(',') +
-      ')&order=timestamp.desc&limit=2000&select=station_id,fuel_92_status,fuel_95_status,diesel_status'
+      ')&order=timestamp.desc&limit=2000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level'
     );
     for (const o of last) if (!lastByStation[o.station_id]) lastByStation[o.station_id] = o;
   }
@@ -118,20 +114,117 @@ async function main() {
   await sbPost('observations', obsRows);
   console.log('   Наблюдений записано: ' + obsRows.length);
 
-  console.log('5) Ищу изменения (события)...');
+  console.log('5) Ищу изменения топлива (события)...');
   const events = [];
   for (const row of obsRows) {
     const prev = lastByStation[row.station_id];
     if (!prev) continue;
+    // Топливо
     for (const [fuel, col] of [['92','fuel_92_status'], ['95','fuel_95_status'], ['diesel','diesel_status']]) {
       const a = prev[col], b = row[col];
       if (a === null || a === undefined || b === null || b === undefined) continue;
       if (a === false && b === true) events.push({ station_id: row.station_id, event_type: 'fuel_restored', fuel_type: fuel, confidence: 0.8, source: 'observation' });
       if (a === true && b === false) events.push({ station_id: row.station_id, event_type: 'fuel_disappeared', fuel_type: fuel, confidence: 0.8, source: 'observation' });
     }
+    // Очередь (новое в v2!)
+    const prevQueue = prev.queue_level === 'high';
+    const nowQueue = row.queue_level === 'high';
+    if (!prevQueue && nowQueue) events.push({ station_id: row.station_id, event_type: 'queue_appeared', fuel_type: null, confidence: 0.7, source: 'observation' });
+    if (prevQueue && !nowQueue) events.push({ station_id: row.station_id, event_type: 'queue_gone', fuel_type: null, confidence: 0.7, source: 'observation' });
   }
   if (events.length) await sbPost('events', events);
-  console.log('   Событий обнаружено: ' + events.length);
+  console.log('   Событий топлива/очередей: ' + events.length);
+
+  // ===== НОВОЕ В v2: Сбор и анализ комментариев =====
+  console.log('6) Качаю комментарии со станций...');
+  const commentsByStation = {};
+  let commentsTotal = 0;
+  let commentsNew = 0;
+  const commentEvents = [];
+  
+  for (const station of list) {
+    try {
+      const url = 'https://gdebenz.ru/api/stations/' + station.osm_id + '/comments';
+      const cr = await fetch(url);
+      if (cr.ok) {
+        const cdata = await cr.json();
+        const cList = Array.isArray(cdata) ? cdata : (cdata.comments || cdata.data || []);
+        if (cList.length) {
+          commentsByStation[station.osm_id] = cList;
+          commentsTotal += cList.length;
+        }
+      }
+      await sleep(150); // не долбить API
+    } catch (e) {
+      console.log('   ! Комменты станции ' + station.osm_id + ' не загрузились: ' + e.message);
+    }
+  }
+  console.log('   Всего комментариев получено: ' + commentsTotal);
+
+  // Достаём уже сохранённые external_id, чтобы не писать дубли
+  const existingExtIds = new Set();
+  if (commentsTotal > 0) {
+    try {
+      const existing = await sbGet('/rest/v1/comments?select=external_id&limit=5000');
+      for (const c of existing) existingExtIds.add(String(c.external_id));
+    } catch (e) {
+      console.log('   ! Не смог прочитать старые комментарии: ' + e.message);
+    }
+  }
+
+  // Собираем только новые комментарии
+  const newComments = [];
+  const KEYWORDS_DELIVERY = ['привезли', 'бензовоз', 'завезли', 'поставка', 'привез', 'приехал бензовоз', 'привезут'];
+  const KEYWORDS_NOFUEL   = ['нет ', 'закончился', 'отсутствует', 'нет бензина', 'нет 95', 'нет 92', 'нет дизеля', 'пусто'];
+  const KEYWORDS_QUEUE    = ['очередь', 'много машин', 'долго', 'большая очередь', 'очереди'];
+
+  for (const [osmId, cList] of Object.entries(commentsByStation)) {
+    const stationId = idByExt[String(osmId)];
+    if (!stationId) continue;
+    for (const c of cList) {
+      const extId = String(c.id || c.comment_id || '');
+      if (!extId || existingExtIds.has(extId)) continue;
+      const text = String(c.text || c.comment || c.body || '');
+      const ts = c.timestamp || c.created_at || c.date || new Date().toISOString();
+      newComments.push({
+        station_id: stationId,
+        external_id: extId,
+        comment_text: text,
+        timestamp: ts,
+        source: 'gdebenz'
+      });
+      // Анализ ключевыми словами
+      const low = text.toLowerCase();
+      if (KEYWORDS_DELIVERY.some(k => low.includes(k))) {
+        commentEvents.push({ station_id: stationId, event_type: 'possible_delivery', fuel_type: null, confidence: 0.7, source: 'comment', detected_at: ts, metadata: { text: text, keyword: 'delivery' } });
+      }
+      if (KEYWORDS_NOFUEL.some(k => low.includes(k))) {
+        commentEvents.push({ station_id: stationId, event_type: 'fuel_unavailable', fuel_type: null, confidence: 0.6, source: 'comment', detected_at: ts, metadata: { text: text, keyword: 'nofuel' } });
+      }
+      if (KEYWORDS_QUEUE.some(k => low.includes(k))) {
+        commentEvents.push({ station_id: stationId, event_type: 'queue_high', fuel_type: null, confidence: 0.65, source: 'comment', detected_at: ts, metadata: { text: text, keyword: 'queue' } });
+      }
+    }
+  }
+
+  if (newComments.length) {
+    await sbPost('comments', newComments);
+    commentsNew = newComments.length;
+  }
+  console.log('   Новых комментариев сохранено: ' + commentsNew);
+
+  if (commentEvents.length) {
+    // metadata может не сохраниться, если колонки нет — но само событие запишется
+    try {
+      await sbPost('events', commentEvents);
+    } catch (e) {
+      // Если падает из-за metadata — пробуем без него
+      const stripped = commentEvents.map(ev => ({ station_id: ev.station_id, event_type: ev.event_type, fuel_type: ev.fuel_type, confidence: ev.confidence, source: ev.source, detected_at: ev.detected_at }));
+      await sbPost('events', stripped);
+    }
+    console.log('   Событий из комментариев: ' + commentEvents.length);
+  }
+
   console.log('✅ Цикл завершён');
 }
 
