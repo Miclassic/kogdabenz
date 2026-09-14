@@ -15,7 +15,15 @@
   .fuel { flex:1; text-align:center; background:#f5f5f7; border-radius:8px; padding:8px 4px; font-size:13px; }
   .yes { color:#0a8f4d; font-weight:700; }
   .no { color:#d33; font-weight:700; }
-  .pred { background:#eef6ff; border:1px solid #bcd7ff; border-radius:8px; padding:10px; font-size:14px; }
+  .pred { background:#eef6ff; border:1px solid #bcd7ff; border-radius:8px; padding:10px; font-size:14px; margin-bottom:10px; }
+  .fact { background:#f0fff4; border:1px solid #b7e4c7; border-radius:8px; padding:10px; font-size:13px; margin-bottom:10px; }
+  .feedback { background:#fff8f0; border:1px solid #f0c89b; border-radius:8px; padding:10px; font-size:13px; margin-bottom:10px; }
+  .btns { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .btn { flex:1 1 30%; padding:8px 4px; border:1px solid #bbb; background:#fafafa; border-radius:8px; font-size:12px; cursor:pointer; text-align:center; }
+  .btn:active { background:#ddd; }
+  .btn.ok { background:#d4edda; border-color:#8ec7a0; }
+  .feedback-list { font-size:12px; color:#555; }
+  .feedback-item { padding:3px 0; border-bottom:1px dashed #eee; }
   .status { color:#fff; text-align:center; padding:14px; background:rgba(0,0,0,.25); border-radius:10px; }
 </style>
 </head>
@@ -25,61 +33,153 @@
 <div id="app"><div class="status">⏳ Подключаюсь к базе данных...</div></div>
 
 <script>
-// ===== НАСТРОЙКИ (твои ключи уже вставлены) =====
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
 
-// Запрос к базе БЕЗ внешних библиотек
-async function dbQuery(table) {
-  const response = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?select=*', {
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_KEY
-    }
+// Уникальный ID устройства (для антиспама: не чаще 3 отметок за 30 мин)
+let deviceId = localStorage.getItem('deviceId');
+if (!deviceId) {
+  deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem('deviceId', deviceId);
+}
+
+async function dbQuery(path) {
+  const r = await fetch(SUPABASE_URL + path, {
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
   });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error('HTTP ' + response.status + ' → ' + text);
-  }
-  return response.json();
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function dbInsert(table, rows) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(rows)
+  });
+  return r.ok;
 }
 
 function fuelHtml(ok) {
-  return ok ? '<span class="yes">✓ есть</span>' : '<span class="no">✗ нет</span>';
+  return ok === null ? '<span>—</span>'
+       : ok ? '<span class="yes">✓ есть</span>'
+       : '<span class="no">✗ нет</span>';
+}
+
+function freshnessHtml(obs) {
+  if (!obs || obs.data_freshness_minutes === null) return '';
+  const m = obs.data_freshness_minutes;
+  if (m < 5) return 'отметка ' + m + ' мин назад';
+  if (m < 60) return 'отметка ' + m + ' мин назад';
+  if (m < 1440) return 'отметка ' + Math.round(m / 60) + ' ч назад';
+  return 'отметка ' + Math.round(m / 1440) + ' дн назад';
+}
+
+function predLabel(pred) {
+  if (!pred) return '⚠️ Пока мало данных для прогноза';
+  const pct = Math.round(pred.confidence * 100);
+  const prel = (pred.based_on_observations || 0) < 5 ? ' (предварительный)' : '';
+  return '🔮 Пополнение АИ-95: <b>' + pred.from_time.substring(0,5) + ' – ' + pred.to_time.substring(0,5) + '</b><br>' +
+         '🎯 Надёжность: <b>' + pct + '%</b>' + prel + ' · наблюдений: ' + (pred.based_on_observations||0);
+}
+
+const FEEDBACK_LABELS = {
+  delivery: '🚛 Привезли', available: '⛽ Было', unavailable: '🔴 Не было',
+  queue: '🚗 Очередь', free: '🟢 Свободно'
+};
+
+function feedbackHtml(stationId, feedbackList) {
+  const items = feedbackList.filter(f => f.station_id === stationId).slice(0,3);
+  let list = '';
+  for (const f of items) {
+    const t = new Date(f.created_at);
+    const ago = Math.round((Date.now() - t.getTime()) / 60000);
+    const agoText = ago < 60 ? ago + ' мин' : Math.round(ago/60) + ' ч';
+    list += '<div class="feedback-item">' + FEEDBACK_LABELS[f.feedback_type] + ' · ' + agoText + ' назад</div>';
+  }
+  return '<div class="btns">' +
+    Object.entries(FEEDBACK_LABELS).map(([k,v]) =>
+      '<button class="btn" onclick="sendFeedback(\'' + stationId + '\',\'' + k + '\',this)">' + v + '</button>'
+    ).join('') +
+    '</div>' +
+    (list ? '<div class="feedback-list">Водители сообщали: ' + list + '</div>' : '');
+}
+
+async function sendFeedback(stationId, type, btn) {
+  // Антиспам на клиенте
+  const key = 'fb_' + stationId;
+  const history = JSON.parse(localStorage.getItem(key) || '[]');
+  const now = Date.now();
+  const recent = history.filter(t => now - t < 30*60*1000);
+  if (recent.length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+  recent.push(now);
+  localStorage.setItem(key, JSON.stringify(recent));
+
+  btn.disabled = true;
+  btn.classList.add('ok');
+  const ok = await dbInsert('user_feedback', [{
+    station_id: stationId,
+    feedback_type: type,
+    device_id: deviceId
+  }]);
+  if (!ok) { btn.classList.remove('ok'); btn.disabled = false; alert('Не удалось отправить'); return; }
+  setTimeout(() => { btn.classList.remove('ok'); btn.disabled = false; }, 1500);
 }
 
 async function start() {
   const app = document.getElementById('app');
   try {
-    const stations = await dbQuery('stations');
-    const observations = await dbQuery('observations');
-    const predictions = await dbQuery('predictions');
+    const [stations, observations, predictions, feedbackList] = await Promise.all([
+      dbQuery('/rest/v1/stations?select=*'),
+      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=2000'),
+      dbQuery('/rest/v1/predictions?result=eq.PENDING&select=*'),
+      dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=200')
+    ]);
 
     if (stations.length === 0) {
       app.innerHTML = '<div class="status">✅ Подключение работает! Но в базе пока нет ни одной АЗС.</div>';
       return;
     }
 
-    let html = '';
-    for (const st of stations) {
-      const obs = observations
-        .filter(o => o.station_id === st.id)
-        .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-      const pred = predictions.find(p => p.station_id === st.id && p.fuel_type === '95');
+    // Группируем наблюдения по станции (берём самое свежее)
+    const lastObsBySt = {};
+    for (const o of observations) {
+      if (!lastObsBySt[o.station_id]) lastObsBySt[o.station_id] = o;
+    }
 
+    // Сортировка: сначала АЗС с прогнозом и без топлива (самый ценный кейс),
+    // потом с прогнозом и топливом, потом без прогноза
+    const scored = stations.map(st => {
+      const obs = lastObsBySt[st.id];
+      const pred = predictions.find(p => p.station_id === st.id && p.fuel_type === '95');
+      const has95 = obs && obs.fuel_95_status === true;
+      const no95 = obs && obs.fuel_95_status === false;
+      let score = 0;
+      if (pred && no95) score = 3;
+      else if (pred && has95) score = 2;
+      else score = 1;
+      return { st, obs, pred, score };
+    }).sort((a,b) => b.score - a.score);
+
+    let html = '';
+    for (const { st, obs, pred } of scored) {
       html += '<div class="card">';
       html += '<div class="name">' + st.name + '</div>';
       html += '<div class="brand">' + (st.brand || 'АЗС') + ' · ' + (st.address || '') + '</div>';
+      html += '<div class="fact">';
+      html += '<b>ФАКТ:</b> ' + freshnessHtml(obs) + '<br>';
       html += '<div class="fuels">';
-      html += '<div class="fuel">АИ-92<br>' + (obs ? fuelHtml(obs.fuel_92_status) : '—') + '</div>';
-      html += '<div class="fuel">АИ-95<br>' + (obs ? fuelHtml(obs.fuel_95_status) : '—') + '</div>';
-      html += '<div class="fuel">Дизель<br>' + (obs ? fuelHtml(obs.diesel_status) : '—') + '</div>';
-      html += '</div>';
-      if (pred) {
-        html += '<div class="pred">🔮 Пополнение АИ-95: <b>' + pred.from_time.substring(0,5) + ' – ' + pred.to_time.substring(0,5) + '</b><br>🎯 Надёжность: <b>' + Math.round(pred.confidence*100) + '%</b> · наблюдений: ' + (pred.based_on_observations||0) + '</div>';
-      } else {
-        html += '<div class="pred">⚠️ Пока мало данных для прогноза</div>';
-      }
+      html += '<div class="fuel">АИ-92<br>' + fuelHtml(obs?.fuel_92_status) + '</div>';
+      html += '<div class="fuel">АИ-95<br>' + fuelHtml(obs?.fuel_95_status) + '</div>';
+      html += '<div class="fuel">Дизель<br>' + fuelHtml(obs?.diesel_status) + '</div>';
+      html += '</div></div>';
+      html += '<div class="pred"><b>ПРОГНОЗ:</b><br>' + predLabel(pred) + '</div>';
+      html += '<div class="feedback"><b>Я был здесь:</b><br>' + feedbackHtml(st.id, feedbackList) + '</div>';
       html += '</div>';
     }
     app.innerHTML = html;
