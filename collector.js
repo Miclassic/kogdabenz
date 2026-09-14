@@ -61,6 +61,18 @@ async function sbPost(path, rows, prefer) {
   return (prefer || '').includes('representation') ? r.json() : null;
 }
 
+async function sbPatch(path, row) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(row)
+  });
+  if (!r.ok) throw new Error('PATCH ' + path + ' → ' + r.status + ' ' + await r.text());
+}
+
 function fuelSet(fuelsNow) {
   const empty = !fuelsNow;
   const list = (fuelsNow || '').split(',');
