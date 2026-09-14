@@ -1,12 +1,23 @@
-// ===== Сборщик Новороссийска v2.1 =====
+// ===== Сборщик Новороссийска v2.2 =====
 // Запускается сам на GitHub каждые 10 минут. Без внешних библиотек.
-// v2.1: если GdeBenz "чихнул" (502) — пробуем ещё несколько раз
-// и переключаемся на запасной адрес gdebenz.org.
+// v2.2: вернули "человеческие" заголовки — без них GdeBenz видит робота и отдаёт 502.
+// v2.1: повторы попыток + запасной адрес gdebenz.org.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const BOX = '?lat1=44.62&lon1=37.62&lat2=44.82&lon2=38.00';
 const HOSTS = ['https://gdebenz.ru', 'https://gdebenz.org'];
+
+// "Паспорт" обычного браузера. НЕ УДАЛЯТЬ — иначе GdeBenz примет нас за робота.
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Referer': 'https://gdebenz.ru/',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin'
+};
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -63,7 +74,7 @@ async function main() {
   for (let attempt = 1; attempt <= 4 && !list; attempt++) {
     host = HOSTS[(attempt - 1) % HOSTS.length];
     try {
-      const g = await fetch(host + '/api/stations' + BOX);
+      const g = await fetch(host + '/api/stations' + BOX, { headers: BROWSER_HEADERS });
       if (g.ok) {
         list = await g.json();
         console.log('   Ответил: ' + host);
@@ -149,7 +160,7 @@ async function main() {
   let commentsTotal = 0;
   for (const station of list) {
     try {
-      const cr = await fetch(host + '/api/stations/' + station.osm_id + '/comments');
+      const cr = await fetch(host + '/api/stations/' + station.osm_id + '/comments', { headers: BROWSER_HEADERS });
       if (cr.ok) {
         const cdata = await cr.json();
         const cList = Array.isArray(cdata) ? cdata : (cdata.comments || cdata.data || []);
