@@ -1,23 +1,42 @@
-// ===== Сборщик Новороссийска v2.2 =====
-// Запускается сам на GitHub каждые 10 минут. Без внешних библиотек.
-// v2.2: вернули "человеческие" заголовки — без них GdeBenz видит робота и отдаёт 502.
-// v2.1: повторы попыток + запасной адрес gdebenz.org.
+// ===== Сборщик Новороссийска (v3: РАБОЧАЯ ОСНОВА + очереди и комментарии) =====
+// Основа — проверенный код с "паспортом браузера" и повторами. НЕ ЛОМАТЬ.
+// Нового только: queue_level в шаге 3, события очередей в шаге 5, шаг 6 (комментарии).
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const BOX = '?lat1=44.62&lon1=37.62&lat2=44.82&lon2=38.00';
-const HOSTS = ['https://gdebenz.ru', 'https://gdebenz.org'];
+const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.62&lon1=37.62&lat2=44.82&lon2=38.00';
 
-// "Паспорт" обычного браузера. НЕ УДАЛЯТЬ — иначе GdeBenz примет нас за робота.
+// "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
 const BROWSER_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Referer': 'https://gdebenz.ru/',
-  'Sec-Fetch-Dest': 'empty',
-  'Sec-Fetch-Mode': 'cors',
-  'Sec-Fetch-Site': 'same-origin'
+  'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+  'Referer': 'https://gdebenz.ru/'
 };
+
+async function fetchGdebenz() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = await fetch(GDEBENZ_URL, { headers: BROWSER_HEADERS });
+    if (r.ok) return r.json();
+    console.log('   Попытка ' + attempt + ': статус ' + r.status + ', жду 10 сек и повторю...');
+    await new Promise(res => setTimeout(res, 10000));
+  }
+  throw new Error('GdeBenz не ответил после 3 попыток');
+}
+
+// === NEW === комментарии: тот же паспорт, но без повторов, чтобы цикл не тормозил
+async function fetchCommentsSafe(url) {
+  try {
+    const r = await fetch(url, { headers: BROWSER_HEADERS });
+    if (!r.ok) return [];
+    const data = await r.json();
+    return Array.isArray(data) ? data : (data.comments || data.data || []);
+  } catch (e) {
+    return [];
+  }
+}
+
+function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -40,10 +59,6 @@ async function sbPost(path, rows, prefer) {
   });
   if (!r.ok) throw new Error('POST ' + path + ' → ' + r.status + ' ' + await r.text());
   return (prefer || '').includes('representation') ? r.json() : null;
-}
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function fuelSet(fuelsNow) {
@@ -69,24 +84,7 @@ function freshnessMinutes(pricesNow) {
 
 async function main() {
   console.log('1) Качаю GdeBenz (Новороссийск)...');
-  let list = null;
-  let host = HOSTS[0];
-  for (let attempt = 1; attempt <= 4 && !list; attempt++) {
-    host = HOSTS[(attempt - 1) % HOSTS.length];
-    try {
-      const g = await fetch(host + '/api/stations' + BOX, { headers: BROWSER_HEADERS });
-      if (g.ok) {
-        list = await g.json();
-        console.log('   Ответил: ' + host);
-      } else {
-        console.log('   Попытка ' + attempt + ' (' + host + '): статус ' + g.status);
-      }
-    } catch (e) {
-      console.log('   Попытка ' + attempt + ' (' + host + '): недоступен');
-    }
-    if (!list && attempt < 4) await sleep(15000);
-  }
-  if (!list) throw new Error('GdeBenz не ответил после 4 попыток');
+  const list = await fetchGdebenz();
   console.log('   Станций в ответе: ' + list.length);
 
   console.log('2) Сохраняю станции...');
@@ -136,7 +134,7 @@ async function main() {
   await sbPost('observations', obsRows);
   console.log('   Наблюдений записано: ' + obsRows.length);
 
-  console.log('5) Ищу изменения топлива и очередей (события)...');
+  console.log('5) Ищу изменения (события)...');
   const events = [];
   for (const row of obsRows) {
     const prev = lastByStation[row.station_id];
@@ -147,54 +145,34 @@ async function main() {
       if (a === false && b === true) events.push({ station_id: row.station_id, event_type: 'fuel_restored', fuel_type: fuel, confidence: 0.8, source: 'observation' });
       if (a === true && b === false) events.push({ station_id: row.station_id, event_type: 'fuel_disappeared', fuel_type: fuel, confidence: 0.8, source: 'observation' });
     }
+    // === NEW === очередь появилась / исчезла
     const prevQueue = prev.queue_level === 'high';
     const nowQueue = row.queue_level === 'high';
     if (!prevQueue && nowQueue) events.push({ station_id: row.station_id, event_type: 'queue_appeared', fuel_type: null, confidence: 0.7, source: 'observation' });
     if (prevQueue && !nowQueue) events.push({ station_id: row.station_id, event_type: 'queue_gone', fuel_type: null, confidence: 0.7, source: 'observation' });
   }
   if (events.length) await sbPost('events', events);
-  console.log('   Событий топлива/очередей: ' + events.length);
+  console.log('   Событий обнаружено: ' + events.length);
 
-  console.log('6) Качаю комментарии со станций...');
-  const commentsByStation = {};
-  let commentsTotal = 0;
-  for (const station of list) {
-    try {
-      const cr = await fetch(host + '/api/stations/' + station.osm_id + '/comments', { headers: BROWSER_HEADERS });
-      if (cr.ok) {
-        const cdata = await cr.json();
-        const cList = Array.isArray(cdata) ? cdata : (cdata.comments || cdata.data || []);
-        if (cList.length) {
-          commentsByStation[station.osm_id] = cList;
-          commentsTotal += cList.length;
-        }
-      }
-      await sleep(150);
-    } catch (e) {
-      console.log('   ! Комменты станции ' + station.osm_id + ' не загрузились: ' + e.message);
-    }
-  }
-  console.log('   Всего комментариев получено: ' + commentsTotal);
-
+  // === NEW === ШАГ 6: комментарии водителей
+  console.log('6) Качаю комментарии...');
   const existingExtIds = new Set();
-  if (commentsTotal > 0) {
-    try {
-      const existing = await sbGet('/rest/v1/comments?select=external_id&limit=5000');
-      for (const c of existing) existingExtIds.add(String(c.external_id));
-    } catch (e) {
-      console.log('   ! Не смог прочитать старые комментарии: ' + e.message);
-    }
+  try {
+    const existing = await sbGet('/rest/v1/comments?select=external_id&limit=5000');
+    for (const c of existing) existingExtIds.add(String(c.external_id));
+  } catch (e) {
+    console.log('   ! Не смог прочитать старые комментарии: ' + e.message);
   }
 
-  const newComments = [];
-  const commentEvents = [];
   const KEYWORDS_DELIVERY = ['привезли', 'бензовоз', 'завезли', 'поставка', 'привез', 'только что'];
   const KEYWORDS_NOFUEL = ['закончился', 'отсутствует', 'нет бензина', 'нет 95', 'нет 92', 'нет дизеля', 'пусто'];
   const KEYWORDS_QUEUE = ['очередь', 'много машин', 'большая очередь', 'долго'];
 
-  for (const [osmId, cList] of Object.entries(commentsByStation)) {
-    const stationId = idByExt[String(osmId)];
-    if (!stationId) continue;
+  const newComments = [];
+  const commentEvents = [];
+  for (const station of list) {
+    const stationId = idByExt[String(station.osm_id)];
+    const cList = stationId ? await fetchCommentsSafe('https://gdebenz.ru/api/stations/' + station.osm_id + '/comments') : [];
     for (const c of cList) {
       const extId = String(c.id || c.comment_id || '');
       if (!extId || existingExtIds.has(extId)) continue;
@@ -206,6 +184,7 @@ async function main() {
       if (KEYWORDS_NOFUEL.some(k => low.includes(k))) commentEvents.push({ station_id: stationId, event_type: 'fuel_unavailable', fuel_type: null, confidence: 0.6, source: 'comment', detected_at: ts });
       if (KEYWORDS_QUEUE.some(k => low.includes(k))) commentEvents.push({ station_id: stationId, event_type: 'queue_high', fuel_type: null, confidence: 0.65, source: 'comment', detected_at: ts });
     }
+    await sleep(120);
   }
 
   if (newComments.length) await sbPost('comments', newComments);
