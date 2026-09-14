@@ -1,9 +1,26 @@
-// ===== Сборщик Новороссийска =====
-// Запускается сам на GitHub каждые 10 минут. Без внешних библиотек.
+// ===== Сборщик Новороссийска (v2: с паспортом браузера и повторами) =====
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.62&lon1=37.62&lat2=44.82&lon2=38.00';
+
+// "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+  'Referer': 'https://gdebenz.ru/'
+};
+
+async function fetchGdebenz() {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = await fetch(GDEBENZ_URL, { headers: BROWSER_HEADERS });
+    if (r.ok) return r.json();
+    console.log('   Попытка ' + attempt + ': статус ' + r.status + ', жду 10 сек и повторю...');
+    await new Promise(res => setTimeout(res, 10000));
+  }
+  throw new Error('GdeBenz не ответил после 3 попыток');
+}
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -51,9 +68,7 @@ function freshnessMinutes(pricesNow) {
 
 async function main() {
   console.log('1) Качаю GdeBenz (Новороссийск)...');
-  const g = await fetch(GDEBENZ_URL);
-  if (!g.ok) throw new Error('GdeBenz ответил ' + g.status);
-  const list = await g.json();
+  const list = await fetchGdebenz();
   console.log('   Станций в ответе: ' + list.length);
 
   console.log('2) Сохраняю станции...');
