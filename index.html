@@ -1,0 +1,750 @@
+<!-- web/index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Когда лучше заправиться? - Прогноз наличия топлива</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+      color: white;
+    }
+    
+    h1 {
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+    
+    .location-bar {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .location-icon {
+      font-size: 24px;
+    }
+    
+    .location-text {
+      flex: 1;
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    .station-card {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .station-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    }
+    
+    .station-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .station-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    
+    .station-brand {
+      font-size: 14px;
+      color: #6b7280;
+    }
+    
+    .fuel-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .fuel-item {
+      text-align: center;
+      padding: 8px;
+      border-radius: 8px;
+      background: #f9fafb;
+    }
+    
+    .fuel-type {
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 4px;
+    }
+    
+    .fuel-status {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .fuel-available {
+      color: #10b981;
+    }
+    
+    .fuel-unavailable {
+      color: #ef4444;
+    }
+    
+    .prediction-section {
+      background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+    
+    .prediction-label {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .prediction-time {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1f2937;
+      margin-bottom: 8px;
+    }
+    
+    .confidence-container {
+      margin-top: 12px;
+    }
+    
+    .confidence-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 6px;
+    }
+    
+    .confidence-bar {
+      height: 8px;
+      background: #d1d5db;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+      transition: width 0.3s ease;
+    }
+    
+    .observation-count {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 8px;
+      text-align: center;
+    }
+    
+    .queue-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: #f9fafb;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    
+    .queue-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    
+    .queue-low { background: #10b981; }
+    .queue-medium { background: #f59e0b; }
+    .queue-high { background: #ef4444; }
+    
+    .no-data-message {
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      color: #92400e;
+      font-size: 14px;
+      margin-top: 12px;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: white;
+      font-size: 18px;
+    }
+    
+    .spinner {
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .modal.active {
+      display: flex;
+    }
+    
+    .modal-content {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #6b7280;
+    }
+    
+    .history-item {
+      padding: 12px;
+      border-left: 3px solid #667eea;
+      margin-bottom: 8px;
+      background: #f9fafb;
+      border-radius: 4px;
+    }
+    
+    .feedback-section {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f3f4f6;
+      border-radius: 12px;
+    }
+    
+    .feedback-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+    
+    .feedback-buttons {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    
+    .feedback-btn {
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      background: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .feedback-btn:hover {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+    
+    .success-message {
+      background: #d1fae5;
+      border: 1px solid #10b981;
+      color: #065f46;
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      margin-top: 12px;
+      display: none;
+    }
+    
+    .success-message.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>⛽ Когда лучше заправиться?</h1>
+      <p class="subtitle">Прогноз наличия топлива на основе истории наблюдений</p>
+    </header>
+    
+    <div class="location-bar">
+      <span class="location-icon">📍</span>
+      <span class="location-text" id="location-text">Определение местоположения...</span>
+    </div>
+    
+    <div id="stations-list">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка данных...</p>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Модальное окно с детальной информацией -->
+  <div class="modal" id="station-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-station-name">АЗС</h2>
+        <button class="close-btn" onclick="closeModal()">&times;</button>
+      </div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Конфигурация Supabase
+    const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    
+    let userLocation = null;
+    
+    // Инициализация приложения
+    async function init() {
+      await getUserLocation();
+      await loadStations();
+    }
+    
+    // Получение геолокации пользователя
+    function getUserLocation() {
+      return new Promise((resolve) => {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              userLocation = {
+                lat: position.coords.latitude,
+                lon: position.coords.longitude
+              };
+              document.getElementById('location-text').textContent = 
+                `Ваше местоположение определено`;
+              resolve();
+            },
+            (error) => {
+              console.error('Ошибка геолокации:', error);
+              document.getElementById('location-text').textContent = 
+                'Не удалось определить местоположение';
+              resolve();
+            }
+          );
+        } else {
+          document.getElementById('location-text').textContent = 
+            'Геолокация не поддерживается';
+          resolve();
+        }
+      });
+    }
+    
+    // Загрузка станций с прогнозами
+    async function loadStations() {
+      try {
+        const { data: stations, error } = await supabase
+          .from('stations')
+          .select(`
+            *,
+            observations (
+              fuel_92_status,
+              fuel_95_status,
+              diesel_status,
+              queue_level,
+              timestamp
+            ),
+            predictions (
+              fuel_type,
+              from_time,
+              to_time,
+              confidence,
+              based_on_observations
+            )
+          `)
+          .order('timestamp', { 
+            ascending: false, 
+            foreignTable: 'observations' 
+          })
+          .limit(1, { foreignTable: 'observations' })
+          .limit(1, { foreignTable: 'predictions' });
+        
+        if (error) throw error;
+        
+        renderStations(stations || []);
+      } catch (error) {
+        console.error('Ошибка загрузки станций:', error);
+        document.getElementById('stations-list').innerHTML = 
+          '<p style="color: white; text-align: center;">Ошибка загрузки данных</p>';
+      }
+    }
+    
+    // Отображение списка станций
+    function renderStations(stations) {
+      const container = document.getElementById('stations-list');
+      
+      if (stations.length === 0) {
+        container.innerHTML = '<p style="color: white; text-align: center;">Станции не найдены</p>';
+        return;
+      }
+      
+      container.innerHTML = stations.map(station => {
+        const lastObs = station.observations?.[0];
+        const predictions = station.predictions || [];
+        const prediction95 = predictions.find(p => p.fuel_type === '95');
+        
+        const queueClass = lastObs?.queue_level === 'high' ? 'queue-high' :
+                          lastObs?.queue_level === 'medium' ? 'queue-medium' : 'queue-low';
+        
+        const queueText = lastObs?.queue_level === 'high' ? 'Большая очередь' :
+                         lastObs?.queue_level === 'medium' ? 'Средняя очередь' : 'Свободно';
+        
+        return `
+          <div class="station-card" onclick="openStationModal('${station.id}')">
+            <div class="station-header">
+              <div>
+                <div class="station-name">${station.name}</div>
+                <div class="station-brand">${station.brand || 'Независимая АЗС'}</div>
+              </div>
+            </div>
+            
+            <div class="fuel-grid">
+              <div class="fuel-item">
+                <div class="fuel-type">АИ-92</div>
+                <div class="fuel-status ${lastObs?.fuel_92_status ? 'fuel-available' : 'fuel-unavailable'}">
+                  ${lastObs?.fuel_92_status ? '✓ Есть' : '✗ Нет'}
+                </div>
+              </div>
+              <div class="fuel-item">
+                <div class="fuel-type">АИ-95</div>
+                <div class="fuel-status ${lastObs?.fuel_95_status ? 'fuel-available' : 'fuel-unavailable'}">
+                  ${lastObs?.fuel_95_status ? '✓ Есть' : '✗ Нет'}
+                </div>
+              </div>
+              <div class="fuel-item">
+                <div class="fuel-type">Дизель</div>
+                <div class="fuel-status ${lastObs?.diesel_status ? 'fuel-available' : 'fuel-unavailable'}">
+                  ${lastObs?.diesel_status ? '✓ Есть' : '✗ Нет'}
+                </div>
+              </div>
+            </div>
+            
+            ${lastObs?.queue_level ? `
+              <div class="queue-status">
+                <div class="queue-indicator ${queueClass}"></div>
+                <span>${queueText}</span>
+              </div>
+            ` : ''}
+            
+            ${prediction95 ? `
+              <div class="prediction-section">
+                <div class="prediction-label">
+                  🔮 Прогноз пополнения АИ-95
+                </div>
+                <div class="prediction-time">
+                  ${prediction95.from_time.substring(0, 5)}–${prediction95.to_time.substring(0, 5)}
+                </div>
+                <div class="confidence-container">
+                  <div class="confidence-header">
+                    <span>Надёжность прогноза</span>
+                    <span>${Math.round(prediction95.confidence * 100)}%</span>
+                  </div>
+                  <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: ${prediction95.confidence * 100}%"></div>
+                  </div>
+                  <div class="observation-count">
+                    Основано на ${prediction95.based_on_observations} наблюдениях
+                  </div>
+                </div>
+              </div>
+            ` : `
+              <div class="no-data-message">
+                ⚠️ Недостаточно данных для прогноза
+              </div>
+            `}
+          </div>
+        `;
+      }).join('');
+    }
+    
+    // Открытие модального окна с детальной информацией
+    async function openStationModal(stationId) {
+      const { data: station, error } = await supabase
+        .from('stations')
+        .select(`
+          *,
+          observations (
+            fuel_92_status,
+            fuel_95_status,
+            diesel_status,
+            price_92,
+            price_95,
+            price_diesel,
+            queue_level,
+            timestamp
+          ),
+          predictions (
+            fuel_type,
+            from_time,
+            to_time,
+            confidence,
+            based_on_observations,
+            created_at
+          ),
+          events (
+            event_type,
+            fuel_type,
+            detected_at,
+            confidence
+          )
+        `)
+        .eq('id', stationId)
+        .single();
+      
+      if (error) {
+        console.error('Ошибка загрузки станции:', error);
+        return;
+      }
+      
+      document.getElementById('modal-station-name').textContent = station.name;
+      
+      const lastObs = station.observations?.[0];
+      const predictions = station.predictions || [];
+      const events = station.events || [];
+      
+      let content = `
+        <h3 style="margin: 16px 0 12px 0;">Текущий статус</h3>
+        <div class="fuel-grid">
+          <div class="fuel-item">
+            <div class="fuel-type">АИ-92</div>
+            <div class="fuel-status ${lastObs?.fuel_92_status ? 'fuel-available' : 'fuel-unavailable'}">
+              ${lastObs?.fuel_92_status ? '✓ Есть' : '✗ Нет'}
+            </div>
+            ${lastObs?.price_92 ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${lastObs.price_92} ₽</div>` : ''}
+          </div>
+          <div class="fuel-item">
+            <div class="fuel-type">АИ-95</div>
+            <div class="fuel-status ${lastObs?.fuel_95_status ? 'fuel-available' : 'fuel-unavailable'}">
+              ${lastObs?.fuel_95_status ? '✓ Есть' : '✗ Нет'}
+            </div>
+            ${lastObs?.price_95 ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${lastObs.price_95} ₽</div>` : ''}
+          </div>
+          <div class="fuel-item">
+            <div class="fuel-type">Дизель</div>
+            <div class="fuel-status ${lastObs?.diesel_status ? 'fuel-available' : 'fuel-unavailable'}">
+              ${lastObs?.diesel_status ? '✓ Есть' : '✗ Нет'}
+            </div>
+            ${lastObs?.price_diesel ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${lastObs.price_diesel} ₽</div>` : ''}
+          </div>
+        </div>
+      `;
+      
+      // Прогнозы
+      if (predictions.length > 0) {
+        content += `<h3 style="margin: 24px 0 12px 0;">🔮 Прогнозы пополнения</h3>`;
+        predictions.forEach(pred => {
+          content += `
+            <div class="prediction-section" style="margin-bottom: 12px;">
+              <div class="prediction-label">
+                ${pred.fuel_type === '95' ? 'АИ-95' : pred.fuel_type === '92' ? 'АИ-92' : 'Дизель'}
+              </div>
+              <div class="prediction-time">
+                ${pred.from_time.substring(0, 5)}–${pred.to_time.substring(0, 5)}
+              </div>
+              <div class="confidence-container">
+                <div class="confidence-header">
+                  <span>Надёжность</span>
+                  <span>${Math.round(pred.confidence * 100)}%</span>
+                </div>
+                <div class="confidence-bar">
+                  <div class="confidence-fill" style="width: ${pred.confidence * 100}%"></div>
+                </div>
+                <div class="observation-count">
+                  Основано на ${pred.based_on_observations} наблюдениях
+                </div>
+              </div>
+            </div>
+          `;
+        });
+      }
+      
+      // История событий
+      if (events.length > 0) {
+        content += `<h3 style="margin: 24px 0 12px 0;">📊 История пополнений</h3>`;
+        events.slice(0, 10).forEach(event => {
+          const date = new Date(event.detected_at);
+          content += `
+            <div class="history-item">
+              <div style="font-weight: 600; margin-bottom: 4px;">
+                ${event.fuel_type === '95' ? 'АИ-95' : event.fuel_type === '92' ? 'АИ-92' : 'Дизель'}
+              </div>
+              <div style="font-size: 14px; color: #6b7280;">
+                ${date.toLocaleDateString('ru-RU')} в ${date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          `;
+        });
+      }
+      
+      // Обратная связь
+      content += `
+        <div class="feedback-section">
+          <div class="feedback-title">Вы были на этой АЗС? Что было?</div>
+          <div class="feedback-buttons">
+            <button class="feedback-btn" onclick="submitFeedback('${stationId}', 'delivery')">
+              🚛 Привезли топливо
+            </button>
+            <button class="feedback-btn" onclick="submitFeedback('${stationId}', 'available')">
+              ⛽ Топливо было
+            </button>
+            <button class="feedback-btn" onclick="submitFeedback('${stationId}', 'unavailable')">
+              🔴 Топлива не было
+            </button>
+            <button class="feedback-btn" onclick="submitFeedback('${stationId}', 'queue')">
+              🚗 Большая очередь
+            </button>
+          </div>
+          <div class="success-message" id="feedback-success">
+            ✓ Спасибо! Ваше наблюдение учтено
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('modal-content').innerHTML = content;
+      document.getElementById('station-modal').classList.add('active');
+    }
+    
+    function closeModal() {
+      document.getElementById('station-modal').classList.remove('active');
+    }
+    
+    // Отправка обратной связи от пользователя
+    async function submitFeedback(stationId, feedbackType) {
+      try {
+        const { error } = await supabase
+          .from('observations')
+          .insert({
+            station_id: stationId,
+            timestamp: new Date().toISOString(),
+            fuel_92_status: feedbackType === 'available',
+            fuel_95_status: feedbackType === 'available',
+            diesel_status: feedbackType === 'available',
+            queue_level: feedbackType === 'queue' ? 'high' : null,
+            data_freshness_minutes: 0
+          });
+        
+        if (error) throw error;
+        
+        // Если это поставка, создаём событие
+        if (feedbackType === 'delivery') {
+          await supabase.from('events').insert({
+            station_id: stationId,
+            event_type: 'possible_delivery',
+            detected_at: new Date().toISOString(),
+            confidence: 0.9,
+            source: 'user_feedback'
+          });
+        }
+        
+        document.getElementById('feedback-success').classList.add('active');
+        setTimeout(() => {
+          document.getElementById('feedback-success').classList.remove('active');
+        }, 3000);
+        
+        // Перезагружаем станции
+        setTimeout(() => loadStations(), 1000);
+        
+      } catch (error) {
+        console.error('Ошибка отправки обратной связи:', error);
+        alert('Ошибка отправки. Попробуйте ещё раз.');
+      }
+    }
+    
+    // Закрытие модального окна по клику вне его
+    document.getElementById('station-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'station-modal') {
+        closeModal();
+      }
+    });
+    
+    // Запуск приложения
+    init();
+    
+    // Автообновление каждые 5 минут
+    setInterval(loadStations, 5 * 60 * 1000);
+  </script>
+</body>
+</html>
