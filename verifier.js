@@ -54,15 +54,18 @@ function timeToMin(t) {
 
 async function main() {
   console.log('=== ВЕРИФИКАТОР v1 ===');
+  const mskNow = new Date(Date.now() + 3 * 3600 * 1000);
+  const todayStr = mskNow.toISOString().slice(0, 10);
   const preds = await sbGet(
-    '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&select=id,station_id,fuel_type,from_time,to_time,created_at&limit=1000'
+    '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=lt.' + todayStr +
+    '&select=id,station_id,fuel_type,from_time,to_time,target_date&limit=1000'
   );
   console.log('   Ожидают проверки: ' + preds.length);
 
   const now = Date.now();
   const queue = [];
   for (const p of preds) {
-    const dayStart = mskDayStartUtc(p.created_at);
+    const dayStart = Date.UTC(Number(p.target_date.slice(0, 4)), Number(p.target_date.slice(5, 7)) - 1, Number(p.target_date.slice(8, 10))) - 3 * 3600 * 1000;
     const winStart = dayStart + (timeToMin(p.from_time) - BEFORE_MIN) * 60000;
     const winEnd = dayStart + (timeToMin(p.to_time) + AFTER_MIN) * 60000;
     if (now <= winEnd) continue; // окно ещё не закрылось

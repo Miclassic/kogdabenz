@@ -123,11 +123,14 @@ async function main() {
 
   // Существующие прогнозы на сегодня
   const mskNow = new Date(Date.now() + 3 * 3600 * 1000);
+  const mskMinutesNow = mskNow.getUTCHours() * 60 + mskNow.getUTCMinutes();
+  const todayStr = mskNow.toISOString().slice(0, 10);
+  const tomorrowStr = new Date(mskNow.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
   const dayStartIso = new Date(
     Date.UTC(mskNow.getUTCFullYear(), mskNow.getUTCMonth(), mskNow.getUTCDate()) - 3 * 3600 * 1000
   ).toISOString();
   const existing = await sbGet(
-    '/rest/v1/predictions?result=eq.PENDING&created_at=gte.' + dayStartIso +
+    '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
     '&select=id,station_id,fuel_type&limit=1000'
   );
   const existingByKey = {};
@@ -244,6 +247,7 @@ async function main() {
         }
       }
 
+      const toMin = Number(to.slice(0, 2)) * 60 + Number(to.slice(3, 5));
       const row = {
         station_id: st.id,
         fuel_type: fuel,
@@ -254,6 +258,7 @@ async function main() {
         based_on_stations: basedOnStations,
         prediction_source: source,
         algorithm_version: 'v1.1|' + source,
+        target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING'
       };
       if (expectedRestoreAt) row.expected_restore_at = expectedRestoreAt;
