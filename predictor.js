@@ -276,6 +276,15 @@ async function main() {
   }
 
   console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped);
+  if (created > 0 && process.env.TELEGRAM_BOT_TOKEN) {
+    try {
+      await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: '🔮 КогдаБенз: появились первые прогнозы (' + created + ' шт)! Открой сайт.' })
+      });
+    } catch (e) {}
+  }
   console.log('✅ Предиктор v1.1 завершил работу');
 }
 

@@ -75,6 +75,19 @@ async function sbPatch(path, row) {
   if (!r.ok) throw new Error('PATCH ' + path + ' → ' + r.status + ' ' + await r.text());
 }
 
+async function tg(text) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chat = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chat) return;
+  try {
+    await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: text, disable_web_page_preview: true })
+    });
+  } catch (e) { console.log('   ! Телеграм: ' + e.message); }
+}
+
 function fuelSet(fuelsNow) {
   const empty = !fuelsNow;
   const list = (fuelsNow || '').split(',');
@@ -117,6 +130,9 @@ async function main() {
   );
   const idByExt = {};
   for (const s of saved) idByExt[s.external_id] = s.id;
+  const nameById = {};
+  for (const s of saved) nameById[s.id] = s.name;
+  const tgLines = [];
 
   console.log('3) Достаю последние наблюдения для сравнения...');
   const ids = saved.map(s => s.id);
@@ -183,6 +199,10 @@ async function main() {
   }
   if (events.length) await sbPost('events', events);
   console.log('   Событий обнаружено: ' + events.length);
+  for (const e of events) tgLines.push(
+    (e.event_type === 'fuel_restored' ? '🟢' : e.event_type === 'fuel_disappeared' ? '🔴' : '🚗') +
+    ' ' + (nameById[e.station_id] || 'АЗС') + ' / ' + (e.fuel_type || '-') + ' — ' + e.event_type
+  );
 
   // === NEW === ШАГ 6: комментарии водителей
   console.log('6) Качаю комментарии...');
@@ -222,6 +242,7 @@ async function main() {
   if (commentEvents.length) {
     await sbPost('events', commentEvents);
     console.log('   Событий из комментариев: ' + commentEvents.length);
+    for (const e of commentEvents) tgLines.push('💬 ' + (nameById[e.station_id] || 'АЗС') + ' — ' + e.event_type);
   }
   // === ШАГ 7: превращаем народные отметки user_feedback в события ===
   console.log('7) Обрабатываю народные отметки...');
@@ -243,6 +264,7 @@ async function main() {
       source: 'user_feedback'
     }));
     await sbPost('events', fbEvents);
+    for (const e of fbEvents) tgLines.push('🙋 ' + (nameById[e.station_id] || 'АЗС') + ' — ' + e.event_type + ' (народная отметка)');
     const ids = unprocessed.map(f => f.id).join(',');
     await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
@@ -269,6 +291,9 @@ async function main() {
     console.log('   ! Уборка не прошла: ' + e.message);
   }
   
+  if (tgLines.length) {
+    await tg('⚡ КогдаБенз, события (' + tgLines.length + '):\n' + tgLines.slice(0, 10).join('\n'));
+  }
   console.log('✅ Цикл завершён');
 }
 
