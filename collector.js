@@ -137,12 +137,12 @@ async function main() {
   console.log('3) Достаю последние наблюдения для сравнения...');
   const ids = saved.map(s => s.id);
   const lastByStation = {};
+  const recentByStation = {};
   if (ids.length) {
     const last = await sbGet(
       '/rest/v1/observations?station_id=in.(' + ids.map(i => '"' + i + '"').join(',') +
       ')&order=timestamp.desc&limit=2000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level'
     );
-    const recentByStation = {};
     for (const o of last) {
       (recentByStation[o.station_id] = recentByStation[o.station_id] || []).push(o);
       if (!lastByStation[o.station_id]) lastByStation[o.station_id] = o;
