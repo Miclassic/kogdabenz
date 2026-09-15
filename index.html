@@ -566,6 +566,24 @@ button {
   color: var(--muted);
 }
 
+/* =========================
+   CITY PULSE
+========================= */
+.pulse { margin-top:18px; padding:16px; border-radius:24px; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); box-shadow:var(--shadow); }
+.pulse-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.pulse-title { font-size:15px; font-weight:850; }
+.pulse-sub { color:#8b99af; font-size:10px; margin-top:2px; }
+.pulse-tabs { display:flex; gap:6px; }
+.pulse-tab { border:1px solid var(--border); background:#f5f7fb; color:#7487a7; border-radius:10px; padding:6px 10px; font-size:11px; font-weight:800; cursor:pointer; }
+.pulse-tab.active { background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; border-color:transparent; }
+.pulse-chart { position:relative; margin-top:14px; }
+.pulse-svg { width:100%; height:170px; display:block; }
+.pulse-tip { position:absolute; pointer-events:none; background:#14213d; color:#fff; border-radius:10px; padding:8px 10px; font-size:10px; line-height:1.5; opacity:0; transform:translate(-50%,-115%); transition:opacity .15s; white-space:nowrap; z-index:5; }
+.pulse-legend { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; color:#647491; font-size:10px; font-weight:700; }
+.pulse-legend span { display:flex; align-items:center; gap:5px; }
+.pulse-legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
+.pulse-insight { margin-top:10px; padding:10px 12px; border-radius:14px; background:linear-gradient(135deg,#eafaf5,#eff5ff); font-size:11px; color:#33445f; line-height:1.5; }
+
 </style>
 </head>
 
@@ -647,8 +665,32 @@ button {
   </section>
 
 
-  <!-- APP -->
+ <!-- CITY PULSE -->
+  <section class="pulse">
+    <div class="pulse-head">
+      <div>
+        <div class="pulse-title">📈 Пульс города: спрос и предложение</div>
+        <div class="pulse-sub">очереди и доступность АИ-95 по часам</div>
+      </div>
+      <div class="pulse-tabs">
+        <button class="pulse-tab active" onclick="pulseRange(24,this)">24 ч</button>
+        <button class="pulse-tab" onclick="pulseRange(168,this)">7 дн</button>
+      </div>
+    </div>
+    <div class="pulse-chart">
+      <svg class="pulse-svg" id="pulseSvg"></svg>
+      <div class="pulse-tip" id="pulseTip"></div>
+    </div>
+    <div class="pulse-legend">
+      <span><i style="background:#ff9f9a"></i> очереди на АЗС</span>
+      <span><i style="background:#35c894"></i> АИ-95 в наличии</span>
+      <span>🔴 бензин кончился</span>
+      <span>🟢 бензин вернулся</span>
+    </div>
+    <div class="pulse-insight" id="pulseInsight">Считаем пульс города...</div>
+  </section>
 
+  <!-- APP -->
   <main id="app">
 
     <div class="status">
@@ -2011,10 +2053,125 @@ document
 
 
 /* =====================================================
+   CITY PULSE
+===================================================== */
+let pulseRaw = [];
+let pulseEv = [];
+let pulseRangeH = 24;
+
+async function loadPulse() {
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const [hourly, events] = await Promise.all([
+    dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
+    dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&limit=1000')
+  ]);
+  pulseRaw = hourly.map(h => ({
+    t: new Date(h.hour),
+    marks: h.marks,
+    queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0,
+    availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null
+  }));
+  pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
+  renderPulse();
+}
+
+function pulseRange(r, btn) {
+  pulseRangeH = r;
+  document.querySelectorAll('.pulse-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPulse();
+}
+
+function sameBucket(t, b, isDay) {
+  const sameDay = t.getFullYear() === b.t.getFullYear() && t.getMonth() === b.t.getMonth() && t.getDate() === b.t.getDate();
+  return isDay ? sameDay : sameDay && t.getHours() === b.t.getHours();
+}
+
+function renderPulse() {
+  const svg = document.getElementById('pulseSvg');
+  const insight = document.getElementById('pulseInsight');
+  if (!svg) return;
+  const isDay = pulseRangeH !== 24;
+  let buckets = [];
+
+  if (!isDay) {
+    buckets = pulseRaw.slice(-24).map(r => ({ ...r, label: String(r.t.getHours()).padStart(2, '0') + ':00' }));
+  } else {
+    const byDay = {};
+    for (const r of pulseRaw) {
+      const k = r.t.getFullYear() + '-' + r.t.getMonth() + '-' + r.t.getDate();
+      if (!byDay[k]) byDay[k] = { t: r.t, label: r.t.getDate() + '.' + String(r.t.getMonth() + 1).padStart(2, '0'), marks: 0, q: 0, aSum: 0, aN: 0 };
+      byDay[k].marks += r.marks;
+      byDay[k].q += r.queuePct * r.marks;
+      if (r.availPct !== null) { byDay[k].aSum += r.availPct; byDay[k].aN++; }
+    }
+    buckets = Object.values(byDay).sort((a, b) => a.t - b.t).map(b => ({
+      t: b.t, label: b.label, marks: b.marks,
+      queuePct: b.marks ? Math.round(b.q / b.marks) : 0,
+      availPct: b.aN ? Math.round(b.aSum / b.aN) : null
+    }));
+  }
+
+  if (!buckets.length) { insight.textContent = 'Данных для графика пока мало.'; svg.innerHTML = ''; return; }
+
+  const W = 640, H = 170, PAD = 6, BASE = H - 22, TOP = 18;
+  const n = buckets.length, step = (W - PAD * 2) / n;
+  let bars = '', pts = [], dots = '', axis = '';
+
+  buckets.forEach((b, i) => {
+    const x = PAD + i * step + step / 2;
+    const qh = Math.max(2, Math.round(b.queuePct / 100 * (BASE - TOP)));
+    bars += '<rect data-i="' + i + '" x="'+ (x - step * 0.3) + '" y="' + (BASE - qh) + '" width="' + (step * 0.6) + '" height="' + qh + '" rx="4" fill="url(#gq)"/>';
+    if (b.availPct !== null) pts.push([x, BASE - Math.round(b.availPct / 100 * (BASE - TOP))]);
+    const dis = pulseEv.filter(e => e.type === 'fuel_disappeared' && sameBucket(e.t, b, isDay)).length;
+    const res = pulseEv.filter(e => e.type === 'fuel_restored' && sameBucket(e.t, b, isDay)).length;
+    if (dis) dots += '<text x="' + x + '" y="12" font-size="10" text-anchor="middle">🔴</text>';
+    if (res) dots += '<text x="' + x + '" y="' + (dis ? 24 : 12) + '" font-size="10" text-anchor="middle">🟢</text>';
+    if (!isDay || i % 4 === 0) axis += '<text x="' + x + '" y="' + (H - 6) + '" font-size="9" fill="#8998ae" text-anchor="middle">' + b.label + '</text>';
+  });
+
+  const line = pts.length > 1
+    ? '<polyline points="' + pts.map(p => p[0] + ',' + p[1]).join(' ') + '" fill="none" stroke="#35c894" stroke-width="2.5" stroke-linecap="round"/>'
+    : '';
+
+  const nowI = !isDay ? buckets.findIndex(b => sameBucket(new Date(), b, false)) : -1;
+  const nowLine = nowI >= 0 ? '<line x1="' + (PAD + nowI * step + step / 2) + '" y1="' + TOP + '" x2="' + (PAD + nowI * step + step / 2) + '" y2="' + BASE + '" stroke="#397cff" stroke-dasharray="4 4" stroke-width="1.5"/>' : '';
+
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.innerHTML = '<defs><linearGradient id="gq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9f9a"/><stop offset="1" stop-color="#ffd7d4"/></linearGradient></defs>' +
+    '<line x1="' + PAD + '" y1="' + BASE + '" x2="' + (W - PAD) + '" y2="' + BASE + '" stroke="#e9edf5"/>' +
+    bars + line + dots + nowLine + axis;
+
+  svg.onclick = e => {
+    const i = e.target && e.target.dataset ? Number(e.target.dataset.i) : NaN;
+    const tip = document.getElementById('pulseTip');
+    if (!Number.isFinite(i) || !buckets[i]) { tip.style.opacity = 0; return; }
+    const b = buckets[i];
+    const box = svg.getBoundingClientRect();
+    tip.style.left = ((PAD + i * step + step / 2) / W * box.width) + 'px';
+    tip.style.top = (BASE - Math.max(2, Math.round(b.queuePct / 100 * (BASE - TOP))) ) / H * box.height + 'px';
+    tip.innerHTML = '<b>' + b.label + '</b><br>очереди: ' + b.queuePct + '% АЗС<br>АИ-95: ' + (b.availPct === null ? 'нет данных' : b.availPct + '%') + '<br>отметок: ' + b.marks;
+    tip.style.opacity = 1;
+  };
+
+  const wm = buckets.filter(b => b.marks > 0);
+  if (wm.length) {
+    const peak = wm.reduce((a, b) => b.queuePct > a.queuePct ? b : a);
+    const kn = wm.filter(b => b.availPct !== null);
+    const low = kn.length ? kn.reduce((a, b) => b.availPct < a.availPct ? b : a) : null;
+    let txt = '🚗 Пик очередей: ' + peak.label + ' (' + peak.queuePct + '% АЗС).';
+    if (low) txt += ' ⛽ Реже всего АИ-95: ' + low.label + ' (' + low.availPct + '%).';
+    txt += ' По ' + pulseRaw.reduce((s, r) => s + r.marks, 0) + ' отметкам за 7 дней.';
+    insight.textContent = txt;
+  } else insight.textContent = 'Данных для выводов пока мало.';
+}
+
+/* =====================================================
    START APP
 ===================================================== */
 
 start();
+loadPulse().catch(e => console.log('pulse: ' + e.message));
 
 </script>
 
