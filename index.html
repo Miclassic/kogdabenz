@@ -583,6 +583,9 @@ button {
 .pulse-legend span { display:flex; align-items:center; gap:5px; }
 .pulse-legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
 .pulse-insight { margin-top:10px; padding:10px 12px; border-radius:14px; background:linear-gradient(135deg,#eafaf5,#eff5ff); font-size:11px; color:#33445f; line-height:1.5; }
+.fb-extra { margin-top:9px; }
+.fb-text { width:100%; margin-top:8px; padding:10px 12px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:12px; outline:none; }
+.fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
 
 </style>
 </head>
@@ -1182,15 +1185,9 @@ function recentFeedback(
               ) + ' ч';
 
 
-        return (
-          labels[
-            f.feedback_type
-          ] ||
-          'Отметка'
-        ) +
-        ' · ' +
-        ago +
-        ' назад';
+        const fuelLbl = f.fuel_type === '92' ? ' (АИ-92)' : f.fuel_type === '95' ? ' (АИ-95)' : f.fuel_type === 'diesel' ? ' (дизель)' : '';
+        const queueLbl = f.queue_size === 'small' ? ' (небольшая)' : f.queue_size === 'medium' ? ' (средняя)' : f.queue_size === 'large' ? ' (большая)' : '';
+        return (labels[f.feedback_type] || 'Отметка') + fuelLbl + queueLbl + ' · ' + ago + ' назад';
 
       }
     )
@@ -1202,98 +1199,99 @@ function recentFeedback(
    FEEDBACK PANEL
 ===================================================== */
 
-function feedbackPanel(
-  stationId
-) {
-
+function feedbackPanel(stationId) {
   return `
-
-    <div
-      id="feedback-${stationId}"
-      class="feedback-panel"
-    >
-
-      <div class="feedback-question">
-        Что вы увидели на АЗС?
-      </div>
-
-
+    <div id="feedback-${stationId}" class="feedback-panel">
+      <div class="feedback-question">Что вы увидели на АЗС?</div>
       <div class="feedback-grid">
-
-        <button
-          class="feedback-option"
-          onclick="
-            sendFeedback(
-              '${stationId}',
-              'delivery',
-              this
-            )
-          "
-        >
-          🚚 Привезли
-        </button>
-
-
-        <button
-          class="feedback-option"
-          onclick="
-            sendFeedback(
-              '${stationId}',
-              'available',
-              this
-            )
-          "
-        >
-          ⛽ Топливо было
-        </button>
-
-
-        <button
-          class="feedback-option"
-          onclick="
-            sendFeedback(
-              '${stationId}',
-              'unavailable',
-              this
-            )
-          "
-        >
-          🔴 Топлива не было
-        </button>
-
-
-        <button
-          class="feedback-option"
-          onclick="
-            sendFeedback(
-              '${stationId}',
-              'queue',
-              this
-            )
-          "
-        >
-          🚗 Была очередь
-        </button>
-
-
-        <button
-          class="feedback-option"
-          onclick="
-            sendFeedback(
-              '${stationId}',
-              'free',
-              this
-            )
-          "
-        >
-          🟢 Было свободно
-        </button>
-
+        <button class="feedback-option" onclick="fbPick('${stationId}','delivery',this)">🚚 Привезли</button>
+        <button class="feedback-option" onclick="fbPick('${stationId}','available',this)">⛽ Топливо было</button>
+        <button class="feedback-option" onclick="fbPick('${stationId}','unavailable',this)">🔴 Топлива не было</button>
+        <button class="feedback-option" onclick="fbPick('${stationId}','queue',this)">🚗 Была очередь</button>
+        <button class="feedback-option" onclick="fbPick('${stationId}','free',this)">🟢 Было свободно</button>
       </div>
-
+      <div id="fb-extra-${stationId}" class="fb-extra" style="display:none"></div>
+      <input id="fb-text-${stationId}" class="fb-text" type="text" maxlength="200" placeholder="Пара слов своими словами (необязательно)" style="display:none">
+      <button id="fb-send-${stationId}" class="fb-send" style="display:none" onclick="fbSend('${stationId}')">Отправить отметку</button>
     </div>
-
   `;
+}
+
+let fbDraft = {};
+
+function fbPick(stationId, type, btn) {
+  const panel = btn.closest('.feedback-panel');
+  panel.querySelectorAll('.feedback-grid')[0].querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  fbDraft[stationId] = { type: type, fuel: null, queue: null };
+
+  let chips = '';
+  if (type === 'delivery' || type === 'available' || type === 'unavailable') {
+    chips = '<div class="feedback-question">Какое топливо?</div><div class="feedback-grid">' +
+      ['92', '95', 'diesel', 'all'].map(f =>
+        '<button class="feedback-option" onclick="fbChip(\'' + stationId + '\',\'fuel\',\'' + f + '\',this)">' +
+        (f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'Дизель' : 'Все виды') +
+        '</button>').join('') + '</div>';
+  } else if (type === 'queue') {
+    chips = '<div class="feedback-question">Какая очередь?</div><div class="feedback-grid">' +
+      ['small', 'medium', 'large'].map(q =>
+        '<button class="feedback-option" onclick="fbChip(\'' + stationId + '\',\'queue\',\'' + q + '\',this)">' +
+        (q === 'small' ? 'Небольшая (2–3 машины)' : q === 'medium' ? 'Средняя (4–6)' : 'Большая (7+)') +
+        '</button>').join('') + '</div>';
+  }
+
+  const extra = document.getElementById('fb-extra-' + stationId);
+  extra.innerHTML = chips;
+  extra.style.display = chips ? 'block' : 'none';
+  document.getElementById('fb-text-' + stationId).style.display = 'block';
+  document.getElementById('fb-send-' + stationId).style.display = 'block';
+}
+
+function fbChip(stationId, kind, value, btn) {
+  btn.closest('.feedback-grid').querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  fbDraft[stationId][kind] = value;
+}
+
+async function fbSend(stationId) {
+  const d = fbDraft[stationId];
+  if (!d) return;
+
+  const key = 'fb_' + stationId;
+  const history = JSON.parse(localStorage.getItem(key) || '[]');
+  const now = Date.now();
+  const recent = history.filter(t => now - t < 30 * 60 * 1000);
+  if (recent.length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+
+  const comment = (document.getElementById('fb-text-' + stationId).value || '').trim();
+  const sendBtn = document.getElementById('fb-send-' + stationId);
+  sendBtn.disabled = true;
+
+  const ok = await dbInsert('user_feedback', [{
+    station_id: stationId,
+    feedback_type: d.type,
+    fuel_type: d.fuel,
+    queue_size: d.queue,
+    comment_text: comment || null,
+    device_id: deviceId
+  }]);
+
+  if (!ok) { sendBtn.disabled = false; alert('Не удалось отправить отметку.'); return; }
+
+  recent.push(now);
+  localStorage.setItem(key, JSON.stringify(recent));
+  allFeedback.unshift({ station_id: stationId, feedback_type: d.type, fuel_type: d.fuel, queue_size: d.queue, created_at: new Date().toISOString() });
+
+  const station = sendBtn.closest('.station');
+  const recentElement = station && station.querySelector('.recent');
+  if (recentElement) recentElement.textContent = '✓ Спасибо! Ваша отметка учтена в данных.';
+
+  fbDraft[stationId] = null;
+  document.getElementById('fb-extra-' + stationId).style.display = 'none';
+  document.getElementById('fb-text-' + stationId).style.display = 'none';
+  sendBtn.style.display = 'none';
+  sendBtn.disabled = false;
+  station.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
 }
 
 

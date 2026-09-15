@@ -280,7 +280,7 @@ async function main() {
   // === ШАГ 7: превращаем народные отметки user_feedback в события ===
   console.log('7) Обрабатываю народные отметки...');
   const unprocessed = await sbGet(
-    '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,created_at&limit=500'
+    '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,fuel_type,queue_size,created_at&limit=500'
   );
   if (unprocessed.length) {
     const fbEvents = unprocessed.map(f => ({
@@ -291,13 +291,16 @@ async function main() {
         f.feedback_type === 'unavailable' ? 'fuel_unavailable' :
         f.feedback_type === 'queue' ? 'queue_high' :
         'queue_low',
-      fuel_type: null,
+      fuel_type: f.fuel_type === 'all' ? null : (f.fuel_type || null),
       detected_at: f.created_at,
-      confidence: 0.85,
+      confidence:
+        f.feedback_type === 'queue'
+          ? (f.queue_size === 'large' ? 0.9 : f.queue_size === 'medium' ? 0.75 : f.queue_size === 'small' ? 0.6 : 0.7)
+          : 0.85,
       source: 'user_feedback'
     }));
     await sbPost('events', fbEvents);
-    for (const e of fbEvents) tgLines.push(eventNameRu(e.event_type) + ' — ' + (nameById[e.station_id] || 'АЗС') + ' (народная отметка)');
+    for (const e of fbEvents) tgLines.push(eventNameRu(e.event_type) + (e.fuel_type ? ' (' + fuelNameRu(e.fuel_type) + ')' : '') + ' — ' + (nameById[e.station_id] || 'АЗС') + ' (народная отметка)');
     const ids = unprocessed.map(f => f.id).join(',');
     await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
