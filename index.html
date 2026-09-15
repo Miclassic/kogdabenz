@@ -706,6 +706,8 @@ let allObservations = [];
 let allPredictions = [];
 let allFeedback = [];
 let allEvents = [];
+let allCounts = [];
+let allHourly = [];
 
 
 /* =====================================================
@@ -1040,27 +1042,26 @@ function stationHistory(
 ===================================================== */
 
 function createGraph(stationId) {
-  const history = stationHistory(stationId);
-  const hours = {};
-  for (const obs of history) {
-    const date = new Date(obs.timestamp);
-    const key = date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0')+'-'+String(date.getHours()).padStart(2,'0');
-    if (!hours[key]) hours[key] = { hour: date.getHours(), available: 0, total: 0, timestamp: date.getTime() };
-    hours[key].total++;
-    if (obs.fuel_95_status === true) hours[key].available++;
-  }
-  let points = Object.values(hours).sort((a,b)=>a.timestamp-b.timestamp).slice(-14);
-  if (!points.length) points = Array.from({length:14},(_,i)=>({hour:(i+8)%24,available:0,total:0,timestamp:0}));
-  const ratios = points.map(p=>p.total?p.available/p.total:0);
-  const max = Math.max(1,...ratios);
-  return points.map((p,index)=>{
-    const ratio = p.total?p.available/p.total:0;
-    const height = p.total?Math.max(6,Math.round(ratio/max*46)):5;
-    let cls='bar';
-    if(p.total&&ratio>=.7)cls+=' good';
-    if(p.total&&ratio<=.3)cls+=' bad';
-    if(index===points.length-1)cls+=' current';
-    return '<div class="bar-wrap"><div class="'+cls+'" style="height:'+height+'px"></div></div>';
+  const rows = allHourly
+    .filter(h => h.station_id === stationId)
+    .sort((a, b) => new Date(a.hour) - new Date(b.hour))
+    .slice(-14);
+
+  const points = rows.length ? rows : Array.from({ length: 14 }, (_, i) => ({
+    hour: new Date(Date.now() - (13 - i) * 3600000).toISOString(), total: 0, available_95: 0
+  }));
+
+  const ratios = points.map(p => p.total ? p.available_95 / p.total : 0);
+  const max = Math.max(1, ...ratios);
+
+  return points.map((p, index) => {
+    const ratio = p.total ? p.available_95 / p.total : 0;
+    const height = p.total ? Math.max(6, Math.round(ratio / max * 46)) : 5;
+    let cls = 'bar';
+    if (p.total && ratio >= .7) cls += ' good';
+    if (p.total && ratio <= .3) cls += ' bad';
+    if (index === points.length - 1 && p.total) cls += ' current';
+    return '<div class="bar-wrap"><div class="' + cls + '" style="height:' + height + 'px"></div></div>';
   }).join('');
 }
 
@@ -1308,7 +1309,7 @@ function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const graph = createGraph(station.id);
   const cw = prediction.confidence || 8;
-  const hc = stationHistory(station.id).length;
+  const hc = (allCounts.find(c => c.station_id === station.id) || {}).total || 0;
 
   return `
     <article class="station">
@@ -1521,119 +1522,41 @@ function renderStations(
 ===================================================== */
 
 async function start() {
-
-  const app =
-    document.getElementById(
-      'app'
-    );
-
-
+  const app = document.getElementById('app');
   try {
+    const stations = await dbQuery('/rest/v1/stations?select=*');
+    const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
+    const localIds = stations
+      .filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2)
+      .map(s => s.id);
+    const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
 
-    const [
-      stations,
-      observations,
-      predictions,
-      events,
-      feedback
-    ] =
-      await Promise.all([
+    const [observations, counts, predictions, events, feedback, hourly] = await Promise.all([
+      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
+      dbQuery('/rest/v1/station_counts?select=station_id,total'),
+      dbQuery('/rest/v1/predictions?select=*'),
+      dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
+      dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
+      dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')')
+    ]);
 
-        dbQuery(
-          '/rest/v1/stations?select=*'
-        ),
+    allStations = stations;
+    allObservations = observations;
+    allCounts = counts;
+    allPredictions = predictions;
+    allEvents = events;
+    allFeedback = feedback;
+    allHourly = hourly;
 
-        dbQuery(
-          '/rest/v1/observations?order=timestamp.desc&limit=3000'
-        ),
-
-        dbQuery(
-          '/rest/v1/predictions?select=*'
-        ),
-
-        dbQuery(
-          '/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'
-        ),
-
-        dbQuery(
-          '/rest/v1/user_feedback?order=created_at.desc&limit=300'
-        )
-
-      ]);
-
-
-    allStations =
-      stations;
-
-    allObservations =
-      observations;
-
-    allPredictions =
-      predictions;
-
-    allFeedback =
-      feedback;
-
-    allEvents =
-      events;
-
-
-    if (
-      !stations.length
-    ) {
-
-      app.innerHTML = `
-
-        <div class="status">
-
-          ✅ База подключена.
-
-          <br>
-
-          <small>
-            Но в ней пока нет АЗС.
-          </small>
-
-        </div>
-
-      `;
-
+    if (!stations.length) {
+      app.innerHTML = '<div class="status">✅ База подключена.<br><small>Но в ней пока нет АЗС.</small></div>';
       return;
-
     }
 
-
-    // Показываем только новороссийские станции (остальные собраны для статистики)
-    const ownBox = { lat1: 44.62, lat2: 44.82, lon1: 37.62, lon2: 38.00 };
-    const localStations = stations.filter(s =>
-      s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 &&
-      s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2
-    );
-    renderStations(localStations);
-
-
-  } catch(e) {
-
-    app.innerHTML = `
-
-      <div class="status">
-
-        ❌ Не удалось загрузить данные
-
-        <br><br>
-
-        <small>
-          ${escapeHtml(
-            e.message
-          )}
-        </small>
-
-      </div>
-
-    `;
-
+    renderStations(stations.filter(s => localIds.includes(s.id)));
+  } catch (e) {
+    app.innerHTML = '<div class="status">❌ Не удалось загрузить данные<br><br><small>' + escapeHtml(e.message) + '</small></div>';
   }
-
 }
 
 
