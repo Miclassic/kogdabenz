@@ -225,6 +225,10 @@ html, body { height:100%; }
 body { overflow:hidden; }
 .page { height:100dvh; display:flex; flex-direction:column; max-width:560px; padding:calc(10px + env(safe-area-inset-top)) 12px 0; margin:0 auto; }
 .header { margin-bottom:8px; }
+.tagline { margin:0 2px 8px; }
+.tagline-slogan { font-size:15px; font-weight:900; letter-spacing:-.3px; }
+.tagline-slogan span { color:var(--blue); }
+.tagline-text { margin-top:3px; color:#71809c; font-size:11px; line-height:1.45; }
 .logo { width:40px; height:40px; border-radius:14px; font-size:21px; }
 .logo-title { font-size:17px; }
 .logo-subtitle { font-size:10px; }
@@ -233,7 +237,8 @@ body { overflow:hidden; }
 .pager { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:10px; min-height:0; }
 .pager::-webkit-scrollbar { display:none; }
 .panel { flex:0 0 100%; min-width:100%; scroll-snap-align:center; display:flex; flex-direction:column; border-radius:28px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); padding:14px; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
-.panel-scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.panel-scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; scroll-snap-type:y proximity; scroll-behavior:smooth; padding-bottom:calc(20px + env(safe-area-inset-bottom)); -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 calc(100% - 34px),transparent 100%); mask-image:linear-gradient(180deg,#000 0%,#000 calc(100% - 34px),transparent 100%); }
+.srow-wrap { scroll-snap-align:start; }
 .panel-scroll #app { flex:none; overflow:visible; padding-bottom:10px; }
 .panel .search { margin-top:0; }
 .panel .listhead { margin:10px 2px 6px; }
@@ -244,10 +249,12 @@ body { overflow:hidden; }
 .nowcard-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
 .nowcard-title { font-size:19px; font-weight:900; letter-spacing:-.6px; }
 .nowcard-sub { margin-top:4px; color:#71809c; font-size:11px; font-weight:600; }
-.nowcard-chart { flex:1; min-height:150px; display:flex; flex-direction:column; }
-.nowcard-chart .pulse { flex:1; display:flex; flex-direction:column; }
-.nowcard-chart .pulse-chart { flex:1; min-height:150px; }
-.nowcard-chart .pulse-svg { height:100%; min-height:150px; }
+.nowcard-chart { margin-top:10px; }
+.nowcard-chart .pulse { margin:0; padding:14px 12px 12px; border:1px solid #e8edf7; border-radius:22px; background:linear-gradient(165deg,#ffffff 0%,#fbfcff 55%,#f6f9ff 100%); box-shadow:0 12px 34px rgba(38,69,120,.08), inset 0 1px 0 #fff; overflow:hidden; display:flex; flex-direction:column; }
+.nowcard-chart .pulse-head, .nowcard-chart .pulse-kpis, .nowcard-chart .pulse-legend, .nowcard-chart .pulse-tabs { display:none; }
+.nowcard-chart .pulse-chart { flex:none; height:32vh; min-height:150px; }
+.nowcard-chart .pulse-svg { height:100%; }
+.nowcard-chart .pulse-insight { position:static; margin-top:8px; padding:9px 12px; font-size:10px; }
 .nkpi-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
 .nkpi { padding:8px 10px; border-radius:12px; background:#f7f9fc; }
 .nkpi-l { color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; }
@@ -307,6 +314,10 @@ body { overflow:hidden; }
     </div>
     <button class="location" onclick="findNearby()">📍 Рядом⌄</button>
   </header>
+  <div class="tagline">
+    <div class="tagline-slogan" id="tagSlogan">Данными. <span>Не догадками.</span></div>
+    <div class="tagline-text" id="tagText">Каждые 10 минут — отметки АЗС и голоса водителей: алгоритм ищет закономерности в событиях и предсказывает окна возврата топлива и тихие часы.</div>
+  </div>
   <div class="pager" id="pager">
     <section class="panel">
       <div class="nowcard">
@@ -911,6 +922,7 @@ function renderNow() {
     }
   }
   renderDigestPanel();
+  setTagline(currentPanel);
 }
 function renderStations(stations, keepOrder) {
   const app = document.getElementById('app');
@@ -1052,6 +1064,7 @@ async function loadPulse() {
   }));
   pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
   renderPulse();
+  requestAnimationFrame(() => renderPulse());
 }
 function pulseRange(r, btn) {
   pulseRangeH = r;
@@ -1107,7 +1120,8 @@ function renderPulse() {
     const nkE = document.getElementById('nkE'); if (nkE) nkE.textContent = '—';
     return;
   }
-  const W = Math.max(320, Math.round(svg.clientWidth || 640)), H = Math.max(170, Math.round(svg.clientHeight || 240)), PADL = 30, PADR = 12, BASE = H - 24, TOP = 26;
+  const rect = svg.getBoundingClientRect();
+  const W = Math.max(320, Math.round(rect.width || svg.clientWidth || 640)), H = Math.max(170, Math.round(rect.height || svg.clientHeight || 240)), PADL = 30, PADR = 12, BASE = H - 24, TOP = 26;
   const n = buckets.length;
   const xAt = i => PADL + (W - PADL - PADR) * (n === 1 ? 0.5 : i / (n - 1));
   const yAt = v => BASE - Math.max(0, Math.min(100, v)) / 100 * (BASE - TOP);
@@ -1213,11 +1227,42 @@ function renderPulse() {
   } else if (insight) insight.textContent = 'Данных для выводов пока мало.';
   renderDigestPanel();
 }
+let currentPanel = 0;
+function setTagline(i) {
+  const sl = document.getElementById('tagSlogan');
+  const tx = document.getElementById('tagText');
+  if (!sl || !tx) return;
+  if (i === 1) {
+    const last = getLastObservations();
+    let withFuel = 0, withPred = 0;
+    for (const id of localIdsGlobal) {
+      const o = last[id];
+      if (o && o.fuel_95_status === true) withFuel++;
+      if (pickPrediction(id, o)) withPred++;
+    }
+    sl.innerHTML = 'АЗС города. <span>Тап — и всё видно.</span>';
+    tx.textContent = localIdsGlobal.length + ' станций в отслеживании · АИ-95 есть на ' + withFuel + ' · прогноз окон у ' + withPred + '. Тап по строке открывает полную карточку с прогнозом и отметками.';
+  } else if (i === 2) {
+    const since = Date.now() - 24 * 3600 * 1000;
+    const ev = pulseEv.filter(e => e.t.getTime() > since);
+    const rest = ev.filter(e => e.type === 'fuel_restored').length;
+    const dis = ev.filter(e => e.type === 'fuel_disappeared').length;
+    sl.innerHTML = 'Дайджест. <span>Город в цифрах.</span>';
+    tx.textContent = 'За 24 часа: топливо вернулось ' + rest + ' раз, закончилось ' + dis + ' раз. Избранного: ' + getFavorites().length + '. Полная сводка приходит в Telegram в 08:00.';
+  } else {
+    const marks = pulseRaw.reduce((s, r) => s + r.marks, 0);
+    const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
+    sl.innerHTML = 'Данными. <span>Не догадками.</span>';
+    tx.textContent = 'Каждые 10 минут — отметки АЗС и голоса водителей: ' + marks + ' наблюдений за 7 дней, ' + ev24 + ' событий за 24 ч. Алгоритм ищет закономерности и предсказывает окна.';
+  }
+}
 start();
 loadPulse().catch(e => console.log('pulse: ' + e.message));
+setTagline(0);
 const pagerEl = document.getElementById('pager');
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
   const i = Math.round(pagerEl.scrollLeft / pagerEl.clientWidth);
+  if (i !== currentPanel) { currentPanel = i; setTagline(i); }
   document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
 });
 let pulseResizeTick = false;
