@@ -1006,15 +1006,15 @@ const BRAND_LOGOS = {
 
 function brandKey(st) {
   const t = String(st.brand || st.name || '').toLowerCase();
-  if (t.includes('лукойл')) return 'lukoil';
-  if (t.includes('газпром')) return 'gazpromneft';
-  if (t.includes('роснефть')) return 'rosneft';
-  if (t.includes('русойл')) return 'rusoil';
-  if (t.includes('пнб')) return 'pnb';
-  if (t.includes('уфимнефть')) return 'ufimneft';
-  if (t.includes('тнк') || t.includes('татнефть')) return 'tnk';
-  if (t.includes('экспорт')) return 'export';
-  if (t.includes('петрол')) return 'petrol';
+  if (t.includes('лукойл') || t.includes('lukoil')) return 'lukoil';
+  if (t.includes('газпром') || t.includes('gazprom')) return 'gazpromneft';
+  if (t.includes('роснефть') || t.includes('rosneft')) return 'rosneft';
+  if (t.includes('русойл') || t.includes('rusoil')) return 'rusoil';
+  if (t.includes('пнб') || t.includes('pnb')) return 'pnb';
+  if (t.includes('уфимнефть') || t.includes('ufimneft')) return 'ufimneft';
+  if (t.includes('тнк') || t.includes('татнефть') || t.includes('tnk') || t.includes('tatneft')) return 'tnk';
+  if (t.includes('экспорт') || t.includes('export')) return 'export';
+  if (t.includes('петрол') || t.includes('petrol')) return 'petrol';
   return null;
 }
 
