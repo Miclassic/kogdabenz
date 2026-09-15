@@ -131,7 +131,7 @@ async function main() {
   const idByExt = {};
   for (const s of saved) idByExt[s.external_id] = s.id;
   const nameById = {};
-  for (const s of saved) nameById[s.id] = s.name;
+  for (const s of saved) nameById[s.id] = s.name + ' · ' + (s.address || '');
   const tgLines = [];
 
   console.log('3) Достаю последние наблюдения для сравнения...');
