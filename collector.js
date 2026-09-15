@@ -195,6 +195,7 @@ async function main() {
   for (const row of obsRows) {
     const prev = lastByStation[row.station_id];
     if (!prev) continue;
+    const beforeIdx = events.length;
     for (const [fuel, col] of [['92','fuel_92_status'], ['95','fuel_95_status'], ['diesel','diesel_status']]) {
       const b = row[col];
       if (b === null || b === undefined) continue;
@@ -212,6 +213,15 @@ async function main() {
       if (a === null || aAgeH > 36) continue;
       if (a === false && b === true) events.push({ station_id: row.station_id, event_type: 'fuel_restored', fuel_type: fuel, confidence: aAgeH > 6 ? 0.7 : 0.8, source: 'observation' });
       if (a === true && b === false) events.push({ station_id: row.station_id, event_type: 'fuel_disappeared', fuel_type: fuel, confidence: aAgeH > 6 ? 0.7 : 0.8, source: 'observation' });
+    }
+    // Фильтр артефакта состава отметок: если дизель и бензин flipped
+    // в противофазе за один снимок — это люди отметили "осталось только ДТ"
+    // или "бензин вернулся", а не движение цистерны. Дизельный флаг убираем.
+    const addedEv = events.slice(beforeIdx);
+    const dieselEv = addedEv.find(e => e.fuel_type === 'diesel');
+    const gasEv = addedEv.find(e => e.fuel_type === '92' || e.fuel_type === '95');
+    if (dieselEv && gasEv && dieselEv.event_type !== gasEv.event_type) {
+      events.splice(events.indexOf(dieselEv), 1);
     }
     // === NEW === очередь появилась / исчезла
     const prevQueue = prev.queue_level === 'high';
