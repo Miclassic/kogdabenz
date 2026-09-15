@@ -566,22 +566,38 @@ button {
 }
 
 /* =========================
-   CITY PULSE
+   CITY PULSE LIGHT PREMIUM
 ========================= */
-.pulse { margin-top:18px; padding:16px; border-radius:24px; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); box-shadow:var(--shadow); }
-.pulse-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.pulse-title { font-size:15px; font-weight:850; }
-.pulse-sub { color:#8b99af; font-size:10px; margin-top:2px; }
-.pulse-tabs { display:flex; gap:6px; }
-.pulse-tab { border:1px solid var(--border); background:#f5f7fb; color:#7487a7; border-radius:10px; padding:6px 10px; font-size:11px; font-weight:800; cursor:pointer; }
-.pulse-tab.active { background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; border-color:transparent; }
-.pulse-chart { position:relative; margin-top:14px; }
-.pulse-svg { width:100%; height:190px; display:block; }
-.pulse-tip { position:absolute; pointer-events:none; background:#14213d; color:#fff; border-radius:10px; padding:8px 10px; font-size:10px; line-height:1.5; opacity:0; transform:translate(-50%,-115%); transition:opacity .15s; white-space:nowrap; z-index:5; }
-.pulse-legend { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; color:#647491; font-size:10px; font-weight:700; }
-.pulse-legend span { display:flex; align-items:center; gap:5px; }
-.pulse-legend i { width:10px; height:10px; border-radius:3px; display:inline-block; }
-.pulse-insight { margin-top:10px; padding:10px 12px; border-radius:14px; background:linear-gradient(135deg,#eafaf5,#eff5ff); font-size:11px; color:#33445f; line-height:1.5; }
+.pulse { position:relative; margin-top:20px; padding:18px 16px 16px; border-radius:28px; background:linear-gradient(165deg,#ffffff 0%,#fbfcff 55%,#f6f9ff 100%); border:1px solid #e8edf7; box-shadow:0 18px 50px rgba(38,69,120,.10), inset 0 1px 0 #fff; overflow:hidden; }
+.pulse::before { content:""; position:absolute; inset:0; background:radial-gradient(520px 200px at 88% -12%, rgba(64,130,255,.07), transparent 60%), radial-gradient(420px 180px at 6% 112%, rgba(25,183,122,.06), transparent 60%); pointer-events:none; }
+.pulse::after { content:""; position:absolute; top:0; left:24px; right:24px; height:1px; background:linear-gradient(90deg,transparent,rgba(124,109,255,.35),rgba(25,183,122,.3),transparent); }
+.pulse-head { position:relative; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+.pulse-title { color:#14213d; font-size:16px; font-weight:850; letter-spacing:.1px; }
+.pulse-sub { margin-top:3px; color:#93a1b8; font-size:9px; font-weight:800; text-transform:uppercase; letter-spacing:1.4px; }
+.pulse-tabs { display:flex; background:#eef2f9; border:1px solid #e6ebf4; border-radius:12px; padding:3px; }
+.pulse-tab { border:0; background:transparent; color:#7487a7; border-radius:9px; padding:6px 12px; font-size:11px; font-weight:800; cursor:pointer; transition:.2s; }
+.pulse-tab.active { background:#fff; color:#2465ee; box-shadow:0 4px 12px rgba(38,69,120,.12); }
+.pulse-kpis { position:relative; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+.pulse-kpi { padding:10px 10px 9px; border-radius:16px; background:#fff; border:1px solid #edf1f8; box-shadow:0 6px 16px rgba(38,69,120,.05); }
+.pulse-kpi-label { color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.9px; }
+.pulse-kpi-value { margin-top:4px; color:#14213d; font-size:17px; font-weight:900; letter-spacing:-.4px; }
+.pulse-kpi-value small { font-size:10px; font-weight:700; color:#93a1b8; }
+.pulse-chart { position:relative; margin-top:10px; }
+.pulse-svg { width:100%; height:240px; display:block; }
+.pulse-tip { position:absolute; pointer-events:none; background:rgba(255,255,255,.96); backdrop-filter:blur(8px); border:1px solid #e6ebf4; color:#33445f; border-radius:14px; padding:9px 12px; font-size:10px; line-height:1.55; opacity:0; transform:translate(-50%,-115%); transition:opacity .18s; white-space:nowrap; z-index:5; box-shadow:0 14px 34px rgba(38,69,120,.16); }
+.pulse-tip b { color:#14213d; }
+.pulse-legend { position:relative; display:flex; gap:7px; flex-wrap:wrap; margin-top:12px; }
+.pulse-legend span { display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:99px; background:#fff; border:1px solid #edf1f8; color:#647491; font-size:10px; font-weight:700; }
+.pulse-legend i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.pulse-legend i.band { width:10px; height:12px; border-radius:3px; }
+.pulse-insight { position:relative; margin-top:11px; padding:11px 13px; border-radius:16px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; color:#33445f; font-size:11px; line-height:1.55; }
+.pulse-line { stroke-dasharray:1; stroke-dashoffset:1; animation:drawLine 1.3s .15s ease forwards; }
+@keyframes drawLine { to { stroke-dashoffset:0; } }
+.pulse-area { opacity:0; animation:fadeArea .8s .6s ease forwards; }
+@keyframes fadeArea { to { opacity:1; } }
+.now-halo { animation:nowPulse 2.2s ease-in-out infinite; }
+@keyframes nowPulse { 0%,100% { opacity:.25; } 50% { opacity:.75; } }}
+
 .fb-extra { margin-top:9px; }
 .fb-text { width:100%; margin-top:8px; padding:10px 12px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:12px; outline:none; }
 .fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
@@ -668,29 +684,30 @@ button {
   </section>
 
 
- <!-- CITY PULSE -->
+  <!-- CITY PULSE -->
   <section class="pulse">
     <div class="pulse-head">
       <div>
-        <div class="pulse-title">📈 Пульс города: спрос и предложение</div>
-        <div class="pulse-sub">очереди и доступность АИ-95 по часам</div>
+        <div class="pulse-title">Пульс города</div>
+        <div class="pulse-sub">спрос и предложение · Новороссийск</div>
       </div>
       <div class="pulse-tabs">
         <button class="pulse-tab active" onclick="pulseRange(24,this)">24 ч</button>
         <button class="pulse-tab" onclick="pulseRange(168,this)">7 дн</button>
       </div>
     </div>
+    <div class="pulse-kpis" id="pulseKpis"></div>
     <div class="pulse-chart">
       <svg class="pulse-svg" id="pulseSvg"></svg>
       <div class="pulse-tip" id="pulseTip"></div>
     </div>
     <div class="pulse-legend">
-      <span><i style="background:#7c6dff"></i> очереди на АЗС</span>
-      <span><i style="background:#35c894"></i> АИ-95 в наличии</span>
-      <span>🔴 бензин кончился</span>
-      <span>🟢 бензин вернулся</span>
+      <span><i style="background:#7c6dff"></i>спрос (очереди)</span>
+      <span><i style="background:#19b77a"></i>предложение (АИ-95)</span>
+      <span><i class="band" style="background:linear-gradient(180deg,rgba(239,83,80,.4),rgba(239,83,80,.05))"></i>час исчезновения</span>
+      <span><i class="band" style="background:linear-gradient(180deg,rgba(25,183,122,.4),rgba(25,183,122,.05))"></i>час возврата</span>
     </div>
-    <div class="pulse-insight" id="pulseInsight">Считаем пульс города...</div>
+    <div class="pulse-insight" id="pulseInsight">Читаем ритм города...</div>
   </section>
 
   <!-- APP -->
@@ -2139,6 +2156,7 @@ function smoothPath(pts) {
 function renderPulse() {
   const svg = document.getElementById('pulseSvg');
   const insight = document.getElementById('pulseInsight');
+  const kpis = document.getElementById('pulseKpis');
   if (!svg) return;
   const isDay = pulseRangeH !== 24;
   let buckets = [];
@@ -2161,52 +2179,68 @@ function renderPulse() {
     }));
   }
 
-  if (!buckets.length) { insight.textContent = 'Данных для графика пока мало.'; svg.innerHTML = ''; return; }
+  if (!buckets.length) { insight.textContent = 'Данных для графика пока мало.'; svg.innerHTML = ''; if (kpis) kpis.innerHTML = ''; return; }
 
-  const W = 640, H = 190, PADL = 10, PADR = 10, BASE = H - 26, TOP = 34;
+  const W = Math.max(320, Math.round(svg.clientWidth || 640)), H = 240, PADL = 30, PADR = 12, BASE = H - 24, TOP = 26;
   const n = buckets.length;
   const xAt = i => PADL + (W - PADL - PADR) * (n === 1 ? 0.5 : i / (n - 1));
+  const yAt = v => BASE - Math.max(0, Math.min(100, v)) / 100 * (BASE - TOP);
+  const step = (W - PADL - PADR) / Math.max(1, n - 1);
 
   const qPts = [], aPts = [];
   buckets.forEach((b, i) => {
     const x = xAt(i);
-    qPts.push([x, BASE - Math.max(0, Math.round(b.queuePct / 100 * (BASE - TOP)))]);
-    if (b.availPct !== null) aPts.push([x, BASE - Math.round(b.availPct / 100 * (BASE - TOP))]);
+    qPts.push([x, yAt(b.queuePct)]);
+    if (b.availPct !== null) aPts.push([x, yAt(b.availPct)]);
   });
 
   const qLine = smoothPath(qPts);
   const qArea = qLine ? qLine + 'L' + qPts[qPts.length - 1][0] + ',' + BASE + 'L' + qPts[0][0] + ',' + BASE + 'Z' : '';
   const aLine = smoothPath(aPts);
+  const aArea = aLine ? aLine + 'L' + aPts[aPts.length - 1][0] + ',' + BASE + 'L' + aPts[0][0] + ',' + BASE + 'Z' : '';
 
-  let dots = '';
+  let grid = '';
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = yAt(v);
+    grid += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="#eef1f7"/>' +
+            '<text x="' + (PADL - 7) + '" y="' + (y + 3) + '" font-size="8" fill="#9aa7bd" text-anchor="end">' + v + '</text>';
+  });
+
+  // Колонны света вместо точек: час исчезновения / час возврата
+  let bands = '';
   buckets.forEach((b, i) => {
     const x = xAt(i);
     const dis = pulseEv.filter(e => e.type === 'fuel_disappeared' && sameBucket(e.t, b, isDay)).length;
     const res = pulseEv.filter(e => e.type === 'fuel_restored' && sameBucket(e.t, b, isDay)).length;
-    const yBase = qPts[i] ? qPts[i][1] : BASE;
-    if (dis) dots += '<text x="' + x + '" y="' + (yBase - 8) + '" font-size="10" text-anchor="middle">🔴</text>';
-    if (res) dots += '<text x="' + x + '" y="' + (dis ? yBase - 20 : yBase - 8) + '" font-size="10" text-anchor="middle">🟢</text>';
+    const w = step * 0.7;
+    if (dis && res) {
+      bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + (w / 2) + '" height="' + (BASE - TOP) + '" fill="url(#bandR)"/>';
+      bands += '<rect x="' + x + '" y="' + TOP + '" width="' + (w / 2) + '" height="' + (BASE - TOP) + '" fill="url(#bandG)"/>';
+    } else if (dis) {
+      bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + w + '" height="' + (BASE - TOP) + '" fill="url(#bandR)"/>';
+    } else if (res) {
+      bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + w + '" height="' + (BASE - TOP) + '" fill="url(#bandG)"/>';
+    }
   });
 
   let nowG = '';
   const nowI = buckets.findIndex(b => sameBucket(new Date(), b, isDay));
   if (nowI >= 0) {
     const x = xAt(nowI), y = qPts[nowI][1];
+    const px = Math.min(W - PADR - 34, Math.max(PADL + 34, x));
     nowG =
-      '<line x1="' + x + '" y1="' + (y + 8) + '" x2="' + x + '" y2="' + BASE + '" stroke="#7c6dff" stroke-width="1.5" stroke-dasharray="4 4"/>' +
-      '<circle cx="' + x + '" cy="' + y + '" r="6" fill="#7c6dff"/>' +
-      '<rect x="' + (x - 34) + '" y="' + (y - 36) + '" width="68" height="22" rx="11" fill="#ffffff"/>' +
-      '<text x="' + x + '" y="' + (y - 21) + '" font-size="11" font-weight="700" fill="#14213d" text-anchor="middle">Сейчас</text>';
+      '<line x1="' + x + '" y1="' + TOP + '" x2="' + x + '" y2="' + BASE + '" stroke="url(#gnow)" stroke-width="1.4"/>' +
+      '<circle class="now-halo" cx="' + x + '" cy="' + y + '" r="8" fill="rgba(124,109,255,.18)"/>' +
+      '<circle cx="' + x + '" cy="' + y + '" r="4.5" fill="#7c6dff" stroke="#fff" stroke-width="2"/>' +
+      '<rect x="' + (px - 31) + '" y="' + (TOP - 17) + '" width="62" height="18" rx="9" fill="#fff" stroke="#e3e9f4"/>' +
+      '<text x="' + px + '" y="' + (TOP - 4) + '" font-size="9" font-weight="800" fill="#2465ee" text-anchor="middle" letter-spacing="1">СЕЙЧАС</text>';
   }
 
   let axis = '';
   buckets.forEach((b, i) => {
-    if (isDay || b.t.getHours() % 6 === 0) {
-      axis += '<text x="' + xAt(i) + '" y="' + (H - 8) + '" font-size="10" fill="#8998ae" text-anchor="middle">' + b.label + '</text>';
-    }
+    if (isDay || b.t.getHours() % 6 === 0) axis += '<text x="' + xAt(i) + '" y="' + (H - 6) + '" font-size="9" fill="#9aa7bd" text-anchor="middle">' + b.label + '</text>';
   });
 
-  const step = (W - PADL - PADR) / Math.max(1, n - 1);
   let hits = '';
   buckets.forEach((b, i) => {
     hits += '<rect data-i="' + i + '" x="' + (xAt(i) - step / 2) + '" y="0" width="' + step + '" height="' + H + '" fill="transparent"/>';
@@ -2214,15 +2248,21 @@ function renderPulse() {
 
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.innerHTML =
-    '<defs><linearGradient id="gp" x1="0" y1="0" x2="0" y2="1">' +
-      '<stop offset="0" stop-color="#8b7cff" stop-opacity=".55"/>' +
-      '<stop offset="1" stop-color="#8b7cff" stop-opacity=".04"/>' +
-    '</linearGradient></defs>' +
-    '<line x1="' + PADL + '" y1="' + BASE + '" x2="' + (W - PADR) + '" y2="' + BASE + '" stroke="#e9edf5"/>' +
-    (qArea ? '<path d="' + qArea + '" fill="url(#gp)"/>' : '') +
-    (qLine ? '<path d="' + qLine + '" fill="none" stroke="#7c6dff" stroke-width="2.5" stroke-linecap="round"/>' : '') +
-    (aLine ? '<path d="' + aLine + '" fill="none" stroke="#35c894" stroke-width="2" stroke-linecap="round" opacity=".9"/>' : '') +
-    dots + nowG + axis + hits;
+    '<defs>' +
+      '<linearGradient id="gq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7c6dff" stop-opacity=".28"/><stop offset="1" stop-color="#7c6dff" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#19b77a" stop-opacity=".20"/><stop offset="1" stop-color="#19b77a" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="gnow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(124,109,255,.85)"/><stop offset="1" stop-color="rgba(124,109,255,0)"/></linearGradient>' +
+      '<linearGradient id="bandR" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(239,83,80,.22)"/><stop offset="1" stop-color="rgba(239,83,80,.03)"/></linearGradient>' +
+      '<linearGradient id="bandG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(25,183,122,.22)"/><stop offset="1" stop-color="rgba(25,183,122,.03)"/></linearGradient>' +
+      '<filter id="softQ" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#7c6dff" flood-opacity=".22"/></filter>' +
+      '<filter id="softA" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#19b77a" flood-opacity=".20"/></filter>' +
+    '</defs>' +
+    bands + grid +
+    (qArea ? '<path class="pulse-area" d="' + qArea + '" fill="url(#gq)"/>' : '') +
+    (aArea ? '<path class="pulse-area" d="' + aArea + '" fill="url(#ga)"/>' : '') +
+    (qLine ? '<path class="pulse-line" pathLength="1" d="' + qLine + '" fill="none" stroke="#7c6dff" stroke-width="2.4" stroke-linecap="round" filter="url(#softQ)"/>' : '') +
+    (aLine ? '<path class="pulse-line" pathLength="1" d="' + aLine + '" fill="none" stroke="#19b77a" stroke-width="2.2" stroke-linecap="round" filter="url(#softA)"/>' : '') +
+    nowG + axis + hits;
 
   svg.onclick = e => {
     const i = e.target && e.target.dataset ? Number(e.target.dataset.i) : NaN;
@@ -2235,6 +2275,14 @@ function renderPulse() {
     tip.innerHTML = '<b>' + b.label + '</b><br>очереди: ' + b.queuePct + '% АЗС<br>АИ-95: ' + (b.availPct === null ? 'нет данных' : b.availPct + '%') + '<br>отметок: ' + b.marks;
     tip.style.opacity = 1;
   };
+
+  const lastB = buckets[buckets.length - 1], prevB = buckets[buckets.length - 2];
+  const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
+  const qTrend = prevB ? lastB.queuePct - prevB.queuePct : 0;
+  if (kpis) kpis.innerHTML =
+    '<div class="pulse-kpi"><div class="pulse-kpi-label">очереди сейчас</div><div class="pulse-kpi-value">' + lastB.queuePct + '% <small>' + (qTrend > 0 ? '↑' : qTrend < 0 ? '↓' : '→') + '</small></div></div>' +
+    '<div class="pulse-kpi"><div class="pulse-kpi-label">АИ-95 в городе</div><div class="pulse-kpi-value">' + (lastB.availPct === null ? '—' : lastB.availPct + '%') + '</div></div>' +
+    '<div class="pulse-kpi"><div class="pulse-kpi-label">события · 24 ч</div><div class="pulse-kpi-value">' + ev24 + '</div></div>';
 
   const wm = buckets.filter(b => b.marks > 0);
   if (wm.length) {
@@ -2254,6 +2302,13 @@ function renderPulse() {
 
 start();
 loadPulse().catch(e => console.log('pulse: ' + e.message));
+
+let pulseResizeTick = false;
+window.addEventListener('resize', () => {
+  if (pulseResizeTick) return;
+  pulseResizeTick = true;
+  setTimeout(() => { pulseResizeTick = false; renderPulse(); }, 200);
+});
 
 </script>
 
