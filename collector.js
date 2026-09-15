@@ -149,7 +149,11 @@ async function main() {
   const idByExt = {};
   for (const s of saved) idByExt[s.external_id] = s.id;
   const nameById = {};
-  for (const s of saved) nameById[s.id] = s.name + ' · ' + (s.address || '');
+  const wideById = {};
+  for (const s of saved) {
+    nameById[s.id] = s.name + ' · ' + (s.address || '');
+    wideById[s.id] = !(s.lat >= 44.60 && s.lat <= 44.85 && s.lon >= 37.55 && s.lon <= 38.05);
+  }
   const tgLines = [];
 
   console.log('3) Достаю последние наблюдения для сравнения...');
@@ -220,7 +224,7 @@ async function main() {
   for (const e of events) tgLines.push(
     eventNameRu(e.event_type) +
     (e.fuel_type ? ' (' + fuelNameRu(e.fuel_type) + ')' : '') +
-    ' — ' + (nameById[e.station_id] || 'АЗС')
+    ' — ' + (nameById[e.station_id] || 'АЗС') + (wideById[e.station_id] ? ' (регион)' : '')
   );
 
   // === NEW === ШАГ 6: комментарии водителей
