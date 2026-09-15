@@ -98,6 +98,10 @@ async function tg(text) {
   const chat = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chat) return;
   try {
+    const st = await sbGet('/rest/v1/bot_meta?key=eq.notify&select=value');
+    if (st.length && st[0].value === '0') { console.log('   Тихий режим: событийное уведомление пропущено'); return; }
+  } catch (e) {}
+  try {
     await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
