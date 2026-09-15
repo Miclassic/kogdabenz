@@ -3,11 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-
 <title>КогдаБенз — когда лучше заправиться?</title>
-
 <style>
-
 :root {
   --bg: #f6f8fd;
   --card: #ffffff;
@@ -22,10 +19,8 @@
   --border: #e6ebf4;
   --shadow: 0 12px 35px rgba(38, 69, 120, .09);
 }
-
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-
 body {
   margin: 0;
   min-height: 100vh;
@@ -36,19 +31,13 @@ body {
     radial-gradient(circle at 0% 35%, rgba(57, 199, 151, .08), transparent 28%),
     linear-gradient(145deg, #fbfcff 0%, #f3f7ff 100%);
 }
-
 button, input { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
-
 .page {
   width: min(100%, 760px);
   margin: 0 auto;
   padding: calc(16px + env(safe-area-inset-top)) 16px 35px;
 }
-
-/* =========================
-   HEADER
-========================= */
 .header {
   display: flex;
   align-items: center;
@@ -77,18 +66,10 @@ button { -webkit-tap-highlight-color: transparent; }
   box-shadow: 0 7px 20px rgba(50,80,130,.06);
   cursor: pointer;
 }
-
-/* =========================
-   HERO
-========================= */
 .hero { margin-bottom: 20px; }
 .hero h1 { margin: 0; max-width: 600px; font-size: clamp(42px, 10vw, 66px); line-height: .96; letter-spacing: -3px; font-weight: 900; }
 .hero h1 span { display: block; color: var(--blue); }
 .hero-text { max-width: 570px; margin: 18px 0 19px; color: #647491; font-size: 16px; line-height: 1.45; }
-
-/* =========================
-   SEARCH
-========================= */
 .search {
   display: flex; align-items: center; gap: 9px;
   padding: 7px 8px 7px 15px;
@@ -106,19 +87,11 @@ button { -webkit-tap-highlight-color: transparent; }
   color: white; font-size: 23px; cursor: pointer;
   box-shadow: 0 8px 18px rgba(57,124,255,.25);
 }
-
-/* =========================
-   STATUS
-========================= */
 .status {
   margin-top: 16px; padding: 18px; border-radius: 20px;
   background: rgba(255,255,255,.85); border: 1px solid var(--border);
   color: var(--muted); text-align: center; box-shadow: var(--shadow);
 }
-
-/* =========================
-   STATION CARD
-========================= */
 .station {
   margin-top: 17px; padding: 15px;
   background: rgba(255,255,255,.96);
@@ -137,10 +110,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .station-name { font-size: 20px; font-weight: 850; letter-spacing: -.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .station-address { margin-top: 3px; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .favorite { width: 39px; height: 39px; border: 0; border-radius: 14px; background: #f5f7fb; color: #7487a7; font-size: 19px; cursor: pointer; }
-
-/* =========================
-   FUEL STATUS
-========================= */
 .fuels { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:5px; border-radius:16px; background:#f5f8fc; }
 .fuel { padding:8px 4px; text-align:center; border-radius:12px; background:#fff; }
 .fuel-name { font-size:12px; font-weight:800; }
@@ -153,10 +122,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .yes { color:#168d61; }
 .no { color:#d64d51; }
 .unknown { color:#7c899e; }
-
-/* =========================
-   FORECAST
-========================= */
 .forecast { position:relative; margin-top:9px; padding:12px; border-radius:18px; background:linear-gradient(135deg,#eafaf4,#edf4ff); border:1px solid #d9eae7; display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow:hidden; }
 .forecast-left { min-width:0; }
 .forecast-top { display:flex; align-items:center; gap:6px; }
@@ -178,18 +143,10 @@ button { -webkit-tap-highlight-color: transparent; }
 .bar.current { background:linear-gradient(180deg,#397cff,#8eb4ff); box-shadow:0 0 0 2px rgba(57,124,255,.12); }
 .chart-axis { display:flex; justify-content:space-between; margin-top:3px; color:#8998ae; font-size:8px; }
 .soon-badge { position:absolute; top:-4px; left:50%; transform:translateX(-50%); background:#2465ee; color:#fff; font-size:8px; font-weight:800; padding:2px 6px; border-radius:8px; white-space:nowrap; }
-
-/* =========================
-   INFO
-========================= */
 .info-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:8px; }
 .info { padding:8px 9px; border-radius:13px; background:#f7f9fc; min-width:0; }
 .info-label { color:#8291a9; font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .info-value { margin-top:3px; color:var(--text); font-size:11px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-/* =========================
-   FEEDBACK
-========================= */
 .feedback { margin-top:8px; padding:10px 12px; border-radius:16px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; }
 .feedback-header { display:flex; align-items:center; gap:9px; }
 .feedback-icon { width:32px; height:32px; display:grid; place-items:center; flex:0 0 auto; border-radius:11px; background:#d7f5e9; color:#15976d; font-size:16px; font-weight:700; }
@@ -203,15 +160,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .feedback-option { padding:8px 5px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:10px; font-weight:700; cursor:pointer; }
 .feedback-option:active, .feedback-option.selected { background:#e7f8f1; border-color:#8bd8ba; color:#13845e; }
 .recent { margin-top:7px; color:#8492a8; font-size:9px; line-height:1.4; }
-
-/* =========================
-   EMPTY
-========================= */
 .empty-search { padding: 25px; margin-top: 15px; border-radius: 22px; background: rgba(255,255,255,.8); border: 1px solid var(--border); text-align: center; color: var(--muted); }
-
-/* =========================
-   CITY PULSE LIGHT PREMIUM
-========================= */
 .pulse { position:relative; margin-top:20px; padding:18px 16px 16px; border-radius:28px; background:linear-gradient(165deg,#ffffff 0%,#fbfcff 55%,#f6f9ff 100%); border:1px solid #e8edf7; box-shadow:0 18px 50px rgba(38,69,120,.10), inset 0 1px 0 #fff; overflow:hidden; }
 .pulse::before { content:""; position:absolute; inset:0; background:radial-gradient(520px 200px at 88% -12%, rgba(64,130,255,.07), transparent 60%), radial-gradient(420px 180px at 6% 112%, rgba(25,183,122,.06), transparent 60%); pointer-events:none; }
 .pulse::after { content:""; position:absolute; top:0; left:24px; right:24px; height:1px; background:linear-gradient(90deg,transparent,rgba(124,109,255,.35),rgba(25,183,122,.3),transparent); }
@@ -241,15 +190,10 @@ button { -webkit-tap-highlight-color: transparent; }
 @keyframes fadeArea { to { opacity:1; } }
 .now-halo { animation:nowPulse 2.2s ease-in-out infinite; }
 @keyframes nowPulse { 0%,100% { opacity:.25; } 50% { opacity:.75; } }
-
 .fb-extra { margin-top:9px; }
 .fb-text { width:100%; margin-top:8px; padding:10px 12px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:12px; outline:none; }
 .fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
 .station-logo img { width:100%; height:100%; object-fit:contain; border-radius:inherit; background:#fff; padding:6px; }
-
-/* =========================
-   STATION ROWS (гибрид)
-========================= */
 .trust { display:flex; gap:7px; flex-wrap:wrap; margin:14px 0 4px; }
 .trust span { padding:7px 11px; border-radius:99px; background:rgba(255,255,255,.85); border:1px solid var(--border); color:#647491; font-size:10px; font-weight:800; }
 .srow-wrap { margin-top:12px; }
@@ -277,10 +221,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .srow-sub { color:#93a1b8; font-size:9px; font-weight:700; }
 .srow-full { margin-top:10px; }
 .srow-full .station { margin-top:0; }
-
-/* =========================
-   APP SHELL (один экран)
-========================= */
 html, body { height:100%; }
 body { overflow:hidden; }
 .page { height:100dvh; display:flex; flex-direction:column; max-width:560px; padding:calc(10px + env(safe-area-inset-top)) 12px 0; margin:0 auto; }
@@ -290,16 +230,24 @@ body { overflow:hidden; }
 .logo-subtitle { font-size:10px; }
 .location { padding:8px 11px; font-size:11px; border-radius:14px; }
 #app { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:calc(14px + env(safe-area-inset-bottom)); }
-
-.nowcard { margin-top:2px; padding:14px; border-radius:24px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); }
+.pager { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:10px; min-height:0; }
+.pager::-webkit-scrollbar { display:none; }
+.panel { flex:0 0 100%; min-width:100%; scroll-snap-align:center; display:flex; flex-direction:column; border-radius:28px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); padding:14px; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
+.panel-scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.panel-scroll #app { flex:none; overflow:visible; padding-bottom:10px; }
+.panel .search { margin-top:0; }
+.panel .listhead { margin:10px 2px 6px; }
+.pager-dots { display:flex; justify-content:center; gap:6px; padding:9px 0 calc(10px + env(safe-area-inset-bottom)); }
+.pager-dots i { width:7px; height:7px; border-radius:50%; background:#c9d3e3; transition:.25s; }
+.pager-dots i.on { background:#2465ee; width:20px; border-radius:99px; }
+.nowcard { padding:0; background:transparent; border:0; box-shadow:none; flex:1; display:flex; flex-direction:column; min-height:0; }
+.nowcard-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
 .nowcard-title { font-size:19px; font-weight:900; letter-spacing:-.6px; }
 .nowcard-sub { margin-top:4px; color:#71809c; font-size:11px; font-weight:600; }
-.nowcard-chart { margin-top:6px; }
-.nowcard-chart .pulse-svg { height:110px; }
-.nowcard-chart .pulse { margin-top:0; padding:0; border:0; box-shadow:none; background:transparent; overflow:visible; }
-.nowcard-chart .pulse::before, .nowcard-chart .pulse::after { display:none; }
-.nowcard-chart .pulse-head, .nowcard-chart .pulse-kpis, .nowcard-chart .pulse-legend, .nowcard-chart .pulse-insight, .nowcard-chart .pulse-tabs { display:none; }
-.nowcard-chart .pulse-chart { margin-top:0; }
+.nowcard-chart { flex:1; min-height:150px; display:flex; flex-direction:column; }
+.nowcard-chart .pulse { flex:1; display:flex; flex-direction:column; }
+.nowcard-chart .pulse-chart { flex:1; min-height:150px; }
+.nowcard-chart .pulse-svg { height:100%; min-height:150px; }
 .nkpi-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
 .nkpi { padding:8px 10px; border-radius:12px; background:#f7f9fc; }
 .nkpi-l { color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; }
@@ -319,10 +267,6 @@ body { overflow:hidden; }
 .srow-addr { font-size:10px; }
 .scol-v { font-size:11px; }
 .srow-sub { display:none; }
-
-/* =========================
-   BOTTOM SHEET (iOS-шторка)
-========================= */
 .sheet-backdrop { position:fixed; inset:0; background:rgba(15,27,51,.35); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:40; }
 .sheet-backdrop.open { opacity:1; pointer-events:auto; }
 .sheet { position:fixed; left:0; right:0; bottom:0; max-height:86dvh; overflow-y:auto; background:#f6f8fd; border-radius:28px 28px 0 0; padding:10px 12px calc(16px + env(safe-area-inset-bottom)); transform:translateY(100%); transition:.3s cubic-bezier(.2,.8,.2,1); z-index:41; box-shadow:0 -20px 60px rgba(15,27,51,.25); }
@@ -330,7 +274,6 @@ body { overflow:hidden; }
 .sheet-grab { width:44px; height:5px; border-radius:99px; background:#d7dde8; margin:4px auto 10px; }
 .sheet-close { position:sticky; top:0; float:right; margin:2px 2px 6px auto; width:32px; height:32px; border:0; border-radius:12px; background:#e9edf5; color:#5b6b86; font-size:16px; cursor:pointer; z-index:5; }
 .sheet .station { margin-top:0; }
-
 @media(max-width:520px){
   .page { padding-left: 12px; padding-right: 12px; }
   .header { margin-bottom: 23px; }
@@ -350,14 +293,10 @@ body { overflow:hidden; }
   .graph { padding: 12px; }
   .bar { max-width: 19px; }
 }
-
 </style>
 </head>
-
 <body>
-
 <div class="page">
-
   <header class="header">
     <div class="logo-wrap">
       <div class="logo">⛽</div>
@@ -368,72 +307,73 @@ body { overflow:hidden; }
     </div>
     <button class="location" onclick="findNearby()">📍 Рядом⌄</button>
   </header>
-
-  <section class="nowcard">
-    <div class="nowcard-title" id="nowTitle">Считаем город...</div>
-    <div class="nowcard-sub" id="nowSub"></div>
-    <div class="nowcard-chart">
-      <section class="pulse">
-        <div class="pulse-chart">
-          <svg class="pulse-svg" id="pulseSvg"></svg>
-          <div class="pulse-tip" id="pulseTip"></div>
+  <div class="pager" id="pager">
+    <section class="panel">
+      <div class="nowcard">
+        <div class="nowcard-head">
+          <div>
+            <div class="nowcard-title" id="nowTitle">Считаем город...</div>
+            <div class="nowcard-sub" id="nowSub"></div>
+          </div>
+          <div class="pulse-tabs">
+            <button class="pulse-tab active" onclick="pulseRange(24,this)">24 ч</button>
+            <button class="pulse-tab" onclick="pulseRange(168,this)">7 дн</button>
+          </div>
         </div>
-        <div class="pulse-kpis" id="pulseKpis"></div>
-        <div class="pulse-insight" id="pulseInsight"></div>
-      </section>
-    </div>
-    <div class="nkpi-row">
-      <div class="nkpi"><div class="nkpi-l">очереди</div><div class="nkpi-v" id="nkQ">—</div></div>
-      <div class="nkpi"><div class="nkpi-l">АИ-95 есть</div><div class="nkpi-v" id="nkA">—</div></div>
-      <div class="nkpi"><div class="nkpi-l">событий · 24ч</div><div class="nkpi-v" id="nkE">—</div></div>
-    </div>
-    <div class="nowcard-cta">
-      <button class="cta-btn" id="ctaBest">🔮 Куда ехать сейчас</button>
-      <button class="cta-btn ghost" onclick="ctaDigest()">🌅 Дайджест</button>
-    </div>
-  </section>
-
-  <div class="search">
-    <span class="search-icon">⌕</span>
-    <input id="searchInput" type="text" placeholder="Найти АЗС или адрес">
-    <button class="search-button" onclick="searchStations()">→</button>
+        <div class="nowcard-chart">
+          <section class="pulse">
+            <div class="pulse-chart">
+              <svg class="pulse-svg" id="pulseSvg"></svg>
+              <div class="pulse-tip" id="pulseTip"></div>
+            </div>
+            <div class="pulse-kpis" id="pulseKpis"></div>
+            <div class="pulse-insight" id="pulseInsight"></div>
+          </section>
+        </div>
+        <div class="nkpi-row">
+          <div class="nkpi"><div class="nkpi-l">очереди</div><div class="nkpi-v" id="nkQ">—</div></div>
+          <div class="nkpi"><div class="nkpi-l">АИ-95 есть</div><div class="nkpi-v" id="nkA">—</div></div>
+          <div class="nkpi"><div class="nkpi-l">событий · 24ч</div><div class="nkpi-v" id="nkE">—</div></div>
+        </div>
+        <div class="nowcard-cta">
+          <button class="cta-btn" id="ctaBest">🔮 Куда ехать сейчас</button>
+          <button class="cta-btn ghost" onclick="ctaDigest()">🌅 Дайджест</button>
+        </div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="search">
+        <span class="search-icon">⌕</span>
+        <input id="searchInput" type="text" placeholder="Найти АЗС или адрес">
+        <button class="search-button" onclick="searchStations()">→</button>
+      </div>
+      <div class="listhead"><span>АЗС города</span><small id="listCount"></small></div>
+      <div class="panel-scroll">
+        <main id="app">
+          <div class="status">⏳ Подключаюсь к данным...</div>
+        </main>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-scroll" id="digestBody"></div>
+    </section>
   </div>
-
-  <div class="listhead"><span>АЗС города</span><small id="listCount"></small></div>
-
-  <main id="app">
-    <div class="status">⏳ Подключаюсь к данным...</div>
-  </main>
-
+  <div class="pager-dots" id="pagerDots"><i class="on"></i><i></i><i></i></div>
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
   <div class="sheet" id="sheet">
     <div class="sheet-grab"></div>
     <button class="sheet-close" onclick="closeSheet()">✕</button>
     <div id="sheetBody"></div>
   </div>
-
 </div>
-
 <script>
-
-/* =====================================================
-   SUPABASE
-===================================================== */
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
-
-/* =====================================================
-   DEVICE ID
-===================================================== */
 let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) {
   deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
   localStorage.setItem('deviceId', deviceId);
 }
-
-/* =====================================================
-   LOCAL DATA
-===================================================== */
 let allStations = [];
 let allObservations = [];
 let allPredictions = [];
@@ -442,10 +382,6 @@ let allEvents = [];
 let allCounts = [];
 let allHourly = [];
 let localIdsGlobal = [];
-
-/* =====================================================
-   DATABASE
-===================================================== */
 async function dbQuery(path) {
   const r = await fetch(SUPABASE_URL + path, {
     headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
@@ -453,7 +389,6 @@ async function dbQuery(path) {
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
-
 async function dbInsert(table, rows) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
     method: 'POST',
@@ -467,14 +402,9 @@ async function dbInsert(table, rows) {
   });
   return r.ok;
 }
-
-/* =====================================================
-   HELPERS
-===================================================== */
 function escapeHtml(value) {
   return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
-
 function fuelHtml(ok) {
   if (ok === null || ok === undefined) {
     return '<span class="unknown"><span class="dot gray"></span>нет данных</span>';
@@ -482,7 +412,6 @@ function fuelHtml(ok) {
   if (ok) return '<span class="yes"><span class="dot green"></span>есть</span>';
   return '<span class="no"><span class="dot red"></span>нет</span>';
 }
-
 function freshnessText(obs) {
   if (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes !== undefined) {
     const m = obs.data_freshness_minutes;
@@ -500,16 +429,11 @@ function freshnessText(obs) {
   if (min < 1440) return Math.round(min / 60) + ' ч назад';
   return Math.round(min / 1440) + ' дн назад';
 }
-
 function time5(value) {
   if (!value) return '—';
   const s = String(value);
   return s.length >= 5 ? s.substring(0,5) : s;
 }
-
-/* =====================================================
-   PREDICTION
-===================================================== */
 function getPrediction(pred) {
   if (!pred) return { time: 'Пока нет прогноза', confidence: 0, note: 'Нужно больше наблюдений, чтобы понять ритм этой АЗС.', eta: null };
   const confidence = Math.max(0, Math.min(100, Math.round((pred.confidence || 0) * 100)));
@@ -534,13 +458,11 @@ function getPrediction(pred) {
   }
   return { time: time5(pred.from_time) + ' — ' + time5(pred.to_time), confidence, note, eta };
 }
-
 const BRAND_LOGOS = {
   lukoil: 'lukoil.png', rosneft: 'rosneft.png', ufimneft: 'ufimneft.png',
   gazpromneft: 'gazpromneft.png', rusoil: 'rusoil.png', pnb: 'pnb.png',
   tnk: 'tnk.png', export: 'export.png', petrol: 'petrol.png'
 };
-
 function brandKey(st) {
   const t = String(st.brand || st.name || '').toLowerCase();
   if (t.includes('лукойл') || t.includes('lukoil')) return 'lukoil';
@@ -554,13 +476,11 @@ function brandKey(st) {
   if (t.includes('петрол') || t.includes('petrol')) return 'petrol';
   return null;
 }
-
 function stationLogo(st) {
   const k = brandKey(st);
   if (!k || !BRAND_LOGOS[k]) return stationEmoji(st);
   return '<img src="' + BRAND_LOGOS[k] + '" alt="" onerror="this.outerHTML=\'' + stationEmoji(st) + '\'">';
 }
-
 function stationEmoji(st) {
   const text = String(st.brand || st.name || '').toLowerCase();
   if (text.includes('лукойл')) return '🟥';
@@ -569,7 +489,6 @@ function stationEmoji(st) {
   if (text.includes('тнк')) return '🟠';
   return '⛽';
 }
-
 function getLastObservations() {
   const result = {};
   for (const o of allObservations) {
@@ -577,12 +496,10 @@ function getLastObservations() {
   }
   return result;
 }
-
 function stationHistory(stationId) {
   return allObservations.filter(o => o.station_id === stationId && o.timestamp)
     .sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
 }
-
 function createGraph(stationId) {
   const rows = allHourly.filter(h => h.station_id === stationId)
     .sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-14);
@@ -601,7 +518,6 @@ function createGraph(stationId) {
     return '<div class="bar-wrap"><div class="' + cls + '" style="height:' + height + 'px"></div></div>';
   }).join('');
 }
-
 function recentFeedback(stationId) {
   const items = allFeedback.filter(f => f.station_id === stationId).slice(0,3);
   if (!items.length) return 'Пока отметок нет.';
@@ -618,7 +534,6 @@ function recentFeedback(stationId) {
     return (labels[f.feedback_type] || 'Отметка') + fuelLbl + queueLbl + ' · ' + ago + ' назад';
   }).join('  ·  ');
 }
-
 function feedbackPanel(stationId) {
   return `
     <div id="feedback-${stationId}" class="feedback-panel">
@@ -635,9 +550,7 @@ function feedbackPanel(stationId) {
       <button id="fb-send-${stationId}" class="fb-send" style="display:none" onclick="fbSend('${stationId}')">Отправить отметку</button>
     </div>`;
 }
-
 let fbDraft = {};
-
 function fbPick(stationId, type, btn) {
   const panel = btn.closest('.feedback-panel');
   panel.querySelectorAll('.feedback-grid')[0].querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
@@ -663,13 +576,11 @@ function fbPick(stationId, type, btn) {
   document.getElementById('fb-text-' + stationId).style.display = 'block';
   document.getElementById('fb-send-' + stationId).style.display = 'block';
 }
-
 function fbChip(stationId, kind, value, btn) {
   btn.closest('.feedback-grid').querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
   fbDraft[stationId][kind] = value;
 }
-
 async function fbSend(stationId) {
   const d = fbDraft[stationId];
   if (!d) return;
@@ -699,12 +610,10 @@ async function fbSend(stationId) {
   sendBtn.disabled = false;
   station.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
 }
-
 function confPercent(obs) {
   if (!obs || obs.data_freshness_minutes === null || obs.data_freshness_minutes === undefined) return null;
   return Math.max(8, Math.round(95 * Math.exp(-obs.data_freshness_minutes / 720)));
 }
-
 function fuelConfLine(obs, status) {
   const c = confPercent(obs);
   if (status === null || status === undefined) {
@@ -715,7 +624,6 @@ function fuelConfLine(obs, status) {
   }
   return '≈ ' + (status ? c : Math.max(3, 100 - c)) + '%';
 }
-
 function lastRestoration(id) {
   const ev = (allEvents || []).filter(e => e.station_id === id)
     .sort((a,b) => new Date(b.detected_at) - new Date(a.detected_at))[0];
@@ -729,14 +637,12 @@ function lastRestoration(id) {
   if (days === 1) return 'вчера, ' + hh;
   return days + ' дн назад, ' + hh;
 }
-
 function accuracyLabel(id) {
   const v = allPredictions.filter(p => p.station_id === id && p.is_verified);
   if (v.length < 10) return 'мало данных';
   const s = v.filter(p => p.result === 'SUCCESS').length;
   return Math.round(s / v.length * 100) + '%';
 }
-
 function isSoon(pred) {
   if (!pred || !pred.from_time) return false;
   const [h, m] = pred.from_time.split(':').map(Number);
@@ -744,11 +650,9 @@ function isSoon(pred) {
   const diff = (h * 60 + m) - (now.getHours() * 60 + now.getMinutes());
   return diff <= 120 && diff >= -60;
 }
-
 function fuelLabel(f) {
   return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо';
 }
-
 function pickPrediction(stationId, obs) {
   const preds = allPredictions.filter(p => p.station_id === stationId && p.result === 'PENDING');
   if (!preds.length) return null;
@@ -762,13 +666,11 @@ function pickPrediction(stationId, obs) {
   }
   return preds.find(x => x.fuel_type === '95') || preds[0];
 }
-
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const graph = createGraph(station.id);
   const cw = prediction.confidence || 8;
   const hc = (allCounts.find(c => c.station_id === station.id) || {}).total || 0;
-
   return `
     <article class="station">
       <div class="station-header">
@@ -832,12 +734,10 @@ function stationCard(station, obs, pred) {
       </section>
     </article>`;
 }
-
 const BRAND_COLORS = {
   lukoil: '#d7263d', rosneft: '#0b62b8', ufimneft: '#009a4e', gazpromneft: '#0079c2',
   rusoil: '#e05a2b', pnb: '#7b5cd6', tnk: '#f08c00', export: '#c2405a', petrol: '#2f9e44'
 };
-
 function sparkline(stationId) {
   const rows = allHourly.filter(h => h.station_id === stationId)
     .sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-24);
@@ -851,7 +751,6 @@ function sparkline(stationId) {
   const col = last >= .5 ? '#19b77a' : last > 0 ? '#f5b82e' : '#ef5350';
   return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '"><path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.6" stroke-linecap="round"/></svg>';
 }
-
 function rowBadge(pred, obs) {
   if (!pred) return { cls: 'none', text: 'нет окна', sub: 'копим данные для прогноза' };
   const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
@@ -867,13 +766,11 @@ function rowBadge(pred, obs) {
   if (mins > t) return { cls: 'late', text: 'окно прошло', sub: 'ждём новый прогноз' };
   return { cls: 'soon', text: 'окно в ' + time5(pred.from_time), sub: 'сегодня' };
 }
-
 function accuracyShort(id) {
   const v = allPredictions.filter(p => p.station_id === id && p.is_verified);
   if (v.length < 10) return 'мало данных';
   return Math.round(v.filter(p => p.result === 'SUCCESS').length / v.length * 100) + '%';
 }
-
 function stationRow(station, obs, pred) {
   const b = rowBadge(pred, obs);
   const color = BRAND_COLORS[brandKey(station)] || '#7c89a0';
@@ -883,7 +780,6 @@ function stationRow(station, obs, pred) {
   const stTxt = st === true ? 'есть' : st === false ? 'нет' : 'нет данных';
   const stCls = st === true ? 'yes' : st === false ? 'no' : 'unknown';
   const conf = pred ? Math.round((pred.confidence || 0) * 100) : null;
-
   return `
     <div class="srow-wrap">
       <button class="srow" onclick="toggleRow('${station.id}', this)">
@@ -914,12 +810,7 @@ function stationRow(station, obs, pred) {
       </button>
     </div>`;
 }
-
-/* =====================================================
-   SHEET (iOS-шторка)
-===================================================== */
 function toggleRow(id, btn) { openSheet(id); }
-
 function openSheet(id) {
   const st = allStations.find(s => s.id === id);
   if (!st) return;
@@ -929,13 +820,18 @@ function openSheet(id) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheetBack').classList.add('open');
 }
-
 function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
   document.getElementById('sheetBack').classList.remove('open');
 }
-
-function ctaDigest() {
+function ctaDigest() { pagerGo(2); }
+function pagerGo(i) {
+  const pager = document.getElementById('pager');
+  if (pager) pager.scrollTo({ left: pager.clientWidth * i, behavior: 'smooth' });
+}
+function renderDigestPanel() {
+  const el = document.getElementById('digestBody');
+  if (!el) return;
   const since = Date.now() - 24 * 3600 * 1000;
   const ev = pulseEv.filter(e => e.t.getTime() > since);
   const rest = ev.filter(e => e.type === 'fuel_restored').length;
@@ -943,18 +839,33 @@ function ctaDigest() {
   const hours = {};
   for (const e of ev) if (e.type === 'queue_appeared') { const h = e.t.getHours(); hours[h] = (hours[h] || 0) + 1; }
   const peak = Object.entries(hours).sort((a, b) => b[1] - a[1])[0];
-  document.getElementById('sheetBody').innerHTML =
-    '<div class="station"><div class="station-header"><div class="station-logo">🌅</div><div class="station-info">' +
-    '<div class="station-name">Дайджест за 24 часа</div>' +
-    '<div class="station-address">Новороссийск · события города</div></div></div>' +
-    '<div class="info-row"><div class="info"><div class="info-label">вернулось</div><div class="info-value">' + rest + '</div></div>' +
+  const favs = getFavorites().map(id => allStations.find(s => s.id === id)).filter(Boolean);
+  let html =
+    '<div class="nowcard-title">Дайджест · 24 часа</div>' +
+    '<div class="nowcard-sub">события города и твои избранные АЗС</div>' +
+    '<div class="info-row" style="margin-top:10px">' +
+    '<div class="info"><div class="info-label">вернулось</div><div class="info-value">' + rest + '</div></div>' +
     '<div class="info"><div class="info-label">кончилось</div><div class="info-value">' + dis + '</div></div>' +
-    '<div class="info"><div class="info-label">пик очередей</div><div class="info-value">' + (peak ? String(peak[0]).padStart(2, '0') + ':00' : '—') + '</div></div></div>' +
-    '<div class="recent">Полный дайджест приходит в Telegram каждое утро в 08:00.</div></div>';
-  document.getElementById('sheet').classList.add('open');
-  document.getElementById('sheetBack').classList.add('open');
+    '<div class="info"><div class="info-label">пик очередей</div><div class="info-value">' + (peak ? String(peak[0]).padStart(2, '0') + ':00' : '—') + '</div></div>' +
+    '</div>' +
+    '<div class="listhead" style="margin-top:14px"><span>⭐ Избранное</span><small>' + favs.length + '</small></div>';
+  if (favs.length) {
+    html += favs.map(s => {
+      const obs = getLastObservations()[s.id];
+      const pred = pickPrediction(s.id, obs);
+      const b = rowBadge(pred, obs);
+      return '<div class="srow-wrap"><button class="srow" onclick="openSheet(\'' + s.id + '\')">' +
+        '<span class="sbar" style="background:' + (BRAND_COLORS[brandKey(s)] || '#7c89a0') + '"></span>' +
+        '<span class="srow-main"><span class="srow-top"><span class="srow-name">' + escapeHtml(s.name || 'АЗС') + '</span>' +
+        '<span class="sbadge ' + b.cls + '">' + b.text + '</span></span>' +
+        '<span class="srow-addr">' + escapeHtml(s.address || '') + '</span></span></button></div>';
+    }).join('');
+  } else {
+    html += '<div class="recent" style="margin-top:8px">Пока пусто — открой карточку АЗС и нажми ♥.</div>';
+  }
+  html += '<div class="recent" style="margin-top:12px">Полный дайджест приходит в Telegram каждое утро в 08:00.</div>';
+  el.innerHTML = html;
 }
-
 function renderNow() {
   const title = document.getElementById('nowTitle');
   const sub = document.getElementById('nowSub');
@@ -996,14 +907,11 @@ function renderNow() {
       cta.onclick = () => openSheet(target.id);
     } else {
       cta.textContent = '🔮 Прогнозы созревают';
-      cta.onclick = () => document.getElementById('app').scrollTo({ top: 0 });
+      cta.onclick = () => pagerGo(1);
     }
   }
+  renderDigestPanel();
 }
-
-/* =====================================================
-   RENDER
-===================================================== */
 function renderStations(stations, keepOrder) {
   const app = document.getElementById('app');
   const lastObs = getLastObservations();
@@ -1026,16 +934,11 @@ function renderStations(stations, keepOrder) {
     (isFavorite(b.station.id) - isFavorite(a.station.id)) ||
     (b.score - a.score) ||
     ((a.freshMin ?? 1e9) - (b.freshMin ?? 1e9)));
-
   app.innerHTML = scored.map(item => stationRow(item.station, item.obs, item.pred)).join('');
   const lc = document.getElementById('listCount');
   if (lc) lc.textContent = stations.length + ' станций';
   renderNow();
 }
-
-/* =====================================================
-   START
-===================================================== */
 async function start() {
   const app = document.getElementById('app');
   try {
@@ -1046,7 +949,6 @@ async function start() {
       .map(s => s.id);
     localIdsGlobal = localIds;
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-
     const [observations, counts, predictions, events, feedback, hourly] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
@@ -1055,7 +957,6 @@ async function start() {
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
       dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')')
     ]);
-
     allStations = stations;
     allObservations = observations;
     allCounts = counts;
@@ -1063,7 +964,6 @@ async function start() {
     allEvents = events;
     allFeedback = feedback;
     allHourly = hourly;
-
     if (!stations.length) {
       app.innerHTML = '<div class="status">✅ База подключена.<br><small>Но в ней пока нет АЗС.</small></div>';
       return;
@@ -1073,13 +973,11 @@ async function start() {
     app.innerHTML = '<div class="status">❌ Не удалось загрузить данные<br><br><small>' + escapeHtml(e.message) + '</small></div>';
   }
 }
-
 function toggleFeedback(stationId) {
   const panel = document.getElementById('feedback-' + stationId);
   if (!panel) return;
   panel.classList.toggle('open');
 }
-
 async function sendFeedback(stationId, type, button) {
   const key = 'fb_' + stationId;
   const history = JSON.parse(localStorage.getItem(key) || '[]');
@@ -1098,7 +996,6 @@ async function sendFeedback(stationId, type, button) {
   if (recentElement) recentElement.textContent = '✓ Спасибо! Ваша отметка учтена в данных.';
   setTimeout(() => { button.disabled = false; button.classList.remove('selected'); }, 1800);
 }
-
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
 function isFavorite(id) { return getFavorites().includes(id); }
 function toggleFavorite(button) {
@@ -1108,7 +1005,6 @@ function toggleFavorite(button) {
   else { favs.push(id); button.textContent = '♥'; }
   localStorage.setItem('favorites', JSON.stringify(favs));
 }
-
 function searchStations() {
   const input = document.getElementById('searchInput');
   const query = input.value.trim().toLowerCase();
@@ -1119,7 +1015,6 @@ function searchStations() {
   });
   renderStations(filtered);
 }
-
 function findNearby() {
   if (!navigator.geolocation) { alert('Ваш браузер не поддерживает определение местоположения.'); return; }
   navigator.geolocation.getCurrentPosition(position => {
@@ -1138,18 +1033,12 @@ function findNearby() {
     document.getElementById('app').scrollTo({ top: 0, behavior: 'smooth' });
   }, () => { alert('Не удалось определить местоположение.'); });
 }
-
 document.getElementById('searchInput').addEventListener('keydown', event => {
   if (event.key === 'Enter') searchStations();
 });
-
-/* =====================================================
-   CITY PULSE
-===================================================== */
 let pulseRaw = [];
 let pulseEv = [];
 let pulseRangeH = 24;
-
 async function loadPulse() {
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const [hourly, events] = await Promise.all([
@@ -1164,19 +1053,16 @@ async function loadPulse() {
   pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
   renderPulse();
 }
-
 function pulseRange(r, btn) {
   pulseRangeH = r;
   document.querySelectorAll('.pulse-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderPulse();
 }
-
 function sameBucket(t, b, isDay) {
   const sameDay = t.getFullYear() === b.t.getFullYear() && t.getMonth() === b.t.getMonth() && t.getDate() === b.t.getDate();
   return isDay ? sameDay : sameDay && t.getHours() === b.t.getHours();
 }
-
 function smoothPath(pts) {
   if (pts.length < 2) return '';
   let d = 'M' + pts[0][0] + ',' + pts[0][1];
@@ -1188,7 +1074,6 @@ function smoothPath(pts) {
   }
   return d;
 }
-
 function renderPulse() {
   const svg = document.getElementById('pulseSvg');
   const insight = document.getElementById('pulseInsight');
@@ -1196,7 +1081,6 @@ function renderPulse() {
   if (!svg) return;
   const isDay = pulseRangeH !== 24;
   let buckets = [];
-
   if (!isDay) {
     buckets = pulseRaw.slice(-24).map(r => ({ ...r, label: String(r.t.getHours()).padStart(2, '0') + ':00' }));
   } else {
@@ -1214,7 +1098,6 @@ function renderPulse() {
       availPct: b.aN ? Math.round(b.aSum / b.aN) : null
     }));
   }
-
   if (!buckets.length) {
     if (insight) insight.textContent = 'Данных для графика пока мало.';
     svg.innerHTML = '';
@@ -1224,32 +1107,27 @@ function renderPulse() {
     const nkE = document.getElementById('nkE'); if (nkE) nkE.textContent = '—';
     return;
   }
-
-  const W = Math.max(320, Math.round(svg.clientWidth || 640)), H = 240, PADL = 30, PADR = 12, BASE = H - 24, TOP = 26;
+  const W = Math.max(320, Math.round(svg.clientWidth || 640)), H = Math.max(170, Math.round(svg.clientHeight || 240)), PADL = 30, PADR = 12, BASE = H - 24, TOP = 26;
   const n = buckets.length;
   const xAt = i => PADL + (W - PADL - PADR) * (n === 1 ? 0.5 : i / (n - 1));
   const yAt = v => BASE - Math.max(0, Math.min(100, v)) / 100 * (BASE - TOP);
   const step = (W - PADL - PADR) / Math.max(1, n - 1);
-
   const qPts = [], aPts = [];
   buckets.forEach((b, i) => {
     const x = xAt(i);
     qPts.push([x, yAt(b.queuePct)]);
     if (b.availPct !== null) aPts.push([x, yAt(b.availPct)]);
   });
-
   const qLine = smoothPath(qPts);
   const qArea = qLine ? qLine + 'L' + qPts[qPts.length - 1][0] + ',' + BASE + 'L' + qPts[0][0] + ',' + BASE + 'Z' : '';
   const aLine = smoothPath(aPts);
   const aArea = aLine ? aLine + 'L' + aPts[aPts.length - 1][0] + ',' + BASE + 'L' + aPts[0][0] + ',' + BASE + 'Z' : '';
-
   let grid = '';
   [0, 25, 50, 75, 100].forEach(v => {
     const y = yAt(v);
     grid += '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="#eef1f7"/>' +
             '<text x="' + (PADL - 7) + '" y="' + (y + 3) + '" font-size="8" fill="#9aa7bd" text-anchor="end">' + v + '</text>';
   });
-
   let bands = '';
   buckets.forEach((b, i) => {
     const x = xAt(i);
@@ -1265,7 +1143,6 @@ function renderPulse() {
       bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + w + '" height="' + (BASE - TOP) + '" fill="url(#bandG)"/>';
     }
   });
-
   let nowG = '';
   const nowI = buckets.findIndex(b => sameBucket(new Date(), b, isDay));
   if (nowI >= 0) {
@@ -1278,17 +1155,14 @@ function renderPulse() {
       '<rect x="' + (px - 31) + '" y="' + (TOP - 17) + '" width="62" height="18" rx="9" fill="#fff" stroke="#e3e9f4"/>' +
       '<text x="' + px + '" y="' + (TOP - 4) + '" font-size="9" font-weight="800" fill="#2465ee" text-anchor="middle" letter-spacing="1">СЕЙЧАС</text>';
   }
-
   let axis = '';
   buckets.forEach((b, i) => {
     if (isDay || b.t.getHours() % 6 === 0) axis += '<text x="' + xAt(i) + '" y="' + (H - 6) + '" font-size="9" fill="#9aa7bd" text-anchor="middle">' + b.label + '</text>';
   });
-
   let hits = '';
   buckets.forEach((b, i) => {
     hits += '<rect data-i="' + i + '" x="' + (xAt(i) - step / 2) + '" y="0" width="' + step + '" height="' + H + '" fill="transparent"/>';
   });
-
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.innerHTML =
     '<defs>' +
@@ -1306,7 +1180,6 @@ function renderPulse() {
     (qLine ? '<path class="pulse-line" pathLength="1" d="' + qLine + '" fill="none" stroke="#7c6dff" stroke-width="2.4" stroke-linecap="round" filter="url(#softQ)"/>' : '') +
     (aLine ? '<path class="pulse-line" pathLength="1" d="' + aLine + '" fill="none" stroke="#19b77a" stroke-width="2.2" stroke-linecap="round" filter="url(#softA)"/>' : '') +
     nowG + axis + hits;
-
   svg.onclick = e => {
     const i = e.target && e.target.dataset ? Number(e.target.dataset.i) : NaN;
     const tip = document.getElementById('pulseTip');
@@ -1318,7 +1191,6 @@ function renderPulse() {
     tip.innerHTML = '<b>' + b.label + '</b><br>очереди: ' + b.queuePct + '% АЗС<br>АИ-95: ' + (b.availPct === null ? 'нет данных' : b.availPct + '%') + '<br>отметок: ' + b.marks;
     tip.style.opacity = 1;
   };
-
   const lastB = buckets[buckets.length - 1], prevB = buckets[buckets.length - 2];
   const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
   const qTrend = prevB ? lastB.queuePct - prevB.queuePct : 0;
@@ -1326,11 +1198,9 @@ function renderPulse() {
     '<div class="pulse-kpi"><div class="pulse-kpi-label">очереди сейчас</div><div class="pulse-kpi-value">' + lastB.queuePct + '% <small>' + (qTrend > 0 ? '↑' : qTrend < 0 ? '↓' : '→') + '</small></div></div>' +
     '<div class="pulse-kpi"><div class="pulse-kpi-label">АИ-95 в городе</div><div class="pulse-kpi-value">' + (lastB.availPct === null ? '—' : lastB.availPct + '%') + '</div></div>' +
     '<div class="pulse-kpi"><div class="pulse-kpi-label">события · 24 ч</div><div class="pulse-kpi-value">' + ev24 + '</div></div>';
-
   const nkQ = document.getElementById('nkQ'); if (nkQ) nkQ.textContent = lastB.queuePct + '%';
   const nkA = document.getElementById('nkA'); if (nkA) nkA.textContent = lastB.availPct === null ? '—' : lastB.availPct + '%';
   const nkE = document.getElementById('nkE'); if (nkE) nkE.textContent = ev24;
-
   const wm = buckets.filter(b => b.marks > 0);
   if (wm.length) {
     const peak = wm.reduce((a, b) => b.queuePct > a.queuePct ? b : a);
@@ -1341,19 +1211,21 @@ function renderPulse() {
     txt += ' По ' + pulseRaw.reduce((s, r) => s + r.marks, 0) + ' отметкам за 7 дней.';
     if (insight) insight.textContent = txt;
   } else if (insight) insight.textContent = 'Данных для выводов пока мало.';
+  renderDigestPanel();
 }
-
 start();
 loadPulse().catch(e => console.log('pulse: ' + e.message));
-
+const pagerEl = document.getElementById('pager');
+if (pagerEl) pagerEl.addEventListener('scroll', () => {
+  const i = Math.round(pagerEl.scrollLeft / pagerEl.clientWidth);
+  document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
+});
 let pulseResizeTick = false;
 window.addEventListener('resize', () => {
   if (pulseResizeTick) return;
   pulseResizeTick = true;
   setTimeout(() => { pulseResizeTick = false; renderPulse(); }, 200);
 });
-
 </script>
-
 </body>
 </html>
