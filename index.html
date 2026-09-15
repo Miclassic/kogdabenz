@@ -328,18 +328,17 @@ button {
 .station-logo {
   width: 51px;
   height: 51px;
-
   flex: 0 0 auto;
-
   display: grid;
   place-items: center;
-
   border-radius: 16px;
-
-  background: #f3f6fb;
-
+  background: #ffffff;
+  border: 1px solid #eef2f8;
   font-size: 23px;
+  overflow: hidden;
+  padding: 6px;
 }
+.station-logo img { width: 100%; height: 100%; object-fit: contain; }
 
 .station-info {
   min-width: 0;
@@ -586,6 +585,7 @@ button {
 .fb-extra { margin-top:9px; }
 .fb-text { width:100%; margin-top:8px; padding:10px 12px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:12px; outline:none; }
 .fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
+.station-logo img { width:100%; height:100%; object-fit:contain; border-radius:inherit; background:#fff; padding:6px; }
 
 </style>
 </head>
@@ -992,6 +992,37 @@ function getPrediction(pred) {
   };
 }
 
+const BRAND_LOGOS = {
+  lukoil: 'lukoil.png',
+  rosneft: 'rosneft.png',
+  ufimneft: 'ufimneft.png',
+  gazpromneft: 'gazpromneft.png',
+  rusoil: 'rusoil.png',
+  pnb: 'pnb.png',
+  tnk: 'tnk.png',
+  export: 'export.png',
+  petrol: 'petrol.png'
+};
+
+function brandKey(st) {
+  const t = String(st.brand || st.name || '').toLowerCase();
+  if (t.includes('лукойл')) return 'lukoil';
+  if (t.includes('газпром')) return 'gazpromneft';
+  if (t.includes('роснефть')) return 'rosneft';
+  if (t.includes('русойл')) return 'rusoil';
+  if (t.includes('пнб')) return 'pnb';
+  if (t.includes('уфимнефть')) return 'ufimneft';
+  if (t.includes('тнк') || t.includes('татнефть')) return 'tnk';
+  if (t.includes('экспорт')) return 'export';
+  if (t.includes('петрол')) return 'petrol';
+  return null;
+}
+
+function stationLogo(st) {
+  const k = brandKey(st);
+  if (!k || !BRAND_LOGOS[k]) return stationEmoji(st);
+  return '<img src="' + BRAND_LOGOS[k] + '" alt="" onerror="this.outerHTML=\'' + stationEmoji(st) + '\'">';
+}
 
 /* =====================================================
    STATION ICON
@@ -1354,7 +1385,7 @@ function stationCard(station, obs, pred) {
   return `
     <article class="station">
       <div class="station-header">
-        <div class="station-logo">${stationEmoji(station)}</div>
+        <div class="station-logo">${stationLogo(station)}</div>
         <div class="station-info">
           <div class="station-name">${escapeHtml(station.name || 'АЗС')}</div>
           <div class="station-address">${escapeHtml(station.brand ? station.brand + ' · ' : '')}${escapeHtml(station.address || '')}</div>
