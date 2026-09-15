@@ -903,43 +903,45 @@ function time5(value) {
 ===================================================== */
 
 function getPrediction(pred) {
-
   if (!pred) {
-
     return {
       time: 'Пока нет прогноза',
-
       confidence: 0,
-
-      note:
-        'Нужно больше наблюдений, чтобы понять ритм этой АЗС.'
+      note: 'Нужно больше наблюдений, чтобы понять ритм этой АЗС.',
+      eta: null
     };
   }
 
-  const confidence =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        Math.round(
-          (pred.confidence || 0) * 100
-        )
-      )
-    );
+  const confidence = Math.max(0, Math.min(100, Math.round((pred.confidence || 0) * 100)));
+  const src = pred.prediction_source || (pred.algorithm_version || '').split('|')[1] || 'own';
+  const stationsN = pred.based_on_stations || 1;
+  const obsN = pred.based_on_observations || 0;
+
+  let note = 'На основе ';
+  if (src === 'own') note += obsN + ' наблюдений этой АЗС.';
+  else if (src === 'brand') note += obsN + ' наблюдений ' + stationsN + ' похожих АЗС того же бренда.';
+  else if (src === 'city') note += obsN + ' наблюдений ' + stationsN + ' АЗС Новороссийска.';
+  else note += obsN + ' наблюдений.';
+
+  let eta = null;
+  if (pred.expected_restore_at) {
+    const t = new Date(pred.expected_restore_at);
+    const now = new Date();
+    const diffMin = Math.round((t.getTime() - now.getTime()) / 60000);
+    if (diffMin > 0) {
+      if (diffMin < 60) eta = 'через ' + diffMin + ' мин';
+      else if (diffMin < 1440) eta = 'через ~' + Math.round(diffMin / 60) + ' ч';
+      else eta = 'через ~' + Math.round(diffMin / 1440) + ' дн';
+    } else {
+      eta = 'ожидалось только что';
+    }
+  }
 
   return {
-
-    time:
-      time5(pred.from_time) +
-      ' — ' +
-      time5(pred.to_time),
-
+    time: time5(pred.from_time) + ' — ' + time5(pred.to_time),
     confidence,
-
-    note:
-      'Расчёт основан на ' +
-      (pred.based_on_observations || 0) +
-      ' наблюдениях.'
+    note,
+    eta
   };
 }
 
@@ -1263,7 +1265,12 @@ function confPercent(obs) {
 
 function fuelConfLine(obs, status) {
   const c = confPercent(obs);
-  if (c === null || status === null || status === undefined) return '—';
+  if (status === null || status === undefined) {
+    if (!obs || obs.data_freshness_minutes === null || obs.data_freshness_minutes === undefined) return '—';
+    const m = obs.data_freshness_minutes;
+    const t = m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн';
+    return 'отметка ' + t + ' назад';
+  }
   return '≈ ' + (status ? c : Math.max(3, 100 - c)) + '%';
 }
 
@@ -1339,7 +1346,9 @@ function stationCard(station, obs, pred) {
             <div class="forecast-label">Прогноз</div>
           </div>
           <div class="forecast-title">${pred ? 'Пополнение АИ-95' : 'Когда лучше заехать'}</div>
-          <div class="forecast-time">${prediction.time}</div>
+          <div class="forecast-time">
+          ${prediction.eta ? '≈ ' + prediction.eta : prediction.time}
+        </div>
           <div class="forecast-confidence">${prediction.confidence ? 'Вероятность: <strong>' + prediction.confidence + '%</strong>' : 'Пока недостаточно данных'}</div>
           <div class="confidence-bar"><span style="width:${cw}%"></span></div>
         </div>
@@ -1594,9 +1603,13 @@ async function start() {
     }
 
 
-    renderStations(
-      stations
+    // Показываем только новороссийские станции (остальные собраны для статистики)
+    const ownBox = { lat1: 44.62, lat2: 44.82, lon1: 37.62, lon2: 38.00 };
+    const localStations = stations.filter(s =>
+      s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 &&
+      s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2
     );
+    renderStations(localStations);
 
 
   } catch(e) {

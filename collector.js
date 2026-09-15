@@ -4,7 +4,9 @@
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.62&lon1=37.62&lat2=44.82&lon2=38.00';
+// Широкая рамка: Новороссийск + Геленджик + Анапа + Крымск (≈200 км)
+// Сбор идёт широко, а на сайте показываем только новороссийские карточки.
+const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.40&lon1=37.20&lat2=45.20&lon2=38.60';
 
 // "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
 const BROWSER_HEADERS = {
@@ -124,7 +126,11 @@ async function main() {
       '/rest/v1/observations?station_id=in.(' + ids.map(i => '"' + i + '"').join(',') +
       ')&order=timestamp.desc&limit=2000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level'
     );
-    for (const o of last) if (!lastByStation[o.station_id]) lastByStation[o.station_id] = o;
+    const recentByStation = {};
+    for (const o of last) {
+      (recentByStation[o.station_id] = recentByStation[o.station_id] || []).push(o);
+      if (!lastByStation[o.station_id]) lastByStation[o.station_id] = o;
+    }
   }
 
   console.log('4) Записываю новые наблюдения...');
@@ -152,10 +158,22 @@ async function main() {
     const prev = lastByStation[row.station_id];
     if (!prev) continue;
     for (const [fuel, col] of [['92','fuel_92_status'], ['95','fuel_95_status'], ['diesel','diesel_status']]) {
-      const a = prev[col], b = row[col];
-      if (a === null || a === undefined || b === null || b === undefined) continue;
-      if (a === false && b === true) events.push({ station_id: row.station_id, event_type: 'fuel_restored', fuel_type: fuel, confidence: 0.8, source: 'observation' });
-      if (a === true && b === false) events.push({ station_id: row.station_id, event_type: 'fuel_disappeared', fuel_type: fuel, confidence: 0.8, source: 'observation' });
+      const b = row[col];
+      if (b === null || b === undefined) continue;
+      // Ищем последнюю НЕ пустую отметку этого топлива (до 36 часов назад):
+      // так не теряем пополнения, случившиеся сквозь ночное "молчание"
+      const hist = recentByStation[row.station_id] || [];
+      let a = null, aAgeH = Infinity;
+      for (const o of hist) {
+        if (o[col] !== null && o[col] !== undefined) {
+          a = o[col];
+          aAgeH = (Date.now() - new Date(o.timestamp).getTime()) / 3600000;
+          break;
+        }
+      }
+      if (a === null || aAgeH > 36) continue;
+      if (a === false && b === true) events.push({ station_id: row.station_id, event_type: 'fuel_restored', fuel_type: fuel, confidence: aAgeH > 6 ? 0.7 : 0.8, source: 'observation' });
+      if (a === true && b === false) events.push({ station_id: row.station_id, event_type: 'fuel_disappeared', fuel_type: fuel, confidence: aAgeH > 6 ? 0.7 : 0.8, source: 'observation' });
     }
     // === NEW === очередь появилась / исчезла
     const prevQueue = prev.queue_level === 'high';
@@ -230,6 +248,25 @@ async function main() {
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
   } else {
     console.log('   Новых народных отметок нет');
+  }
+  
+  // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
+  console.log('8) Убираю старые наблюдения (старше 30 дней)...');
+  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  try {
+    const delRes = await fetch(
+      SUPABASE_URL + '/rest/v1/observations?timestamp=lt.' + cutoff,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+          Prefer: 'return=minimal'
+        }
+      }
+    );
+    console.log('   Уборка: HTTP ' + delRes.status);
+  } catch (e) {
+    console.log('   ! Уборка не прошла: ' + e.message);
   }
   
   console.log('✅ Цикл завершён');
