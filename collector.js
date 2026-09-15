@@ -150,7 +150,8 @@ async function main() {
   for (const s of saved) idByExt[s.external_id] = s.id;
   const nameById = {};
   const wideById = {};
-  for (const s of saved) nameById[s.id] = (s.name || 'АЗС') + (s.address ? ' · ' + s.address : '');
+  for (const s of saved) {
+    nameById[s.id] = (s.name || 'АЗС') + (s.address ? ' · ' + s.address : '');
     wideById[s.id] = !(s.lat >= 44.60 && s.lat <= 44.85 && s.lon >= 37.55 && s.lon <= 38.05);
   }
   const tgLines = [];
