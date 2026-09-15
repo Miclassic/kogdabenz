@@ -1417,7 +1417,7 @@ function stationCard(station, obs, pred) {
             <div class="forecast-icon">◷</div>
             <div class="forecast-label">Прогноз</div>
           </div>
-          <div class="forecast-title">${pred ? 'Пополнение АИ-95' : 'Когда лучше заехать'}</div>
+          <div class="forecast-title">${pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать'}</div>
           <div class="forecast-time">
           ${prediction.eta ? '≈ ' + prediction.eta : prediction.time}
         </div>
@@ -1453,6 +1453,23 @@ function stationCard(station, obs, pred) {
   `;
 }
 
+function fuelLabel(f) {
+  return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо';
+}
+
+function pickPrediction(stationId, obs) {
+  const preds = allPredictions.filter(p => p.station_id === stationId && p.result === 'PENDING');
+  if (!preds.length) return null;
+  const missing = [];
+  if (obs && obs.fuel_92_status === false) missing.push('92');
+  if (obs && obs.fuel_95_status === false) missing.push('95');
+  if (obs && obs.diesel_status === false) missing.push('diesel');
+  for (const f of missing) {
+    const p = preds.find(x => x.fuel_type === f);
+    if (p) return p;
+  }
+  return preds.find(x => x.fuel_type === '95') || preds[0];
+}
 
 /* =====================================================
    RENDER
@@ -1508,16 +1525,7 @@ function renderStations(
             ];
 
 
-          const pred =
-            allPredictions.find(
-              p =>
-                p.station_id ===
-                  station.id &&
-                p.fuel_type ===
-                  '95' &&
-                p.result ===
-                  'PENDING'
-            );
+          const pred = pickPrediction(station.id, obs);
 
 
           /*
