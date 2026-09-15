@@ -75,6 +75,24 @@ async function sbPatch(path, row) {
   if (!r.ok) throw new Error('PATCH ' + path + ' → ' + r.status + ' ' + await r.text());
 }
 
+function eventNameRu(t) {
+  return {
+    fuel_restored: '🟢 бензин вернулся',
+    fuel_disappeared: '🔴 бензин закончился',
+    queue_appeared: '🚗 появилась очередь',
+    queue_gone: '🚗 очередь рассосалась',
+    possible_delivery: '🚛 похоже, привезли',
+    fuel_unavailable: '🔴 сообщают: топлива нет',
+    fuel_available: '⛽ сообщают: топливо было',
+    queue_high: '🚗 сообщают: большая очередь',
+    queue_low: '🟢 сообщают: свободно'
+  }[t] || ('❓ ' + t);
+}
+
+function fuelNameRu(f) {
+  return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : '';
+}
+
 async function tg(text) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chat = process.env.TELEGRAM_CHAT_ID;
@@ -200,8 +218,9 @@ async function main() {
   if (events.length) await sbPost('events', events);
   console.log('   Событий обнаружено: ' + events.length);
   for (const e of events) tgLines.push(
-    (e.event_type === 'fuel_restored' ? '🟢' : e.event_type === 'fuel_disappeared' ? '🔴' : '🚗') +
-    ' ' + (nameById[e.station_id] || 'АЗС') + ' / ' + (e.fuel_type || '-') + ' — ' + e.event_type
+    eventNameRu(e.event_type) +
+    (e.fuel_type ? ' (' + fuelNameRu(e.fuel_type) + ')' : '') +
+    ' — ' + (nameById[e.station_id] || 'АЗС')
   );
 
   // === NEW === ШАГ 6: комментарии водителей
@@ -242,7 +261,7 @@ async function main() {
   if (commentEvents.length) {
     await sbPost('events', commentEvents);
     console.log('   Событий из комментариев: ' + commentEvents.length);
-    for (const e of commentEvents) tgLines.push('💬 ' + (nameById[e.station_id] || 'АЗС') + ' — ' + e.event_type);
+    for (const e of commentEvents) tgLines.push(eventNameRu(e.event_type) + ' — ' + (nameById[e.station_id] || 'АЗС') + ' (из комментария)');
   }
   // === ШАГ 7: превращаем народные отметки user_feedback в события ===
   console.log('7) Обрабатываю народные отметки...');
@@ -264,7 +283,7 @@ async function main() {
       source: 'user_feedback'
     }));
     await sbPost('events', fbEvents);
-    for (const e of fbEvents) tgLines.push('🙋 ' + (nameById[e.station_id] || 'АЗС') + ' — ' + e.event_type + ' (народная отметка)');
+    for (const e of fbEvents) tgLines.push(eventNameRu(e.event_type) + ' — ' + (nameById[e.station_id] || 'АЗС') + ' (народная отметка)');
     const ids = unprocessed.map(f => f.id).join(',');
     await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
