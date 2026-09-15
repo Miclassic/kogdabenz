@@ -577,7 +577,7 @@ button {
 .pulse-tab { border:1px solid var(--border); background:#f5f7fb; color:#7487a7; border-radius:10px; padding:6px 10px; font-size:11px; font-weight:800; cursor:pointer; }
 .pulse-tab.active { background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; border-color:transparent; }
 .pulse-chart { position:relative; margin-top:14px; }
-.pulse-svg { width:100%; height:170px; display:block; }
+.pulse-svg { width:100%; height:190px; display:block; }
 .pulse-tip { position:absolute; pointer-events:none; background:#14213d; color:#fff; border-radius:10px; padding:8px 10px; font-size:10px; line-height:1.5; opacity:0; transform:translate(-50%,-115%); transition:opacity .15s; white-space:nowrap; z-index:5; }
 .pulse-legend { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; color:#647491; font-size:10px; font-weight:700; }
 .pulse-legend span { display:flex; align-items:center; gap:5px; }
@@ -682,7 +682,7 @@ button {
       <div class="pulse-tip" id="pulseTip"></div>
     </div>
     <div class="pulse-legend">
-      <span><i style="background:#ff9f9a"></i> очереди на АЗС</span>
+      <span><i style="background:#7c6dff"></i> очереди на АЗС</span>
       <span><i style="background:#35c894"></i> АИ-95 в наличии</span>
       <span>🔴 бензин кончился</span>
       <span>🟢 бензин вернулся</span>
@@ -2087,6 +2087,18 @@ function sameBucket(t, b, isDay) {
   return isDay ? sameDay : sameDay && t.getHours() === b.t.getHours();
 }
 
+function smoothPath(pts) {
+  if (pts.length < 2) return '';
+  let d = 'M' + pts[0][0] + ',' + pts[0][1];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += 'C' + c1x + ',' + c1y + ',' + c2x + ',' + c2y + ',' + p2[0] + ',' + p2[1];
+  }
+  return d;
+}
+
 function renderPulse() {
   const svg = document.getElementById('pulseSvg');
   const insight = document.getElementById('pulseInsight');
@@ -2114,33 +2126,65 @@ function renderPulse() {
 
   if (!buckets.length) { insight.textContent = 'Данных для графика пока мало.'; svg.innerHTML = ''; return; }
 
-  const W = 640, H = 170, PAD = 6, BASE = H - 22, TOP = 18;
-  const n = buckets.length, step = (W - PAD * 2) / n;
-  let bars = '', pts = [], dots = '', axis = '';
+  const W = 640, H = 190, PADL = 10, PADR = 10, BASE = H - 26, TOP = 34;
+  const n = buckets.length;
+  const xAt = i => PADL + (W - PADL - PADR) * (n === 1 ? 0.5 : i / (n - 1));
 
+  const qPts = [], aPts = [];
   buckets.forEach((b, i) => {
-    const x = PAD + i * step + step / 2;
-    const qh = Math.max(2, Math.round(b.queuePct / 100 * (BASE - TOP)));
-    bars += '<rect data-i="' + i + '" x="'+ (x - step * 0.3) + '" y="' + (BASE - qh) + '" width="' + (step * 0.6) + '" height="' + qh + '" rx="4" fill="url(#gq)"/>';
-    if (b.availPct !== null) pts.push([x, BASE - Math.round(b.availPct / 100 * (BASE - TOP))]);
-    const dis = pulseEv.filter(e => e.type === 'fuel_disappeared' && sameBucket(e.t, b, isDay)).length;
-    const res = pulseEv.filter(e => e.type === 'fuel_restored' && sameBucket(e.t, b, isDay)).length;
-    if (dis) dots += '<text x="' + x + '" y="12" font-size="10" text-anchor="middle">🔴</text>';
-    if (res) dots += '<text x="' + x + '" y="' + (dis ? 24 : 12) + '" font-size="10" text-anchor="middle">🟢</text>';
-    if (!isDay || i % 4 === 0) axis += '<text x="' + x + '" y="' + (H - 6) + '" font-size="9" fill="#8998ae" text-anchor="middle">' + b.label + '</text>';
+    const x = xAt(i);
+    qPts.push([x, BASE - Math.max(0, Math.round(b.queuePct / 100 * (BASE - TOP)))]);
+    if (b.availPct !== null) aPts.push([x, BASE - Math.round(b.availPct / 100 * (BASE - TOP))]);
   });
 
-  const line = pts.length > 1
-    ? '<polyline points="' + pts.map(p => p[0] + ',' + p[1]).join(' ') + '" fill="none" stroke="#35c894" stroke-width="2.5" stroke-linecap="round"/>'
-    : '';
+  const qLine = smoothPath(qPts);
+  const qArea = qLine ? qLine + 'L' + qPts[qPts.length - 1][0] + ',' + BASE + 'L' + qPts[0][0] + ',' + BASE + 'Z' : '';
+  const aLine = smoothPath(aPts);
 
-  const nowI = !isDay ? buckets.findIndex(b => sameBucket(new Date(), b, false)) : -1;
-  const nowLine = nowI >= 0 ? '<line x1="' + (PAD + nowI * step + step / 2) + '" y1="' + TOP + '" x2="' + (PAD + nowI * step + step / 2) + '" y2="' + BASE + '" stroke="#397cff" stroke-dasharray="4 4" stroke-width="1.5"/>' : '';
+  let dots = '';
+  buckets.forEach((b, i) => {
+    const x = xAt(i);
+    const dis = pulseEv.filter(e => e.type === 'fuel_disappeared' && sameBucket(e.t, b, isDay)).length;
+    const res = pulseEv.filter(e => e.type === 'fuel_restored' && sameBucket(e.t, b, isDay)).length;
+    if (dis) dots += '<text x="' + x + '" y="14" font-size="10" text-anchor="middle">🔴</text>';
+    if (res) dots += '<text x="' + x + '" y="' + (dis ? 26 : 14) + '" font-size="10" text-anchor="middle">🟢</text>';
+  });
+
+  let nowG = '';
+  const nowI = buckets.findIndex(b => sameBucket(new Date(), b, isDay));
+  if (nowI >= 0) {
+    const x = xAt(nowI), y = qPts[nowI][1];
+    nowG =
+      '<line x1="' + x + '" y1="' + (y + 8) + '" x2="' + x + '" y2="' + BASE + '" stroke="#7c6dff" stroke-width="1.5" stroke-dasharray="4 4"/>' +
+      '<circle cx="' + x + '" cy="' + y + '" r="6" fill="#7c6dff"/>' +
+      '<rect x="' + (x - 34) + '" y="' + (y - 36) + '" width="68" height="22" rx="11" fill="#ffffff"/>' +
+      '<text x="' + x + '" y="' + (y - 21) + '" font-size="11" font-weight="700" fill="#14213d" text-anchor="middle">Сейчас</text>';
+  }
+
+  let axis = '';
+  buckets.forEach((b, i) => {
+    if (isDay || b.t.getHours() % 6 === 0) {
+      axis += '<text x="' + xAt(i) + '" y="' + (H - 8) + '" font-size="10" fill="#8998ae" text-anchor="middle">' + b.label + '</text>';
+    }
+  });
+
+  const step = (W - PADL - PADR) / Math.max(1, n - 1);
+  let hits = '';
+  buckets.forEach((b, i) => {
+    hits += '<rect data-i="' + i + '" x="' + (xAt(i) - step / 2) + '" y="0" width="' + step + '" height="' + H + '" fill="transparent"/>';
+  });
 
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  svg.innerHTML = '<defs><linearGradient id="gq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff9f9a"/><stop offset="1" stop-color="#ffd7d4"/></linearGradient></defs>' +
-    '<line x1="' + PAD + '" y1="' + BASE + '" x2="' + (W - PAD) + '" y2="' + BASE + '" stroke="#e9edf5"/>' +
-    bars + line + dots + nowLine + axis;
+  svg.innerHTML =
+    '<defs><linearGradient id="gp" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#8b7cff" stop-opacity=".55"/>' +
+      '<stop offset="1" stop-color="#8b7cff" stop-opacity=".04"/>' +
+    '</linearGradient></defs>' +
+    '<line x1="' + PADL + '" y1="' + BASE + '" x2="' + (W - PADR) + '" y2="' + BASE + '" stroke="#e9edf5"/>' +
+    (qArea ? '<path d="' + qArea + '" fill="url(#gp)"/>' : '') +
+    (qLine ? '<path d="' + qLine + '" fill="none" stroke="#7c6dff" stroke-width="2.5" stroke-linecap="round"/>' : '') +
+    (aLine ? '<path d="' + aLine + '" fill="none" stroke="#35c894" stroke-width="2" stroke-linecap="round" opacity=".9"/>' : '') +
+    dots + nowG + axis + hits;
 
   svg.onclick = e => {
     const i = e.target && e.target.dataset ? Number(e.target.dataset.i) : NaN;
@@ -2148,8 +2192,8 @@ function renderPulse() {
     if (!Number.isFinite(i) || !buckets[i]) { tip.style.opacity = 0; return; }
     const b = buckets[i];
     const box = svg.getBoundingClientRect();
-    tip.style.left = ((PAD + i * step + step / 2) / W * box.width) + 'px';
-    tip.style.top = (BASE - Math.max(2, Math.round(b.queuePct / 100 * (BASE - TOP))) ) / H * box.height + 'px';
+    tip.style.left = (xAt(i) / W * box.width) + 'px';
+    tip.style.top = (qPts[i][1] / H * box.height) + 'px';
     tip.innerHTML = '<b>' + b.label + '</b><br>очереди: ' + b.queuePct + '% АЗС<br>АИ-95: ' + (b.availPct === null ? 'нет данных' : b.availPct + '%') + '<br>отметок: ' + b.marks;
     tip.style.opacity = 1;
   };
