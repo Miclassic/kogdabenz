@@ -98,6 +98,11 @@ async function main() {
   } else {
     L.push('🔮 Прогнозов пока нет: копим события возвратов');
   }
+  const verified = await sbGet('/rest/v1/predictions?is_verified=eq.true&select=result&limit=1000');
+  if (verified.length >= 10) {
+    const vOk = verified.filter(v => v.result === 'SUCCESS').length;
+    L.push('🎯 Точность прогнозов: ' + Math.round(vOk / verified.length * 100) + '% (' + verified.length + ' проверок)');
+  }
   L.push('');
   L.push('Хорошего дня! 🚗');
 
