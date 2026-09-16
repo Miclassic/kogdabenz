@@ -621,6 +621,7 @@ function heatRows() {
 function renderHeat() {
   const grid = document.getElementById('heatGrid');
   if (!grid) return;
+  try {
   if (!fuelHourly.length) {
     grid.innerHTML = '<div class="hm-empty">Тепловая карта копит данные: нужны почасовые отметки топлив за последние сутки</div>';
     return;
@@ -650,6 +651,7 @@ function renderHeat() {
   grid.innerHTML = html;
   const line = document.getElementById('hmNow');
   if (line) { const d = new Date(); line.style.setProperty('--frac', ((d.getHours() + d.getMinutes() / 60) / 24).toFixed(3)); }
+  } catch (e) { console.log('renderHeat: ' + e.message); }
 }
 function peakAndCalm() {
   const byHour = {};
@@ -1027,8 +1029,9 @@ async function loadPulse() {
   } catch (e) { console.log('city_daily_events: ' + e.message); dailyEvents = []; }
   renderPulse();
   renderHeat();
-  renderHero();
+  renderNow();
   requestAnimationFrame(() => { renderPulse(); renderHeat(); });
+  setTimeout(() => { renderPulse(); renderHeat(); renderNow(); }, 400);
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
