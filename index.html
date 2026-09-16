@@ -1034,7 +1034,7 @@ async function loadPulse() {
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   try {
     const [hourly, events] = await Promise.all([
-      dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
+      dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95,selling&hour=gte.' + since + '&order=hour.asc&limit=1000'),
       dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
     ]);
     pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.selling ? Math.round(100 * h.queue_marks / h.selling) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
@@ -1042,7 +1042,7 @@ async function loadPulse() {
   } catch (e) { console.log('pulse main: ' + e.message); }
   renderPulse();
   requestAnimationFrame(() => renderPulse());
-  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks&hour=gte.' + since24 + '&order=hour.asc&limit=48')
+  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks,selling&hour=gte.' + since24 + '&order=hour.asc&limit=48')
     .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
   dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
