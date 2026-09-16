@@ -47,6 +47,9 @@ body { overflow:hidden; }
 .search input::placeholder { color:#94a1b7; }
 .search-button { width:38px; height:38px; border:0; border-radius:13px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.25); display:grid; place-items:center; }
 .listhead { display:flex; align-items:center; justify-content:space-between; margin:12px 2px 2px; font-size:13px; font-weight:850; }
+.listctl { display:flex; gap:6px; margin:8px 2px 0; flex-wrap:wrap; }
+.ctl-chip { border:1px solid var(--border); background:rgba(255,255,255,.85); color:#7487a7; border-radius:12px; padding:7px 10px; font-size:10px; font-weight:800; cursor:pointer; }
+.ctl-chip.on { background:#e7f0ff; color:#2465ee; border-color:#bcd4ff; }
 .listhead small { color:#93a1b8; font-weight:700; }
 .status { margin-top:16px; padding:18px; border-radius:20px; background:rgba(255,255,255,.85); border:1px solid var(--border); color:var(--muted); text-align:center; box-shadow:var(--shadow); }
 .empty-search { padding:25px; margin-top:15px; border-radius:22px; background:rgba(255,255,255,.8); border:1px solid var(--border); text-align:center; color:var(--muted); }
@@ -310,6 +313,10 @@ body { overflow:hidden; }
         <svg class="ic"><use href="#i-search"/></svg>
         <input id="searchInput" type="text" placeholder="Найти АЗС или адрес">
         <button class="search-button" onclick="searchStations()"><svg class="ic"><use href="#i-arrow"/></svg></button>
+      </div>
+      <div class="listctl">
+        <button class="ctl-chip" id="ctlOnlyPred" onclick="toggleOnlyPred()">Только с прогнозом</button>
+        <button class="ctl-chip" id="ctlSortWin" onclick="toggleSortWin()">Сортировка: ближайшее окно</button>
       </div>
       <div class="listhead"><span>АЗС города</span><small id="listCount"></small></div>
       <div class="panel-scroll">
@@ -969,8 +976,33 @@ function renderNow() {
   renderDigestPanel();
   setTagline(currentPanel);
 }
+let onlyPred = false, sortWin = false, lastKeepOrder = false;
+function toggleOnlyPred() {
+  onlyPred = !onlyPred;
+  const b = document.getElementById('ctlOnlyPred');
+  if (b) b.classList.toggle('on', onlyPred);
+  renderStations(lastRendered, lastKeepOrder);
+}
+function toggleSortWin() {
+  sortWin = !sortWin;
+  const b = document.getElementById('ctlSortWin');
+  if (b) b.classList.toggle('on', sortWin);
+  renderStations(lastRendered, lastKeepOrder);
+}
+function winSortKey(p) {
+  if (!p) return 1e9;
+  const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  const f = Number(p.from_time.slice(0, 2)) * 60 + Number(p.from_time.slice(3, 5));
+  const t = Number(p.to_time.slice(0, 2)) * 60 + Number(p.to_time.slice(3, 5));
+  const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  if (p.target_date > today) return 1440 + f;
+  if (nowM >= f && nowM <= t) return 0;
+  if (f > nowM) return f - nowM;
+  return 1e8;
+}
 function renderStations(stations, keepOrder) {
   lastRendered = stations;
+  lastKeepOrder = !!keepOrder;
   const app = document.getElementById('app');
   const lastObs = getLastObservations();
   if (!stations.length) { app.innerHTML = '<div class="empty-search">' + icon('i-search','ic-l') + '<br><br>Ничего не нашли.<br><small>Попробуйте другое название АЗС или адрес.</small></div>'; return; }
@@ -984,9 +1016,13 @@ function renderStations(stations, keepOrder) {
     if (pred && f95 === false) score = 4; else if (pred) score = 3; else if (f95 === true) score = 2;
     return { station, obs, pred, score, freshMin };
   }).sort((a,b) => keepOrder ? 0 : (isFavorite(b.station.id) - isFavorite(a.station.id)) || (b.score - a.score) || ((a.freshMin ?? 1e9) - (b.freshMin ?? 1e9)));
-  app.innerHTML = scored.map(item => stationRow(item.station, item.obs, item.pred)).join('');
+  let shown = scored;
+  if (onlyPred) shown = shown.filter(it => it.pred);
+  if (sortWin) shown = shown.slice().sort((a, b) => (winSortKey(a.pred) - winSortKey(b.pred)) || ((b.pred ? b.pred.confidence : 0) - (a.pred ? a.pred.confidence : 0)));
+  app.innerHTML = shown.map(item => stationRow(item.station, item.obs, item.pred)).join('') ||
+    '<div class="empty-search">' + icon('i-search','ic-l') + '<br><br>Сейчас нет станций с прогнозом.<br><small>Сними фильтр «Только с прогнозом» или дождись новых данных.</small></div>';
   const lc = document.getElementById('listCount');
-  if (lc) lc.textContent = stations.length + ' станций';
+  if (lc) lc.textContent = shown.length === stations.length ? stations.length + ' станций' : shown.length + ' из ' + stations.length;
   renderNow();
 }
 async function start() {
