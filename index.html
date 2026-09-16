@@ -752,7 +752,7 @@ function renderPulse() {
   }
   let nowG = '';
   const nowD = new Date();
-  const nowI = buckets.findIndex(b => mgRangeH === 'day' ? sameBucket(nowD, b) : sameDay(nowD, b));
+  const nowI = buckets.findIndex(b => mgRangeH === 'day' ? sameBucket(nowD, b) : sameDay(nowD, b.t));
   if (nowI >= 0) {
     const x = xAt(nowI), y = qPts[nowI][1];
     nowG = '<line x1="' + x + '" y1="' + TOP + '" x2="' + x + '" y2="' + BASE + '" stroke="url(#gnow)" stroke-width="1.2"/>' +
