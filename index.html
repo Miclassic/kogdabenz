@@ -100,6 +100,9 @@ body { overflow:hidden; }
 .mg-legend span { display:flex; align-items:center; gap:4px; }
 .mg-legend i.ln { width:12px; height:3px; border-radius:2px; }
 .mg-legend i.bd { width:8px; height:10px; border-radius:2px; }
+.mg-tabs { display:flex; background:#eef2f9; border:1px solid #e6ebf4; border-radius:9px; padding:2px; gap:2px; }
+.mg-tab { border:0; background:transparent; color:#7487a7; border-radius:7px; padding:3px 8px; font-size:9px; font-weight:800; cursor:pointer; }
+.mg-tab.active { background:#fff; color:#2465ee; box-shadow:0 3px 8px rgba(38,69,120,.12); }
 .pulse-tip { position:absolute; pointer-events:none; background:rgba(255,255,255,.96); backdrop-filter:blur(8px); border:1px solid #e6ebf4; color:#33445f; border-radius:12px; padding:7px 10px; font-size:10px; line-height:1.5; opacity:0; transform:translate(-50%,-115%); transition:opacity .18s; white-space:nowrap; z-index:5; box-shadow:0 14px 34px rgba(38,69,120,.16); }
 .pulse-line { stroke-dasharray:1; stroke-dashoffset:1; animation:drawLine 1.3s .15s ease forwards; }
 @keyframes drawLine { to { stroke-dashoffset:0; } }
@@ -188,6 +191,9 @@ body { overflow:hidden; }
 .fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
 .recent { margin-top:7px; color:#8492a8; font-size:9px; line-height:1.5; }
 .recent .ic { width:11px; height:11px; vertical-align:-1px; }
+.dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
+.dg-strip .ic { color:#2465ee; }
+.dg-strip b { font-weight:900; }
 /* шторка */
 .sheet-backdrop { position:fixed; inset:0; background:rgba(15,27,51,.35); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:40; }
 .sheet-backdrop.open { opacity:1; pointer-events:auto; }
@@ -260,12 +266,19 @@ body { overflow:hidden; }
         </div>
       </div>
       <div class="chips3">
-        <div class="chip3"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас</small><b id="triNow">—</b></div></div>
+        <div class="chip3"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · АИ-95 есть</small><b id="triNow">—</b></div></div>
         <div class="chip3"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3"><svg class="ic"><use href="#i-queue"/></svg><div><small>Спокойно</small><b id="triFc">—</b></div></div>
       </div>
       <div class="mini-graph">
-        <div class="mini-cap"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма города · спрос и предложение</div>
+        <div class="mini-cap" style="justify-content:space-between">
+          <span style="display:flex;align-items:center;gap:5px"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма города</span>
+          <span class="mg-tabs">
+            <button class="mg-tab active" onclick="mgRange('day',this)">День</button>
+            <button class="mg-tab" onclick="mgRange('week',this)">Неделя</button>
+            <button class="mg-tab" onclick="mgRange('month',this)">Месяц</button>
+          </span>
+        </div>
         <svg class="pulse-svg" id="pulseSvg"></svg>
         <div class="pulse-tip" id="pulseTip"></div>
         <div class="mg-legend">
@@ -666,7 +679,32 @@ function peakAndCalm() {
   };
 }
 /* кардиограмма */
-let pulseRaw = [], pulseEv = [];
+let pulseRaw = [], pulseEv = [], dailyEvents = [], mgRangeH = 'day';
+function mgRange(r, btn) {
+  mgRangeH = r;
+  document.querySelectorAll('.mg-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderPulse();
+}
+function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function buildBuckets() {
+  if (mgRangeH === 'day') return pulseRaw.slice(-24).map(r => ({ ...r, label: String(r.t.getHours()).padStart(2,'0') + ':00' }));
+  const days = mgRangeH === 'week' ? 7 : 30;
+  const byDay = {};
+  for (const r of pulseRaw) {
+    const k = r.t.getFullYear() + '-' + r.t.getMonth() + '-' + r.t.getDate();
+    if (!byDay[k]) byDay[k] = { t: r.t, marks: 0, q: 0, aSum: 0, aN: 0 };
+    byDay[k].marks += r.marks;
+    byDay[k].q += r.queuePct * r.marks;
+    if (r.availPct !== null) { byDay[k].aSum += r.availPct; byDay[k].aN++; }
+  }
+  return Object.values(byDay).sort((a, b) => a.t - b.t).slice(-days).map(b => ({
+    t: b.t, marks: b.marks,
+    queuePct: b.marks ? Math.round(b.q / b.marks) : 0,
+    availPct: b.aN ? Math.round(b.aSum / b.aN) : null,
+    label: b.t.getDate() + '.' + String(b.t.getMonth() + 1).padStart(2,'0')
+  }));
+}
 function smoothPath(pts) {
   if (pts.length < 2) return '';
   let d = 'M' + pts[0][0] + ',' + pts[0][1];
@@ -680,7 +718,7 @@ function sameBucket(t, b) { return t.getFullYear() === b.t.getFullYear() && t.ge
 function renderPulse() {
   const svg = document.getElementById('pulseSvg');
   if (!svg) return;
-  const buckets = pulseRaw.slice(-24).map(r => ({ ...r, label: String(r.t.getHours()).padStart(2,'0') + ':00' }));
+  const buckets = buildBuckets();
   if (!buckets.length) { svg.innerHTML = ''; return; }
   const rect = svg.getBoundingClientRect();
   const W = Math.max(300, Math.round(rect.width || 640)), H = Math.max(80, Math.round(rect.height || 110)), PADL = 26, PADR = 10, BASE = H - 14, TOP = 6;
@@ -695,16 +733,27 @@ function renderPulse() {
   const aLine = smoothPath(aPts);
   const aArea = aLine ? aLine + 'L' + aPts[aPts.length-1][0] + ',' + BASE + 'L' + aPts[0][0] + ',' + BASE + 'Z' : '';
   let bands = '';
-  buckets.forEach((b, i) => {
-    const x = xAt(i);
-    const dis = pulseEv.filter(e => e.type === 'fuel_disappeared' && sameBucket(e.t, b)).length;
-    const res = pulseEv.filter(e => e.type === 'fuel_restored' && sameBucket(e.t, b)).length;
-    const w = step * 0.7;
-    if (dis) bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + (res ? w / 2 : w) + '" height="' + (BASE - TOP) + '" fill="url(#bandR)"/>';
-    if (res) bands += '<rect x="' + (dis ? x : x - w / 2) + '" y="' + TOP + '" width="' + (dis ? w / 2 : w) + '" height="' + (BASE - TOP) + '" fill="url(#bandG)"/>';
-  });
+  if (mgRangeH === 'day') {
+    buckets.forEach((b, i) => {
+      const x = xAt(i);
+      const dis = pulseEv.filter(e => e.type === 'fuel_disappeared' && sameBucket(e.t, b)).length;
+      const res = pulseEv.filter(e => e.type === 'fuel_restored' && sameBucket(e.t, b)).length;
+      const w = step * 0.7;
+      if (dis) bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + (res ? w / 2 : w) + '" height="' + (BASE - TOP) + '" fill="url(#bandR)"/>';
+      if (res) bands += '<rect x="' + (dis ? x : x - w / 2) + '" y="' + TOP + '" width="' + (dis ? w / 2 : w) + '" height="' + (BASE - TOP) + '" fill="url(#bandG)"/>';
+    });
+  } else {
+    buckets.forEach((b, i) => {
+      const x = xAt(i);
+      const dE = dailyEvents.find(d => sameDay(new Date(d.day), b.t));
+      const w = step * 0.6;
+      if (dE && dE.dis) bands += '<rect x="' + (x - w / 2) + '" y="' + TOP + '" width="' + (dE.res ? w / 2 : w) + '" height="' + (BASE - TOP) + '" fill="url(#bandR)"/>';
+      if (dE && dE.res) bands += '<rect x="' + (dE.dis ? x : x - w / 2) + '" y="' + TOP + '" width="' + (dE.dis ? w / 2 : w) + '" height="' + (BASE - TOP) + '" fill="url(#bandG)"/>';
+    });
+  }
   let nowG = '';
-  const nowI = buckets.findIndex(b => sameBucket(new Date(), b));
+  const nowD = new Date();
+  const nowI = buckets.findIndex(b => mgRangeH === 'day' ? sameBucket(nowD, b) : sameDay(nowD, b));
   if (nowI >= 0) {
     const x = xAt(nowI), y = qPts[nowI][1];
     nowG = '<line x1="' + x + '" y1="' + TOP + '" x2="' + x + '" y2="' + BASE + '" stroke="url(#gnow)" stroke-width="1.2"/>' +
@@ -712,7 +761,10 @@ function renderPulse() {
       '<circle cx="' + x + '" cy="' + y + '" r="3.5" fill="#7c6dff" stroke="#fff" stroke-width="1.5"/>';
   }
   let axis = '';
-  buckets.forEach((b, i) => { if (b.t.getHours() % 6 === 0) axis += '<text x="' + xAt(i) + '" y="' + (H - 3) + '" font-size="8" fill="#9aa7bd" text-anchor="middle">' + b.label + '</text>'; });
+  buckets.forEach((b, i) => {
+    const show = mgRangeH === 'day' ? (b.t.getHours() % 6 === 0) : (mgRangeH === 'week' ? true : (i % 5 === 0 || i === buckets.length - 1));
+    if (show) axis += '<text x="' + xAt(i) + '" y="' + (H - 3) + '" font-size="8" fill="#9aa7bd" text-anchor="middle">' + b.label + '</text>';
+  });
   let hits = '';
   buckets.forEach((b, i) => { hits += '<rect data-i="' + i + '" x="' + (xAt(i) - step / 2) + '" y="0" width="' + step + '" height="' + H + '" fill="transparent"/>'; });
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -771,7 +823,7 @@ function renderHero() {
   if (tn) {
     let known = 0, avail = 0;
     for (const id of localIdsGlobal) { const o = last[id]; if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { known++; if (o.fuel_95_status) avail++; } }
-    tn.textContent = known ? 'АИ-95 на ' + Math.round(100 * avail / known) + '% АЗС' : 'нет данных';
+    tn.textContent = known ? avail + ' из ' + known + ' АЗС' : 'нет данных';
   }
   const tu = document.getElementById('triUsually');
   if (tu) tu.textContent = pc.peak;
@@ -789,10 +841,19 @@ function renderDigestPanel() {
   for (const e of ev) if (e.type === 'queue_appeared') { const h = e.t.getHours(); hours[h] = (hours[h] || 0) + 1; }
   const peak = Object.entries(hours).sort((a, b) => b[1] - a[1])[0];
   const favs = getFavorites().map(id => allStations.find(s => s.id === id)).filter(Boolean);
-  let html = '<div class="p1-head"><div class="p1-ico">' + icon('i-sun') + '</div><div class="p1-t"><div class="nowcard-title">Дайджест · 24 часа</div><div class="nowcard-sub">события города и твои избранные АЗС</div></div></div>' +
+  const fb24 = allFeedback.filter(f => Date.now() - new Date(f.created_at).getTime() < 24 * 3600 * 1000).length;
+  const pend = allPredictions.filter(p => p.result === 'PENDING').length;
+  const ver = allPredictions.filter(p => p.is_verified);
+  const acc = ver.length >= 10 ? Math.round(ver.filter(p => p.result === 'SUCCESS').length / ver.length * 100) + '%' : '—';
+  const avgAvail = pulseRaw.length ? Math.round(pulseRaw.reduce((s, r) => s + (r.availPct || 0), 0) / pulseRaw.length) : null;
+  let html = '<div class="p1-head"><div class="p1-ico">' + icon('i-sun') + '</div><div class="p1-t"><div class="nowcard-title">Дайджест · 24 часа</div><div class="nowcard-sub">город в цифрах · события, прогнозы, люди</div></div></div>' +
     '<div class="info-row" style="margin-top:10px"><div class="info"><div class="info-label">вернулось</div><div class="info-value">' + rest + '</div></div>' +
     '<div class="info"><div class="info-label">кончилось</div><div class="info-value">' + dis + '</div></div>' +
     '<div class="info"><div class="info-label">пик очередей</div><div class="info-value">' + (peak ? String(peak[0]).padStart(2,'0') + ':00' : '—') + '</div></div></div>' +
+    '<div class="info-row"><div class="info"><div class="info-label">отметок народа</div><div class="info-value">' + fb24 + '</div></div>' +
+    '<div class="info"><div class="info-label">прогнозов активно</div><div class="info-value">' + pend + '</div></div>' +
+    '<div class="info"><div class="info-label">точность верификатора</div><div class="info-value">' + acc + '</div></div></div>' +
+    '<div class="dg-strip">' + icon('i-chart','ic-s') + '<span>Средняя доступность АИ-95 за сутки: <b>' + (avgAvail === null ? '—' : avgAvail + '%') + '</b> · событий всего: <b>' + ev.length + '</b></span></div>' +
     '<div class="listhead" style="margin-top:14px"><span>' + icon('i-heart','ic-s') + ' Избранное</span><small>' + favs.length + '</small></div>';
   if (favs.length) {
     html += favs.map(s => {
@@ -946,11 +1007,11 @@ function findNearby() {
 }
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchStations(); });
 async function loadPulse() {
-  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+  const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const [hourly, events] = await Promise.all([
     dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
-    dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&limit=1000')
+    dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
   ]);
   pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
   pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
@@ -959,6 +1020,9 @@ async function loadPulse() {
   dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks&hour=gte.' + since24 + '&order=hour.asc&limit=48')
     .then(f => { fuelHourly = f; renderHeat(); renderHero(); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); });
+    dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
+    .then(d => { dailyEvents = d; renderPulse(); })
+    .catch(() => { dailyEvents = []; });
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
@@ -997,6 +1061,11 @@ window.addEventListener('resize', () => {
   resizeTick = true;
   setTimeout(() => { resizeTick = false; renderPulse(); }, 200);
 });
+if (window.ResizeObserver) {
+  const ro = new ResizeObserver(() => renderPulse());
+  const psvg = document.getElementById('pulseSvg');
+  if (psvg) ro.observe(psvg);
+}
 </script>
 </body>
 </html>
