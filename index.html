@@ -1085,7 +1085,7 @@ async function loadPulse() {
   try {
     const [hourly, events] = await Promise.all([
       dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95,selling&hour=gte.' + since + '&order=hour.asc&limit=1000'),
-      dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
+      dbQuery('/rest/v1/city_events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
     ]);
     pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.selling ? Math.round(100 * h.queue_marks / h.selling) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
     pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));

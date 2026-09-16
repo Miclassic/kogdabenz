@@ -1,12 +1,19 @@
-// ===== Сборщик Новороссийска (v4: РАБОЧАЯ ОСНОВА + очереди) =====
+// ===== Сборщик Новороссийска (v5: РАБОЧАЯ ОСНОВА + очереди + донор волна 1) =====
 // Основа — проверенный код с "паспортом браузера" и повторами. НЕ ЛОМАТЬ.
 // Комментарии не парсим: у GdeBenz нет открытого API комментариев (Этап 1).
+// Волна 1: донор Кубань+Адыгея — наблюдения хранятся экономно (смена статуса
+// или heartbeat раз в 6 часов); события доноров питают бренд-пулы и эпизоды
+// k-NN; сайт и дайджест видят только город (вьюха city_events).
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 // Широкая рамка: Новороссийск + Геленджик + Анапа + Крымск (≈200 км)
 // Сбор идёт широко, а на сайте показываем только новороссийские карточки.
 const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.40&lon1=37.20&lat2=45.20&lon2=38.60';
+// Донорские рамки волны 1 (метка региона пишется в stations.region)
+const DONOR_FRAMES = [
+  { region: 'kuban', url: 'https://gdebenz.ru/api/stations?lat1=43.30&lon1=38.60&lat2=46.00&lon2=41.00' }
+];
 
 // "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
 const BROWSER_HEADERS = {
@@ -16,15 +23,16 @@ const BROWSER_HEADERS = {
   'Referer': 'https://gdebenz.ru/'
 };
 
-async function fetchGdebenz() {
+async function fetchFrame(url, label) {
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const r = await fetch(GDEBENZ_URL, { headers: BROWSER_HEADERS });
+    const r = await fetch(url, { headers: BROWSER_HEADERS });
     if (r.ok) return r.json();
-    console.log('   Попытка ' + attempt + ': статус ' + r.status + ', жду 10 сек и повторю...');
+    console.log('   ' + label + ': попытка ' + attempt + ': статус ' + r.status + ', жду 10 сек и повторю...');
     await new Promise(res => setTimeout(res, 10000));
   }
-  throw new Error('GdeBenz не ответил после 3 попыток');
+  throw new Error(label + ': не ответил после 3 попыток');
 }
+async function fetchGdebenz() { return fetchFrame(GDEBENZ_URL, 'GdeBenz (Новороссийск)'); }
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -121,52 +129,84 @@ async function main() {
   console.log('1) Качаю GdeBenz (Новороссийск)...');
   const list = await fetchGdebenz();
   console.log('   Станций в ответе: ' + list.length);
+  const donorLists = [];
+  for (const f of DONOR_FRAMES) {
+    const dl = await fetchFrame(f.url, 'GdeBenz (' + f.region + ')');
+    console.log('   Донор ' + f.region + ': станций ' + dl.length);
+    donorLists.push({ region: f.region, list: dl });
+    await new Promise(res => setTimeout(res, 1500)); // вежливая пауза между рамками
+  }
 
   console.log('2) Сохраняю станции...');
-  const saved = await sbPost(
-    'stations?on_conflict=external_id,source',
-    list.map(s => ({
+  const homeExt = new Set(list.map(s => String(s.osm_id)));
+  const stationPayload = list.map(s => ({
+    external_id: String(s.osm_id),
+    name: s.name || 'АЗС',
+    brand: s.brand || '',
+    address: s.addr || '',
+    lat: s.lat,
+    lon: s.lon,
+    source: 'gdebenz',
+    region: null
+  })).concat(donorLists.flatMap(d => d.list
+    .filter(s => !homeExt.has(String(s.osm_id)))
+    .map(s => ({
       external_id: String(s.osm_id),
       name: s.name || 'АЗС',
       brand: s.brand || '',
       address: s.addr || '',
       lat: s.lat,
       lon: s.lon,
-      source: 'gdebenz'
-    })),
+      source: 'gdebenz',
+      region: d.region
+    }))));
+  const saved = await sbPost(
+    'stations?on_conflict=external_id,source',
+    stationPayload,
     'return=representation,resolution=merge-duplicates'
   );
   const idByExt = {};
   for (const s of saved) idByExt[s.external_id] = s.id;
   const nameById = {};
   const wideById = {};
+  const homeIdSet = new Set();
   for (const s of saved) {
     nameById[s.id] = (s.name || 'АЗС') + (s.address ? ' · ' + s.address : '');
     wideById[s.id] = !(s.lat >= 44.60 && s.lat <= 44.85 && s.lon >= 37.55 && s.lon <= 38.05);
+    if (!s.region) homeIdSet.add(s.id);
   }
   const tgLines = [];
 
   console.log('3) Достаю последние наблюдения для сравнения...');
-  const ids = saved.map(s => s.id);
   const lastByStation = {};
   const recentByStation = {};
-  if (ids.length) {
+  const pushObs = o => {
+    (recentByStation[o.station_id] = recentByStation[o.station_id] || []).push(o);
+    if (!lastByStation[o.station_id]) lastByStation[o.station_id] = o;
+  };
+  const homeIds = [...homeIdSet];
+  if (homeIds.length) {
+    // домой полный лукбэк (~24ч): gap-детектор видит сквозь ночные null
     const last = await sbGet(
-      '/rest/v1/observations?station_id=in.(' + ids.map(i => '"' + i + '"').join(',') +
-      ')&order=timestamp.desc&limit=2000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level'
+      '/rest/v1/observations?station_id=in.(' + homeIds.map(i => '"' + i + '"').join(',') +
+      ')&order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
     );
-    for (const o of last) {
-      (recentByStation[o.station_id] = recentByStation[o.station_id] || []).push(o);
-      if (!lastByStation[o.station_id]) lastByStation[o.station_id] = o;
-    }
+    for (const o of last) pushObs(o);
   }
+  // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч без списка id
+  const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
+  const donorLast = await sbGet(
+    '/rest/v1/observations?timestamp=gte.' + sinceDonor +
+    '&order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+  );
+  for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
 
   console.log('4) Записываю новые наблюдения...');
-  const obsRows = list.map(s => {
+  const mkRow = (s, id) => {
     const f = fuelSet(s.fuels_now);
     const p = s.prices_now || {};
     return {
-      station_id: idByExt[String(s.osm_id)],
+      station_id: id,
       fuel_92_status: f.f92,
       fuel_95_status: f.f95,
       diesel_status: f.fdt,
@@ -176,9 +216,29 @@ async function main() {
       queue_level: s.conflict === 'queue' ? 'high' : null,
       data_freshness_minutes: freshnessMinutes(p)
     };
-  }).filter(r => r.station_id);
+  };
+  const obsRows = list.map(s => mkRow(s, idByExt[String(s.osm_id)])).filter(r => r.station_id);
+  // доноры экономно: строка при смене статуса/очереди, heartbeat раз в 6ч или при первой встрече
+  const HEARTBEAT_MS = 6 * 3600 * 1000;
+  let donorWritten = 0;
+  for (const d of donorLists) {
+    for (const s of d.list) {
+      const id = idByExt[String(s.osm_id)];
+      if (!id || homeIdSet.has(id)) continue;
+      const row = mkRow(s, id);
+      const prev = lastByStation[id];
+      const prevMs = prev && prev.timestamp ? new Date(prev.timestamp).getTime() : 0;
+      const changed = !prev ||
+        prev.fuel_92_status !== row.fuel_92_status ||
+        prev.fuel_95_status !== row.fuel_95_status ||
+        prev.diesel_status !== row.diesel_status ||
+        (prev.queue_level || null) !== (row.queue_level || null);
+      const heartbeat = !prev || (Date.now() - prevMs) >= HEARTBEAT_MS;
+      if (changed || heartbeat) { obsRows.push(row); donorWritten++; }
+    }
+  }
   await sbPost('observations', obsRows);
-  console.log('   Наблюдений записано: ' + obsRows.length);
+  console.log('   Наблюдений записано: ' + obsRows.length + ' (дом ' + (obsRows.length - donorWritten) + ' + доноры ' + donorWritten + ')');
 
   console.log('5) Ищу изменения (события)...');
   const events = [];
@@ -213,7 +273,7 @@ async function main() {
     if (dieselEv && gasEv && dieselEv.event_type !== gasEv.event_type) {
       events.splice(events.indexOf(dieselEv), 1);
     }
-    // === NEW === очередь появилась / исчезла
+    // очередь появилась / исчезла
     const prevQueue = prev.queue_level === 'high';
     const nowQueue = row.queue_level === 'high';
     if (!prevQueue && nowQueue) events.push({ station_id: row.station_id, event_type: 'queue_appeared', fuel_type: null, confidence: 0.7, source: 'observation' });
@@ -228,7 +288,7 @@ async function main() {
   );
 
   // === ШАГ 6: превращаем народные отметки user_feedback в события ===
-  console.log('7) Обрабатываю народные отметки...');
+  console.log('6) Обрабатываю народные отметки...');
   const unprocessed = await sbGet(
     '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,fuel_type,queue_size,created_at&limit=500'
   );
@@ -257,7 +317,7 @@ async function main() {
   } else {
     console.log('   Новых народных отметок нет');
   }
-  
+
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
   console.log('7) Убираю старые наблюдения (старше 30 дней)...');
   const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
@@ -267,7 +327,8 @@ async function main() {
       {
         method: 'DELETE',
         headers: {
-          apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+          apikey: SUPABASE_KEY,
+          Authorization: 'Bearer ' + SUPABASE_KEY,
           Prefer: 'return=minimal'
         }
       }
@@ -276,7 +337,7 @@ async function main() {
   } catch (e) {
     console.log('   ! Уборка не прошла: ' + e.message);
   }
-  
+
   if (tgLines.length) {
     await tg('⚡ КогдаБенз, события (' + tgLines.length + '):\n' + tgLines.slice(0, 10).join('\n'));
   }
