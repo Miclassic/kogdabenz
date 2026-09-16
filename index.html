@@ -964,11 +964,14 @@ function renderNow() {
   const qPct = tot ? Math.round(100 * q / tot) : 0;
   const aPct = known ? Math.round(100 * avail / known) : 0;
   const sub = document.getElementById('nowSub');
-  if (sub) sub.textContent = 'очереди на ' + qPct + '% АЗС · АИ-95 есть на ' + aPct + '% · отслеживаем ' + tot;
+  if (sub) sub.textContent = known
+    ? 'очереди на ' + qPct + '% АЗС · АИ-95 есть на ' + aPct + '% · отслеживаем ' + tot
+    : 'нет свежих отметок топлива · отслеживаем ' + tot;
   const title = document.getElementById('nowTitle');
   if (title) {
-    if (tot && qPct >= 25) title.textContent = 'Город в очередях';
-    else if (known && known - avail >= known * 0.5) title.textContent = 'В городе дефицит топлива';
+    if (!known) title.textContent = 'Ждём свежие данные';
+    else if (tot && qPct >= 25) title.textContent = 'Город в очередях';
+    else if (known - avail >= known * 0.5) title.textContent = 'В городе дефицит топлива';
     else if (qPct <= 6 && aPct >= 40) title.textContent = 'Сейчас спокойное время заправиться';
     else title.textContent = 'Ситуация ровная';
   }
