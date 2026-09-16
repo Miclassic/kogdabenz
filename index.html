@@ -17,10 +17,13 @@ body { overflow:hidden; }
 .ic-s { width:14px; height:14px; }
 .ic-l { width:22px; height:22px; }
 .header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
-.logo-wrap { display:flex; align-items:center; gap:11px; }
-.logo { width:40px; height:40px; display:grid; place-items:center; border-radius:14px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; box-shadow:0 8px 22px rgba(55,100,180,.18); }
-.logo-title { font-size:17px; font-weight:850; letter-spacing:-.6px; }
-.logo-subtitle { margin-top:2px; color:var(--muted); font-size:10px; }
+.logo-wrap { display:flex; align-items:center; gap:12px; }
+.logo { width:46px; height:46px; display:grid; place-items:center; border-radius:16px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; box-shadow:0 10px 26px rgba(55,100,180,.22); }
+.logo .ic-l { width:26px; height:26px; }
+.logo-title { font-size:24px; font-weight:900; letter-spacing:-1px; }
+.logo-title span { background:linear-gradient(90deg,#2465ee,#2ea3ff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.logo-subtitle { margin-top:2px; color:#5b7ba6; font-size:11px; font-weight:600; letter-spacing:.4px; }
+@media(max-width:420px){ .logo-title { font-size:20px; } .logo { width:40px; height:40px; border-radius:14px; } .logo-subtitle { font-size:10px; } }
 .location { display:flex; align-items:center; gap:6px; border:1px solid var(--border); background:rgba(255,255,255,.85); color:var(--text); border-radius:14px; padding:8px 11px; font-size:11px; font-weight:700; box-shadow:0 7px 20px rgba(50,80,130,.06); cursor:pointer; }
 .location .ic { color:var(--red); }
 .tagline { margin:0 2px 6px; min-height:46px; }
@@ -211,6 +214,7 @@ body { overflow:hidden; }
 <body>
 <svg style="display:none" xmlns="http://www.w3.org/2000/svg">
 <symbol id="i-pump" viewBox="0 0 24 24"><path d="M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 21h14"/><path d="M15 9h2.5a2 2 0 0 1 2 2v6.5a1.5 1.5 0 0 1-3 0V13"/><path d="M8 7h4v4H8z"/></symbol>
+<symbol id="i-pump-fast" viewBox="0 0 24 24"><path d="M9 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M7 21h14"/><path d="M19 9h1.5a2 2 0 0 1 2 2v6.5a1.5 1.5 0 0 1-3 0V13"/><path d="M12 7h4v4h-4z"/><path d="M2 9h3"/><path d="M1 12h4"/><path d="M2 15h3"/></symbol>
 <symbol id="i-queue" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14c2.8 0 5 2.2 5 5"/></symbol>
 <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></symbol>
 <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V6"/><path d="M4 20h16"/><path d="M7 15l4-5 3 3 5-7"/></symbol>
@@ -229,10 +233,10 @@ body { overflow:hidden; }
 <div class="page">
   <header class="header">
     <div class="logo-wrap">
-      <div class="logo"><svg class="ic ic-l"><use href="#i-pump"/></svg></div>
+      <div class="logo"><svg class="ic ic-l"><use href="#i-pump-fast"/></svg></div>
       <div>
-        <div class="logo-title">КогдаБенз</div>
-        <div class="logo-subtitle">Новороссийск · данные онлайн</div>
+        <div class="logo-title">Когда<span>Бенз</span></div>
+        <div class="logo-subtitle">Данные о топливе. Вовремя.</div>
       </div>
     </div>
     <button class="location" onclick="findNearby()"><svg class="ic ic-s"><use href="#i-pin"/></svg>Рядом</button>
