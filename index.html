@@ -225,10 +225,11 @@ html, body { height:100%; }
 body { overflow:hidden; }
 .page { height:100dvh; display:flex; flex-direction:column; max-width:560px; padding:calc(10px + env(safe-area-inset-top)) 12px 0; margin:0 auto; }
 .header { margin-bottom:8px; }
-.tagline { margin:0 2px 8px; }
-.tagline-slogan { font-size:15px; font-weight:900; letter-spacing:-.3px; }
+.tagline { margin:0 2px 6px; min-height:46px; }
+.tagline-slogan { font-size:14px; font-weight:900; letter-spacing:-.3px; }
 .tagline-slogan span { color:var(--blue); }
-.tagline-text { margin-top:3px; color:#71809c; font-size:11px; line-height:1.45; }
+.tagline-text { margin-top:2px; color:#71809c; font-size:10.5px; line-height:1.4; min-height:2.8em; transition:opacity .18s ease; }
+.tagline-text.swap { opacity:0; }
 .logo { width:40px; height:40px; border-radius:14px; font-size:21px; }
 .logo-title { font-size:17px; }
 .logo-subtitle { font-size:10px; }
@@ -249,18 +250,18 @@ body { overflow:hidden; }
 .nowcard-head { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
 .nowcard-title { font-size:19px; font-weight:900; letter-spacing:-.6px; }
 .nowcard-sub { margin-top:4px; color:#71809c; font-size:11px; font-weight:600; }
-.nowcard-chart { margin-top:10px; }
-.nowcard-chart .pulse { margin:0; padding:14px 12px 12px; border:1px solid #e8edf7; border-radius:22px; background:linear-gradient(165deg,#ffffff 0%,#fbfcff 55%,#f6f9ff 100%); box-shadow:0 12px 34px rgba(38,69,120,.08), inset 0 1px 0 #fff; overflow:hidden; display:flex; flex-direction:column; }
+.nowcard-chart { margin-top:8px; flex:1; min-height:0; display:flex; flex-direction:column; }
+.nowcard-chart .pulse { margin:0; padding:12px 10px 10px; border:1px solid #e8edf7; border-radius:22px; background:linear-gradient(165deg,#ffffff 0%,#fbfcff 55%,#f6f9ff 100%); box-shadow:0 12px 34px rgba(38,69,120,.08), inset 0 1px 0 #fff; overflow:hidden; display:flex; flex-direction:column; flex:1; min-height:0; }
 .nowcard-chart .pulse-head, .nowcard-chart .pulse-kpis, .nowcard-chart .pulse-legend, .nowcard-chart .pulse-tabs { display:none; }
-.nowcard-chart .pulse-chart { flex:none; height:32vh; min-height:150px; }
+.nowcard-chart .pulse-chart { flex:1; min-height:90px; }
 .nowcard-chart .pulse-svg { height:100%; }
-.nowcard-chart .pulse-insight { position:static; margin-top:8px; padding:9px 12px; font-size:10px; }
-.nkpi-row { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
-.nkpi { padding:8px 10px; border-radius:12px; background:#f7f9fc; }
+.nowcard-chart .pulse-insight { position:static; margin-top:6px; padding:8px 10px; font-size:10px; }
+.nkpi-row { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:8px; }
+.nkpi { padding:7px 9px; border-radius:12px; background:#f7f9fc; }
 .nkpi-l { color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.8px; }
-.nkpi-v { margin-top:3px; color:#14213d; font-size:14px; font-weight:850; }
-.nowcard-cta { display:flex; gap:8px; margin-top:10px; }
-.cta-btn { flex:1; border:0; border-radius:16px; padding:12px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:12px; font-weight:850; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.25); }
+.nkpi-v { margin-top:2px; color:#14213d; font-size:13px; font-weight:850; }
+.nowcard-cta { display:flex; gap:8px; margin-top:8px; }
+.cta-btn { flex:1; border:0; border-radius:16px; padding:11px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:12px; font-weight:850; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.25); }
 .cta-btn.ghost { background:#f2f4f9; color:#33445f; box-shadow:none; }
 .search { margin-top:10px; border-radius:18px; padding:5px 6px 5px 12px; }
 .search input { font-size:14px; }
@@ -1232,6 +1233,7 @@ function setTagline(i) {
   const sl = document.getElementById('tagSlogan');
   const tx = document.getElementById('tagText');
   if (!sl || !tx) return;
+  let sHtml, sTxt;
   if (i === 1) {
     const last = getLastObservations();
     let withFuel = 0, withPred = 0;
@@ -1240,21 +1242,24 @@ function setTagline(i) {
       if (o && o.fuel_95_status === true) withFuel++;
       if (pickPrediction(id, o)) withPred++;
     }
-    sl.innerHTML = 'АЗС города. <span>Тап — и всё видно.</span>';
-    tx.textContent = localIdsGlobal.length + ' станций в отслеживании · АИ-95 есть на ' + withFuel + ' · прогноз окон у ' + withPred + '. Тап по строке открывает полную карточку с прогнозом и отметками.';
+    sHtml = 'АЗС города. <span>Тап — и всё видно.</span>';
+    sTxt = 'В городе ' + localIdsGlobal.length + ' АЗС: АИ-95 есть на ' + withFuel + ', окна у ' + withPred + '. Тап по строке — полная карточка с прогнозом.';
   } else if (i === 2) {
     const since = Date.now() - 24 * 3600 * 1000;
     const ev = pulseEv.filter(e => e.t.getTime() > since);
     const rest = ev.filter(e => e.type === 'fuel_restored').length;
     const dis = ev.filter(e => e.type === 'fuel_disappeared').length;
-    sl.innerHTML = 'Дайджест. <span>Город в цифрах.</span>';
-    tx.textContent = 'За 24 часа: топливо вернулось ' + rest + ' раз, закончилось ' + dis + ' раз. Избранного: ' + getFavorites().length + '. Полная сводка приходит в Telegram в 08:00.';
+    sHtml = 'Дайджест. <span>Город в цифрах.</span>';
+    sTxt = 'За сутки: вернулось ' + rest + ', кончилось ' + dis + '. Избранного: ' + getFavorites().length + '. Полная сводка — в Telegram в 08:00.';
   } else {
     const marks = pulseRaw.reduce((s, r) => s + r.marks, 0);
     const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
-    sl.innerHTML = 'Данными. <span>Не догадками.</span>';
-    tx.textContent = 'Каждые 10 минут — отметки АЗС и голоса водителей: ' + marks + ' наблюдений за 7 дней, ' + ev24 + ' событий за 24 ч. Алгоритм ищет закономерности и предсказывает окна.';
+    sHtml = 'Данными. <span>Не догадками.</span>';
+    sTxt = 'Каждые 10 минут — отметки АЗС и голоса водителей: ' + marks + ' наблюдений, ' + ev24 + ' событий за сутки. Алгоритм предсказывает окна возврата.';
   }
+  sl.innerHTML = sHtml;
+  tx.classList.add('swap');
+  setTimeout(() => { tx.textContent = sTxt; tx.classList.remove('swap'); }, 130);
 }
 start();
 loadPulse().catch(e => console.log('pulse: ' + e.message));
@@ -1265,6 +1270,26 @@ if (pagerEl) pagerEl.addEventListener('scroll', () => {
   if (i !== currentPanel) { currentPanel = i; setTagline(i); }
   document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
 });
+let hintCancelled = false;
+function pagerHint() {
+  const pager = document.getElementById('pager');
+  if (!pager) return;
+  pager.addEventListener('pointerdown', () => {
+    hintCancelled = true;
+    pager.style.scrollSnapType = '';
+  }, { once: true });
+  setTimeout(() => {
+    if (hintCancelled) return;
+    pager.style.scrollSnapType = 'none';
+    pager.scrollTo({ left: Math.round(pager.clientWidth * 0.25), behavior: 'smooth' });
+    setTimeout(() => {
+      if (hintCancelled) return;
+      pager.scrollTo({ left: 0, behavior: 'smooth' });
+      setTimeout(() => { pager.style.scrollSnapType = ''; }, 700);
+    }, 600);
+  }, 900);
+}
+pagerHint();
 let pulseResizeTick = false;
 window.addEventListener('resize', () => {
   if (pulseResizeTick) return;
