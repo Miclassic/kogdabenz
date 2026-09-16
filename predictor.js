@@ -92,10 +92,10 @@ async function main() {
 
   console.log('3.5) Достаю очередные события для контекста k-NN...');
   const queueEventsRaw = await sbGet(
-    '/rest/v1/events?event_type=in.(queue_high,queue_appeared)&detected_at=gte.' + since +
+    '/rest/v1/events?event_type=in.(queue_high,queue_appeared,queue_gone,queue_low)&detected_at=gte.' + since +
     '&select=station_id,event_type,detected_at&limit=50000'
   );
-  const queueEvents = queueEventsRaw.map(e => ({ station_id: e.station_id, t: new Date(e.detected_at).getTime() }));
+  const queueEvents = queueEventsRaw.map(e => ({ station_id: e.station_id, type: e.event_type, t: new Date(e.detected_at).getTime() }));
   console.log('   Событий: ' + queueEvents.length);
 
   console.log('4) Достаю последние наблюдения...');
@@ -211,8 +211,20 @@ async function main() {
     return w;
   }
   function queueBeforeAt(stationId, t) {
-    for (const q of queueEvents) if (q.station_id === stationId && q.t <= t && t - q.t <= 90 * 60000) return true;
+    for (const q of queueEvents) if ((q.type === 'queue_high' || q.type === 'queue_appeared') && q.station_id === stationId && q.t <= t && t - q.t <= 90 * 60000) return true;
     return false;
+  }
+  // v1.5: минуты с момента появления очереди; null, если очередь не активна
+  // (последний положительный сигнал позже последнего отрицательного)
+  function queueAgeMin(stationId, nowMs) {
+    let lastPos = null, lastNeg = null;
+    for (const q of queueEvents) {
+      if (q.station_id !== stationId || q.t > nowMs) continue;
+      if (q.type === 'queue_high' || q.type === 'queue_appeared') { if (lastPos === null || q.t > lastPos) lastPos = q.t; }
+      else { if (lastNeg === null || q.t > lastNeg) lastNeg = q.t; }
+    }
+    if (lastPos === null || (lastNeg !== null && lastNeg > lastPos)) return null;
+    return Math.round((nowMs - lastPos) / 60000);
   }
   const episodes = [];
   for (const [key, disList] of Object.entries(disByPair)) {
@@ -415,6 +427,7 @@ async function main() {
           ? Math.round((Date.now() - lastDisByPair[pairKey]) / 60000) : null,
         queue_level: cur && cur.queue_level ? cur.queue_level : null,
         queue_trend: queueTrend(st.id),
+        queue_age_min: queueAgeMin(st.id, Date.now()),
         city_avail95_pct: cityAvailShare === null ? null : Math.round(cityAvailShare * 100),
         nearby_missing95: nb.missing,
         nearby_total: nb.total,
