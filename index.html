@@ -920,7 +920,7 @@ function renderNow() {
   const cta = document.getElementById('ctaBest');
   if (!allStations.length) return;
   const last = getLastObservations();
-  let best = null, bestSoon = null, q = 0, tot = 0, avail = 0, known = 0;
+  let bestFresh95 = null, bestFreshAny = null, bestWindow = null, bestSoonWindow = null, q = 0, tot = 0, avail = 0, known = 0;
   const nowM = new Date().getHours() * 60 + new Date().getMinutes();
   for (const s of allStations) {
     if (!localIdsGlobal.includes(s.id)) continue;
@@ -930,17 +930,28 @@ function renderNow() {
     if (o.queue_level === 'high') q++;
     if (o.fuel_95_status === true) { avail++; known++; }
     else if (o.fuel_95_status === false) known++;
+    // «Куда ехать» советуем только станции со свежими данными (≤6 часов):
+    // иначе кнопка ведёт на АЗС, которую источник не видит неделями
+    const fresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    if (fresh) {
+      if (o.fuel_95_status === true && !bestFresh95) bestFresh95 = s;
+      if (!bestFreshAny && (o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true)) bestFreshAny = s;
+    }
     const p = pickPrediction(s.id, o);
-    if (p) {
+    if (p && fresh) {
       const fp = p.from_time.split(':'), tp = p.to_time.split(':');
       const f = Number(fp[0]) * 60 + Number(fp[1]), t = Number(tp[0]) * 60 + Number(tp[1]);
-      if (!best && nowM >= f && nowM <= t) best = s;
-      if (!bestSoon && f - nowM > 0 && f - nowM <= 180) bestSoon = s;
+      if (!bestWindow && nowM >= f && nowM <= t) bestWindow = s;
+      if (!bestSoonWindow && f - nowM > 0 && f - nowM <= 180) bestSoonWindow = s;
     }
   }
   if (cta) {
-    const target = best || bestSoon;
-    if (target) { cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(target.name || 'АЗС'); cta.onclick = () => openSheet(target.id); }
+    const target = bestFresh95 || bestFreshAny || bestWindow || bestSoonWindow;
+    if (target) {
+      const hasFuel = target === bestFresh95 || target === bestFreshAny;
+      cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(target.name || 'АЗС') + (hasFuel ? ' · топливо есть' : '');
+      cta.onclick = () => openSheet(target.id);
+    }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(1); }
   }
   const qPct = tot ? Math.round(100 * q / tot) : 0;
