@@ -52,6 +52,47 @@ function timeToMin(t) {
   return Number(p[0]) * 60 + Number(p[1] || 0);
 }
 
+async function logTrainingData() {
+  try {
+    const train = await sbGet('/rest/v1/predictions?is_verified=eq.true&error_minutes=not.is.null&select=error_minutes,baseline_error_minutes,prediction_source,features&limit=5000');
+    if (!train.length) { console.log('   TRAINING DATA: верифицированных с ошибкой пока нет'); return; }
+    const absSort = a => a.map(x => Math.abs(x)).sort((x, y) => x - y);
+    const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))];
+    const mae = a => Math.round(a.reduce((s, x) => s + Math.abs(x), 0) / a.length);
+    const bias = a => Math.round(a.reduce((s, x) => s + x, 0) / a.length);
+    const fmtBias = a => (bias(a) > 0 ? '+' : '') + bias(a);
+    const e = absSort(train.map(t => t.error_minutes));
+    const b = absSort(train.filter(t => t.baseline_error_minutes !== null && t.baseline_error_minutes !== undefined).map(t => t.baseline_error_minutes));
+    console.log('   TRAINING DATA: с ошибкой: ' + train.length +
+      ' | модель: MAE ' + mae(e) + ', медиана ' + q(e, 0.5) + ', p90 ' + q(e, 0.9) + ', bias ' + fmtBias(train.map(t => t.error_minutes)) +
+      (b.length ? ' | baseline: MAE ' + mae(b) + ', медиана ' + q(b, 0.5) + ', p90 ' + q(b, 0.9) : ''));
+    const groups = {};
+    for (const t of train) {
+      const f = t.features || {};
+      const regime = f.regime || 'UNKNOWN';
+      const src = t.prediction_source || 'unknown';
+      const eta = (f.knn_support || 0) >= 8 ? 'knn' : 'median';
+      const h = f.hour_msk;
+      const hb = h === null || h === undefined ? 'UNKNOWN' : h < 6 ? 'ночь' : h < 12 ? 'утро' : h < 18 ? 'день' : 'вечер';
+      (groups['regime:' + regime] = groups['regime:' + regime] || []).push(t);
+      (groups['source:' + src] = groups['source:' + src] || []).push(t);
+      (groups['eta:' + eta] = groups['eta:' + eta] || []).push(t);
+      (groups['час:' + hb] = groups['час:' + hb] || []).push(t);
+    }
+    for (const key of Object.keys(groups).sort()) {
+      const rows = groups[key];
+      if (rows.length < 5) continue;
+      const errs = rows.map(t => t.error_minutes);
+      const ge = absSort(errs);
+      const gb = absSort(rows.filter(t => t.baseline_error_minutes !== null && t.baseline_error_minutes !== undefined).map(t => t.baseline_error_minutes));
+      console.log('     ' + key + ': n ' + ge.length +
+        ', bias ' + fmtBias(errs) +
+        ', MAE ' + mae(ge) + ', мед ' + q(ge, 0.5) + ', p90 ' + q(ge, 0.9) +
+        (gb.length ? ' | baseline MAE ' + mae(gb) : ''));
+    }
+  } catch (e) { console.log('   ! TRAINING DATA: ' + e.message); }
+}
+
 async function main() {
   console.log('=== ВЕРИФИКАТОР v1 ===');
   const mskNow = new Date(Date.now() + 3 * 3600 * 1000);
@@ -74,6 +115,7 @@ async function main() {
 
   if (!queue.length) {
     console.log('   Закрывшихся окон пока нет — выходим.');
+    await logTrainingData();
     console.log('✅ Верификатор завершил работу');
     return;
   }
@@ -121,49 +163,7 @@ async function main() {
 
   const pct = checked ? Math.round(success / checked * 100) : 0;
   console.log('   Проверено: ' + checked + ', точных: ' + success + ' (' + pct + '%)');
-  // измерение: объём учебной выборки и ошибка модели против baseline на одних и тех же прогнозах
-  try {
-    const train = await sbGet('/rest/v1/predictions?is_verified=eq.true&error_minutes=not.is.null&select=error_minutes,baseline_error_minutes,prediction_source,features&limit=5000');
-    if (train.length) {
-      const absSort = a => a.map(x => Math.abs(x)).sort((x, y) => x - y);
-      const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))];
-      const mae = a => Math.round(a.reduce((s, x) => s + Math.abs(x), 0) / a.length);
-      const bias = a => Math.round(a.reduce((s, x) => s + x, 0) / a.length);
-      const fmtBias = a => (bias(a) > 0 ? '+' : '') + bias(a);
-      const e = absSort(train.map(t => t.error_minutes));
-      const b = absSort(train.filter(t => t.baseline_error_minutes !== null && t.baseline_error_minutes !== undefined).map(t => t.baseline_error_minutes));
-      console.log('   TRAINING DATA: с ошибкой: ' + train.length +
-        ' | модель: MAE ' + mae(e) + ', медиана ' + q(e, 0.5) + ', p90 ' + q(e, 0.9) + ', bias ' + fmtBias(train.map(t => t.error_minutes)) +
-        (b.length ? ' | baseline: MAE ' + mae(b) + ', медиана ' + q(b, 0.5) + ', p90 ' + q(b, 0.9) : ''));
-      // разбивки по условиям: где модель ошибается системно (группы от 5, иначе шум)
-      const groups = {};
-      for (const t of train) {
-        const f = t.features || {};
-        const regime = f.regime || 'UNKNOWN';
-        const src = t.prediction_source || 'unknown';
-        const eta = (f.knn_support || 0) >= 8 ? 'knn' : 'median';
-        const h = f.hour_msk;
-        const hb = h === null || h === undefined ? 'UNKNOWN' : h < 6 ? 'ночь' : h < 12 ? 'утро' : h < 18 ? 'день' : 'вечер';
-        (groups['regime:' + regime] = groups['regime:' + regime] || []).push(t);
-        (groups['source:' + src] = groups['source:' + src] || []).push(t);
-        (groups['eta:' + eta] = groups['eta:' + eta] || []).push(t);
-        (groups['час:' + hb] = groups['час:' + hb] || []).push(t);
-      }
-      for (const key of Object.keys(groups).sort()) {
-        const rows = groups[key];
-        if (rows.length < 5) continue;
-        const errs = rows.map(t => t.error_minutes);
-        const ge = absSort(errs);
-        const gb = absSort(rows.filter(t => t.baseline_error_minutes !== null && t.baseline_error_minutes !== undefined).map(t => t.baseline_error_minutes));
-        console.log('     ' + key + ': n ' + ge.length +
-          ', bias ' + fmtBias(errs) +
-          ', MAE ' + mae(ge) + ', мед ' + q(ge, 0.5) + ', p90 ' + q(ge, 0.9) +
-          (gb.length ? ' | baseline MAE ' + mae(gb) : ''));
-      }
-    } else {
-      console.log('   TRAINING DATA: верифицированных с ошибкой пока нет');
-    }
-  } catch (e) { console.log('   ! TRAINING DATA: ' + e.message); }
+  await logTrainingData();
   await tg('🧮 КогдаБенз-верификатор: проверил ' + checked + ' прогнозов, точных ' + success + ' (' + pct + '%). Ячейка «Точность» на сайте обновляется.');
   console.log('✅ Верификатор завершил работу');
 }
