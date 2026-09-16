@@ -54,8 +54,10 @@ function timeToMin(t) {
 
 async function logTrainingData() {
   try {
-    const train = await sbGet('/rest/v1/predictions?is_verified=eq.true&error_minutes=not.is.null&select=error_minutes,baseline_error_minutes,prediction_source,features&limit=5000');
-    if (!train.length) { console.log('   TRAINING DATA: верифицированных с ошибкой пока нет'); return; }
+    const all = await sbGet('/rest/v1/predictions?is_verified=eq.true&select=error_minutes,baseline_error_minutes,prediction_source,features&limit=5000');
+    const censored = all.filter(t => t.error_minutes === null || t.error_minutes === undefined).length;
+    const train = all.filter(t => t.error_minutes !== null && t.error_minutes !== undefined);
+    if (!train.length) { console.log('   TRAINING DATA: верифицированных с ошибкой пока нет (цензурировано без факта: ' + censored + ')'); return; }
     const absSort = a => a.map(x => Math.abs(x)).sort((x, y) => x - y);
     const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))];
     const mae = a => Math.round(a.reduce((s, x) => s + Math.abs(x), 0) / a.length);
@@ -63,7 +65,7 @@ async function logTrainingData() {
     const fmtBias = a => (bias(a) > 0 ? '+' : '') + bias(a);
     const e = absSort(train.map(t => t.error_minutes));
     const b = absSort(train.filter(t => t.baseline_error_minutes !== null && t.baseline_error_minutes !== undefined).map(t => t.baseline_error_minutes));
-    console.log('   TRAINING DATA: с ошибкой: ' + train.length +
+    console.log('   TRAINING DATA: с ошибкой: ' + train.length + ', цензурировано: ' + censored +
       ' | модель: MAE ' + mae(e) + ', медиана ' + q(e, 0.5) + ', p90 ' + q(e, 0.9) + ', bias ' + fmtBias(train.map(t => t.error_minutes)) +
       (b.length ? ' | baseline: MAE ' + mae(b) + ', медиана ' + q(b, 0.5) + ', p90 ' + q(b, 0.9) : ''));
     const groups = {};
