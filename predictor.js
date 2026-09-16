@@ -88,6 +88,14 @@ async function main() {
   );
   console.log('   Событий: ' + disappearedEvents.length);
 
+  console.log('3.5) Достаю очередные события для контекста k-NN...');
+  const queueEventsRaw = await sbGet(
+    '/rest/v1/events?event_type=in.(queue_high,queue_appeared)&detected_at=gte.' + since +
+    '&select=station_id,event_type,detected_at&limit=50000'
+  );
+  const queueEvents = queueEventsRaw.map(e => ({ station_id: e.station_id, t: new Date(e.detected_at).getTime() }));
+  console.log('   Событий: ' + queueEvents.length);
+
   console.log('4) Достаю последние наблюдения...');
   const lastObs = {};
   const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp');
@@ -173,6 +181,67 @@ async function main() {
     }
     if (durations.length >= MIN_EVENTS_PRELIM) pairsByPair[key] = durations.sort((a, b) => a - b);
   }
+
+  // --- v1.3: эпизоды "исчезло → вернулось" с контекстом из событий (база k-NN) ---
+  const restoredMsByPair = {};
+  for (const e of restoredEvents) {
+    const key = e.station_id + '|' + e.fuel_type;
+    (restoredMsByPair[key] = restoredMsByPair[key] || []).push(new Date(e.detected_at).getTime());
+  }
+  for (const k of Object.keys(restoredMsByPair)) restoredMsByPair[k].sort((a, b) => a - b);
+  const stationById = {};
+  for (const s of stations) stationById[s.id] = s;
+  const disMsAll = disappearedEvents.map(e => ({ st: e.station_id, fuel: e.fuel_type, t: new Date(e.detected_at).getTime() }));
+  function waveAt(fuel, t) {
+    let w = 0;
+    for (const x of disMsAll) if (x.fuel === fuel && Math.abs(x.t - t) <= 2 * 3600 * 1000) w++;
+    return w;
+  }
+  function queueBeforeAt(stationId, t) {
+    for (const q of queueEvents) if (q.station_id === stationId && q.t <= t && t - q.t <= 90 * 60000) return true;
+    return false;
+  }
+  const episodes = [];
+  for (const [key, disList] of Object.entries(disByPair)) {
+    const parts = key.split('|');
+    const stId = parts[0], fuel = parts[1];
+    const st = stationById[stId];
+    const resList = restoredMsByPair[key] || [];
+    for (const dis of disList) {
+      const disMs = new Date(dis).getTime();
+      const res = resList.find(r => r > disMs);
+      if (!res) continue;
+      const dur = (res - disMs) / 60000;
+      if (dur <= 10 || dur >= 7 * 24 * 60) continue;
+      const d = new Date(disMs + 3 * 3600 * 1000);
+      episodes.push({
+        fuel: fuel,
+        brand: st ? st.brand : null,
+        hour: d.getUTCHours(),
+        dow: d.getUTCDay(),
+        wave: waveAt(fuel, disMs),
+        queueBefore: queueBeforeAt(stId, disMs),
+        dur: dur
+      });
+    }
+  }
+  function similarEpisodes(st, fuel, disMs) {
+    const d = new Date(disMs + 3 * 3600 * 1000);
+    const hour = d.getUTCHours(), dow = d.getUTCDay();
+    const wave = waveAt(fuel, disMs);
+    const qb = queueBeforeAt(st.id, disMs);
+    const scored = [];
+    for (const e of episodes) {
+      if (e.fuel !== fuel) continue;
+      const dh = Math.min(Math.abs(e.hour - hour), 24 - Math.abs(e.hour - hour)) / 12;
+      const dist = dh + (e.dow === dow ? 0 : 0.5) + Math.abs(e.wave - wave) / 4 +
+        (e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
+      scored.push({ dist: dist, e: e });
+    }
+    scored.sort((a, b) => a.dist - b.dist);
+    return scored.slice(0, 12).map(x => x.e);
+  }
+  console.log('   Эпизодов дефицита для k-NN: ' + episodes.length);
 
   // Существующие прогнозы на сегодня
   const mskNow = new Date(Date.now() + 3 * 3600 * 1000);
@@ -269,6 +338,7 @@ async function main() {
 
       // Модель длительности дефицита: если топливо СЕЙЧАС исчезло
       let expectedRestoreAt = null;
+      let knnInfo = null;
       const cur = lastObs[st.id];
       const currentStatus = cur ? cur[fuelCol[fuel]] : null;
       if (currentStatus === false) {
@@ -292,11 +362,19 @@ async function main() {
           );
           if (recent.length) disappearedAt = new Date(recent[0].detected_at).getTime();
           if (disappearedAt) {
-            const medianDur = medianOf(pairDurations);
-            const elapsed = (Date.now() - disappearedAt) / 60000;
-            const remaining = Math.max(5, medianDur - elapsed);
-            expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
+          const elapsed = (Date.now() - disappearedAt) / 60000;
+          // v1.3: похожие ситуации первичны, медиана пары — фолбэк
+          const knn = similarEpisodes(st, fuel, disappearedAt);
+          let knnMedian = null, knnSupport = 0, p2h = null;
+          if (knn.length >= 8) {
+            knnSupport = knn.length;
+            knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
+            p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
           }
+          const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
+          const remaining = Math.max(5, useDur - elapsed);
+          expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
+          knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h };
         }
       }
 
@@ -316,7 +394,10 @@ async function main() {
         nearby_total: nb.total,
         restores_6h: restores6h,
         disappears_6h: disappears6h,
-        regime: regime
+        regime: regime,
+        knn_support: knnInfo ? knnInfo.support : 0,
+        knn_median_dur_min: knnInfo ? knnInfo.median_dur_min : null,
+        knn_p_restore_2h: knnInfo ? knnInfo.p_restore_2h : null
       };
       const row = {
         station_id: st.id,
@@ -345,7 +426,7 @@ async function main() {
       }
 
       const prelim = source === 'own' && usedCount < MIN_EVENTS_FULL ? ' [предв.]' : '';
-      const eta = expectedRestoreAt ? ', ждём ~' + new Date(expectedRestoreAt).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }) : '';
+      const eta = expectedRestoreAt ? ', ждём ~' + new Date(expectedRestoreAt).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }) + (knnInfo && knnInfo.support ? ' (k-NN ' + knnInfo.support + ', P<2ч ' + knnInfo.p_restore_2h + '%)' : '') : '';
       console.log('   ' + label + ' (' + source + ', станций ' + basedOnStations + '): ' +
         from.slice(0, 5) + '–' + to.slice(0, 5) + ', ' + row.confidence +
         ' (' + usedCount + ' соб.)' + prelim + eta);
