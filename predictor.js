@@ -103,6 +103,17 @@ async function main() {
   const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp');
   for (const o of obs) if (!lastObs[o.station_id]) lastObs[o.station_id] = o;
 
+  // v1.4: станция "жива на источнике" = недавно был ненулевой статус топлива.
+  // Строки наблюдений пишутся каждый цикл даже при пустом составе,
+  // поэтому возраст строки для гейта непригоден. obs отсортирован по убыванию.
+  const lastNonNullTs = {};
+  for (const o of obs) {
+    if (lastNonNullTs[o.station_id]) continue;
+    if (o.fuel_92_status !== null && o.fuel_92_status !== undefined) { lastNonNullTs[o.station_id] = new Date(o.timestamp).getTime(); continue; }
+    if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { lastNonNullTs[o.station_id] = new Date(o.timestamp).getTime(); continue; }
+    if (o.diesel_status !== null && o.diesel_status !== undefined) lastNonNullTs[o.station_id] = new Date(o.timestamp).getTime();
+  }
+
   // --- v1.2: городской контекст и снапшоты признаков для будущего обучения ---
   const QUEUE_RANK = { low: 1, medium: 2, high: 3 };
   const recentByStation = {};
@@ -265,10 +276,10 @@ async function main() {
   for (const st of stations) {
     if (!isOwn(st)) continue;
 
-    // v1.4: гейт по свежести наблюдений — не строим прогноз станции,
-    // которую источник не видел дольше 72 часов (порог выше gap-детектора 36ч)
-    const lastTs = lastObs[st.id] ? new Date(lastObs[st.id].timestamp).getTime() : null;
-    const ageH = lastTs ? (Date.now() - lastTs) / 3600000 : Infinity;
+    // v1.4: гейт по возрасту последнего ненулевого статуса топлива:
+    // строки с пустым составом пишутся каждый цикл, возраст строки всегда свежий
+    const nnTs = lastNonNullTs[st.id] || null;
+    const ageH = nnTs ? (Date.now() - nnTs) / 3600000 : Infinity;
     if (ageH > 72) { stale++; continue; }
 
     for (const fuel of fuels) {
