@@ -58,7 +58,7 @@ async function main() {
   const todayStr = mskNow.toISOString().slice(0, 10);
   const preds = await sbGet(
     '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=lt.' + todayStr +
-    '&select=id,station_id,fuel_type,from_time,to_time,target_date,expected_restore_at,created_at&limit=1000'
+    '&select=id,station_id,fuel_type,from_time,to_time,target_date,expected_restore_at,baseline_restore_at,created_at&limit=1000'
   );
   console.log('   Ожидают проверки: ' + preds.length);
 
@@ -107,6 +107,7 @@ async function main() {
     if (actual) {
       patch.actual_restore_at = actual.e.detected_at;
       patch.error_minutes = Math.round((actual.t - expectedMs) / 60000);
+      if (p.baseline_restore_at) patch.baseline_error_minutes = Math.round((actual.t - new Date(p.baseline_restore_at).getTime()) / 60000);
     }
     await sbPatch('predictions?id=eq.' + p.id, patch);
     checked++;
@@ -120,6 +121,22 @@ async function main() {
 
   const pct = checked ? Math.round(success / checked * 100) : 0;
   console.log('   Проверено: ' + checked + ', точных: ' + success + ' (' + pct + '%)');
+  // измерение: объём учебной выборки и ошибка модели против baseline на одних и тех же прогнозах
+  try {
+    const train = await sbGet('/rest/v1/predictions?is_verified=eq.true&error_minutes=not.is.null&select=error_minutes,baseline_error_minutes&limit=5000');
+    if (train.length) {
+      const absSort = a => a.map(x => Math.abs(x)).sort((x, y) => x - y);
+      const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))];
+      const mae = a => Math.round(a.reduce((s, x) => s + Math.abs(x), 0) / a.length);
+      const e = absSort(train.map(t => t.error_minutes));
+      const b = absSort(train.filter(t => t.baseline_error_minutes !== null && t.baseline_error_minutes !== undefined).map(t => t.baseline_error_minutes));
+      console.log('   TRAINING DATA: с ошибкой: ' + train.length +
+        ' | модель: MAE ' + mae(e) + ', медиана ' + q(e, 0.5) + ', p90 ' + q(e, 0.9) +
+        (b.length ? ' | baseline: MAE ' + mae(b) + ', медиана ' + q(b, 0.5) + ', p90 ' + q(b, 0.9) : ''));
+    } else {
+      console.log('   TRAINING DATA: верифицированных с ошибкой пока нет');
+    }
+  } catch (e) { console.log('   ! TRAINING DATA: ' + e.message); }
   await tg('🧮 КогдаБенз-верификатор: проверил ' + checked + ' прогнозов, точных ' + success + ' (' + pct + '%). Ячейка «Точность» на сайте обновляется.');
   console.log('✅ Верификатор завершил работу');
 }

@@ -241,7 +241,7 @@ async function main() {
       scored.push({ dist: dist, e: e });
     }
     scored.sort((a, b) => a.dist - b.dist);
-    return scored.slice(0, 12).map(x => x.e);
+    return scored.slice(0, 12);
   }
   console.log('   Эпизодов дефицита для k-NN: ' + episodes.length);
 
@@ -337,6 +337,7 @@ async function main() {
 
       // Модель длительности дефицита: если топливо СЕЙЧАС исчезло
       let expectedRestoreAt = null;
+      let baselineRestoreAt = null;
       let knnInfo = null;
       const cur = lastObs[st.id];
       const currentStatus = cur ? cur[fuelCol[fuel]] : null;
@@ -363,17 +364,22 @@ async function main() {
           if (disappearedAt) {
             const elapsed = (Date.now() - disappearedAt) / 60000;
             // v1.3: похожие ситуации первичны, медиана пары — фолбэк
-            const knn = similarEpisodes(st, fuel, disappearedAt);
-            let knnMedian = null, knnSupport = 0, p2h = null;
+            const knnScored = similarEpisodes(st, fuel, disappearedAt);
+            const knn = knnScored.map(x => x.e);
+            let knnMedian = null, knnSupport = 0, p2h = null, knnDist = null;
             if (knn.length >= 8) {
               knnSupport = knn.length;
               knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
               p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
+              knnDist = Math.round(1000 * knnScored.reduce((s, x) => s + x.dist, 0) / knnScored.length) / 1000;
             }
             const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
             const remaining = Math.max(5, useDur - elapsed);
             expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
-            knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h };
+            // измерение: baseline — всегда голая медиана пары, чтобы верификатор сравнил на одних прогнозах
+            const baseDur = medianOf(pairDurations);
+            baselineRestoreAt = new Date(Date.now() + Math.max(5, baseDur - elapsed) * 60000).toISOString();
+            knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h, mean_dist: knnDist };
           }
         }
       }
@@ -397,7 +403,8 @@ async function main() {
         regime: regime,
         knn_support: knnInfo ? knnInfo.support : 0,
         knn_median_dur_min: knnInfo ? knnInfo.median_dur_min : null,
-        knn_p_restore_2h: knnInfo ? knnInfo.p_restore_2h : null
+        knn_p_restore_2h: knnInfo ? knnInfo.p_restore_2h : null,
+        knn_mean_dist: knnInfo ? knnInfo.mean_dist : null
       };
       const row = {
         station_id: st.id,
@@ -415,6 +422,7 @@ async function main() {
         model_version: 'v1.1'
       };
       if (expectedRestoreAt) row.expected_restore_at = expectedRestoreAt;
+      if (baselineRestoreAt) row.baseline_restore_at = baselineRestoreAt;
 
       const existId = existingByKey[pairKey];
       if (existId) {
