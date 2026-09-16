@@ -644,7 +644,7 @@ function heatRows() {
     { label:'АИ-92', icon:'i-pump', bad:r => r.k92 ? 1 - r.a92 / r.k92 : null, stat:r => r.k92 ? r.a92 / r.k92 : null, inv:false },
     { label:'АИ-95', icon:'i-pump', bad:r => r.k95 ? 1 - r.a95 / r.k95 : null, stat:r => r.k95 ? r.a95 / r.k95 : null, inv:false },
     { label:'Дизель', icon:'i-pump', bad:r => r.kdt ? 1 - r.adt / r.kdt : null, stat:r => r.kdt ? r.adt / r.kdt : null, inv:false },
-    { label:'Очереди', icon:'i-queue', bad:r => r.marks ? Math.min(1, (r.q / r.marks) / 0.3) : null, stat:r => r.marks ? r.q / r.marks : null, inv:true }
+    { label:'Очереди', icon:'i-queue', bad:r => r.selling ? Math.min(1, (r.q / r.selling) / 0.3) : null, stat:r => r.selling ? r.q / r.selling : null, inv:true }
   ];
 }
 function renderHeat() {
@@ -682,7 +682,7 @@ function peakAndCalm() {
   let peakH = null, peakV = -1;
   for (let h = 0; h < 24; h++) {
     const r = byHour[h];
-    const v = r && r.marks ? r.q / r.marks : 0;
+    const v = r && r.selling ? r.q / r.selling : 0;
     if (v > peakV) { peakV = v; peakH = h; }
   }
   let best = null;
@@ -691,7 +691,7 @@ function peakAndCalm() {
     while (len < 8) {
       const r = byHour[(h + len) % 24];
       const bad = r && r.k95 ? 1 - r.a95 / r.k95 : 0.5;
-      const q = r && r.marks ? r.q / r.marks : 0;
+      const q = r && r.selling ? r.q / r.selling : 0;
       if (bad < 0.4 && q < 0.1) len++; else break;
     }
     if (len >= 2 && (!best || len > best.len)) best = { h, len };
@@ -1037,7 +1037,7 @@ async function loadPulse() {
       dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
       dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
     ]);
-    pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
+    pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.selling ? Math.round(100 * h.queue_marks / h.selling) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
     pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
   } catch (e) { console.log('pulse main: ' + e.message); }
   renderPulse();
