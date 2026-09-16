@@ -1,6 +1,6 @@
-// ===== Сборщик Новороссийска (v3: РАБОЧАЯ ОСНОВА + очереди и комментарии) =====
+// ===== Сборщик Новороссийска (v4: РАБОЧАЯ ОСНОВА + очереди) =====
 // Основа — проверенный код с "паспортом браузера" и повторами. НЕ ЛОМАТЬ.
-// Нового только: queue_level в шаге 3, события очередей в шаге 5, шаг 6 (комментарии).
+// Комментарии не парсим: у GdeBenz нет открытого API комментариев (Этап 1).
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -25,20 +25,6 @@ async function fetchGdebenz() {
   }
   throw new Error('GdeBenz не ответил после 3 попыток');
 }
-
-// === NEW === комментарии: тот же паспорт, но без повторов, чтобы цикл не тормозил
-async function fetchCommentsSafe(url) {
-  try {
-    const r = await fetch(url, { headers: BROWSER_HEADERS });
-    if (!r.ok) return [];
-    const data = await r.json();
-    return Array.isArray(data) ? data : (data.comments || data.data || []);
-  } catch (e) {
-    return [];
-  }
-}
-
-function sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -241,47 +227,7 @@ async function main() {
     ' — ' + (nameById[e.station_id] || 'АЗС') + (wideById[e.station_id] ? ' (регион)' : '')
   );
 
-  // === NEW === ШАГ 6: комментарии водителей
-  console.log('6) Качаю комментарии...');
-  const existingExtIds = new Set();
-  try {
-    const existing = await sbGet('/rest/v1/comments?select=external_id&limit=5000');
-    for (const c of existing) existingExtIds.add(String(c.external_id));
-  } catch (e) {
-    console.log('   ! Не смог прочитать старые комментарии: ' + e.message);
-  }
-
-  const KEYWORDS_DELIVERY = ['привезли', 'бензовоз', 'завезли', 'поставка', 'привез', 'только что'];
-  const KEYWORDS_NOFUEL = ['закончился', 'отсутствует', 'нет бензина', 'нет 95', 'нет 92', 'нет дизеля', 'пусто'];
-  const KEYWORDS_QUEUE = ['очередь', 'много машин', 'большая очередь', 'долго'];
-
-  const newComments = [];
-  const commentEvents = [];
-  for (const station of list) {
-    const stationId = idByExt[String(station.osm_id)];
-    const cList = stationId ? await fetchCommentsSafe('https://gdebenz.ru/api/stations/' + station.osm_id + '/comments') : [];
-    for (const c of cList) {
-      const extId = String(c.id || c.comment_id || '');
-      if (!extId || existingExtIds.has(extId)) continue;
-      const text = String(c.text || c.comment || c.body || '');
-      const ts = c.timestamp || c.created_at || c.date || new Date().toISOString();
-      newComments.push({ station_id: stationId, external_id: extId, comment_text: text, timestamp: ts, source: 'gdebenz' });
-      const low = text.toLowerCase();
-      if (KEYWORDS_DELIVERY.some(k => low.includes(k))) commentEvents.push({ station_id: stationId, event_type: 'possible_delivery', fuel_type: null, confidence: 0.7, source: 'comment', detected_at: ts });
-      if (KEYWORDS_NOFUEL.some(k => low.includes(k))) commentEvents.push({ station_id: stationId, event_type: 'fuel_unavailable', fuel_type: null, confidence: 0.6, source: 'comment', detected_at: ts });
-      if (KEYWORDS_QUEUE.some(k => low.includes(k))) commentEvents.push({ station_id: stationId, event_type: 'queue_high', fuel_type: null, confidence: 0.65, source: 'comment', detected_at: ts });
-    }
-    await sleep(120);
-  }
-
-  if (newComments.length) await sbPost('comments', newComments);
-  console.log('   Новых комментариев сохранено: ' + newComments.length);
-  if (commentEvents.length) {
-    await sbPost('events', commentEvents);
-    console.log('   Событий из комментариев: ' + commentEvents.length);
-    for (const e of commentEvents) tgLines.push(eventNameRu(e.event_type) + ' — ' + (nameById[e.station_id] || 'АЗС') + ' (из комментария)');
-  }
-  // === ШАГ 7: превращаем народные отметки user_feedback в события ===
+  // === ШАГ 6: превращаем народные отметки user_feedback в события ===
   console.log('7) Обрабатываю народные отметки...');
   const unprocessed = await sbGet(
     '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,fuel_type,queue_size,created_at&limit=500'
@@ -313,7 +259,7 @@ async function main() {
   }
   
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
-  console.log('8) Убираю старые наблюдения (старше 30 дней)...');
+  console.log('7) Убираю старые наблюдения (старше 30 дней)...');
   const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   try {
     const delRes = await fetch(
