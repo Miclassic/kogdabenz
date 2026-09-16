@@ -1,7 +1,9 @@
-// ===== Предиктор Новороссийска v1.1 =====
+// ===== Предиктор Новороссийска v1.3 =====
 // Умное объединение: свои события → по бренду → по городу.
 // Модель длительности дефицита: если топливо сейчас исчезло,
 // считаем, когда его обычно возвращают.
+// v1.2: снапшот признаков в момент прогноза + режим города.
+// v1.3: k-NN по эпизодам "исчезло → вернулось" для ETA.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -67,7 +69,7 @@ function isOwn(s) {
 }
 
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.1 (умное объединение + дефицит) ===');
+  console.log('=== ПРЕДИКТОР v1.3 (умное объединение + дефицит + k-NN) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
@@ -248,9 +250,6 @@ async function main() {
   const mskMinutesNow = mskNow.getUTCHours() * 60 + mskNow.getUTCMinutes();
   const todayStr = mskNow.toISOString().slice(0, 10);
   const tomorrowStr = new Date(mskNow.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const dayStartIso = new Date(
-    Date.UTC(mskNow.getUTCFullYear(), mskNow.getUTCMonth(), mskNow.getUTCDate()) - 3 * 3600 * 1000
-  ).toISOString();
   const existing = await sbGet(
     '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
     '&select=id,station_id,fuel_type&limit=1000'
@@ -362,19 +361,20 @@ async function main() {
           );
           if (recent.length) disappearedAt = new Date(recent[0].detected_at).getTime();
           if (disappearedAt) {
-          const elapsed = (Date.now() - disappearedAt) / 60000;
-          // v1.3: похожие ситуации первичны, медиана пары — фолбэк
-          const knn = similarEpisodes(st, fuel, disappearedAt);
-          let knnMedian = null, knnSupport = 0, p2h = null;
-          if (knn.length >= 8) {
-            knnSupport = knn.length;
-            knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
-            p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
+            const elapsed = (Date.now() - disappearedAt) / 60000;
+            // v1.3: похожие ситуации первичны, медиана пары — фолбэк
+            const knn = similarEpisodes(st, fuel, disappearedAt);
+            let knnMedian = null, knnSupport = 0, p2h = null;
+            if (knn.length >= 8) {
+              knnSupport = knn.length;
+              knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
+              p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
+            }
+            const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
+            const remaining = Math.max(5, useDur - elapsed);
+            expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
+            knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h };
           }
-          const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
-          const remaining = Math.max(5, useDur - elapsed);
-          expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
-          knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h };
         }
       }
 
@@ -408,7 +408,7 @@ async function main() {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.1|' + source,
+        algorithm_version: 'v1.3|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
@@ -443,7 +443,7 @@ async function main() {
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.1 завершил работу');
+  console.log('✅ Предиктор v1.3 завершил работу');
 }
 
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
