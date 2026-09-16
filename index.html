@@ -202,6 +202,10 @@ body { overflow:hidden; }
 .sheet-grab { width:44px; height:5px; border-radius:99px; background:#d7dde8; margin:4px auto 10px; }
 .sheet-close { position:sticky; top:0; float:right; margin:2px 2px 6px auto; width:32px; height:32px; border:0; border-radius:12px; background:#e9edf5; color:#5b6b86; cursor:pointer; z-index:5; display:grid; place-items:center; }
 @media(max-width:520px){ .hl-window { font-size:18px; } .station { padding:12px; } .forecast-time { font-size:24px; } }
+.fb-group { margin-top:8px; }
+.fb-gl { color:#8291a9; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; margin-bottom:4px; }
+.feedback-grid.g3 { grid-template-columns:repeat(3,1fr); }
+.feedback-grid.g4 { grid-template-columns:repeat(4,1fr); }
 </style>
 </head>
 <body>
@@ -457,66 +461,61 @@ function recentFeedback(stationId) {
 }
 function feedbackPanel(stationId) {
   return '<div id="feedback-' + stationId + '" class="feedback-panel">' +
-    '<div class="feedback-question">Что вы увидели на АЗС?</div><div class="feedback-grid">' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'delivery\',this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'available\',this)">' + icon('i-pump','ic-s') + 'Топливо было</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'unavailable\',this)">' + icon('i-cross','ic-s') + 'Топлива не было</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'queue\',this)">' + icon('i-queue','ic-s') + 'Была очередь</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'free\',this)">' + icon('i-check','ic-s') + 'Было свободно</button></div>' +
-    '<div id="fb-extra-' + stationId + '" class="fb-extra" style="display:none"></div>' +
-    '<input id="fb-text-' + stationId + '" class="fb-text" type="text" maxlength="200" placeholder="Пара слов своими словами (необязательно)" style="display:none">' +
-    '<button id="fb-send-' + stationId + '" class="fb-send" style="display:none" onclick="fbSend(\'' + stationId + '\')">Отправить отметку</button></div>';
+    '<div class="feedback-question">Что заметили? Можно несколько сразу</div>' +
+    '<div class="fb-group"><div class="fb-gl">Топливо есть</div><div class="feedback-grid g3">' +
+    ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="yes" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Топлива нет</div><div class="feedback-grid g3">' +
+    ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="no" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Очередь</div><div class="feedback-grid g4">' +
+    ['small','medium','large','huge'].map(q => '<button class="feedback-option" data-fact="queue" data-queue="' + q + '" onclick="fbToggle(this)">' + (q === 'small' ? '2–3' : q === 'medium' ? '4–6' : q === 'large' ? '7+' : '100+') + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Ещё</div><div class="feedback-grid g3">' +
+    '<button class="feedback-option" data-fact="delivery" onclick="fbToggle(this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
+    '<button class="feedback-option" data-fact="free" onclick="fbToggle(this)">' + icon('i-check','ic-s') + 'Свободно</button></div></div>' +
+    '<input id="fb-text-' + stationId + '" class="fb-text" type="text" maxlength="200" placeholder="Пара слов (необязательно)">' +
+    '<button id="fb-send-' + stationId + '" class="fb-send" onclick="fbSend(\'' + stationId + '\')">Отправить отметку</button></div>';
 }
-let fbDraft = {};
-function fbPick(stationId, type, btn) {
+function fbToggle(btn) {
+  const fact = btn.dataset.fact;
   const panel = btn.closest('.feedback-panel');
-  panel.querySelectorAll('.feedback-grid')[0].querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  fbDraft[stationId] = { type: type, fuel: null, queue: null };
-  let chips = '';
-  if (type === 'delivery' || type === 'available' || type === 'unavailable') {
-    chips = '<div class="feedback-question">Какое топливо?</div><div class="feedback-grid">' +
-      ['92','95','diesel','all'].map(f => '<button class="feedback-option" onclick="fbChip(\'' + stationId + '\',\'fuel\',\'' + f + '\',this)">' + (f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'Дизель' : 'Все виды') + '</button>').join('') + '</div>';
-  } else if (type === 'queue') {
-    chips = '<div class="feedback-question">Какая очередь?</div><div class="feedback-grid">' +
-      ['small','medium','large'].map(q => '<button class="feedback-option" onclick="fbChip(\'' + stationId + '\',\'queue\',\'' + q + '\',this)">' + (q === 'small' ? 'Небольшая (2–3 машины)' : q === 'medium' ? 'Средняя (4–6)' : 'Большая (7+)') + '</button>').join('') + '</div>';
-  }
-  const extra = document.getElementById('fb-extra-' + stationId);
-  extra.innerHTML = chips;
-  extra.style.display = chips ? 'block' : 'none';
-  document.getElementById('fb-text-' + stationId).style.display = 'block';
-  document.getElementById('fb-send-' + stationId).style.display = 'block';
-}
-function fbChip(stationId, kind, value, btn) {
-  btn.closest('.feedback-grid').querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  fbDraft[stationId][kind] = value;
+  // очередь — одиночный выбор
+  if (fact === 'queue') panel.querySelectorAll('[data-fact="queue"]').forEach(b => { if (b !== btn) b.classList.remove('selected'); });
+  // взаимоисключение: «есть 95» гасит «нет 95» и наоборот
+  if (fact === 'yes') panel.querySelectorAll('[data-fact="no"][data-fuel="' + btn.dataset.fuel + '"]').forEach(b => b.classList.remove('selected'));
+  if (fact === 'no') panel.querySelectorAll('[data-fact="yes"][data-fuel="' + btn.dataset.fuel + '"]').forEach(b => b.classList.remove('selected'));
+  btn.classList.toggle('selected');
 }
 async function fbSend(stationId) {
-  const d = fbDraft[stationId];
-  if (!d) return;
+  const panel = document.getElementById('feedback-' + stationId);
+  if (!panel) return;
+  const rows = [];
+  panel.querySelectorAll('.feedback-option.selected').forEach(b => {
+    const fact = b.dataset.fact;
+    if (fact === 'yes') rows.push({ feedback_type: 'available', fuel_type: b.dataset.fuel });
+    else if (fact === 'no') rows.push({ feedback_type: 'unavailable', fuel_type: b.dataset.fuel });
+    else if (fact === 'queue') rows.push({ feedback_type: 'queue', queue_size: b.dataset.queue });
+    else if (fact === 'delivery') rows.push({ feedback_type: 'delivery' });
+    else if (fact === 'free') rows.push({ feedback_type: 'free' });
+  });
+  if (!rows.length) { alert('Выберите хотя бы один факт.'); return; }
   const key = 'fb_' + stationId;
   const history = JSON.parse(localStorage.getItem(key) || '[]');
   const now = Date.now();
-  const recent = history.filter(t => now - t < 30 * 60 * 1000);
-  if (recent.length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
   const comment = (document.getElementById('fb-text-' + stationId).value || '').trim();
+  rows.forEach((r, i) => { r.station_id = stationId; r.device_id = deviceId; if (i === 0 && comment) r.comment_text = comment; });
   const sendBtn = document.getElementById('fb-send-' + stationId);
   sendBtn.disabled = true;
-  const ok = await dbInsert('user_feedback', [{ station_id: stationId, feedback_type: d.type, fuel_type: d.fuel, queue_size: d.queue, comment_text: comment || null, device_id: deviceId }]);
+  const ok = await dbInsert('user_feedback', rows).catch(() => false);
   if (!ok) { sendBtn.disabled = false; alert('Не удалось отправить отметку.'); return; }
-  recent.push(now);
-  localStorage.setItem(key, JSON.stringify(recent));
-  allFeedback.unshift({ station_id: stationId, feedback_type: d.type, fuel_type: d.fuel, queue_size: d.queue, created_at: new Date().toISOString() });
+  history.push(now);
+  localStorage.setItem(key, JSON.stringify(history));
+  rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
   const station = sendBtn.closest('.station');
   const recentElement = station && station.querySelector('.recent');
-  if (recentElement) recentElement.textContent = 'Спасибо! Ваша отметка учтена в данных.';
-  fbDraft[stationId] = null;
-  document.getElementById('fb-extra-' + stationId).style.display = 'none';
-  document.getElementById('fb-text-' + stationId).style.display = 'none';
-  sendBtn.style.display = 'none';
+  if (recentElement) recentElement.textContent = 'Спасибо! Учёт ' + rows.length + ' фактов.';
+  panel.classList.remove('open');
   sendBtn.disabled = false;
-  station.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
+  panel.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
 }
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
@@ -1009,20 +1008,24 @@ document.getElementById('searchInput').addEventListener('keydown', e => { if (e.
 async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const [hourly, events] = await Promise.all([
-    dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
-    dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
-  ]);
-  pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
-  pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
+  try {
+    const [hourly, events] = await Promise.all([
+      dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
+      dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
+    ]);
+    pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
+    pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
+  } catch (e) { console.log('pulse main: ' + e.message); }
   renderPulse();
   requestAnimationFrame(() => renderPulse());
   dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks&hour=gte.' + since24 + '&order=hour.asc&limit=48')
-    .then(f => { fuelHourly = f; renderHeat(); renderHero(); })
-    .catch(() => { fuelHourly = []; renderHeat(); renderHero(); });
-    dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
+    .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); })
+    .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
+  dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
     .then(d => { dailyEvents = d; renderPulse(); })
     .catch(() => { dailyEvents = []; });
+  // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
+  setTimeout(() => { renderPulse(); renderNow(); }, 400);
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
