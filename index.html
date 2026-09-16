@@ -1027,6 +1027,7 @@ async function loadPulse() {
   try {
     dailyEvents = await dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60');
   } catch (e) { console.log('city_daily_events: ' + e.message); dailyEvents = []; }
+  console.log('pulse raw:', pulseRaw.length, 'ev:', pulseEv.length, 'fuel:', fuelHourly.length, 'daily:', dailyEvents.length);
   renderPulse();
   renderHeat();
   renderNow();
