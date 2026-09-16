@@ -47,6 +47,7 @@ body { overflow:hidden; }
 .listhead small { color:#93a1b8; font-weight:700; }
 .status { margin-top:16px; padding:18px; border-radius:20px; background:rgba(255,255,255,.85); border:1px solid var(--border); color:var(--muted); text-align:center; box-shadow:var(--shadow); }
 .empty-search { padding:25px; margin-top:15px; border-radius:22px; background:rgba(255,255,255,.8); border:1px solid var(--border); text-align:center; color:var(--muted); }
+/* панель 1 */
 .p1 { overflow:hidden; }
 .p1-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
 .p1-ico { width:34px; height:34px; border-radius:12px; background:#eef4ff; color:#2465ee; display:grid; place-items:center; flex:0 0 auto; }
@@ -64,9 +65,9 @@ body { overflow:hidden; }
 .hl-conf b { font-size:10px; }
 .confidence-bar { height:5px; margin-top:5px; overflow:hidden; border-radius:99px; background:#d7e8e4; }
 .confidence-bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#21b986,#4284ff); }
+/* тепловая матрица */
 .hm-wrap { padding:9px 8px 8px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; box-shadow:0 10px 28px rgba(38,69,120,.07), inset 0 1px 0 #fff; margin-bottom:8px; }
 .hm-body { position:relative; }
-.hm-empty { padding:14px 10px; color:#93a1b8; font-size:9px; font-weight:700; text-align:center; background:#f2f5fa; border-radius:12px; }
 .hm-row { display:grid; grid-template-columns:78px 1fr; align-items:center; gap:8px; margin-top:4px; }
 .hm-row:first-child { margin-top:0; }
 .hm-label { display:flex; align-items:center; gap:5px; min-width:0; }
@@ -84,12 +85,14 @@ body { overflow:hidden; }
 .hm-legend { display:flex; gap:4px 9px; flex-wrap:wrap; margin-top:6px; padding:5px 8px; border-radius:11px; background:#f2f5fa; }
 .hm-legend span { display:flex; align-items:center; gap:4px; color:#7c899e; font-size:8px; font-weight:700; }
 .hm-legend i { width:8px; height:8px; border-radius:50%; }
+/* чипы */
 .chips3 { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
 .chip3 { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:13px; background:#fff; border:1px solid #edf1f8; min-width:0; }
 .chip3 .ic { color:#2465ee; width:15px; height:15px; }
 .chip3 div { min-width:0; }
 .chip3 small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
 .chip3 b { font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+/* кардиограмма */
 .mini-graph { flex:1; min-height:84px; display:flex; flex-direction:column; padding:8px 8px 6px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; position:relative; }
 .mini-cap { display:flex; align-items:center; gap:5px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
 .mini-graph .pulse-svg { flex:1; min-height:56px; width:100%; display:block; }
@@ -110,6 +113,7 @@ body { overflow:hidden; }
 .nowcard-cta { display:flex; gap:8px; margin-top:8px; }
 .cta-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; border:0; border-radius:16px; padding:10px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:11.5px; font-weight:850; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.25); }
 .cta-btn.ghost { background:#f2f4f9; color:#33445f; box-shadow:none; }
+/* строки */
 .srow { width:100%; display:flex; text-align:left; padding:0; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:18px; box-shadow:var(--shadow); cursor:pointer; overflow:hidden; }
 .sbar { width:10px; align-self:stretch; flex:0 0 auto; }
 .srow-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding:10px 12px 9px 10px; }
@@ -129,6 +133,7 @@ body { overflow:hidden; }
 .scol-s { color:#93a1b8; font-size:9px; font-weight:700; }
 .scol-r { align-items:flex-end; }
 .spark { width:64px; height:22px; }
+/* карточка (шторка) — полная информация */
 .station { margin-top:0; padding:14px; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:26px; box-shadow:var(--shadow); }
 .station-header { display:flex; align-items:center; gap:11px; margin-bottom:12px; }
 .station-logo { width:47px; height:47px; flex:0 0 auto; display:grid; place-items:center; border-radius:16px; background:#fff; border:1px solid #eef2f8; overflow:hidden; padding:6px; color:#5b6b86; }
@@ -189,6 +194,7 @@ body { overflow:hidden; }
 .dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
 .dg-strip .ic { color:#2465ee; }
 .dg-strip b { font-weight:900; }
+/* шторка */
 .sheet-backdrop { position:fixed; inset:0; background:rgba(15,27,51,.35); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:40; }
 .sheet-backdrop.open { opacity:1; pointer-events:auto; }
 .sheet { position:fixed; left:0; right:0; bottom:0; max-height:86dvh; overflow-y:auto; background:#f6f8fd; border-radius:28px 28px 0 0; padding:10px 12px calc(16px + env(safe-area-inset-bottom)); transform:translateY(100%); transition:.3s cubic-bezier(.2,.8,.2,1); z-index:41; box-shadow:0 -20px 60px rgba(15,27,51,.25); }
@@ -621,11 +627,6 @@ function heatRows() {
 function renderHeat() {
   const grid = document.getElementById('heatGrid');
   if (!grid) return;
-  try {
-  if (!fuelHourly.length) {
-    grid.innerHTML = '<div class="hm-empty">Тепловая карта копит данные: нужны почасовые отметки топлив за последние сутки</div>';
-    return;
-  }
   const byHour = {};
   for (const r of fuelHourly) byHour[new Date(r.hour).getHours()] = r;
   const last = fuelHourly.length ? fuelHourly[fuelHourly.length - 1] : null;
@@ -635,7 +636,7 @@ function renderHeat() {
     for (let h = 0; h < 24; h++) {
       const r = byHour[h];
       const v = r ? row.bad(r) : null;
-      cells += '<div class="hm-cell" style="background:' + (v === null ? '#e3e9f2' : badColor(v)) + '"></div>';
+      cells += '<div class="hm-cell" style="background:' + (v === null ? '#eef2f8' : badColor(v)) + '"></div>';
     }
     const s = last ? row.stat(last) : null;
     let stTxt = '—', stCls = 'n';
@@ -651,7 +652,6 @@ function renderHeat() {
   grid.innerHTML = html;
   const line = document.getElementById('hmNow');
   if (line) { const d = new Date(); line.style.setProperty('--frac', ((d.getHours() + d.getMinutes() / 60) / 24).toFixed(3)); }
-  } catch (e) { console.log('renderHeat: ' + e.message); }
 }
 function peakAndCalm() {
   const byHour = {};
@@ -674,8 +674,8 @@ function peakAndCalm() {
     if (len >= 2 && (!best || len > best.len)) best = { h, len };
   }
   return {
-    peak: peakV > 0 ? String(peakH).padStart(2,'0') + ':00–' + String((peakH + 3) % 24).padStart(2,'0') + ':00' : 'копим',
-    calm: best ? String(best.h).padStart(2,'0') + ':00–' + String((best.h + best.len) % 24).padStart(2,'0') + ':00' : 'копим'
+    peak: peakV > 0 ? String(peakH).padStart(2,'0') + ':00–' + String((peakH + 3) % 24).padStart(2,'0') + ':00' : '—',
+    calm: best ? String(best.h).padStart(2,'0') + ':00–' + String((best.h + best.len) % 24).padStart(2,'0') + ':00' : '—'
   };
 }
 /* кардиограмма */
@@ -714,15 +714,12 @@ function smoothPath(pts) {
   }
   return d;
 }
-function sameBucket(t, b) { return sameDay(t, b) && t.getHours() === b.getHours(); }
+function sameBucket(t, b) { return t.getFullYear() === b.t.getFullYear() && t.getMonth() === b.t.getMonth() && t.getDate() === b.t.getDate() && t.getHours() === b.t.getHours(); }
 function renderPulse() {
   const svg = document.getElementById('pulseSvg');
   if (!svg) return;
   const buckets = buildBuckets();
-  if (!buckets.length) {
-    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" font-size="10" fill="#9aa7bd">кардиограмма копит наблюдения</text>';
-    return;
-  }
+  if (!buckets.length) { svg.innerHTML = ''; return; }
   const rect = svg.getBoundingClientRect();
   const W = Math.max(300, Math.round(rect.width || 640)), H = Math.max(80, Math.round(rect.height || 110)), PADL = 26, PADR = 10, BASE = H - 14, TOP = 6;
   const n = buckets.length;
@@ -1009,30 +1006,23 @@ function findNearby() {
   }, () => alert('Не удалось определить местоположение.'));
 }
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchStations(); });
-/* загрузка пульса: каждый запрос живёт своей жизнью, отрисовка гарантирована всегда */
 async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  try {
-    const hourly = await dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000');
-    pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
-  } catch (e) { console.log('city_hourly: ' + e.message); pulseRaw = []; }
-  try {
-    const events = await dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000');
-    pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
-  } catch (e) { console.log('events: ' + e.message); pulseEv = []; }
-  try {
-    fuelHourly = await dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks&hour=gte.' + since24 + '&order=hour.asc&limit=48');
-  } catch (e) { console.log('city_fuel_hourly: ' + e.message); fuelHourly = []; }
-  try {
-    dailyEvents = await dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60');
-  } catch (e) { console.log('city_daily_events: ' + e.message); dailyEvents = []; }
-  console.log('pulse raw:', pulseRaw.length, 'ev:', pulseEv.length, 'fuel:', fuelHourly.length, 'daily:', dailyEvents.length);
+  const [hourly, events] = await Promise.all([
+    dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95&hour=gte.' + since + '&order=hour.asc&limit=1000'),
+    dbQuery('/rest/v1/events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
+  ]);
+  pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.marks ? Math.round(100 * h.queue_marks / h.marks) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
+  pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
   renderPulse();
-  renderHeat();
-  renderNow();
-  requestAnimationFrame(() => { renderPulse(); renderHeat(); });
-  setTimeout(() => { renderPulse(); renderHeat(); renderNow(); }, 400);
+  requestAnimationFrame(() => renderPulse());
+  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks&hour=gte.' + since24 + '&order=hour.asc&limit=48')
+    .then(f => { fuelHourly = f; renderHeat(); renderHero(); })
+    .catch(() => { fuelHourly = []; renderHeat(); renderHero(); });
+    dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
+    .then(d => { dailyEvents = d; renderPulse(); })
+    .catch(() => { dailyEvents = []; });
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
