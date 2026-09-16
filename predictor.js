@@ -258,12 +258,18 @@ async function main() {
   for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
 
   console.log('5) Строю прогнозы для новороссийских станций...');
-  let created = 0, updated = 0, skipped = 0;
+  let created = 0, updated = 0, skipped = 0, stale = 0;
   const fuels = ['92', '95', 'diesel'];
   const fuelCol = { '92': 'fuel_92_status', '95': 'fuel_95_status', 'diesel': 'diesel_status' };
 
   for (const st of stations) {
     if (!isOwn(st)) continue;
+
+    // v1.4: гейт по свежести наблюдений — не строим прогноз станции,
+    // которую источник не видел дольше 72 часов (порог выше gap-детектора 36ч)
+    const lastTs = lastObs[st.id] ? new Date(lastObs[st.id].timestamp).getTime() : null;
+    const ageH = lastTs ? (Date.now() - lastTs) / 3600000 : Infinity;
+    if (ageH > 72) { stale++; continue; }
 
     for (const fuel of fuels) {
       const pairKey = st.id + '|' + fuel;
@@ -441,7 +447,7 @@ async function main() {
     }
   }
 
-  console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped);
+  console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped + ', молчащих станций (>72ч): ' + stale);
   if (created > 0 && process.env.TELEGRAM_BOT_TOKEN) {
     try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
