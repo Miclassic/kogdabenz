@@ -100,7 +100,7 @@ async function main() {
 
   console.log('4) Достаю последние наблюдения...');
   const lastObs = {};
-  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp');
+  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp');
   for (const o of obs) if (!lastObs[o.station_id]) lastObs[o.station_id] = o;
 
   // v1.4: станция "жива на источнике" = недавно был ненулевой статус топлива.
@@ -276,11 +276,14 @@ async function main() {
   for (const st of stations) {
     if (!isOwn(st)) continue;
 
-    // v1.4: гейт по возрасту последнего ненулевого статуса топлива:
-    // строки с пустым составом пишутся каждый цикл, возраст строки всегда свежий
-    const nnTs = lastNonNullTs[st.id] || null;
-    const ageH = nnTs ? (Date.now() - nnTs) / 3600000 : Infinity;
-    if (ageH > 72) { stale++; continue; }
+    // v1.4: гейт по собственной свежести данных источника: станция мертва,
+    // если её данные старше 7 суток; при свежести null — фолбэк на ненулевой
+    // статус топлива в окне наблюдений
+    const fm = lastObs[st.id] ? lastObs[st.id].data_freshness_minutes : null;
+    const fmStale = (fm === null || fm === undefined)
+      ? !lastNonNullTs[st.id]
+      : fm > 7 * 24 * 60;
+    if (fmStale) { stale++; continue; }
 
     for (const fuel of fuels) {
       const pairKey = st.id + '|' + fuel;
