@@ -28,6 +28,8 @@ body { overflow:hidden; }
 .tagline-slogan span { color:var(--blue); }
 .tagline-text { margin-top:2px; color:#71809c; font-size:10.5px; line-height:1.4; min-height:2.8em; transition:opacity .18s ease; }
 .tagline-text.swap { opacity:0; }
+.kb-offline { display:none; align-items:center; gap:6px; margin:0 2px 6px; padding:7px 10px; border-radius:12px; background:#fff2e8; border:1px solid #f5d565; color:#c26a2a; font-size:10px; font-weight:800; }
+.kb-offline.show { display:flex; }
 .pager { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:10px; min-height:0; }
 .pager::-webkit-scrollbar { display:none; }
 .panel { flex:0 0 100%; min-width:100%; scroll-snap-align:center; display:flex; flex-direction:column; border-radius:28px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); padding:12px; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
@@ -47,7 +49,6 @@ body { overflow:hidden; }
 .listhead small { color:#93a1b8; font-weight:700; }
 .status { margin-top:16px; padding:18px; border-radius:20px; background:rgba(255,255,255,.85); border:1px solid var(--border); color:var(--muted); text-align:center; box-shadow:var(--shadow); }
 .empty-search { padding:25px; margin-top:15px; border-radius:22px; background:rgba(255,255,255,.8); border:1px solid var(--border); text-align:center; color:var(--muted); }
-/* панель 1 */
 .p1 { overflow:hidden; }
 .p1-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
 .p1-ico { width:34px; height:34px; border-radius:12px; background:#eef4ff; color:#2465ee; display:grid; place-items:center; flex:0 0 auto; }
@@ -65,7 +66,6 @@ body { overflow:hidden; }
 .hl-conf b { font-size:10px; }
 .confidence-bar { height:5px; margin-top:5px; overflow:hidden; border-radius:99px; background:#d7e8e4; }
 .confidence-bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#21b986,#4284ff); }
-/* тепловая матрица */
 .hm-wrap { padding:9px 8px 8px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; box-shadow:0 10px 28px rgba(38,69,120,.07), inset 0 1px 0 #fff; margin-bottom:8px; }
 .hm-body { position:relative; }
 .hm-row { display:grid; grid-template-columns:78px 1fr; align-items:center; gap:8px; margin-top:4px; }
@@ -85,14 +85,12 @@ body { overflow:hidden; }
 .hm-legend { display:flex; gap:4px 9px; flex-wrap:wrap; margin-top:6px; padding:5px 8px; border-radius:11px; background:#f2f5fa; }
 .hm-legend span { display:flex; align-items:center; gap:4px; color:#7c899e; font-size:8px; font-weight:700; }
 .hm-legend i { width:8px; height:8px; border-radius:50%; }
-/* чипы */
 .chips3 { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
 .chip3 { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:13px; background:#fff; border:1px solid #edf1f8; min-width:0; }
 .chip3 .ic { color:#2465ee; width:15px; height:15px; }
 .chip3 div { min-width:0; }
 .chip3 small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
 .chip3 b { font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
-/* кардиограмма */
 .mini-graph { flex:1; min-height:84px; display:flex; flex-direction:column; padding:8px 8px 6px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; position:relative; }
 .mini-cap { display:flex; align-items:center; gap:5px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
 .mini-graph .pulse-svg { flex:1; min-height:56px; width:100%; display:block; }
@@ -113,7 +111,6 @@ body { overflow:hidden; }
 .nowcard-cta { display:flex; gap:8px; margin-top:8px; }
 .cta-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; border:0; border-radius:16px; padding:10px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:11.5px; font-weight:850; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.25); }
 .cta-btn.ghost { background:#f2f4f9; color:#33445f; box-shadow:none; }
-/* строки */
 .srow { width:100%; display:flex; text-align:left; padding:0; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:18px; box-shadow:var(--shadow); cursor:pointer; overflow:hidden; }
 .sbar { width:10px; align-self:stretch; flex:0 0 auto; }
 .srow-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding:10px 12px 9px 10px; }
@@ -133,7 +130,6 @@ body { overflow:hidden; }
 .scol-s { color:#93a1b8; font-size:9px; font-weight:700; }
 .scol-r { align-items:flex-end; }
 .spark { width:64px; height:22px; }
-/* карточка (шторка) — полная информация */
 .station { margin-top:0; padding:14px; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:26px; box-shadow:var(--shadow); }
 .station-header { display:flex; align-items:center; gap:11px; margin-bottom:12px; }
 .station-logo { width:47px; height:47px; flex:0 0 auto; display:grid; place-items:center; border-radius:16px; background:#fff; border:1px solid #eef2f8; overflow:hidden; padding:6px; color:#5b6b86; }
@@ -183,10 +179,13 @@ body { overflow:hidden; }
 .feedback-panel { display:none; margin-top:8px; padding:8px; border:1px solid #e4eaf3; border-radius:14px; background:#fff; }
 .feedback-panel.open { display:block; }
 .feedback-question { margin:2px 2px 7px; font-size:11px; font-weight:850; }
+.fb-group { margin-top:8px; }
+.fb-gl { color:#8291a9; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; margin-bottom:4px; }
 .feedback-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:6px; }
+.feedback-grid.g3 { grid-template-columns:repeat(3,1fr); }
+.feedback-grid.g4 { grid-template-columns:repeat(4,1fr); }
 .feedback-option { display:flex; align-items:center; justify-content:center; gap:5px; padding:8px 5px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:10px; font-weight:700; cursor:pointer; }
 .feedback-option:active, .feedback-option.selected { background:#e7f8f1; border-color:#8bd8ba; color:#13845e; }
-.fb-extra { margin-top:9px; }
 .fb-text { width:100%; margin-top:8px; padding:10px 12px; border:1px solid #e0e6ef; border-radius:12px; background:#f8fafc; color:#33445f; font-size:12px; outline:none; }
 .fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
 .recent { margin-top:7px; color:#8492a8; font-size:9px; line-height:1.5; }
@@ -194,7 +193,8 @@ body { overflow:hidden; }
 .dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
 .dg-strip .ic { color:#2465ee; }
 .dg-strip b { font-weight:900; }
-/* шторка */
+.kb-toast { position:fixed; left:50%; bottom:calc(14px + env(safe-area-inset-bottom)); transform:translate(-50%,20px); background:#14213d; color:#fff; border-radius:14px; padding:10px 16px; font-size:11px; font-weight:700; opacity:0; pointer-events:none; transition:.3s; z-index:60; box-shadow:0 14px 34px rgba(0,0,0,.35); }
+.kb-toast.show { opacity:1; transform:translate(-50%,0); }
 .sheet-backdrop { position:fixed; inset:0; background:rgba(15,27,51,.35); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:40; }
 .sheet-backdrop.open { opacity:1; pointer-events:auto; }
 .sheet { position:fixed; left:0; right:0; bottom:0; max-height:86dvh; overflow-y:auto; background:#f6f8fd; border-radius:28px 28px 0 0; padding:10px 12px calc(16px + env(safe-area-inset-bottom)); transform:translateY(100%); transition:.3s cubic-bezier(.2,.8,.2,1); z-index:41; box-shadow:0 -20px 60px rgba(15,27,51,.25); }
@@ -237,6 +237,7 @@ body { overflow:hidden; }
     <div class="tagline-slogan" id="tagSlogan">Данными. <span>Не догадками.</span></div>
     <div class="tagline-text" id="tagText">Каждые 10 минут — отметки АЗС и голоса водителей: алгоритм предсказывает окна возврата.</div>
   </div>
+  <div class="kb-offline" id="kbOffline"><svg class="ic ic-s"><use href="#i-cross"/></svg>Оффлайн: данные из памяти, отметки сохраняются на устройстве</div>
   <div class="pager" id="pager">
     <section class="panel p1">
       <div class="p1-head">
@@ -321,9 +322,11 @@ body { overflow:hidden; }
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
 const LOGO_FALLBACK = "<svg class='ic ic-l'><use href='#i-pump'/></svg>";
+const OWN_BOX = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
 let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
+let pulseRaw = [], pulseEv = [], dailyEvents = [], mgRangeH = 'day';
 async function dbQuery(path) {
   const r = await fetch(SUPABASE_URL + path, { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } });
   if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -337,6 +340,41 @@ function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/<
 function time5(v) { if (!v) return '—'; const s = String(v); return s.length >= 5 ? s.substring(0,5) : s; }
 function fuelLabel(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
 function icon(n, cls) { return '<svg class="ic ' + (cls || '') + '"><use href="#' + n + '"/></svg>'; }
+function toast(msg) {
+  let t = document.getElementById('kbToast');
+  if (!t) { t = document.createElement('div'); t.id = 'kbToast'; t.className = 'kb-toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+/* ---- оффлайн: снимок данных и очередь отметок ---- */
+function saveSnap() {
+  try { localStorage.setItem('kb_snap', JSON.stringify({ at: Date.now(), stations: allStations, observations: allObservations, predictions: allPredictions, feedback: allFeedback, counts: allCounts, hourly: allHourly, pulseRaw, pulseEv, fuelHourly, dailyEvents })); } catch (e) {}
+}
+function loadSnap() {
+  try {
+    const s = JSON.parse(localStorage.getItem('kb_snap') || 'null');
+    if (!s || !s.stations || !s.stations.length) return false;
+    allStations = s.stations; allObservations = s.observations || []; allPredictions = s.predictions || [];
+    allFeedback = s.feedback || []; allCounts = s.counts || []; allHourly = s.hourly || [];
+    pulseRaw = s.pulseRaw || []; pulseEv = s.pulseEv || []; fuelHourly = s.fuelHourly || []; dailyEvents = s.dailyEvents || [];
+    return true;
+  } catch (e) { return false; }
+}
+function queueOutbox(rows) {
+  const box = JSON.parse(localStorage.getItem('kb_outbox') || '[]');
+  box.push({ rows, at: Date.now() });
+  localStorage.setItem('kb_outbox', JSON.stringify(box));
+}
+async function flushOutbox() {
+  const box = JSON.parse(localStorage.getItem('kb_outbox') || '[]');
+  if (!box.length || !navigator.onLine) return;
+  const left = [];
+  for (const item of box) { const ok = await dbInsert('user_feedback', item.rows).catch(() => false); if (!ok) left.push(item); }
+  localStorage.setItem('kb_outbox', JSON.stringify(left));
+  if (!left.length) toast('Отметки из оффлайна отправлены');
+}
+window.addEventListener('online', () => { document.getElementById('kbOffline').classList.remove('show'); flushOutbox(); start(); });
+window.addEventListener('offline', () => document.getElementById('kbOffline').classList.add('show'));
 function fuelHtml(ok) {
   if (ok === null || ok === undefined) return '<span class="unknown"><span class="dot gray"></span>нет данных</span>';
   if (ok) return '<span class="yes"><span class="dot green"></span>есть</span>';
@@ -436,7 +474,6 @@ function accuracyLabel(id) {
   if (v.length < 10) return 'мало данных';
   return Math.round(v.filter(p => p.result === 'SUCCESS').length / v.length * 100) + '%';
 }
-function accuracyShort(id) { return accuracyLabel(id); }
 function isSoon(pred) {
   if (!pred || !pred.from_time) return false;
   const [h, m] = pred.from_time.split(':').map(Number);
@@ -451,72 +488,66 @@ function recentFeedback(stationId) {
     const minutes = Math.max(0, Math.round((Date.now() - new Date(f.created_at).getTime()) / 60000));
     const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
     const fuelLbl = f.fuel_type === '92' ? ' (АИ-92)' : f.fuel_type === '95' ? ' (АИ-95)' : f.fuel_type === 'diesel' ? ' (дизель)' : '';
-    const queueLbl = f.queue_size === 'small' ? ' (небольшая)' : f.queue_size === 'medium' ? ' (средняя)' : f.queue_size === 'large' ? ' (большая)' : '';
+    const queueLbl = f.queue_size === 'small' ? ' (небольшая)' : f.queue_size === 'medium' ? ' (средняя)' : f.queue_size === 'large' ? ' (большая)' : f.queue_size === 'huge' ? ' (100+ машин)' : '';
     return (labels[f.feedback_type] || 'Отметка') + fuelLbl + queueLbl + ' · ' + ago + ' назад';
   }).join(' · ');
 }
+/* ---- мультивыбор отметок ---- */
 function feedbackPanel(stationId) {
   return '<div id="feedback-' + stationId + '" class="feedback-panel">' +
-    '<div class="feedback-question">Что вы увидели на АЗС?</div><div class="feedback-grid">' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'delivery\',this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'available\',this)">' + icon('i-pump','ic-s') + 'Топливо было</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'unavailable\',this)">' + icon('i-cross','ic-s') + 'Топлива не было</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'queue\',this)">' + icon('i-queue','ic-s') + 'Была очередь</button>' +
-    '<button class="feedback-option" onclick="fbPick(\'' + stationId + '\',\'free\',this)">' + icon('i-check','ic-s') + 'Было свободно</button></div>' +
-    '<div id="fb-extra-' + stationId + '" class="fb-extra" style="display:none"></div>' +
-    '<input id="fb-text-' + stationId + '" class="fb-text" type="text" maxlength="200" placeholder="Пара слов своими словами (необязательно)" style="display:none">' +
-    '<button id="fb-send-' + stationId + '" class="fb-send" style="display:none" onclick="fbSend(\'' + stationId + '\')">Отправить отметку</button></div>';
+    '<div class="feedback-question">Что заметили? Можно несколько сразу</div>' +
+    '<div class="fb-group"><div class="fb-gl">Топливо есть</div><div class="feedback-grid g3">' +
+    ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="yes" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Топлива нет</div><div class="feedback-grid g3">' +
+    ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="no" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Очередь</div><div class="feedback-grid g4">' +
+    ['small','medium','large','huge'].map(q => '<button class="feedback-option" data-fact="queue" data-queue="' + q + '" onclick="fbToggle(this)">' + (q === 'small' ? '2–3' : q === 'medium' ? '4–6' : q === 'large' ? '7+' : '100+') + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Ещё</div><div class="feedback-grid g3">' +
+    '<button class="feedback-option" data-fact="delivery" onclick="fbToggle(this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
+    '<button class="feedback-option" data-fact="free" onclick="fbToggle(this)">' + icon('i-check','ic-s') + 'Свободно</button></div></div>' +
+    '<input id="fb-text-' + stationId + '" class="fb-text" type="text" maxlength="200" placeholder="Пара слов (необязательно)">' +
+    '<button id="fb-send-' + stationId + '" class="fb-send" onclick="fbSend(\'' + stationId + '\')">Отправить отметку</button></div>';
 }
-let fbDraft = {};
-function fbPick(stationId, type, btn) {
+function fbToggle(btn) {
+  const fact = btn.dataset.fact;
   const panel = btn.closest('.feedback-panel');
-  panel.querySelectorAll('.feedback-grid')[0].querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  fbDraft[stationId] = { type: type, fuel: null, queue: null };
-  let chips = '';
-  if (type === 'delivery' || type === 'available' || type === 'unavailable') {
-    chips = '<div class="feedback-question">Какое топливо?</div><div class="feedback-grid">' +
-      ['92','95','diesel','all'].map(f => '<button class="feedback-option" onclick="fbChip(\'' + stationId + '\',\'fuel\',\'' + f + '\',this)">' + (f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'Дизель' : 'Все виды') + '</button>').join('') + '</div>';
-  } else if (type === 'queue') {
-    chips = '<div class="feedback-question">Какая очередь?</div><div class="feedback-grid">' +
-      ['small','medium','large'].map(q => '<button class="feedback-option" onclick="fbChip(\'' + stationId + '\',\'queue\',\'' + q + '\',this)">' + (q === 'small' ? 'Небольшая (2–3 машины)' : q === 'medium' ? 'Средняя (4–6)' : 'Большая (7+)') + '</button>').join('') + '</div>';
-  }
-  const extra = document.getElementById('fb-extra-' + stationId);
-  extra.innerHTML = chips;
-  extra.style.display = chips ? 'block' : 'none';
-  document.getElementById('fb-text-' + stationId).style.display = 'block';
-  document.getElementById('fb-send-' + stationId).style.display = 'block';
-}
-function fbChip(stationId, kind, value, btn) {
-  btn.closest('.feedback-grid').querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected');
-  fbDraft[stationId][kind] = value;
+  if (fact === 'queue') panel.querySelectorAll('[data-fact="queue"]').forEach(b => { if (b !== btn) b.classList.remove('selected'); });
+  if (fact === 'yes') panel.querySelectorAll('[data-fact="no"][data-fuel="' + btn.dataset.fuel + '"]').forEach(b => b.classList.remove('selected'));
+  if (fact === 'no') panel.querySelectorAll('[data-fact="yes"][data-fuel="' + btn.dataset.fuel + '"]').forEach(b => b.classList.remove('selected'));
+  btn.classList.toggle('selected');
 }
 async function fbSend(stationId) {
-  const d = fbDraft[stationId];
-  if (!d) return;
+  const panel = document.getElementById('feedback-' + stationId);
+  if (!panel) return;
+  const rows = [];
+  panel.querySelectorAll('.feedback-option.selected').forEach(b => {
+    const fact = b.dataset.fact;
+    if (fact === 'yes') rows.push({ feedback_type: 'available', fuel_type: b.dataset.fuel });
+    else if (fact === 'no') rows.push({ feedback_type: 'unavailable', fuel_type: b.dataset.fuel });
+    else if (fact === 'queue') rows.push({ feedback_type: 'queue', queue_size: b.dataset.queue });
+    else if (fact === 'delivery') rows.push({ feedback_type: 'delivery' });
+    else if (fact === 'free') rows.push({ feedback_type: 'free' });
+  });
+  if (!rows.length) { alert('Выберите хотя бы один факт.'); return; }
   const key = 'fb_' + stationId;
   const history = JSON.parse(localStorage.getItem(key) || '[]');
   const now = Date.now();
-  const recent = history.filter(t => now - t < 30 * 60 * 1000);
-  if (recent.length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
   const comment = (document.getElementById('fb-text-' + stationId).value || '').trim();
+  rows.forEach((r, i) => { r.station_id = stationId; r.device_id = deviceId; if (i === 0 && comment) r.comment_text = comment; });
   const sendBtn = document.getElementById('fb-send-' + stationId);
   sendBtn.disabled = true;
-  const ok = await dbInsert('user_feedback', [{ station_id: stationId, feedback_type: d.type, fuel_type: d.fuel, queue_size: d.queue, comment_text: comment || null, device_id: deviceId }]);
-  if (!ok) { sendBtn.disabled = false; alert('Не удалось отправить отметку.'); return; }
-  recent.push(now);
-  localStorage.setItem(key, JSON.stringify(recent));
-  allFeedback.unshift({ station_id: stationId, feedback_type: d.type, fuel_type: d.fuel, queue_size: d.queue, created_at: new Date().toISOString() });
-  const station = sendBtn.closest('.station');
-  const recentElement = station && station.querySelector('.recent');
-  if (recentElement) recentElement.textContent = 'Спасибо! Ваша отметка учтена в данных.';
-  fbDraft[stationId] = null;
-  document.getElementById('fb-extra-' + stationId).style.display = 'none';
-  document.getElementById('fb-text-' + stationId).style.display = 'none';
-  sendBtn.style.display = 'none';
+  let result = 'ok';
+  if (!navigator.onLine) { queueOutbox(rows); result = 'queued'; }
+  else { const ok = await dbInsert('user_feedback', rows).catch(() => false); if (!ok) { queueOutbox(rows); result = 'queued'; } }
   sendBtn.disabled = false;
-  station.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
+  history.push(now); localStorage.setItem(key, JSON.stringify(history));
+  rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+  const recentElement = panel.parentElement.querySelector('.recent');
+  if (recentElement) recentElement.textContent = result === 'queued' ? 'Сохранено на устройстве — уйдёт при связи.' : 'Спасибо! Ваша отметка учтена.';
+  panel.classList.remove('open');
+  if (result === 'queued') toast('Оффлайн: отметка сохранена на устройстве');
+  renderStations(lastRendered);
 }
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
@@ -586,7 +617,7 @@ function stationRow(station, obs, pred) {
     '<span class="srow-cols">' +
     '<span class="scol"><span class="scol-l">факт</span><span class="scol-v ' + stCls + '">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span></span>' +
     '<span class="scol"><span class="scol-l">прогноз</span><span class="scol-v">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + (conf !== null ? '<span class="scol-s">' + conf + '% вероятность</span>' : '') + '</span>' +
-    '<span class="scol scol-r">' + sparkline(station.id) + '<span class="scol-s">' + accuracyShort(station.id) + '</span></span>' +
+    '<span class="scol scol-r">' + sparkline(station.id) + '<span class="scol-s">' + accuracyLabel(station.id) + '</span></span>' +
     '</span></span></button></div>';
 }
 function toggleRow(id, btn) { openSheet(id); }
@@ -608,7 +639,7 @@ function toggleFeedback(stationId) {
 }
 function ctaDigest() { pagerGo(2); }
 function pagerGo(i) { const p = document.getElementById('pager'); if (p) p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
-/* тепло */
+/* ---- тепло + кардиограмма ---- */
 function badColor(v) {
   const stops = [[47,211,154],[245,213,101],[245,160,90],[239,83,80]];
   const x = Math.max(0, Math.min(1, v)) * (stops.length - 1);
@@ -678,8 +709,6 @@ function peakAndCalm() {
     calm: best ? String(best.h).padStart(2,'0') + ':00–' + String((best.h + best.len) % 24).padStart(2,'0') + ':00' : '—'
   };
 }
-/* кардиограмма */
-let pulseRaw = [], pulseEv = [], dailyEvents = [], mgRangeH = 'day';
 function mgRange(r, btn) {
   mgRangeH = r;
   document.querySelectorAll('.mg-tab').forEach(b => b.classList.remove('active'));
@@ -687,6 +716,7 @@ function mgRange(r, btn) {
   renderPulse();
 }
 function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+function sameBucket(t, b) { return sameDay(t, b) && t.getHours() === b.getHours(); }
 function buildBuckets() {
   if (mgRangeH === 'day') return pulseRaw.slice(-24).map(r => ({ ...r, label: String(r.t.getHours()).padStart(2,'0') + ':00' }));
   const days = mgRangeH === 'week' ? 7 : 30;
@@ -714,7 +744,6 @@ function smoothPath(pts) {
   }
   return d;
 }
-function sameBucket(t, b) { return t.getFullYear() === b.t.getFullYear() && t.getMonth() === b.t.getMonth() && t.getDate() === b.t.getDate() && t.getHours() === b.t.getHours(); }
 function renderPulse() {
   const svg = document.getElementById('pulseSvg');
   if (!svg) return;
@@ -723,7 +752,7 @@ function renderPulse() {
   const rect = svg.getBoundingClientRect();
   const W = Math.max(300, Math.round(rect.width || 640)), H = Math.max(80, Math.round(rect.height || 110)), PADL = 26, PADR = 10, BASE = H - 14, TOP = 6;
   const n = buckets.length;
-  const xAt = i => PADL + (W - PADL - PADR) * (i / (n - 1));
+  const xAt = i => PADL + (W - PADL - PADR) * (n === 1 ? 0.5 : i / (n - 1));
   const yAt = v => BASE - Math.max(0, Math.min(100, v)) / 100 * (BASE - TOP);
   const step = (W - PADL - PADR) / Math.max(1, n - 1);
   const qPts = [], aPts = [];
@@ -792,7 +821,7 @@ function renderPulse() {
     tip.style.opacity = 1;
   };
 }
-/* герой, чипы, дайджест, шапка */
+/* ---- герой, чипы, дайджест, шапка ---- */
 function renderHero() {
   const fuelEl = document.getElementById('hfFuel');
   const winEl = document.getElementById('hfWindow');
@@ -955,13 +984,14 @@ function renderStations(stations, keepOrder) {
   if (lc) lc.textContent = stations.length + ' станций';
   renderNow();
 }
+function localIdsFrom(stations) {
+  return stations.filter(s => s.lat >= OWN_BOX.lat1 && s.lat <= OWN_BOX.lat2 && s.lon >= OWN_BOX.lon1 && s.lon <= OWN_BOX.lon2).map(s => s.id);
+}
 async function start() {
   const app = document.getElementById('app');
   try {
     const stations = await dbQuery('/rest/v1/stations?select=*');
-    const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
-    const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
-    localIdsGlobal = localIds;
+    localIdsGlobal = localIdsFrom(stations);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const [observations, counts, predictions, events, feedback, hourly] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
@@ -969,13 +999,24 @@ async function start() {
       dbQuery('/rest/v1/predictions?select=*'),
       dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
-      dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')')
+      dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIdsGlobal.map(i => '"' + i + '"').join(',') + ')')
     ]);
     allStations = stations; allObservations = observations; allCounts = counts;
     allPredictions = predictions; allEvents = events; allFeedback = feedback; allHourly = hourly;
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
-    renderStations(stations.filter(s => localIds.includes(s.id)));
-  } catch (e) { app.innerHTML = '<div class="status">Не удалось загрузить данные<br><small>' + escapeHtml(e.message) + '</small></div>'; }
+    document.getElementById('kbOffline').classList.remove('show');
+    renderStations(stations.filter(s => localIdsGlobal.includes(s.id)));
+    flushOutbox();
+  } catch (e) {
+    if (loadSnap()) {
+      localIdsGlobal = localIdsFrom(allStations);
+      document.getElementById('kbOffline').classList.add('show');
+      renderStations(allStations.filter(s => localIdsGlobal.includes(s.id)));
+      renderHeat(); renderPulse(); renderHero();
+    } else {
+      app.innerHTML = '<div class="status">Не удалось загрузить данные<br><small>' + escapeHtml(e.message) + '</small></div>';
+    }
+  }
 }
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
 function isFavorite(id) { return getFavorites().includes(id); }
@@ -1020,7 +1061,7 @@ async function loadPulse() {
   dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks&hour=gte.' + since24 + '&order=hour.asc&limit=48')
     .then(f => { fuelHourly = f; renderHeat(); renderHero(); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); });
-    dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
+  dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
     .then(d => { dailyEvents = d; renderPulse(); })
     .catch(() => { dailyEvents = []; });
 }
@@ -1029,10 +1070,12 @@ function tickClock() {
   if (el) { const d = new Date(); el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 }
 start();
-loadPulse().catch(e => console.log('pulse: ' + e.message));
+loadPulse().catch(e => { if (navigator.onLine) console.log('pulse: ' + e.message); });
 setTagline(0);
 tickClock();
 setInterval(tickClock, 30000);
+setTimeout(saveSnap, 2500);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 const pagerEl = document.getElementById('pager');
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
   const i = Math.round(pagerEl.scrollLeft / pagerEl.clientWidth);

@@ -299,7 +299,7 @@ async function main() {
       detected_at: f.created_at,
       confidence:
         f.feedback_type === 'queue'
-          ? (f.queue_size === 'large' ? 0.9 : f.queue_size === 'medium' ? 0.75 : f.queue_size === 'small' ? 0.6 : 0.7)
+          ? (f.queue_size === 'huge' ? 0.95 : f.queue_size === 'large' ? 0.9 : f.queue_size === 'medium' ? 0.75 : f.queue_size === 'small' ? 0.6 : 0.7)
           : 0.85,
       source: 'user_feedback'
     }));
