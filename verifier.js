@@ -58,7 +58,7 @@ async function main() {
   const todayStr = mskNow.toISOString().slice(0, 10);
   const preds = await sbGet(
     '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=lt.' + todayStr +
-    '&select=id,station_id,fuel_type,from_time,to_time,target_date&limit=1000'
+    '&select=id,station_id,fuel_type,from_time,to_time,target_date,expected_restore_at,created_at&limit=1000'
   );
   console.log('   Ожидают проверки: ' + preds.length);
 
@@ -80,28 +80,42 @@ async function main() {
 
   const minDay = Math.min(...queue.map(x => x.dayStart));
   const events = await sbGet(
-    '/rest/v1/events?event_type=eq.fuel_restored&detected_at=gte.' + new Date(minDay).toISOString() +
+    '/rest/v1/events?event_type=eq.fuel_restored&detected_at=gte.' + new Date(minDay - 24 * 3600 * 1000).toISOString() +
     '&select=station_id,fuel_type,detected_at&limit=5000'
   );
 
   let checked = 0, success = 0;
-  for (const { p, winStart, winEnd } of queue) {
-    const hit = events.find(e =>
-      e.station_id === p.station_id &&
-      e.fuel_type === p.fuel_type &&
-      new Date(e.detected_at).getTime() >= winStart &&
-      new Date(e.detected_at).getTime() <= winEnd
-    );
-    await sbPatch('predictions?id=eq.' + p.id, {
+  for (const { p, winStart, winEnd, dayStart } of queue) {
+    const createdMs = p.created_at ? new Date(p.created_at).getTime() : 0;
+    const pairEvents = events
+      .filter(e => e.station_id === p.station_id && e.fuel_type === p.fuel_type)
+      .map(e => ({ e: e, t: new Date(e.detected_at).getTime() }))
+      .filter(x => x.t >= createdMs)
+      .sort((a, b) => a.t - b.t);
+    const hit = pairEvents.find(x => x.t >= winStart && x.t <= winEnd);
+    // v1.2: величина ошибки, а не только SUCCESS/MISS
+    const actual = pairEvents.length ? pairEvents[0] : null;
+    let expectedMs;
+    if (p.expected_restore_at) expectedMs = new Date(p.expected_restore_at).getTime();
+    else expectedMs = dayStart + ((timeToMin(p.from_time) + timeToMin(p.to_time)) / 2) * 60000;
+    const patch = {
       result: hit ? 'SUCCESS' : 'MISS',
       is_verified: true,
       verified_at: new Date().toISOString(),
-      actual_event_time: hit ? hit.detected_at : null
-    });
+      actual_event_time: hit ? hit.e.detected_at : null
+    };
+    if (actual) {
+      patch.actual_restore_at = actual.e.detected_at;
+      patch.error_minutes = Math.round((actual.t - expectedMs) / 60000);
+    }
+    await sbPatch('predictions?id=eq.' + p.id, patch);
     checked++;
     if (hit) success++;
     console.log('   ' + (hit ? '✅ SUCCESS' : '❌ MISS') + ' · ' + p.fuel_type +
-      ' · окно ' + p.from_time.slice(0, 5) + '–' + p.to_time.slice(0, 5));
+      ' · окно ' + p.from_time.slice(0, 5) + '–' + p.to_time.slice(0, 5) +
+      (patch.error_minutes !== undefined
+        ? ' · ошибка ' + (patch.error_minutes > 0 ? '+' : '') + patch.error_minutes + ' мин'
+        : ''));
   }
 
   const pct = checked ? Math.round(success / checked * 100) : 0;

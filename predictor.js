@@ -90,8 +90,61 @@ async function main() {
 
   console.log('4) Достаю последние наблюдения...');
   const lastObs = {};
-  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,timestamp');
+  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp');
   for (const o of obs) if (!lastObs[o.station_id]) lastObs[o.station_id] = o;
+
+  // --- v1.2: городской контекст и снапшоты признаков для будущего обучения ---
+  const QUEUE_RANK = { low: 1, medium: 2, high: 3 };
+  const recentByStation = {};
+  for (const o of obs) {
+    const arr = recentByStation[o.station_id] || (recentByStation[o.station_id] = []);
+    if (arr.length < 4) arr.push(o);
+  }
+  function queueTrend(stationId) {
+    const arr = recentByStation[stationId];
+    if (!arr || arr.length < 2) return null;
+    const nowRank = QUEUE_RANK[arr[0].queue_level] || 0;
+    const oldRank = QUEUE_RANK[arr[arr.length - 1].queue_level] || 0;
+    if (nowRank > oldRank) return 'rising';
+    if (nowRank < oldRank) return 'falling';
+    return 'flat';
+  }
+  let cityKnown = 0, cityAvail = 0;
+  for (const s of stations) {
+    if (!isOwn(s)) continue;
+    const o = lastObs[s.id];
+    if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { cityKnown++; if (o.fuel_95_status) cityAvail++; }
+  }
+  const cityAvailShare = cityKnown ? cityAvail / cityKnown : null;
+  const sixHoursAgo = Date.now() - 6 * 3600 * 1000;
+  const restores6h = restoredEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+  const disappears6h = disappearedEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+  let regime = 'NORMAL';
+  if (cityAvailShare !== null && cityAvailShare < 0.60) {
+    regime = cityAvailShare < 0.30 ? 'CITY_SHORTAGE' : 'LOCAL_SHORTAGE';
+    if (restores6h >= 2 && restores6h > disappears6h) regime = 'RECOVERY';
+  }
+  const lastDisByPair = {};
+  for (const e of disappearedEvents) {
+    const key = e.station_id + '|' + e.fuel_type;
+    const t = new Date(e.detected_at).getTime();
+    if (!lastDisByPair[key] || t > lastDisByPair[key]) lastDisByPair[key] = t;
+  }
+  function nearbyMissing95(st) {
+    let missing = 0, total = 0;
+    for (const s of stations) {
+      if (!isOwn(s) || s.id === st.id) continue;
+      const dLat = (s.lat - st.lat) * 111, dLon = (s.lon - st.lon) * 111 * Math.cos(st.lat * Math.PI / 180);
+      if (Math.sqrt(dLat * dLat + dLon * dLon) <= 3) {
+        total++;
+        const o = lastObs[s.id];
+        if (o && o.fuel_95_status === false) missing++;
+      }
+    }
+    return { missing: missing, total: total };
+  }
+  console.log('   Контекст города: АИ-95 есть на ' + (cityAvailShare === null ? '—' : Math.round(cityAvailShare * 100) + '%') +
+    ', режим ' + regime + ', возвратов/исчезновений за 6ч: ' + restores6h + '/' + disappears6h);
 
   // Группируем события по (station_id, fuel)
   const restoredByPair = {};
@@ -248,6 +301,23 @@ async function main() {
       }
 
       const toMin = Number(to.slice(0, 2)) * 60 + Number(to.slice(3, 5));
+      // v1.2: снапшот признаков в момент прогноза — учебный материал для модели v2
+      const nb = nearbyMissing95(st);
+      const features = {
+        v: 1,
+        hour_msk: mskNow.getUTCHours(),
+        dow_msk: mskNow.getUTCDay(),
+        deficit_age_min: currentStatus === false && lastDisByPair[pairKey]
+          ? Math.round((Date.now() - lastDisByPair[pairKey]) / 60000) : null,
+        queue_level: cur && cur.queue_level ? cur.queue_level : null,
+        queue_trend: queueTrend(st.id),
+        city_avail95_pct: cityAvailShare === null ? null : Math.round(cityAvailShare * 100),
+        nearby_missing95: nb.missing,
+        nearby_total: nb.total,
+        restores_6h: restores6h,
+        disappears_6h: disappears6h,
+        regime: regime
+      };
       const row = {
         station_id: st.id,
         fuel_type: fuel,
@@ -259,7 +329,9 @@ async function main() {
         prediction_source: source,
         algorithm_version: 'v1.1|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
-        result: 'PENDING'
+        result: 'PENDING',
+        features: features,
+        model_version: 'v1.1'
       };
       if (expectedRestoreAt) row.expected_restore_at = expectedRestoreAt;
 

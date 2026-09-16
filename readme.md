@@ -32,7 +32,7 @@ verifier.js (02:10 MSK, ежедневно):
 digest.js (08:00 MSK, ежедневно): сводка за 24 ч в Telegram
 bot.js (каждые 5 мин): читает обновления Telegram, отвечает на кнопки /status /predict /digest /quiet /loud
         ↓
-Сайт (GitHub Pages): карточки + пульс города (светлый премиум SVG)
+Сайт (GitHub Pages): карточки + тепловая матрица + пульс города (день/неделя/месяц)
 ```
 
 ---
@@ -46,7 +46,7 @@ bot.js (каждые 5 мин): читает обновления Telegram, от
 | `verifier.js` | Верификатор: ночная оценка прогнозов по фактам (SUCCESS/MISS) | ✅ прод |
 | `digest.js` | Утренний дайджест за 24 ч | ✅ прод |
 | `bot.js` | Бот с кнопками: отчёты и тихий режим (серверлесс, без сервера) | ✅ прод |
-| `index.html` | Сайт v2: карточки + пульс города (светлый премиум SVG) | ✅ прод |
+| `index.html` | Сайт v2: карточки + тепловая матрица + пульс день/неделя/месяц + мультивыбор отметок | ✅ прод |
 | `.github/workflows/collect.yml` | dispatch + «Telegram on failure» | ✅ прод |
 | `.github/workflows/digest.yml` | dispatch дайджеста | ✅ прод |
 | `.github/workflows/verify.yml` | dispatch верификатора | ✅ прод |
@@ -80,8 +80,10 @@ bot.js (каждые 5 мин): читает обновления Telegram, от
 
 **Вьюхи (обход лимита Supabase REST в 1000 строк + безопасный RLS-режим):**
 - `station_counts` — настоящее общее число наблюдений по станции
-- `station_hourly` — почасовая доступность АИ-95 для графиков сайта
-- `city_hourly` — пульс города: очереди и АИ-95 по часам
+- `station_hourly` — почасовая доступность АИ-95 для графиков карточек
+- `city_hourly` — пульс города: очереди и АИ-95 по часам (кардиограмма «День»)
+- `city_fuel_hourly` — 4 ряда тепла по часам (АИ-92/95/ДТ/Очереди) для тепловой матрицы
+- `city_daily_events` — дневные агрегаты исчезновений/возвратов для кардиограмм «Неделя»/«Месяц»
 
 Все вьюхи установлены с `security_invoker = true` — RLS-политики применяются под маской запросившего, а не создателя вьюхи (закрытое замечание советника безопасности).
 
@@ -111,6 +113,13 @@ bot.js (каждые 5 мин): читает обновления Telegram, от
 - [x] Дайджест 08:00 MSK + точность прогнозов в дайджесте (при ≥10 проверок)
 - [x] Гигиена базы: автоудаление наблюдений старше 30 дней
 - [x] Советник безопасности Supabase: вьюхи security_invoker, белый список user_feedback
+- [x] **Тепловая матрица города** (16.09): 4 ряда × 24 часа из `city_fuel_hourly`, линия «сейчас» с 4 точками, цветовая легенда 4 уровня, статусы «есть/мало/нет» по каждой строке
+- [x] **Кардиограмма с тремя режимами** (16.09): День (24 почасовых столбца) / Неделя (7 дневных) / Месяц (30 дневных) с переключением в шапке, подписью диапазона и колоннами событий из `city_daily_events`
+- [x] **Мультивыбор отметок** (16.09): чек-лист «есть/нет 92/95/ДТ + очередь 2–3/4–6/7+/100+ + привезли + свободно» → одна отправка создаёт до N строк user_feedback; взаимоисключение «есть/нет» по топливу, одиночный выбор очереди
+- [x] **Дайджест-панель** (16.09): 6 метрик в два ряда (вернулось / кончилось / пик очередей / отметок народа / прогнозов активно / точность верификатора) + полоса средней доступности АИ-95 за сутки + избранное
+- [x] **Защищённая загрузка данных** (16.09): каждый запрос в `loadPulse` в своём try/catch — упавшая вьюха не убивает кардиограмму/тепло/чипы вместе с собой; контрольная перерисовка через 400 мс
+- [x] **Честные пустые состояния** (16.09): серые плашки «копит наблюдения» вместо невидимых ячеек, подпись «мало дней для диапазона» когда данных меньше двух
+- [x] **Чипы «Сейчас · АИ-95 есть»** (16.09): формулировка «N из M АЗС» вместо абстрактного процента, плюс «Пик спроса» и «Спокойно» из тепловой матрицы
 - [ ] Этап 7/F: модель v2 (день недели, триггер очереди с лагом, загруженность, биржевой фон)
 - [ ] «Тихие часы» per-АЗС (закрыть обещание hero: «и меньше очередей»)
 - [ ] Кнопка «поделиться прогнозом» (Web Share API)
@@ -136,6 +145,9 @@ bot.js (каждые 5 мин): читает обновления Telegram, от
 13. Вьюхи — всегда `security_invoker = true`, чтобы RLS работал сквозь них.
 14. Народные отметки с структурой (fuel_type, queue_size, comment) → в базе только значения из белого списка (RLS policy).
 15. Серверлесс где возможно: бот без сервера, на cron-job.org + Supabase meta-таблица.
+16. **Отказоустойчивость сайта**: каждый внешний запрос к вьюхе в своём try/catch; отрисовка блоков не падает от одной упавшей вьюхи.
+17. **Пустые состояния видимы**: нет данных → серая плашка с объяснением, не «пусто на белом».
+18. **Мультивыбор в UI**: если пользователь может отметить несколько фактов одновременно — отправляем массивом, не заставляем выбирать один.
 
 ---
 
@@ -146,6 +158,7 @@ bot.js (каждые 5 мин): читает обновления Telegram, от
 - Норма digest: одно сообщение в Telegram вида «🌅 КогдаБенз · дайджест за сутки…».
 - Норма bot: `/start` в Telegram → клавиатура кнопок → «📊 Сводка города» → отчёт о дефицитах и очередях.
 - Норма verify: ночью в логе построчные ✅ SUCCESS / ❌ MISS и сводка точности.
+- Норма сайта: тепловая матрица 4×24 раскрашена, кардиограмма переключается День/Неделя/Месяц с обновлением подписи диапазона, мультивыбор в карточке создаёт несколько строк в user_feedback.
 - SQL-самопроверка:
 ```sql
 select event_type, count(*) from events group by event_type;
@@ -153,6 +166,10 @@ select count(*) filter (where timestamp > now() - interval '1 hour') as за_ч�
        count(*) as всего from observations;
 select target_date, result, count(*) from predictions group by 1,2 order by 1 desc;
 select key, value from bot_meta;
+-- для сайта:
+select count(*) from city_hourly where hour > now() - interval '7 days';
+select count(*) from city_fuel_hourly where hour > now() - interval '24 hours';
+select count(*) from city_daily_events where day > now() - interval '30 days';
 ```
 - Table Editor показывает время в UTC; новороссийское = +3.
 
@@ -186,6 +203,10 @@ select key, value from bot_meta;
 | Security Definer View в советнике Supabase | Вьюхи должны быть `security_invoker = true` (см. приложение SQL) |
 | RLS Policy Always True на user_feedback | Заменить на белый список типов/топлива/очередей (см. приложение SQL) |
 | Бот молчит больше 5 минут | Проверить: cron-job.org → bot-джоба → Actions → бот-воркфлоу; `bot_meta.update_offset` должен расти |
+| Тепловая матрица серая / кардиограмма пустая | Вьюха `city_fuel_hourly` или `city_daily_events` не создана — выполнить SQL из приложения |
+| Дайджест показывает нули при живом теглайне | `renderNow()` не дёргается после `loadPulse()` — должен быть в setTimeout(400ms) |
+| Кардиограмма не переключается Неделя/Месяц | `buildBuckets()` должен учитывать `mgRangeH` и аггрегировать по дням, не по часам |
+| Мультивыбор отправляет только один факт | `fbSend` должен собирать массив `rows` из `.selected`, а не брать `fbDraft` |
 
 ---
 
@@ -217,6 +238,7 @@ select station_id, date_trunc('hour', timestamp) as hour,
 from public.observations group by 1, 2;
 alter view public.station_hourly set (security_invoker = true);
 
+-- пульс города: очереди и АИ-95 по часам (кардиограмма "День")
 create or replace view public.city_hourly as
 select date_trunc('hour', o.timestamp) as hour,
        count(*) as marks,
@@ -228,6 +250,32 @@ join public.stations s on s.id = o.station_id
 where s.lat >= 44.60 and s.lat <= 44.85 and s.lon >= 37.55 and s.lon <= 38.05
 group by 1;
 alter view public.city_hourly set (security_invoker = true);
+
+-- тепловая матрица: 4 ряда × 24 часа (АИ-92/95/ДТ/Очереди)
+create or replace view public.city_fuel_hourly as
+select date_trunc('hour', o.timestamp) as hour,
+       count(*) filter (where o.fuel_92_status = true) as a92,
+       count(*) filter (where o.fuel_92_status is not null) as k92,
+       count(*) filter (where o.fuel_95_status = true) as a95,
+       count(*) filter (where o.fuel_95_status is not null) as k95,
+       count(*) filter (where o.diesel_status = true) as adt,
+       count(*) filter (where o.diesel_status is not null) as kdt,
+       count(*) filter (where o.queue_level = 'high') as q,
+       count(*) as marks
+from public.observations o
+join public.stations s on s.id = o.station_id
+where s.lat >= 44.60 and s.lat <= 44.85 and s.lon >= 37.55 and s.lon <= 38.05
+group by 1;
+alter view public.city_fuel_hourly set (security_invoker = true);
+
+-- дневные агрегаты событий (для кардиограмм "Неделя"/"Месяц")
+create or replace view public.city_daily_events as
+select date_trunc('day', detected_at) as day,
+       count(*) filter (where event_type = 'fuel_disappeared') as dis,
+       count(*) filter (where event_type = 'fuel_restored') as res
+from public.events
+group by 1;
+alter view public.city_daily_events set (security_invoker = true);
 
 -- user_feedback: белый список в RLS вместо with check (true)
 do $$
@@ -248,7 +296,7 @@ create policy user_feedback_insert on public.user_feedback
     device_id is not null
     and feedback_type in ('delivery','available','unavailable','queue','free')
     and (fuel_type is null or fuel_type in ('92','95','diesel','all'))
-    and (queue_size is null or queue_size in ('small','medium','large'))
+    and (queue_size is null or queue_size in ('small','medium','large','huge'))
   );
 
 -- память бота (только service_role видит)
@@ -281,3 +329,4 @@ alter table public.bot_meta enable row level security;
 | 15.09.2026 12:11 | **Первый 🟢 fuel_restored** (Газпром, АИ-95) |
 | 15.09.2026 21:31 | **Первые прогнозы** (5 Роснефтей/дизель, brand-пул) |
 | 15.09.2026 вечер | Верификатор v1 + target_date, бот v2 с кнопками, security_invoker |
+| 16.09.2026 день | Тепловая матрица 4×24 + кардиограмма День/Неделя/Месяц + мультивыбор отметок + дайджест 6 метрик + защищённая загрузка (try/catch per view) + честные пустые состояния |
