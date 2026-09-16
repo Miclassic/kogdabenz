@@ -163,6 +163,9 @@ body { overflow:hidden; }
 .forecast-time { margin-top:2px; font-size:20px; line-height:1.05; font-weight:900; letter-spacing:-1px; }
 .forecast-confidence { margin-top:6px; color:#657694; font-size:10px; }
 .forecast-confidence strong { color:var(--text); }
+.why { margin-top:6px; display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.why-t { width:100%; color:#657694; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.why-i { padding:3px 7px; border-radius:8px; background:rgba(255,255,255,.75); border:1px solid #dfe8f6; color:#33445f; font-size:8.5px; font-weight:700; }
 .forecast-right { min-width:0; display:flex; flex-direction:column; }
 .graph-title { font-size:10px; font-weight:800; color:#5b6b86; }
 .chart { position:relative; flex:1; min-height:54px; display:flex; align-items:flex-end; gap:3px; margin-top:6px; padding:0 1px; border-bottom:1px solid #e9edf5; }
@@ -521,6 +524,23 @@ async function fbSend(stationId) {
   sendBtn.disabled = false;
   panel.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
 }
+function whyHtml(pred) {
+  const f = pred && pred.features ? pred.features : null;
+  if (!f) return '';
+  const items = [];
+  const regimeLbl = { NORMAL: 'в городе спокойно', LOCAL_SHORTAGE: 'в городе локальный дефицит', CITY_SHORTAGE: 'в городе общий дефицит', RECOVERY: 'город восстанавливается' };
+  if (f.regime && regimeLbl[f.regime]) items.push(regimeLbl[f.regime] + (f.regime === 'RECOVERY' && f.restores_6h ? ': ' + f.restores_6h + ' возвратов за 6ч' : ''));
+  if (f.deficit_age_min !== null && f.deficit_age_min !== undefined) {
+    const h = Math.floor(f.deficit_age_min / 60), m = f.deficit_age_min % 60;
+    items.push('дефицит длится ' + (h ? h + 'ч ' : '') + m + 'м');
+  }
+  if (f.queue_trend === 'falling') items.push('очередь на АЗС снижается');
+  if (f.queue_trend === 'rising') items.push('очередь на АЗС растёт');
+  if (f.knn_support) items.push('k-NN: ' + f.knn_support + ' похожих эпизодов' + (f.knn_p_restore_2h !== null && f.knn_p_restore_2h !== undefined ? ', P<2ч ' + f.knn_p_restore_2h + '%' : ''));
+  if (f.nearby_missing95) items.push('рядом без АИ-95: ' + f.nearby_missing95 + ' из ' + f.nearby_total);
+  if (!items.length) return '';
+  return '<div class="why"><div class="why-t">Почему такой прогноз</div>' + items.map(t => '<span class="why-i">' + escapeHtml(t) + '</span>').join('') + '</div>';
+}
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const graph = createGraph(station.id);
@@ -539,7 +559,7 @@ function stationCard(station, obs, pred) {
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
     '<div class="forecast-confidence">' + (prediction.confidence ? 'Вероятность: <strong>' + prediction.confidence + '%</strong>' : 'Пока недостаточно данных') + '</div>' +
-    '<div class="confidence-bar"><span style="width:' + cw + '%"></span></div></div>' +
+    '<div class="confidence-bar"><span style="width:' + cw + '%"></span></div>' + whyHtml(pred) + '</div>' +
     '<div class="forecast-right"><div class="graph-title">История АИ-95</div>' +
     '<div class="chart">' + graph + (pred && isSoon(pred) ? '<div class="soon-badge">' + icon('i-truck','ic-s') + 'Скоро</div>' : '') + '</div>' +
     '<div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div></div></section>' +
