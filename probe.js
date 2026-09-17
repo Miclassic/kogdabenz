@@ -57,7 +57,7 @@ async function main() {
 
 async function dumpKeys() {
   console.log('=== ДАМП КЛЮЧЕЙ ОДНОЙ СТАНЦИИ ===');
-  const list = await fetchFrame(FRAMES[0].url, FRAMES[0].name);
+  const list = await fetchFrame(FRAMES[0]);
   if (!list.length) { console.log('Станций нет в первой рамке.'); return; }
   const s = list[0];
   console.log('Станция: ' + (s.name || '?') + ' (' + (s.brand || 'без бренда') + ')');
