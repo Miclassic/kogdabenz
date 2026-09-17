@@ -458,7 +458,11 @@ function stationLogo(st) {
   return '<img src="' + BRAND_LOGOS[k] + '" alt="" onerror="this.outerHTML=LOGO_FALLBACK">';
 }
 const BRAND_COLORS = { lukoil:'#d7263d', rosneft:'#0b62b8', ufimneft:'#009a4e', gazpromneft:'#0079c2', rusoil:'#e05a2b', pnb:'#7b5cd6', tnk:'#f08c00', export:'#c2405a', petrol:'#2f9e44' };
-function getLastObservations() { const r = {}; for (const o of allObservations) if (!r[o.station_id]) r[o.station_id] = o; return r; }
+let allLastObs = {};
+function getLastObservations() {
+  if (Object.keys(allLastObs).length) return allLastObs;
+  const r = {}; for (const o of allObservations) if (!r[o.station_id]) r[o.station_id] = o; return r;
+}
 function pickPrediction(stationId, obs) {
   const preds = allPredictions.filter(p => p.station_id === stationId && p.result === 'PENDING');
   if (!preds.length) return null;
@@ -1132,20 +1136,31 @@ let objMarkers = [];
 let lastClusterCenterByStation = {};
 let lastRenderZoom = null;
 const OUR_LABELS = [
-  { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true },
-  { name: 'Центральный', lon: 37.77, lat: 44.735 },
-  { name: 'Южный', lon: 37.79, lat: 44.665 },
-  { name: 'Восточный', lon: 37.86, lat: 44.745 },
-  { name: 'Мысхако', lon: 37.72, lat: 44.635 }
+  { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true, minZoom: 0 },
+  { name: 'Краснодар', lon: 38.98, lat: 45.03, minZoom: 0 },
+  { name: 'Сочи', lon: 39.72, lat: 43.60, minZoom: 0 },
+  { name: 'Майкоп', lon: 40.12, lat: 44.60, minZoom: 9 },
+  { name: 'Анапа', lon: 37.32, lat: 44.89, minZoom: 9 },
+  { name: 'Геленджик', lon: 38.07, lat: 44.56, minZoom: 9 },
+  { name: 'Центральный', lon: 37.77, lat: 44.735, minZoom: 11 },
+  { name: 'Южный', lon: 37.79, lat: 44.665, minZoom: 11 },
+  { name: 'Восточный', lon: 37.86, lat: 44.745, minZoom: 11 },
+  { name: 'Мысхако', lon: 37.72, lat: 44.635, minZoom: 11 }
 ];
+let labelCtrls = [];
+function applyLabelZoom() {
+  if (!mapObj) return;
+  const z = mapObj.getZoom();
+  for (const lc of labelCtrls) lc.el.style.display = z >= lc.minZoom ? '' : 'none';
+}
 function ensureMap() {
   const box = document.getElementById('mapBox');
   if (!box || mapObj) return;
   mapObj = new maplibregl.Map({
     container: 'mapBox',
     style: 'https://tiles.openfreemap.org/styles/positron',
-    center: [37.77, 44.72],
-    zoom: 11.5,
+    center: [38.85, 44.80],
+    zoom: 9,
     attributionControl: false
   });
   mapObj.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
@@ -1161,13 +1176,16 @@ function ensureMap() {
       el.className = 'mlabel' + (l.city ? ' city' : '');
       el.textContent = l.name;
       new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([l.lon, l.lat]).addTo(mapObj);
+      labelCtrls.push({ el: el, minZoom: l.minZoom || 0 });
     }
+    applyLabelZoom();
     mapObj.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.14 } });
     mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.45, 'line-width': 1.5 } });
     zoneReady = true;
     renderMap();
   });
+  mapObj.on('zoomend', () => applyLabelZoom());
   let moveTick = false;
   mapObj.on('moveend', () => {
     if (moveTick) return;
@@ -1219,9 +1237,9 @@ function renderMap() {
   const newCenters = {};
   const feats = [];
   const items = [];
-  for (const id of localIdsGlobal) {
-    const st = allStations.find(s => s.id === id);
-    if (!st || !Number.isFinite(Number(st.lat))) continue;
+  for (const st of allStations) {
+    const id = st.id;
+    if (!Number.isFinite(Number(st.lat))) continue;
     items.push({ st: st, o: last[id] });
     const sc = demandOf(id);
     if (sc >= 12) feats.push(circleFeature(Number(st.lat), Number(st.lon), 300 + sc * 16, 'rgb(' + demandRgb(sc) + ')'));
@@ -1261,8 +1279,12 @@ function renderMap() {
       el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,#1bb978 0 ' + pg + '%, #ef5350 ' + pg + '% ' + pr + '%, #a7b1c1 ' + pr + '% 100%)"></i>';
       if (zoomChanged) el.style.animation = 'mPopBox .3s ease';
       wrapC.appendChild(el);
-      el.addEventListener('click', () => mapObj.easeTo({ center: [clon, clat], zoom: Math.min(17, zoom + 2) }));
-      objMarkers.push(new maplibregl.Marker({ element: wrapC, anchor: 'center' }).setLngLat([clon, clat]).addTo(mapObj));
+      const mkC = new maplibregl.Marker({ element: wrapC, anchor: 'center' }).setLngLat([clon, clat]).addTo(mapObj);
+      mkC.on('click', e => {
+        if (e && e.originalEvent) e.originalEvent.stopPropagation();
+        mapObj.easeTo({ center: [clon, clat], zoom: Math.min(17, zoom + 2) });
+      });
+      objMarkers.push(mkC);
       for (const m of group) newCenters[m.st.id] = [clon, clat];
     }
   } else {
@@ -1281,14 +1303,21 @@ function addPin(it, fromCenter, zoomChanged) {
   wrap.innerHTML = '<div class="mpin ' + stKey + '"><svg class="ic"><use href="#i-pump"/></svg>' + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
   const p = pickPrediction(st.id, o);
   const chips = [fuelChip('АИ-92', o && o.fuel_92_status), fuelChip('АИ-95', o && o.fuel_95_status), fuelChip('дизель', o && o.diesel_status)];
+  if (o && o.timestamp) {
+    const ageH = Math.round((Date.now() - new Date(o.timestamp).getTime()) / 3600000);
+    if (ageH >= 2) chips.push('<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-clock', 'ic-s') + 'данные: ' + ageH + ' ч назад</span>');
+  }
   if (o && o.queue_level === 'high') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь сейчас</span>');
   chips.push('<span class="rc-chip ' + (sc >= 30 ? 'queue' : 'yes') + '">' + icon('i-chart', 'ic-s') + 'спрос ' + sc + '/100</span>');
   if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
   const popupHtml = '<div style="min-width:190px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>';
-  wrap.addEventListener('click', () => {
-    new maplibregl.Popup({ offset: [0, -38] }).setLngLat([Number(st.lon), Number(st.lat)]).setHTML(popupHtml).addTo(mapObj);
+  const mk = new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(mapObj);
+  mk.on('click', e => {
+    if (e && e.originalEvent) e.originalEvent.stopPropagation();
+    new maplibregl.Popup({ offset: [0, -38], closeOnClick: false })
+      .setLngLat([Number(st.lon), Number(st.lat)]).setHTML(popupHtml).addTo(mapObj);
   });
-  objMarkers.push(new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(mapObj));
+  objMarkers.push(mk);
   // плавный «разлёт»: пина стартует из центра своего кластера
   // и за 0.5с доезжает до своей точки; трансформ маркера не трогаем
   const inner = wrap.firstElementChild;
@@ -1335,16 +1364,19 @@ async function start() {
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = localIds;
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, events, feedback, hourly, queue] = await Promise.all([
+    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
       dbQuery('/rest/v1/predictions?select=*'),
       dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
       dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')'),
-      dbQuery('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7').catch(() => [])
+      dbQuery('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7').catch(() => []),
+      dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
+    allLastObs = {};
+    for (const o of (lastRows || [])) allLastObs[o.station_id] = o;
     allPredictions = predictions; allEvents = events; allFeedback = feedback; allHourly = hourly;
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     renderStations(stations.filter(s => localIds.includes(s.id)));
