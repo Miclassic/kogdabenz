@@ -225,8 +225,21 @@ body { overflow:hidden; }
 .fb-gl { color:#8291a9; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; margin-bottom:4px; }
 .feedback-grid.g3 { grid-template-columns:repeat(3,1fr); }
 .feedback-grid.g4 { grid-template-columns:repeat(4,1fr); }
-.map-box { flex:1; min-height:340px; border-radius:18px; overflow:hidden; border:1px solid #e8edf7; position:relative; background:#eef2f8; }
+.map-wrap { position:relative; flex:1; min-height:360px; }
+.map-box { position:absolute; inset:0; border-radius:18px; overflow:hidden; border:1px solid #e8edf7; background:#eef2f8; }
 .map-box > .status { position:absolute; inset:0; margin:0; display:grid; place-items:center; border:0; box-shadow:none; background:transparent; }
+.map-plate { position:absolute; left:10px; right:10px; top:10px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; pointer-events:none; z-index:5; }
+.gp { display:inline-flex; align-items:center; gap:5px; padding:6px 9px; border-radius:12px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
+.gp .dot { width:7px; height:7px; }
+.gp .ic { width:11px; height:11px; }
+.mcluster { width:46px; height:46px; margin:-23px 0 0 -23px; border-radius:50%; border:3px solid #fff; box-shadow:0 6px 16px rgba(15,27,51,.28); display:grid; place-items:center; }
+.mcluster span { width:28px; height:28px; border-radius:50%; background:#14213d; color:#fff; font-size:12px; font-weight:900; display:grid; place-items:center; }
+.mpin { position:relative; width:34px; height:34px; margin:-40px 0 0 -17px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:#fff; border:3px solid #a7b1c1; box-shadow:0 6px 14px rgba(15,27,51,.28); display:grid; place-items:center; }
+.mpin .ic { transform:rotate(45deg); width:15px; height:15px; }
+.mpin.yes { border-color:#1bb978; color:#12855c; }
+.mpin.no { border-color:#ef5350; color:#d64d51; }
+.mpin.unknown { border-color:#a7b1c1; color:#7c899e; }
+.mpin .qdot { position:absolute; top:-5px; right:-5px; width:12px; height:12px; border-radius:50%; background:#f5a05a; border:2px solid #fff; }
 </style>
 </head>
 <body>
@@ -321,6 +334,20 @@ body { overflow:hidden; }
       </div>
     </section>
     <section class="panel">
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">пины — статус АИ-95 и очередь, кольца кластеров — состав, зоны — сила спроса</div></div></div>
+      <div class="map-wrap">
+        <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
+        <div class="map-plate" id="mapPlate"></div>
+      </div>
+      <div class="hm-legend" style="margin-top:8px">
+        <span><i style="background:#2fd39a"></i>спокойно</span>
+        <span><i style="background:#f5d565"></i>очереди редко</span>
+        <span><i style="background:#f5a05a"></i>очередно</span>
+        <span><i style="background:#ef5350"></i>очередь сейчас / часто</span>
+      </div>
+      <div class="recent" style="margin-top:8px">Далеко: кластеры, кольцо — состав по АИ-95, цифра — число АЗС, тап — приблизить. Близко: капля — АИ-95 (зелёная/красная/серая), оранжевая точка — очередь сейчас. Тап по пину — чипы фактов и окна.</div>
+    </section>
+    <section class="panel">
       <div class="search">
         <svg class="ic"><use href="#i-search"/></svg>
         <input id="searchInput" type="text" placeholder="Найти АЗС или адрес">
@@ -338,18 +365,7 @@ body { overflow:hidden; }
     <section class="panel">
       <div class="panel-scroll" id="digestBody"></div>
     </section>
-    <section class="panel">
-      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">зоны — очереди сейчас и за 24 ч, точки — АИ-95</div></div></div>
-      <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
-      <div class="hm-legend" style="margin-top:8px">
-        <span><i style="background:#2fd39a"></i>спокойно</span>
-        <span><i style="background:#f5d565"></i>очереди редко</span>
-        <span><i style="background:#f5a05a"></i>очередно</span>
-        <span><i style="background:#ef5350"></i>очередь сейчас / часто</span>
-      </div>
-      <div class="recent" style="margin-top:8px">Радиус и цвет зоны — сила спроса. Точка: зелёная — АИ-95 есть, красная — нет, серая — нет данных. Тап по точке — детали.</div>
-    </section>
-  </div>
+    </div>
   <div class="pager-dots" id="pagerDots"><i class="on"></i><i></i><i></i><i></i></div>
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
   <div class="sheet" id="sheet">
@@ -685,7 +701,7 @@ function toggleFeedback(stationId) {
   const panel = document.getElementById('feedback-' + stationId);
   if (panel) panel.classList.toggle('open');
 }
-function ctaDigest() { pagerGo(2); }
+function ctaDigest() { pagerGo(3); }
 function pagerGo(i) { const p = document.getElementById('pager'); if (p) p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
 /* тепло */
 function badColor(v) {
@@ -951,19 +967,19 @@ function setTagline(i) {
   if (!sl || !tx) return;
   let sHtml, sTxt;
   if (i === 1) {
+    sHtml = 'Карта. <span>Где спрос.</span>';
+    sTxt = 'Далеко — кластеры с составом по АИ-95, близко — пины станций. Зоны — сила спроса, плашка сверху — сводка города.';
+  } else if (i === 2) {
     const last = getLastObservations();
     let withFuel = 0, withPred = 0;
     for (const id of localIdsGlobal) { const o = last[id]; if (o && o.fuel_95_status === true) withFuel++; if (pickPrediction(id, o)) withPred++; }
     sHtml = 'АЗС города. <span>Тап — и всё видно.</span>';
     sTxt = 'В городе ' + localIdsGlobal.length + ' АЗС: АИ-95 есть на ' + withFuel + ', окна у ' + withPred + '. Тап по строке — полная карточка с прогнозом.';
-  } else if (i === 2) {
+  } else if (i === 3) {
     const since = Date.now() - 24 * 3600 * 1000;
     const ev = pulseEv.filter(e => e.t.getTime() > since);
     sHtml = 'Дайджест. <span>Город в цифрах.</span>';
     sTxt = 'За сутки: вернулось ' + ev.filter(e => e.type === 'fuel_restored').length + ', кончилось ' + ev.filter(e => e.type === 'fuel_disappeared').length + '. Избранного: ' + getFavorites().length + '. Полная сводка — в Telegram в 08:00.';
-  } else if (i === 3) {
-    sHtml = 'Карта. <span>Где спрос.</span>';
-    sTxt = 'Круги — зоны спроса: красные там, где очередь сейчас или часто за сутки, зелёные — спокойно. Точки — факт по АИ-95.';
   } else {
     const marks = pulseRaw.reduce((s, r) => s + r.marks, 0);
     const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
@@ -1017,7 +1033,7 @@ function renderNow() {
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
       cta.onclick = () => openSheet(best.id);
     }
-    else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(1); }
+    else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(2); }
   }
   const qPct = tot ? Math.round(100 * q / tot) : 0;
   const aPct = known ? Math.round(100 * avail / known) : 0;
@@ -1033,6 +1049,7 @@ function renderNow() {
     else if (qPct <= 6 && aPct >= 40) title.textContent = 'Сейчас спокойное время заправиться';
     else title.textContent = 'Ситуация ровная';
   }
+  updateMapPlate();
   renderHero();
   renderDigestPanel();
   setTagline(currentPanel);
@@ -1094,7 +1111,7 @@ function loadYmaps() {
   return new Promise((res, rej) => {
     const s = document.createElement('script');
     s.src = 'https://api-maps.yandex.ru/2.1/?apikey=' + YANDEX_MAPS_KEY + '&lang=ru_RU';
-    s.onload = () => ymaps.ready(() => { ymapsLib = ymaps; res(ymaps); });
+    s.onload = () => ymaps.ready(() => { ymapsLib = ymaps; initMapLayouts(); res(ymaps); });
     s.onerror = () => rej(new Error('скрипт Яндекс.Карт не загрузился'));
     document.head.appendChild(s);
   });
@@ -1109,6 +1126,43 @@ function demandOf(id) {
   return Math.round(sc);
 }
 function demandRgb(sc) { return sc >= 50 ? '239,83,80' : sc >= 30 ? '245,160,90' : sc >= 12 ? '245,213,101' : '47,211,154'; }
+let PinLayout = null, ClusterLayout = null;
+function initMapLayouts() {
+  if (PinLayout) return;
+  PinLayout = ymapsLib.templateLayoutFactory.createClass({
+    build: function () {
+      PinLayout.superclass.build.call(this);
+      const pr = this.getData().properties;
+      const el = document.createElement('div');
+      el.className = 'mpin ' + (pr.get('st') || 'unknown');
+      el.innerHTML = '<svg class="ic"><use href="#i-pump"/></svg>' + (pr.get('q') ? '<i class="qdot"></i>' : '');
+      this.getElement().appendChild(el);
+    },
+    clear: function () {
+      this.getElement().innerHTML = '';
+      PinLayout.superclass.clear.call(this);
+    }
+  });
+  ClusterLayout = ymapsLib.templateLayoutFactory.createClass({
+    build: function () {
+      ClusterLayout.superclass.build.call(this);
+      const gos = this.getData().properties.get('geoObjects') || [];
+      let g = 0, r = 0;
+      for (const o of gos) { const st = o.properties.get('st'); if (st === 'yes') g++; else if (st === 'no') r++; }
+      const n = gos.length || 1;
+      const pg = Math.round(100 * g / n), pr2 = pg + Math.round(100 * r / n);
+      const el = document.createElement('div');
+      el.className = 'mcluster';
+      el.style.background = 'conic-gradient(#1bb978 0 ' + pg + '%, #ef5350 ' + pg + '% ' + pr2 + '%, #a7b1c1 ' + pr2 + '% 100%)';
+      el.innerHTML = '<span>' + gos.length + '</span>';
+      this.getElement().appendChild(el);
+    },
+    clear: function () {
+      this.getElement().innerHTML = '';
+      ClusterLayout.superclass.clear.call(this);
+    }
+  });
+}
 function ensureMap() {
   const box = document.getElementById('mapBox');
   if (!box || mapObj) return;
@@ -1117,6 +1171,11 @@ function ensureMap() {
     renderMap();
   }).catch(e => { box.innerHTML = '<div class="status">Карта недоступна<br><small>' + escapeHtml(e.message) + ' — проверь YANDEX_MAPS_KEY</small></div>'; });
 }
+function fuelChip(label, status) {
+  if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
+  if (status === false) return '<span class="rc-chip no">' + icon('i-cross', 'ic-s') + label + ' нет</span>';
+  return '<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-minus', 'ic-s') + label + ' нет данных</span>';
+}
 function renderMap() {
   if (!mapObj) return;
   mapObj.geoObjects.removeAll();
@@ -1124,19 +1183,56 @@ function renderMap() {
   for (const id of localIdsGlobal) {
     const st = allStations.find(s => s.id === id);
     if (!st || !Number.isFinite(Number(st.lat))) continue;
-    const o = last[id];
     const sc = demandOf(id);
+    if (sc < 12) continue;
     const rgb = demandRgb(sc);
     mapObj.geoObjects.add(new ymapsLib.Circle([[Number(st.lat), Number(st.lon)], 300 + sc * 16], {}, {
-      fillColor: 'rgba(' + rgb + ',0.16)',
-      strokeColor: 'rgba(' + rgb + ',0.55)',
-      strokeWidth: 1.5
+      fillColor: 'rgba(' + rgb + ',0.14)', strokeColor: 'rgba(' + rgb + ',0.45)', strokeWidth: 1.5
     }));
-    const dot = !o || o.fuel_95_status === null || o.fuel_95_status === undefined ? '#a7b1c1' : o.fuel_95_status ? '#1bb978' : '#ef5350';
-    mapObj.geoObjects.add(new ymapsLib.Placemark([Number(st.lat), Number(st.lon)], {
-      balloonContent: '<b>' + escapeHtml(st.name || 'АЗС') + '</b><br>АИ-95: ' + (!o || o.fuel_95_status === null || o.fuel_95_status === undefined ? 'нет данных' : o.fuel_95_status ? 'есть' : 'нет') + '<br>спрос: ' + sc + '/100'
-    }, { preset: 'islands#circleDotIcon', iconColor: dot }));
   }
+  const clusterer = new ymapsLib.Clusterer({
+    gridSize: 72, minClusterSize: 3,
+    clusterIconLayout: ClusterLayout,
+    clusterIconShape: { type: 'Circle', coordinates: [0, 0], radius: 23 }
+  });
+  const pins = [];
+  for (const id of localIdsGlobal) {
+    const st = allStations.find(s => s.id === id);
+    if (!st || !Number.isFinite(Number(st.lat))) continue;
+    const o = last[id];
+    const sc = demandOf(id);
+    const stKey = !o || o.fuel_95_status === null || o.fuel_95_status === undefined ? 'unknown' : o.fuel_95_status ? 'yes' : 'no';
+    const p = pickPrediction(id, o);
+    const chips = [fuelChip('АИ-92', o && o.fuel_92_status), fuelChip('АИ-95', o && o.fuel_95_status), fuelChip('дизель', o && o.diesel_status)];
+    if (o && o.queue_level === 'high') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь сейчас</span>');
+    chips.push('<span class="rc-chip ' + (sc >= 30 ? 'queue' : 'yes') + '">' + icon('i-chart', 'ic-s') + 'спрос ' + sc + '/100</span>');
+    if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
+    pins.push(new ymapsLib.Placemark([Number(st.lat), Number(st.lon)], {
+      st: stKey, q: o && o.queue_level === 'high' ? 1 : 0,
+      balloonContent: '<div style="min-width:200px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>'
+    }, { iconLayout: PinLayout, iconShape: { type: 'Rectangle', coordinates: [[-17, -40], [17, 0]] } }));
+  }
+  clusterer.add(pins);
+  mapObj.geoObjects.add(clusterer);
+  updateMapPlate();
+}
+function updateMapPlate() {
+  const el = document.getElementById('mapPlate');
+  if (!el) return;
+  const last = getLastObservations();
+  let known = 0, avail = 0, qn = 0;
+  for (const id of localIdsGlobal) {
+    const o = last[id];
+    if (!o) continue;
+    if (o.fuel_95_status === true) { avail++; known++; }
+    else if (o.fuel_95_status === false) known++;
+    if (o.queue_level === 'high') qn++;
+  }
+  const pc = peakAndCalm();
+  el.innerHTML =
+    '<span class="gp"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
+    '<span class="gp"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
+    '<span class="gp">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>';
 }
 async function start() {
   const app = document.getElementById('app');
@@ -1224,7 +1320,7 @@ setInterval(tickClock, 30000);
 const pagerEl = document.getElementById('pager');
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
   const i = Math.round(pagerEl.scrollLeft / pagerEl.clientWidth);
-  if (i !== currentPanel) { currentPanel = i; setTagline(i); if (i === 3) ensureMap(); }
+  if (i !== currentPanel) { currentPanel = i; setTagline(i); if (i === 1) ensureMap(); }
   document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
 });
 let hintCancelled = false;
