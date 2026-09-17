@@ -71,9 +71,25 @@ async function dumpKeys() {
     console.log(k + ' (' + type + '): ' + preview);
   }
   console.log('---');
-  console.log('Что искать глазами: поля вроде last_mark, marks_count, status_conflict,');
-  console.log('updated_at, fuels (объект вместо строки), conflict_details —');
-  console.log('они могут помочь отличить "консенсус: нет" от "источник молчит".');
+  console.log('=== АГРЕГАТЫ ПО РАМКЕ (' + list.length + ' станций) ===');
+  const stat = {};
+  let dtOnly = 0, hasMeta = 0, fuelsEmpty = 0, fuelsFilled = 0, conflictQueue = 0, pricesOld7 = 0, pricesNull = 0;
+  for (const x of list) {
+    const sv = (x.status === null || x.status === undefined) ? 'null' : String(x.status);
+    stat[sv] = (stat[sv] || 0) + 1;
+    if (x.dt_only === 1) dtOnly++;
+    if (x.meta && x.meta.f && x.meta.f.length) hasMeta++;
+    if (x.fuels_now && String(x.fuels_now).length) fuelsFilled++; else fuelsEmpty++;
+    if (x.conflict === 'queue') conflictQueue++;
+    let pt = null;
+    for (const k of Object.keys(x.prices_now || {})) { const t = (x.prices_now[k] || {}).t; if (t && (!pt || t > pt)) pt = t; }
+    if (!pt) pricesNull++;
+    else if ((Date.now() - new Date(pt.replace(' ', 'T') + '+03:00').getTime()) / 86400000 > 7) pricesOld7++;
+  }
+  console.log('значения status: ' + JSON.stringify(stat));
+  console.log('dt_only=1: ' + dtOnly + ' | meta.f есть: ' + hasMeta + ' | conflict=queue: ' + conflictQueue);
+  console.log('fuels_now: заполнен ' + fuelsFilled + ', пустой ' + fuelsEmpty);
+  console.log('цены: старше 7 сут ' + pricesOld7 + ', отсутствуют ' + pricesNull);
 }
 
 main().catch(e => { console.error('❌ Ошибка разведки: ' + e.message); process.exit(1); });
