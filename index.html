@@ -463,16 +463,33 @@ function isSoon(pred) {
   return diff <= 120 && diff >= -60;
 }
 function recentFeedback(stationId) {
-  const items = allFeedback.filter(f => f.station_id === stationId).slice(0,3);
+  const items = allFeedback.filter(f => f.station_id === stationId);
   if (!items.length) return 'Пока отметок нет.';
-  const labels = { delivery: icon('i-truck','ic-s') + ' Привезли', available: icon('i-pump','ic-s') + ' Топливо было', unavailable: icon('i-cross','ic-s') + ' Топлива не было', queue: icon('i-queue','ic-s') + ' Была очередь', free: icon('i-check','ic-s') + ' Было свободно' };
-  return items.map(f => {
-    const minutes = Math.max(0, Math.round((Date.now() - new Date(f.created_at).getTime()) / 60000));
+  // группируем отметки по пакетам отправки (ключ — минута created_at),
+  // показываем все факты пакета, а не первые три строки
+  const batches = {};
+  for (const f of items) {
+    const key = String(f.created_at).slice(0, 16);
+    (batches[key] = batches[key] || []).push(f);
+  }
+  const fuelShort = t => t === '92' ? 'АИ-92' : t === '95' ? 'АИ-95' : 'дизель';
+  const queueShort = { small: '2–3', medium: '4–6', large: '7+', huge: '100+' };
+  return Object.keys(batches).sort().reverse().slice(0, 2).map(k => {
+    const g = batches[k];
+    const minutes = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
     const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
-    const fuelLbl = f.fuel_type === '92' ? ' (АИ-92)' : f.fuel_type === '95' ? ' (АИ-95)' : f.fuel_type === 'diesel' ? ' (дизель)' : '';
-    const queueLbl = f.queue_size === 'small' ? ' (небольшая)' : f.queue_size === 'medium' ? ' (средняя)' : f.queue_size === 'large' ? ' (большая)' : '';
-    return (labels[f.feedback_type] || 'Отметка') + fuelLbl + queueLbl + ' · ' + ago + ' назад';
-  }).join(' · ');
+    const facts = [];
+    const yes = g.filter(f => f.feedback_type === 'available').map(f => fuelShort(f.fuel_type));
+    const no = g.filter(f => f.feedback_type === 'unavailable').map(f => fuelShort(f.fuel_type));
+    if (yes.length) facts.push('топливо есть: ' + yes.join(', '));
+    if (no.length) facts.push('топлива нет: ' + no.join(', '));
+    for (const f of g) {
+      if (f.feedback_type === 'queue') facts.push('очередь ' + (queueShort[f.queue_size] || ''));
+      else if (f.feedback_type === 'delivery') facts.push('привезли');
+      else if (f.feedback_type === 'free') facts.push('свободно');
+    }
+    return icon('i-queue', 'ic-s') + ' ' + ago + ' назад: ' + facts.join(' · ');
+  }).join('<br>');
 }
 function feedbackPanel(stationId) {
   return '<div id="feedback-' + stationId + '" class="feedback-panel">' +
