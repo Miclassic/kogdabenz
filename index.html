@@ -200,6 +200,15 @@ body { overflow:hidden; }
 .fb-send { width:100%; margin-top:8px; padding:11px 14px; border:0; border-radius:14px; background:linear-gradient(135deg,#20b989,#397cff); color:#fff; font-size:12px; font-weight:850; cursor:pointer; }
 .recent { margin-top:7px; color:#8492a8; font-size:9px; line-height:1.5; }
 .recent .ic { width:11px; height:11px; vertical-align:-1px; }
+.rc-batch { margin-top:6px; padding:7px 9px; border-radius:12px; background:rgba(255,255,255,.78); border:1px solid #e3ecf5; }
+.rc-time { color:#8492a8; font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
+.rc-chips { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+.rc-chip { display:inline-flex; align-items:center; gap:4px; padding:4px 8px; border-radius:9px; font-size:9.5px; font-weight:800; }
+.rc-chip .ic { width:11px; height:11px; }
+.rc-chip.yes { background:#e5f8ef; color:#12855c; }
+.rc-chip.no { background:#fdecec; color:#c2403f; }
+.rc-chip.queue { background:#fff2e8; color:#c26a2a; }
+.rc-chip.info { background:#e7f0ff; color:#2465ee; }
 .dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
 .dg-strip .ic { color:#2465ee; }
 .dg-strip b { font-weight:900; }
@@ -478,18 +487,16 @@ function recentFeedback(stationId) {
     const g = batches[k];
     const minutes = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
     const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
-    const facts = [];
-    const yes = g.filter(f => f.feedback_type === 'available').map(f => fuelShort(f.fuel_type));
-    const no = g.filter(f => f.feedback_type === 'unavailable').map(f => fuelShort(f.fuel_type));
-    if (yes.length) facts.push('топливо есть: ' + yes.join(', '));
-    if (no.length) facts.push('топлива нет: ' + no.join(', '));
+    const chips = [];
     for (const f of g) {
-      if (f.feedback_type === 'queue') facts.push('очередь ' + (queueShort[f.queue_size] || ''));
-      else if (f.feedback_type === 'delivery') facts.push('привезли');
-      else if (f.feedback_type === 'free') facts.push('свободно');
+      if (f.feedback_type === 'available') chips.push('<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + fuelShort(f.fuel_type) + ' есть</span>');
+      else if (f.feedback_type === 'unavailable') chips.push('<span class="rc-chip no">' + icon('i-cross', 'ic-s') + fuelShort(f.fuel_type) + ' нет</span>');
+      else if (f.feedback_type === 'queue') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
+      else if (f.feedback_type === 'delivery') chips.push('<span class="rc-chip info">' + icon('i-truck', 'ic-s') + 'привезли</span>');
+      else if (f.feedback_type === 'free') chips.push('<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
     }
-    return icon('i-queue', 'ic-s') + ' ' + ago + ' назад: ' + facts.join(' · ');
-  }).join('<br>');
+    return '<div class="rc-batch"><div class="rc-time">' + ago + ' назад</div><div class="rc-chips">' + chips.join('') + '</div></div>';
+  }).join('');
 }
 function feedbackPanel(stationId) {
   return '<div id="feedback-' + stationId + '" class="feedback-panel">' +
