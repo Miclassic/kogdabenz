@@ -1142,7 +1142,22 @@ function ensureMap() {
     mapObj = new ymapsLib.Map('mapBox', { center: [44.72, 37.77], zoom: 12, controls: ['zoomControl'] });
     setTimeout(() => { if (mapObj) mapObj.container.fitToViewport(); }, 300);
     renderMap();
+    warmMapCache();
   }).catch(e => { box.innerHTML = '<div class="status">Карта недоступна<br><small>' + escapeHtml(e.message) + ' — проверь YANDEX_MAPS_KEY</small></div>'; });
+}
+function warmMapCache() {
+  if (!mapObj) return;
+  // тихо прогоняем соседние масштабы, пока панель не открыта:
+  // браузер кэширует тайлы, и живой зум потом мгновенный
+  const seq = [11, 13, 12];
+  let i = 0;
+  const step = () => {
+    if (!mapObj || i >= seq.length) return;
+    try { mapObj.setZoom(seq[i], { duration: 0 }); } catch (e) {}
+    i++;
+    setTimeout(step, 400);
+  };
+  setTimeout(step, 1200);
 }
 function fuelChip(label, status) {
   if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
@@ -1234,6 +1249,8 @@ async function start() {
     allPredictions = predictions; allEvents = events; allFeedback = feedback; allHourly = hourly;
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     renderStations(stations.filter(s => localIds.includes(s.id)));
+    // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
+    ensureMap();
   } catch (e) { app.innerHTML = '<div class="status">Не удалось загрузить данные<br><small>' + escapeHtml(e.message) + '</small></div>'; }
 }
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
