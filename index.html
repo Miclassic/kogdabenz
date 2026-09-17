@@ -963,7 +963,7 @@ function renderNow() {
   const cta = document.getElementById('ctaBest');
   if (!allStations.length) return;
   const last = getLastObservations();
-  let bestFresh95 = null, bestFreshAny = null, bestWindow = null, bestSoonWindow = null, q = 0, tot = 0, avail = 0, known = 0;
+  let best = null, bestScore = 0, bestReason = '', q = 0, tot = 0, avail = 0, known = 0;
   const nowM = new Date().getHours() * 60 + new Date().getMinutes();
   for (const s of allStations) {
     if (!localIdsGlobal.includes(s.id)) continue;
@@ -976,24 +976,30 @@ function renderNow() {
     // «Куда ехать» советуем только станции со свежими данными (≤6 часов):
     // иначе кнопка ведёт на АЗС, которую источник не видит неделями
     const fresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    // шкала ценности для водителя: дефицитные топлива выше, дизель почти везде — в конце
     if (fresh) {
-      if (o.fuel_95_status === true && !bestFresh95) bestFresh95 = s;
-      if (!bestFreshAny && (o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true)) bestFreshAny = s;
+      if (o.fuel_95_status === true && 90 > bestScore) { bestScore = 90; best = s; bestReason = 'fuel'; }
+      if (o.fuel_92_status === true && 80 > bestScore) { bestScore = 80; best = s; bestReason = 'fuel'; }
+      if (o.diesel_status === true && 30 > bestScore) { bestScore = 30; best = s; bestReason = 'diesel'; }
     }
     const p = pickPrediction(s.id, o);
     if (p && fresh) {
       const fp = p.from_time.split(':'), tp = p.to_time.split(':');
       const f = Number(fp[0]) * 60 + Number(fp[1]), t = Number(tp[0]) * 60 + Number(tp[1]);
-      if (!bestWindow && nowM >= f && nowM <= t) bestWindow = s;
-      if (!bestSoonWindow && f - nowM > 0 && f - nowM <= 180) bestSoonWindow = s;
+      let wv = 0;
+      if (nowM >= f && nowM <= t) wv = 70;
+      else if (f - nowM > 0 && f - nowM <= 180) wv = 50;
+      if (wv) {
+        const w = wv + (p.fuel_type === '95' ? 0 : p.fuel_type === '92' ? -10 : -50);
+        if (w > bestScore) { bestScore = w; best = s; bestReason = 'win'; }
+      }
     }
   }
   if (cta) {
-    const target = bestFresh95 || bestFreshAny || bestWindow || bestSoonWindow;
-    if (target) {
-      const hasFuel = target === bestFresh95 || target === bestFreshAny;
-      cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(target.name || 'АЗС') + (hasFuel ? ' · топливо есть' : '');
-      cta.onclick = () => openSheet(target.id);
+    if (best) {
+      cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
+        (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
+      cta.onclick = () => openSheet(best.id);
     }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(1); }
   }
