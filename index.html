@@ -1126,42 +1126,14 @@ function demandOf(id) {
   return Math.round(sc);
 }
 function demandRgb(sc) { return sc >= 50 ? '239,83,80' : sc >= 30 ? '245,160,90' : sc >= 12 ? '245,213,101' : '47,211,154'; }
-let PinLayout = null, ClusterLayout = null;
+let PinLayout = null;
 function initMapLayouts() {
   if (PinLayout) return;
-  PinLayout = ymapsLib.templateLayoutFactory.createClass({
-    build: function () {
-      PinLayout.superclass.build.call(this);
-      const pr = this.getData().properties;
-      const el = document.createElement('div');
-      el.className = 'mpin ' + (pr.get('st') || 'unknown');
-      el.innerHTML = '<svg class="ic"><use href="#i-pump"/></svg>' + (pr.get('q') ? '<i class="qdot"></i>' : '');
-      this.getElement().appendChild(el);
-    },
-    clear: function () {
-      this.getElement().innerHTML = '';
-      PinLayout.superclass.clear.call(this);
-    }
-  });
-  ClusterLayout = ymapsLib.templateLayoutFactory.createClass({
-    build: function () {
-      ClusterLayout.superclass.build.call(this);
-      const gos = this.getData().properties.get('geoObjects') || [];
-      let g = 0, r = 0;
-      for (const o of gos) { const st = o.properties.get('st'); if (st === 'yes') g++; else if (st === 'no') r++; }
-      const n = gos.length || 1;
-      const pg = Math.round(100 * g / n), pr2 = pg + Math.round(100 * r / n);
-      const el = document.createElement('div');
-      el.className = 'mcluster';
-      el.style.background = 'conic-gradient(#1bb978 0 ' + pg + '%, #ef5350 ' + pg + '% ' + pr2 + '%, #a7b1c1 ' + pr2 + '% 100%)';
-      el.innerHTML = '<span>' + gos.length + '</span>';
-      this.getElement().appendChild(el);
-    },
-    clear: function () {
-      this.getElement().innerHTML = '';
-      ClusterLayout.superclass.clear.call(this);
-    }
-  });
+  // строковый шаблон — гарантированный способ кастомного layout в Яндекс 2.1:
+  // объект с build/clear на мобильной сборке может молча не отрисоваться
+  PinLayout = ymapsLib.templateLayoutFactory.createClass(
+    '<div class="{{ properties.cls }}"><svg class="ic"><use href="#i-pump"/></svg><i class="qdot" style="display:{{ properties.qdisp }}"></i></div>'
+  );
 }
 function ensureMap() {
   const box = document.getElementById('mapBox');
@@ -1195,9 +1167,8 @@ function renderMap() {
   let clusterer = null;
   try {
     clusterer = new ymapsLib.Clusterer({
-      gridSize: 72, minClusterSize: 3,
-      clusterIconLayout: ClusterLayout,
-      clusterIconShape: { type: 'Circle', coordinates: [0, 0], radius: 23 }
+      gridSize: 64, minClusterSize: 3,
+      clusterIconColor: '#14213d'
     });
   } catch (e) { console.log('clusterer: ' + e.message); }
   const pins = [];
@@ -1213,7 +1184,8 @@ function renderMap() {
     chips.push('<span class="rc-chip ' + (sc >= 30 ? 'queue' : 'yes') + '">' + icon('i-chart', 'ic-s') + 'спрос ' + sc + '/100</span>');
     if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
     pins.push(new ymapsLib.Placemark([Number(st.lat), Number(st.lon)], {
-      st: stKey, q: o && o.queue_level === 'high' ? 1 : 0,
+      cls: 'mpin ' + stKey,
+      qdisp: o && o.queue_level === 'high' ? 'block' : 'none',
       balloonContent: '<div style="min-width:200px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>'
     }, PinLayout
       ? { iconLayout: PinLayout, iconShape: { type: 'Rectangle', coordinates: [[-17, -40], [17, 0]] } }
