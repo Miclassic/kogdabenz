@@ -257,6 +257,9 @@ body { overflow:hidden; }
 .mpin.no { background:#fdecec; border-color:#ef5350; color:#d64d51; }
 .mpin.unknown { background:#fff; border-color:#a7b1c1; color:#7c899e; }
 .mpin .qdot { position:absolute; top:-5px; right:-5px; width:12px; height:12px; border-radius:50%; background:#f5a05a; border:2px solid #fff; }
+.user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
+.user-dot::after { content:''; position:absolute; inset:-8px; border-radius:50%; background:rgba(57,124,255,.18); animation:userPulse 2s ease-out infinite; }
+@keyframes userPulse { 0% { transform:scale(.6); opacity:1; } 100% { transform:scale(1.8); opacity:0; } }
 </style>
 </head>
 <body>
@@ -1138,6 +1141,7 @@ let lastRenderZoom = null;
 let activePopup = null;
 let queueById = {};
 let clusterHits = [], pinHits = [];
+let userMarker = null;
 const OUR_LABELS = [
   { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true, minZoom: 0 },
   { name: 'Краснодар', lon: 38.98, lat: 45.03, minZoom: 0 },
@@ -1159,13 +1163,16 @@ function applyLabelZoom() {
 function ensureMap() {
   const box = document.getElementById('mapBox');
   if (!box || mapObj) return;
-  mapObj = new maplibregl.Map({
-    container: 'mapBox',
-    style: 'https://tiles.openfreemap.org/styles/positron',
-    center: [38.85, 44.80],
-    zoom: 9,
-    attributionControl: false
-  });
+const savedLoc = loadUserLocation();
+const startCenter = savedLoc ? [savedLoc.lon, savedLoc.lat] : [37.77, 44.72];
+const startZoom = savedLoc ? 12 : 10;
+mapObj = new maplibregl.Map({
+  container: 'mapBox',
+  style: 'https://tiles.openfreemap.org/styles/positron',
+  center: startCenter,
+  zoom: startZoom,
+  attributionControl: false
+});
   mapObj.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
   mapObj.on('load', () => {
     for (const layer of mapObj.getStyle().layers || []) {
@@ -1185,6 +1192,8 @@ function ensureMap() {
     mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.45, 'line-width': 1.5 } });
     zoneReady = true;
     renderMap();
+    const saved = loadUserLocation();
+    if (saved) showUserMarker(saved.lat, saved.lon);
   });
   mapObj.on('zoomend', () => applyLabelZoom());
   // Тап по кластеру/пину: гасим совместимые мышиные события маркеров
@@ -1446,6 +1455,14 @@ async function start() {
     if (t1) t1.textContent = 'Ошибка загрузки данных';
     if (s1) s1.textContent = 'Supabase не ответила: ' + escapeHtml(e.message);
   }
+  // автоопределение местоположения пользователя
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(position => {
+      const lat = position.coords.latitude, lon = position.coords.longitude;
+      saveUserLocation(lat, lon);
+      showUserMarker(lat, lon);
+    }, () => {}, { timeout: 5000, maximumAge: 300000 });
+  }
 }
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
 function isFavorite(id) { return getFavorites().includes(id); }
@@ -1462,17 +1479,56 @@ function searchStations() {
   if (!query) { renderStations(allStations.filter(s => localIdsGlobal.includes(s.id))); return; }
   renderStations(allStations.filter(st => [st.name || '', st.brand || '', st.address || ''].join(' ').toLowerCase().includes(query)));
 }
+function saveUserLocation(lat, lon) {
+  try {
+    localStorage.setItem('userLocation', JSON.stringify({ lat: lat, lon: lon, t: Date.now() }));
+  } catch (e) {}
+}
+
+function loadUserLocation() {
+  try {
+    const saved = localStorage.getItem('userLocation');
+    if (!saved) return null;
+    const data = JSON.parse(saved);
+    if (Date.now() - data.t > 7 * 24 * 3600 * 1000) return null;
+    return { lat: data.lat, lon: data.lon };
+  } catch (e) { return null; }
+}
+
+function showUserMarker(lat, lon) {
+  if (!mapObj) return;
+  if (!userMarker) {
+    const el = document.createElement('div');
+    el.className = 'user-dot';
+    userMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(mapObj);
+  } else {
+    userMarker.setLngLat([lon, lat]);
+  }
+}
+
+function flyToUserLocation(lat, lon, zoom) {
+  if (!mapObj) return;
+  showUserMarker(lat, lon);
+  mapObj.stop();
+  mapObj.easeTo({ center: [lon, lat], zoom: zoom || 12, duration: 900 });
+}
+
 function findNearby() {
   if (!navigator.geolocation) { alert('Ваш браузер не поддерживает определение местоположения.'); return; }
   navigator.geolocation.getCurrentPosition(position => {
     const lat = position.coords.latitude, lon = position.coords.longitude;
-    const sorted = allStations.map(station => {
-      const sLat = Number(station.lat), sLon = Number(station.lon);
-      if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) return { station, distance: Infinity };
-      const dLat = (sLat - lat) * 111, dLon = (sLon - lon) * 111 * Math.cos(lat * Math.PI / 180);
-      return { station, distance: Math.sqrt(dLat*dLat + dLon*dLon) };
-    }).sort((a,b) => a.distance - b.distance).map(x => x.station);
-    renderStations(sorted, true);
+    saveUserLocation(lat, lon);
+    if (mapObj) {
+      flyToUserLocation(lat, lon);
+    } else {
+      const sorted = allStations.map(station => {
+        const sLat = Number(station.lat), sLon = Number(station.lon);
+        if (!Number.isFinite(sLat) || !Number.isFinite(sLon)) return { station, distance: Infinity };
+        const dLat = (sLat - lat) * 111, dLon = (sLon - lon) * 111 * Math.cos(lat * Math.PI / 180);
+        return { station, distance: Math.sqrt(dLat*dLat + dLon*dLon) };
+      }).sort((a,b) => a.distance - b.distance).map(x => x.station);
+      renderStations(sorted, true);
+    }
   }, () => alert('Не удалось определить местоположение.'));
 }
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchStations(); });
