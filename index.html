@@ -1135,6 +1135,9 @@ let zoneReady = false;
 let objMarkers = [];
 let lastClusterCenterByStation = {};
 let lastRenderZoom = null;
+let activePopup = null;
+let queueById = {};
+let clusterHits = [], pinHits = [];
 const OUR_LABELS = [
   { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true, minZoom: 0 },
   { name: 'Краснодар', lon: 38.98, lat: 45.03, minZoom: 0 },
@@ -1165,12 +1168,10 @@ function ensureMap() {
   });
   mapObj.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
   mapObj.on('load', () => {
-    // чистая бумага: прячем все чужие надписи и здания
     for (const layer of mapObj.getStyle().layers || []) {
       if (layer.type === 'symbol') mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
       else if (layer.id.indexOf('building') >= 0) mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
     }
-    // наши надписи нашей типографикой
     for (const l of OUR_LABELS) {
       const el = document.createElement('div');
       el.className = 'mlabel' + (l.city ? ' city' : '');
@@ -1186,6 +1187,41 @@ function ensureMap() {
     renderMap();
   });
   mapObj.on('zoomend', () => applyLabelZoom());
+  // Тап по кластеру/пину: гасим совместимые мышиные события маркеров
+  // (они сбрасывают полёт камеры) и летаем ПОСЛЕ завершения тача
+  const cont = mapObj.getContainer();
+  let tX = 0, tY = 0, tT = 0;
+  document.addEventListener('pointerdown', e => {
+    tX = e.clientX; tY = e.clientY; tT = Date.now();
+    const t = e.target;
+    if (t && t.closest && (t.closest('.mcluster') || t.closest('.mpin-wrap'))) {
+      e.preventDefault();
+    }
+  }, { capture: true });
+  document.addEventListener('pointerup', e => {
+    const dx = Math.abs(e.clientX - tX), dy = Math.abs(e.clientY - tY), dt = Date.now() - tT;
+    if (dx > 20 || dy > 20 || dt > 800) return;
+    const rect = cont.getBoundingClientRect();
+    const px = e.clientX - rect.left, py = e.clientY - rect.top;
+    if (px < 0 || py < 0 || px > rect.width || py > rect.height) return;
+    for (const h of pinHits) {
+      const p = mapObj.project([h.lon, h.lat]);
+      if (Math.hypot(p.x - px, p.y - 20 - py) <= 30) return; // пин откроет карточку сам
+    }
+    let best = null, bestD = 1e9;
+    for (const h of clusterHits) {
+      const p = mapObj.project([h.lon, h.lat]);
+      const d = Math.max(Math.abs(p.x - px), Math.abs(p.y - py));
+      if (d < bestD) { bestD = d; best = h; }
+    }
+    if (best && bestD <= 26) {
+      setTimeout(() => {
+        if (!mapObj) return;
+        mapObj.stop();
+        mapObj.easeTo({ center: [best.lon, best.lat], zoom: Math.min(17, mapObj.getZoom() + 2), duration: 900 });
+      }, 120);
+    }
+  }, { capture: true });
   let moveTick = false;
   mapObj.on('moveend', () => {
     if (moveTick) return;
@@ -1198,7 +1234,7 @@ function toggleMapAttrib() {
   if (pop) pop.classList.toggle('open');
 }
 function demandOf(id) {
-  const q = (allQueue || []).find(x => x.station_id === id);
+  const q = queueById[id];
   const last = getLastObservations()[id];
   let sc = 0;
   if (last && last.queue_level === 'high') sc += 50;
@@ -1235,14 +1271,21 @@ function renderMap() {
   const zoomChanged = lastRenderZoom === null || Math.round(zoom) !== Math.round(lastRenderZoom);
   const fromCenters = lastClusterCenterByStation;
   const newCenters = {};
+  clusterHits.length = 0;
+  pinHits.length = 0;
   const feats = [];
   const items = [];
+  const vb = mapObj.getBounds();
+  const pad = 0.05;
+  const inView = st => Number(st.lat) >= vb.getSouth() - pad && Number(st.lat) <= vb.getNorth() + pad && Number(st.lon) >= vb.getWest() - pad && Number(st.lon) <= vb.getEast() + pad;
   for (const st of allStations) {
     const id = st.id;
-    if (!Number.isFinite(Number(st.lat))) continue;
+    if (!Number.isFinite(Number(st.lat)) || !inView(st)) continue;
     items.push({ st: st, o: last[id] });
     const sc = demandOf(id);
-    if (sc >= 12) feats.push(circleFeature(Number(st.lat), Number(st.lon), 300 + sc * 16, 'rgb(' + demandRgb(sc) + ')'));
+    // зона спроса видна только там, где различимо место станции (z >= 12):
+    // с далека красное пятно на пол-экрана не читается и только шумит
+    if (sc >= 12 && zoom >= 12) feats.push(circleFeature(Number(st.lat), Number(st.lon), 100 + sc * 6, 'rgb(' + demandRgb(sc) + ')'));
   }
   mapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
   if (zoom < 13) {
@@ -1273,6 +1316,7 @@ function renderMap() {
       const pg = Math.round(100 * g / n), pr = pg + Math.round(100 * r / n);
       const clon = group.reduce((s, it) => s + Number(it.st.lon), 0) / n;
       const clat = group.reduce((s, it) => s + Number(it.st.lat), 0) / n;
+      clusterHits.push({ lon: clon, lat: clat });
       const wrapC = document.createElement('div');
       const el = document.createElement('div');
       el.className = 'mcluster';
@@ -1280,10 +1324,6 @@ function renderMap() {
       if (zoomChanged) el.style.animation = 'mPopBox .3s ease';
       wrapC.appendChild(el);
       const mkC = new maplibregl.Marker({ element: wrapC, anchor: 'center' }).setLngLat([clon, clat]).addTo(mapObj);
-      mkC.on('click', e => {
-        if (e && e.originalEvent) e.originalEvent.stopPropagation();
-        mapObj.easeTo({ center: [clon, clat], zoom: Math.min(17, zoom + 2) });
-      });
       objMarkers.push(mkC);
       for (const m of group) newCenters[m.st.id] = [clon, clat];
     }
@@ -1296,6 +1336,7 @@ function renderMap() {
 }
 function addPin(it, fromCenter, zoomChanged) {
   const st = it.st, o = it.o;
+  pinHits.push({ lon: Number(st.lon), lat: Number(st.lat) });
   const stKey = pinKey(o);
   const sc = demandOf(st.id);
   const wrap = document.createElement('div');
@@ -1312,10 +1353,24 @@ function addPin(it, fromCenter, zoomChanged) {
   if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
   const popupHtml = '<div style="min-width:190px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>';
   const mk = new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(mapObj);
-  mk.on('click', e => {
-    if (e && e.originalEvent) e.originalEvent.stopPropagation();
-    new maplibregl.Popup({ offset: [0, -38], closeOnClick: false })
+  const openCard = () => {
+    if (activePopup) activePopup.remove();
+    activePopup = new maplibregl.Popup({ offset: [0, -38], closeOnClick: false, closeOnMove: false })
       .setLngLat([Number(st.lon), Number(st.lat)]).setHTML(popupHtml).addTo(mapObj);
+  };
+  // тап через pointer-события: мобильная карта съедает синтетический click
+  let downX = 0, downY = 0, downT = 0, tapped = false;
+  wrap.addEventListener('pointerdown', e => { e.stopPropagation(); downX = e.clientX; downY = e.clientY; downT = Date.now(); tapped = false; }, { passive: true });
+  wrap.addEventListener('pointerup', e => {
+    if (Math.abs(e.clientX - downX) <= 16 && Math.abs(e.clientY - downY) <= 16 && Date.now() - downT <= 700) {
+      tapped = true;
+      openCard();
+    }
+  }, { passive: true });
+  mk.on('click', e => {
+    if (tapped) { tapped = false; return; }
+    if (e && e.originalEvent) e.originalEvent.stopPropagation();
+    openCard();
   });
   objMarkers.push(mk);
   // плавный «разлёт»: пина стартует из центра своего кластера
@@ -1375,6 +1430,8 @@ async function start() {
       dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
+    queueById = {};
+    for (const x of allQueue) queueById[x.station_id] = x;
     allLastObs = {};
     for (const o of (lastRows || [])) allLastObs[o.station_id] = o;
     allPredictions = predictions; allEvents = events; allFeedback = feedback; allHourly = hourly;
@@ -1382,7 +1439,13 @@ async function start() {
     renderStations(stations.filter(s => localIds.includes(s.id)));
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
-  } catch (e) { app.innerHTML = '<div class="status">Не удалось загрузить данные<br><small>' + escapeHtml(e.message) + '</small></div>'; }
+  } catch (e) {
+    app.innerHTML = '<div class="status">Не удалось загрузить данные<br><small>' + escapeHtml(e.message) + '</small></div>';
+    const t1 = document.getElementById('nowTitle');
+    const s1 = document.getElementById('nowSub');
+    if (t1) t1.textContent = 'Ошибка загрузки данных';
+    if (s1) s1.textContent = 'Supabase не ответила: ' + escapeHtml(e.message);
+  }
 }
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
 function isFavorite(id) { return getFavorites().includes(id); }
