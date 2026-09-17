@@ -82,6 +82,41 @@ function eventNameRu(t) {
     queue_low: '🟢 сообщают: свободно'
   }[t] || ('❓ ' + t);
 }
+// Живая лента: у каждого события — смысл для водителя, а не голая констатация.
+// Варианты чередуются, чтобы лента не выглядела штампом.
+const STORY_VARIANTS = {
+  fuel_restored: [
+    '🟢 {n}: {f} вернулся. Первые часы обычно без очереди — окно открыто.',
+    '🟢 {n}: {f} снова в продаже. Кто ждал — тот дожался.'
+  ],
+  fuel_disappeared: [
+    '🔴 {n}: {f} кончился. Кто не успел — поехал к соседям, ждём там очередей.',
+    '🔴 {n}: {f} пропал. Станция выпала из предложения города.'
+  ],
+  queue_appeared: [
+    '🚗 {n}: появилась очередь. Люди запасаются топливом — станция живая.',
+    '🚗 {n}: очередь сформировалась. Либо там раздают последнее, либо это последняя АЗС района.'
+  ],
+  queue_gone: [
+    '🚗 {n}: очередь рассосалась. Либо привезли топливо, либо оно кончилось совсем — смотри карточку.',
+    '🚗 {n}: очереди больше нет. Если топливо вернулось — самое время ехать, если кончилось — очереди будут у соседей.'
+  ],
+  possible_delivery: [
+    '🚛 Похоже, бензовоз пришёл на {n}: водители сообщают о поставке.',
+    '🚛 На {n} замечена цистерна — скоро ждём возврат топлива.'
+  ],
+  fuel_unavailable: ['🔴 Народная отметка на {n}: топлива ({f}) нет.'],
+  fuel_available: ['⛽ Народная отметка на {n}: топливо ({f}) было.'],
+  queue_high: ['🚗 Народная отметка на {n}: большая очередь.'],
+  queue_low: ['🟢 Народная отметка на {n}: свободно.']
+};
+function eventStoryRu(e, name) {
+  const vars = STORY_VARIANTS[e.event_type];
+  if (!vars) return eventNameRu(e.event_type) + ' — ' + name;
+  const f = e.fuel_type ? fuelNameRu(e.fuel_type) : 'топливо';
+  const t = vars[Math.floor(Math.random() * vars.length)];
+  return t.split('{n}').join(name).split('{f}').join(f);
+}
 
 function fuelNameRu(f) {
   return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : '';
@@ -282,9 +317,7 @@ async function main() {
   if (events.length) await sbPost('events', events);
   console.log('   Событий обнаружено: ' + events.length);
   for (const e of events) tgLines.push(
-    eventNameRu(e.event_type) +
-    (e.fuel_type ? ' (' + fuelNameRu(e.fuel_type) + ')' : '') +
-    ' — ' + (nameById[e.station_id] || 'АЗС') + (wideById[e.station_id] ? ' (регион)' : '')
+    eventStoryRu(e, (nameById[e.station_id] || 'АЗС') + (wideById[e.station_id] ? ' (регион)' : ''))
   );
 
   // === ШАГ 6: превращаем народные отметки user_feedback в события ===
@@ -310,7 +343,7 @@ async function main() {
       source: 'user_feedback'
     }));
     await sbPost('events', fbEvents);
-    for (const e of fbEvents) tgLines.push(eventNameRu(e.event_type) + (e.fuel_type ? ' (' + fuelNameRu(e.fuel_type) + ')' : '') + ' — ' + (nameById[e.station_id] || 'АЗС') + ' (народная отметка)');
+    for (const e of fbEvents) tgLines.push(eventStoryRu(e, nameById[e.station_id] || 'АЗС'));
     const ids = unprocessed.map(f => f.id).join(',');
     await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
@@ -339,7 +372,25 @@ async function main() {
   }
 
   if (tgLines.length) {
-    await tg('⚡ КогдаБенз, события (' + tgLines.length + '):\n' + tgLines.slice(0, 10).join('\n'));
+    // Контекст города из свежих домашних отметок (факт, не прогноз)
+    let known = 0, avail = 0;
+    for (const row of obsRows) {
+      if (!homeIdSet.has(row.station_id)) continue;
+      if (row.fuel_95_status !== null && row.fuel_95_status !== undefined) { known++; if (row.fuel_95_status) avail++; }
+    }
+    const msk = new Date(Date.now() + 3 * 3600 * 1000);
+    const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
+    const hints = [
+      '💡 Окна и очереди — в карточках станций на сайте: проверь, прежде чем выезжать.',
+      '💡 Кнопка «Куда ехать» на сайте выбирает станции со свежими отметками.',
+      '💡 Твоя отметка на сайте делает следующий прогноз точнее.',
+      '💡 Хроника живая: город сканируется каждые 10 минут.'
+    ];
+    const hint = hints[Math.floor(Math.random() * hints.length)];
+    await tg('🌆 Хроника ' + hh + ' · событий: ' + tgLines.length +
+      (known ? '\n🏙 В городе АИ-95: ' + avail + ' из ' + known + ' АЗС со свежими отметками.' : '\n🏙 Свежих отметок топлива в городе сейчас нет.') +
+      '\n' + tgLines.slice(0, 8).join('\n') +
+      '\n' + hint);
   }
   console.log('✅ Цикл завершён');
 }
