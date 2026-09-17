@@ -2,6 +2,11 @@ name: probe
 
 on:
   workflow_dispatch:
+    inputs:
+      dump:
+        description: 'Дамп ключей одной станции (--dump)'
+        type: boolean
+        default: false
 
 jobs:
   probe:
@@ -11,5 +16,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Run probe
+      - name: Run probe (dump keys)
+        if: ${{ github.event.inputs.dump == 'true' }}
+        run: node probe.js --dump
+      - name: Run probe (coverage)
+        if: ${{ github.event.inputs.dump != 'true' }}
         run: node probe.js
