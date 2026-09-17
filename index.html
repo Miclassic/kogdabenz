@@ -594,6 +594,10 @@ function sparkline(stationId) {
   const last = vals[vals.length - 1];
   return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '"><path d="' + d + '" fill="none" stroke="' + (last >= .5 ? '#19b77a' : last > 0 ? '#f5b82e' : '#ef5350') + '" stroke-width="1.6" stroke-linecap="round"/></svg>';
 }
+function srcLabel(pred) {
+  const src = pred.prediction_source || 'own';
+  return src === 'own' ? 'ритм станции' : src === 'brand' ? 'ритм бренда' : 'ритм города';
+}
 function rowBadge(pred, obs) {
   if (!pred) return { cls:'none', text:'нет окна', sub:'копим данные' };
   const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
@@ -621,7 +625,7 @@ function stationRow(station, obs, pred) {
     '<span class="srow-addr">' + escapeHtml(station.address || '') + '</span>' +
     '<span class="srow-cols">' +
     '<span class="scol"><span class="scol-l">факт</span><span class="scol-v ' + stCls + '">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span></span>' +
-    '<span class="scol"><span class="scol-l">прогноз</span><span class="scol-v">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + (conf !== null ? '<span class="scol-s">' + conf + '% вероятность</span>' : '') + '</span>' +
+    '<span class="scol"><span class="scol-l">прогноз</span><span class="scol-v">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + (conf !== null ? '<span class="scol-s">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') + '</span>' +
     '<span class="scol scol-r">' + sparkline(station.id) + '<span class="scol-s">' + accuracyShort(station.id) + '</span></span>' +
     '</span></span></button></div>';
 }
