@@ -174,6 +174,8 @@ async function main() {
 
   console.log('2) Сохраняю станции...');
   const homeExt = new Set(list.map(s => String(s.osm_id)));
+  // паспорт топлив станции из meta.f (через запятую); null, если источник молчит
+  const fuelsMetaOf = s => (s.meta && Array.isArray(s.meta.f) && s.meta.f.length) ? s.meta.f.join(',') : null;
   const stationPayload = list.map(s => ({
     external_id: String(s.osm_id),
     name: s.name || 'АЗС',
@@ -182,7 +184,8 @@ async function main() {
     lat: s.lat,
     lon: s.lon,
     source: 'gdebenz',
-    region: null
+    region: null,
+    fuels_meta: fuelsMetaOf(s)
   })).concat(donorLists.flatMap(d => d.list
     .filter(s => !homeExt.has(String(s.osm_id)))
     .map(s => ({
@@ -193,7 +196,8 @@ async function main() {
       lat: s.lat,
       lon: s.lon,
       source: 'gdebenz',
-      region: d.region
+      region: d.region,
+      fuels_meta: fuelsMetaOf(s)
     }))));
   const saved = await sbPost(
     'stations?on_conflict=external_id,source',
@@ -249,6 +253,7 @@ async function main() {
       price_95: p['95'] ? p['95'].p : null,
       price_diesel: p['ДТ'] ? p['ДТ'].p : null,
       queue_level: s.conflict === 'queue' ? 'high' : null,
+      source_status: s.status === undefined ? null : s.status,
       data_freshness_minutes: freshnessMinutes(p)
     };
   };
