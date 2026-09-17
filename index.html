@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>КогдаБенз — когда лучше заправиться?</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
 :root { --text:#14213d; --muted:#71809c; --blue:#397cff; --green:#19b77a; --red:#ef5350; --border:#e6ebf4; --shadow:0 12px 35px rgba(38,69,120,.09); }
 * { box-sizing:border-box; }
@@ -232,13 +234,28 @@ body { overflow:hidden; }
 .gp { display:inline-flex; align-items:center; gap:5px; padding:6px 9px; border-radius:12px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
 .gp .dot { width:7px; height:7px; }
 .gp .ic { width:11px; height:11px; }
-.mcluster { width:46px; height:46px; margin:-23px 0 0 -23px; border-radius:50%; border:3px solid #fff; box-shadow:0 6px 16px rgba(15,27,51,.28); display:grid; place-items:center; }
-.mcluster span { width:28px; height:28px; border-radius:50%; background:#14213d; color:#fff; font-size:12px; font-weight:900; display:grid; place-items:center; }
-.mpin { position:relative; width:34px; height:34px; margin:-40px 0 0 -17px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:#fff; border:3px solid #a7b1c1; box-shadow:0 6px 14px rgba(15,27,51,.28); display:grid; place-items:center; }
+.mcluster { width:46px; height:46px; border-radius:15px; background:#fff; border:1px solid #e3ecf5; box-shadow:0 8px 20px rgba(15,27,51,.16); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
+.mcluster span { font-size:14px; font-weight:900; color:#14213d; line-height:1; }
+.mcluster i { width:26px; height:4px; border-radius:99px; display:block; }
+.mpin-wrap { width:34px; height:42px; }
+/* Маркеры позиционирует MapLibre: наши стили не должны перебивать
+   position/transition, иначе пины «плавают» во время жестов */
+.maplibregl-marker { position:absolute !important; top:0 !important; left:0 !important; transition:none !important; animation:none !important; will-change:transform; }
+@keyframes mPopBox { from { transform: scale(.7); opacity: .25; } to { transform: scale(1); opacity: 1; } }
+@keyframes mPopPin { from { transform: rotate(-45deg) scale(.6); opacity: .25; } to { transform: rotate(-45deg) scale(1); opacity: 1; } }
+.mpin { position:absolute; top:0; left:0; width:34px; height:34px; border-radius:50% 50% 50% 0; transform:rotate(-45deg); background:#fff; border:3px solid #a7b1c1; box-shadow:0 6px 14px rgba(15,27,51,.28); display:grid; place-items:center; }
+.mlabel { pointer-events:none; color:#93a7c4; font-weight:800; letter-spacing:1.6px; text-transform:uppercase; font-size:9px; white-space:nowrap; text-shadow:0 1px 0 rgba(255,255,255,.85), 0 0 6px rgba(255,255,255,.6); }
+.mlabel.city { font-size:13px; color:#6b82a3; letter-spacing:2.4px; font-weight:900; }
+.maplibregl-popup-content { border-radius:14px; padding:10px 12px; box-shadow:0 10px 30px rgba(15,27,51,.18); font-family:inherit; }
+.maplibregl-popup-closebutton { font-size:18px; color:#7487a7; }
+.map-attrib-btn { position:absolute; right:8px; bottom:8px; z-index:500; width:26px; height:26px; border-radius:9px; border:1px solid rgba(226,232,244,.9); background:rgba(255,255,255,.85); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); color:#2465ee; display:grid; place-items:center; cursor:pointer; box-shadow:0 4px 12px rgba(15,27,51,.15); }
+.map-attrib-pop { position:absolute; right:8px; bottom:40px; z-index:500; max-width:230px; padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.96); border:1px solid #e3ecf5; color:#5b6b86; font-size:9px; line-height:1.5; display:none; box-shadow:0 8px 20px rgba(15,27,51,.18); }
+.map-attrib-pop.open { display:block; }
+.map-attrib-pop a { color:#2465ee; }
 .mpin .ic { transform:rotate(45deg); width:15px; height:15px; }
-.mpin.yes { border-color:#1bb978; color:#12855c; }
-.mpin.no { border-color:#ef5350; color:#d64d51; }
-.mpin.unknown { border-color:#a7b1c1; color:#7c899e; }
+.mpin.yes { background:#e5f8ef; border-color:#1bb978; color:#12855c; }
+.mpin.no { background:#fdecec; border-color:#ef5350; color:#d64d51; }
+.mpin.unknown { background:#fff; border-color:#a7b1c1; color:#7c899e; }
 .mpin .qdot { position:absolute; top:-5px; right:-5px; width:12px; height:12px; border-radius:50%; background:#f5a05a; border:2px solid #fff; }
 </style>
 </head>
@@ -338,6 +355,8 @@ body { overflow:hidden; }
       <div class="map-wrap">
         <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
         <div class="map-plate" id="mapPlate"></div>
+        <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
+        <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
       </div>
       <div class="hm-legend" style="margin-top:8px">
         <span><i style="background:#2fd39a"></i>спокойно</span>
@@ -345,7 +364,7 @@ body { overflow:hidden; }
         <span><i style="background:#f5a05a"></i>очередно</span>
         <span><i style="background:#ef5350"></i>очередь сейчас / часто</span>
       </div>
-      <div class="recent" style="margin-top:8px">Далеко: кластеры, кольцо — состав по АИ-95, цифра — число АЗС, тап — приблизить. Близко: капля — АИ-95 (зелёная/красная/серая), оранжевая точка — очередь сейчас. Тап по пину — чипы фактов и окна.</div>
+      <div class="recent" style="margin-top:8px">Далеко: кластеры, кольцо — состав по АИ-95, цифра — число АЗС, тап — приблизить. Близко: капля — АИ-95 (зелёная/красная/серая), оранжевая точка — очередь сейчас. Тап по пину — чипы фактов и окна. Искра в углу карты — данные картоосновы.</div>
     </section>
     <section class="panel">
       <div class="search">
@@ -1103,18 +1122,62 @@ function renderStations(stations, keepOrder) {
   if (lc) lc.textContent = shown.length === stations.length ? stations.length + ' станций' : shown.length + ' из ' + stations.length;
   renderNow();
 }
-/* карта спроса: Яндекс.Карты 2.1, ленивая загрузка при первом открытии панели */
-const YANDEX_MAPS_KEY = 'a399b10b-a54f-46e4-9d1f-d0b578689b05';
-let ymapsLib = null, mapObj = null, allQueue = [];
-function loadYmaps() {
-  if (ymapsLib) return Promise.resolve(ymapsLib);
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://api-maps.yandex.ru/2.1/?apikey=' + YANDEX_MAPS_KEY + '&lang=ru_RU';
-    s.onload = () => ymaps.ready(() => { ymapsLib = ymaps; initMapLayouts(); res(ymaps); });
-    s.onerror = () => rej(new Error('скрипт Яндекс.Карт не загрузился'));
-    document.head.appendChild(s);
+/* карта спроса: MapLibre + OpenFreeMap (вектор), полная перерисовка:
+   чужие надписи и здания скрыты рантаймом — чистая бумага;
+   надписи и слои спроса — только наши. Станет медленно из РФ — скажи,
+   поменяем URL стиля одной строкой. */
+let mapObj = null, allQueue = [];
+let zoneReady = false;
+let objMarkers = [];
+let lastClusterCenterByStation = {};
+let lastRenderZoom = null;
+const OUR_LABELS = [
+  { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true },
+  { name: 'Центральный', lon: 37.77, lat: 44.735 },
+  { name: 'Южный', lon: 37.79, lat: 44.665 },
+  { name: 'Восточный', lon: 37.86, lat: 44.745 },
+  { name: 'Мысхако', lon: 37.72, lat: 44.635 }
+];
+function ensureMap() {
+  const box = document.getElementById('mapBox');
+  if (!box || mapObj) return;
+  mapObj = new maplibregl.Map({
+    container: 'mapBox',
+    style: 'https://tiles.openfreemap.org/styles/positron',
+    center: [37.77, 44.72],
+    zoom: 11.5,
+    attributionControl: false
   });
+  mapObj.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
+  mapObj.on('load', () => {
+    // чистая бумага: прячем все чужие надписи и здания
+    for (const layer of mapObj.getStyle().layers || []) {
+      if (layer.type === 'symbol') mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
+      else if (layer.id.indexOf('building') >= 0) mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
+    }
+    // наши надписи нашей типографикой
+    for (const l of OUR_LABELS) {
+      const el = document.createElement('div');
+      el.className = 'mlabel' + (l.city ? ' city' : '');
+      el.textContent = l.name;
+      new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([l.lon, l.lat]).addTo(mapObj);
+    }
+    mapObj.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.14 } });
+    mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.45, 'line-width': 1.5 } });
+    zoneReady = true;
+    renderMap();
+  });
+  let moveTick = false;
+  mapObj.on('moveend', () => {
+    if (moveTick) return;
+    moveTick = true;
+    setTimeout(() => { moveTick = false; renderMap(); }, 180);
+  });
+}
+function toggleMapAttrib() {
+  const pop = document.getElementById('mapAttribPop');
+  if (pop) pop.classList.toggle('open');
 }
 function demandOf(id) {
   const q = (allQueue || []).find(x => x.station_id === id);
@@ -1126,89 +1189,125 @@ function demandOf(id) {
   return Math.round(sc);
 }
 function demandRgb(sc) { return sc >= 50 ? '239,83,80' : sc >= 30 ? '245,160,90' : sc >= 12 ? '245,213,101' : '47,211,154'; }
-let PinLayout = null;
-function initMapLayouts() {
-  if (PinLayout) return;
-  // строковый шаблон — гарантированный способ кастомного layout в Яндекс 2.1:
-  // объект с build/clear на мобильной сборке может молча не отрисоваться
-  PinLayout = ymapsLib.templateLayoutFactory.createClass(
-    '<div class="{{ properties.cls }}"><svg class="ic"><use href="#i-pump"/></svg><i class="qdot" style="display:{{ properties.qdisp }}"></i></div>'
-  );
-}
-function ensureMap() {
-  const box = document.getElementById('mapBox');
-  if (!box || mapObj) return;
-  loadYmaps().then(() => {
-    mapObj = new ymapsLib.Map('mapBox', { center: [44.72, 37.77], zoom: 12, controls: ['zoomControl'] });
-    setTimeout(() => { if (mapObj) mapObj.container.fitToViewport(); }, 300);
-    renderMap();
-    warmMapCache();
-  }).catch(e => { box.innerHTML = '<div class="status">Карта недоступна<br><small>' + escapeHtml(e.message) + ' — проверь YANDEX_MAPS_KEY</small></div>'; });
-}
-function warmMapCache() {
-  if (!mapObj) return;
-  // тихо прогоняем соседние масштабы, пока панель не открыта:
-  // браузер кэширует тайлы, и живой зум потом мгновенный
-  const seq = [11, 13, 12];
-  let i = 0;
-  const step = () => {
-    if (!mapObj || i >= seq.length) return;
-    try { mapObj.setZoom(seq[i], { duration: 0 }); } catch (e) {}
-    i++;
-    setTimeout(step, 400);
-  };
-  setTimeout(step, 1200);
+function pinKey(o) {
+  return !o || o.fuel_95_status === null || o.fuel_95_status === undefined ? 'unknown' : o.fuel_95_status ? 'yes' : 'no';
 }
 function fuelChip(label, status) {
   if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
   if (status === false) return '<span class="rc-chip no">' + icon('i-cross', 'ic-s') + label + ' нет</span>';
   return '<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-minus', 'ic-s') + label + ' нет данных</span>';
 }
+function circleFeature(lat, lon, rMeters, color) {
+  const pts = [];
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * 2 * Math.PI;
+    const dLat = (rMeters * Math.sin(a)) / 111320;
+    const dLon = (rMeters * Math.cos(a)) / (111320 * Math.cos(lat * Math.PI / 180));
+    pts.push([lon + dLon, lat + dLat]);
+  }
+  pts.push(pts[0]);
+  return { type: 'Feature', properties: { color: color }, geometry: { type: 'Polygon', coordinates: [pts] } };
+}
 function renderMap() {
-  if (!mapObj) return;
-  mapObj.geoObjects.removeAll();
+  if (!mapObj || !zoneReady) return;
+  for (const m of objMarkers) m.remove();
+  objMarkers = [];
   const last = getLastObservations();
+  const zoom = mapObj.getZoom();
+  const zoomChanged = lastRenderZoom === null || Math.round(zoom) !== Math.round(lastRenderZoom);
+  const fromCenters = lastClusterCenterByStation;
+  const newCenters = {};
+  const feats = [];
+  const items = [];
   for (const id of localIdsGlobal) {
     const st = allStations.find(s => s.id === id);
     if (!st || !Number.isFinite(Number(st.lat))) continue;
+    items.push({ st: st, o: last[id] });
     const sc = demandOf(id);
-    if (sc < 12) continue;
-    const rgb = demandRgb(sc);
-    mapObj.geoObjects.add(new ymapsLib.Circle([[Number(st.lat), Number(st.lon)], 300 + sc * 16], {}, {
-      fillColor: 'rgba(' + rgb + ',0.14)', strokeColor: 'rgba(' + rgb + ',0.45)', strokeWidth: 1.5
-    }));
+    if (sc >= 12) feats.push(circleFeature(Number(st.lat), Number(st.lon), 300 + sc * 16, 'rgb(' + demandRgb(sc) + ')'));
   }
-  if (!PinLayout) initMapLayouts();
-  let clusterer = null;
-  try {
-    clusterer = new ymapsLib.Clusterer({
-      gridSize: 64, minClusterSize: 3,
-      clusterIconColor: '#14213d'
-    });
-  } catch (e) { console.log('clusterer: ' + e.message); }
-  const pins = [];
-  for (const id of localIdsGlobal) {
-    const st = allStations.find(s => s.id === id);
-    if (!st || !Number.isFinite(Number(st.lat))) continue;
-    const o = last[id];
-    const sc = demandOf(id);
-    const stKey = !o || o.fuel_95_status === null || o.fuel_95_status === undefined ? 'unknown' : o.fuel_95_status ? 'yes' : 'no';
-    const p = pickPrediction(id, o);
-    const chips = [fuelChip('АИ-92', o && o.fuel_92_status), fuelChip('АИ-95', o && o.fuel_95_status), fuelChip('дизель', o && o.diesel_status)];
-    if (o && o.queue_level === 'high') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь сейчас</span>');
-    chips.push('<span class="rc-chip ' + (sc >= 30 ? 'queue' : 'yes') + '">' + icon('i-chart', 'ic-s') + 'спрос ' + sc + '/100</span>');
-    if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
-    pins.push(new ymapsLib.Placemark([Number(st.lat), Number(st.lon)], {
-      cls: 'mpin ' + stKey,
-      qdisp: o && o.queue_level === 'high' ? 'block' : 'none',
-      balloonContent: '<div style="min-width:200px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>'
-    }, PinLayout
-      ? { iconLayout: PinLayout, iconShape: { type: 'Rectangle', coordinates: [[-17, -40], [17, 0]] } }
-      : { preset: 'islands#circleDotIcon', iconColor: stKey === 'yes' ? '#1bb978' : stKey === 'no' ? '#ef5350' : '#a7b1c1' }));
+  mapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
+  if (zoom < 13) {
+    // свои кластеры: сетка ~70px текущего зума
+    // сетка на мировых координатах (не экранных): кластеры не
+    // перегруппировываются от панов, только от смены зума
+    const zc = Math.round(zoom);
+    const size = 256 * Math.pow(2, zc);
+    const worldPx = (lon, lat) => {
+      const latRad = lat * Math.PI / 180;
+      return {
+        x: (lon + 180) / 360 * size,
+        y: (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * size
+      };
+    };
+    const cells = {};
+    for (const it of items) {
+      const p = worldPx(Number(it.st.lon), Number(it.st.lat));
+      const key = Math.floor(p.x / 70) + ':' + Math.floor(p.y / 70);
+      (cells[key] = cells[key] || []).push(it);
+    }
+    for (const key of Object.keys(cells)) {
+      const group = cells[key];
+      if (group.length === 1) { newCenters[group[0].st.id] = [Number(group[0].st.lon), Number(group[0].st.lat)]; addPin(group[0], null, zoomChanged); continue; }
+      let g = 0, r = 0;
+      for (const it of group) { const k = pinKey(it.o); if (k === 'yes') g++; else if (k === 'no') r++; }
+      const n = group.length;
+      const pg = Math.round(100 * g / n), pr = pg + Math.round(100 * r / n);
+      const clon = group.reduce((s, it) => s + Number(it.st.lon), 0) / n;
+      const clat = group.reduce((s, it) => s + Number(it.st.lat), 0) / n;
+      const wrapC = document.createElement('div');
+      const el = document.createElement('div');
+      el.className = 'mcluster';
+      el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,#1bb978 0 ' + pg + '%, #ef5350 ' + pg + '% ' + pr + '%, #a7b1c1 ' + pr + '% 100%)"></i>';
+      if (zoomChanged) el.style.animation = 'mPopBox .3s ease';
+      wrapC.appendChild(el);
+      el.addEventListener('click', () => mapObj.easeTo({ center: [clon, clat], zoom: Math.min(17, zoom + 2) }));
+      objMarkers.push(new maplibregl.Marker({ element: wrapC, anchor: 'center' }).setLngLat([clon, clat]).addTo(mapObj));
+      for (const m of group) newCenters[m.st.id] = [clon, clat];
+    }
+  } else {
+    for (const it of items) addPin(it, fromCenters[it.st.id] || null, zoomChanged);
   }
-  if (clusterer) { clusterer.add(pins); mapObj.geoObjects.add(clusterer); }
-  else for (const pm of pins) mapObj.geoObjects.add(pm);
+  lastClusterCenterByStation = newCenters;
+  lastRenderZoom = zoom;
   updateMapPlate();
+}
+function addPin(it, fromCenter, zoomChanged) {
+  const st = it.st, o = it.o;
+  const stKey = pinKey(o);
+  const sc = demandOf(st.id);
+  const wrap = document.createElement('div');
+  wrap.className = 'mpin-wrap';
+  wrap.innerHTML = '<div class="mpin ' + stKey + '"><svg class="ic"><use href="#i-pump"/></svg>' + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
+  const p = pickPrediction(st.id, o);
+  const chips = [fuelChip('АИ-92', o && o.fuel_92_status), fuelChip('АИ-95', o && o.fuel_95_status), fuelChip('дизель', o && o.diesel_status)];
+  if (o && o.queue_level === 'high') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь сейчас</span>');
+  chips.push('<span class="rc-chip ' + (sc >= 30 ? 'queue' : 'yes') + '">' + icon('i-chart', 'ic-s') + 'спрос ' + sc + '/100</span>');
+  if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
+  const popupHtml = '<div style="min-width:190px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>';
+  wrap.addEventListener('click', () => {
+    new maplibregl.Popup({ offset: [0, -38] }).setLngLat([Number(st.lon), Number(st.lat)]).setHTML(popupHtml).addTo(mapObj);
+  });
+  objMarkers.push(new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(mapObj));
+  // плавный «разлёт»: пина стартует из центра своего кластера
+  // и за 0.5с доезжает до своей точки; трансформ маркера не трогаем
+  const inner = wrap.firstElementChild;
+  if (fromCenter) {
+    const p1 = mapObj.project(fromCenter);
+    const p2 = mapObj.project([Number(st.lon), Number(st.lat)]);
+    const dx = p1.x - p2.x, dy = p1.y - p2.y;
+    if (Math.hypot(dx, dy) > 6) {
+      inner.style.transition = 'none';
+      inner.style.transform = 'translate(' + dx + 'px,' + dy + 'px) rotate(-45deg) scale(.55)';
+      inner.style.opacity = '.35';
+      void inner.offsetWidth;
+      inner.style.transition = 'transform .5s cubic-bezier(.2,.8,.2,1), opacity .35s ease';
+      inner.style.transform = 'translate(0px,0px) rotate(-45deg) scale(1)';
+      inner.style.opacity = '1';
+      return;
+    }
+  }
+  if (zoomChanged) inner.style.animation = 'mPopPin .3s ease';
 }
 function updateMapPlate() {
   const el = document.getElementById('mapPlate');
