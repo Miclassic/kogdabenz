@@ -140,7 +140,7 @@ async function main() {
   const sixHoursAgo = Date.now() - 6 * 3600 * 1000;
   const restores6h = restoredEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
   const disappears6h = disappearedEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
-  let regime = 'NORMAL';
+  let regime = cityAvailShare === null ? 'UNKNOWN' : 'NORMAL';
   if (cityAvailShare !== null && cityAvailShare < 0.60) {
     regime = cityAvailShare < 0.30 ? 'CITY_SHORTAGE' : 'LOCAL_SHORTAGE';
     if (restores6h >= 2 && restores6h > disappears6h) regime = 'RECOVERY';
