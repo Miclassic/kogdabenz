@@ -93,6 +93,11 @@ body { overflow:hidden; }
 .hm-legend { display:flex; gap:4px 9px; flex-wrap:wrap; margin-top:6px; padding:5px 8px; border-radius:11px; background:#f2f5fa; }
 .hm-legend span { display:flex; align-items:center; gap:4px; color:#7c899e; font-size:8px; font-weight:700; }
 .hm-legend i { width:8px; height:8px; border-radius:50%; }
+.map-legend { flex-wrap:nowrap; gap:4px 6px; padding:5px 6px; overflow-x:auto; scrollbar-width:none; }
+.map-legend::-webkit-scrollbar { display:none; }
+.map-legend span { flex:0 0 auto; white-space:nowrap; }
+.legend-cap { display:flex; align-items:center; justify-content:center; gap:5px; margin:8px 2px 4px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
+.legend-cap .ic { width:12px; height:12px; }
 /* чипы */
 .chips3 { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
 .chip3 { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:13px; background:#fff; border:1px solid #edf1f8; min-width:0; }
@@ -247,7 +252,7 @@ body { overflow:hidden; }
 .mlabel { pointer-events:none; color:#93a7c4; font-weight:800; letter-spacing:1.6px; text-transform:uppercase; font-size:9px; white-space:nowrap; text-shadow:0 1px 0 rgba(255,255,255,.85), 0 0 6px rgba(255,255,255,.6); }
 .mlabel.city { font-size:13px; color:#6b82a3; letter-spacing:2.4px; font-weight:900; }
 .maplibregl-popup-content { border-radius:14px; padding:10px 12px; box-shadow:0 10px 30px rgba(15,27,51,.18); font-family:inherit; }
-.maplibregl-popup-closebutton { font-size:18px; color:#7487a7; }
+.maplibregl-popup-closebutton { width:32px; height:32px; display:grid; place-items:center; font-size:26px; color:#7487a7; border-radius:0 14px 0 10px; }
 .map-attrib-btn { position:absolute; right:8px; bottom:8px; z-index:500; width:26px; height:26px; border-radius:9px; border:1px solid rgba(226,232,244,.9); background:rgba(255,255,255,.85); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); color:#2465ee; display:grid; place-items:center; cursor:pointer; box-shadow:0 4px 12px rgba(15,27,51,.15); }
 .map-attrib-pop { position:absolute; right:8px; bottom:40px; z-index:500; max-width:230px; padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.96); border:1px solid #e3ecf5; color:#5b6b86; font-size:9px; line-height:1.5; display:none; box-shadow:0 8px 20px rgba(15,27,51,.18); }
 .map-attrib-pop.open { display:block; }
@@ -256,7 +261,45 @@ body { overflow:hidden; }
 .mpin.yes { background:#e5f8ef; border-color:#1bb978; color:#12855c; }
 .mpin.no { background:#fdecec; border-color:#ef5350; color:#d64d51; }
 .mpin.unknown { background:#fff; border-color:#a7b1c1; color:#7c899e; }
+.mpin.part { background:#fff2e8; border-color:#f5a05a; color:#c26a2a; }
+.mpin.diesel { background:#e7f0ff; border-color:#6ea8ff; color:#2465ee; }
 .mpin .qdot { position:absolute; top:-5px; right:-5px; width:12px; height:12px; border-radius:50%; background:#f5a05a; border:2px solid #fff; }
+.mzone-ico { width:26px; height:26px; pointer-events:none; }
+.mzone-badge { width:100%; height:100%; border-radius:50%; background:rgba(255,255,255,.85); border:1px solid rgba(226,232,244,.9); box-shadow:0 4px 12px rgba(15,27,51,.12); display:grid; place-items:center; will-change:transform; }
+.mzone-ico .ic { width:14px; height:14px; }
+.fchips { position:absolute; bottom:calc(100% + 30px); left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:none; transition:opacity .5s ease; }
+.fchips.out { opacity:0; }
+.mring { position:absolute; left:17px; top:17px; width:0; height:0; pointer-events:none; z-index:6; }
+.mring button { position:absolute; transform:translate(-50%,-50%); display:inline-flex; align-items:center; gap:4px; padding:7px 10px; border:0; border-radius:99px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:9.5px; font-weight:800; box-shadow:0 8px 18px rgba(38,69,120,.35); white-space:nowrap; pointer-events:auto; animation:mPopRing .22s ease; }
+.mring button .ic { width:12px; height:12px; }
+@keyframes mPopRing { from { transform:translate(-50%,-50%) scale(.6); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
+.mring-name { position:absolute; left:0; top:-26px; transform:translate(-50%,-100%); text-align:center; pointer-events:none; white-space:nowrap; animation:ringFade .25s ease; }
+.mring-name b { display:block; font-size:11px; font-weight:900; letter-spacing:-.2px; color:#14213d; text-shadow:0 1px 0 rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.75); }
+.mring-name span { display:block; font-size:9px; font-weight:600; color:#5b6b86; text-shadow:0 1px 0 rgba(255,255,255,.92); }
+@keyframes ringFade { from { opacity:0; } to { opacity:1; } }
+.mpin-name { position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; white-space:nowrap; opacity:.45; transition:opacity .2s ease; }
+.mpin-name.on { opacity:1; }
+.mpin-name b { display:flex; align-items:center; justify-content:center; gap:4px; font-size:10px; font-weight:900; letter-spacing:-.2px; color:#14213d; text-shadow:0 1px 0 rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.75); }
+.mpin-logo { width:14px; height:14px; flex:0 0 auto; display:grid; place-items:center; }
+.mpin-logo img { width:100%; height:100%; object-fit:contain; }
+.mpin-logo .ic { width:14px; height:14px; }
+.mpin-name span { display:block; font-size:8.5px; font-weight:600; color:#5b6b86; text-shadow:0 1px 0 rgba(255,255,255,.92); }
+.mquick { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:212px; max-width:calc(100% - 12px); max-height:calc(100% - 12px); overflow-y:auto; padding:6px; border-radius:14px; background:rgba(255,255,255,.97); border:1px solid #e4eaf3; box-shadow:0 14px 34px rgba(15,27,51,.22); z-index:30; animation:mPopQuick .25s ease; }
+.mquick .feedback-panel { display:block; margin-top:0; padding:0; border:0; background:transparent; }
+.mquick .fb-group { margin-top:4px; }
+.mquick .fb-gl { margin-bottom:2px; font-size:7px; }
+.mquick .feedback-option { padding:6px 2px; font-size:9px; gap:3px; }
+.mquick .feedback-option .ic { width:12px; height:12px; }
+.mquick .fb-send { margin-top:6px; padding:9px 12px; font-size:11px; }
+@keyframes mPopQuick { from { transform:translate(-50%,-50%) scale(.7); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
+.fchip { padding:2px 7px; border-radius:9px; background:rgba(255,255,255,.92); border:1px solid rgba(139,216,186,.7); color:#12855c; font-size:8.5px; font-weight:800; box-shadow:0 4px 12px rgba(15,27,51,.14); white-space:nowrap; animation:chipFloat 2.2s ease both; animation-iteration-count:2; }
+.fchip-q { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
+.fchip-q2 { background:rgba(255,246,238,.95); border-color:rgba(245,160,90,.55); color:#c26a2a; }
+.fchip-q1 { background:rgba(255,250,235,.95); border-color:rgba(245,213,101,.9); color:#c2902a; }
+.fchip-x { background:rgba(238,242,248,.95); border-color:rgba(167,177,193,.7); color:#7c899e; }
+.fchip-dt { background:rgba(231,240,255,.95); border-color:rgba(110,168,255,.8); color:#2465ee; }
+.fchip-92 { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
+@keyframes chipFloat { 0% { opacity:0; transform:translateY(26px) scale(.75); } 18% { opacity:1; transform:translateY(0) scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translateY(-8px); } }
 .user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
 .user-dot::after { content:''; position:absolute; inset:-8px; border-radius:50%; background:rgba(57,124,255,.18); animation:userPulse 2s ease-out infinite; }
 @keyframes userPulse { 0% { transform:scale(.6); opacity:1; } 100% { transform:scale(1.8); opacity:0; } }
@@ -361,15 +404,24 @@ body { overflow:hidden; }
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
       </div>
-      <div class="hm-legend" style="margin-top:8px">
+      <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
+      <div class="hm-legend map-legend" style="margin-top:0">
         <span><i style="background:#2fd39a"></i>спокойно</span>
-        <span><i style="background:#f5d565"></i>очереди редко</span>
-        <span><i style="background:#f5a05a"></i>очередно</span>
-        <span><i style="background:#ef5350"></i>очередь сейчас / часто</span>
+        <span><i style="background:#f5d565"></i>очередь малая</span>
+        <span><i style="background:#f5a05a"></i>очередь терпимая</span>
+        <span><i style="background:#ef5350"></i>очередь огромная</span>
       </div>
-      <div class="recent" style="margin-top:8px">Далеко: кластеры, кольцо — состав по АИ-95, цифра — число АЗС, тап — приблизить. Близко: капля — АИ-95 (зелёная/красная/серая), оранжевая точка — очередь сейчас. Тап по пину — чипы фактов и окна. Искра в углу карты — данные картоосновы.</div>
+      <div class="legend-cap"><svg class="ic ic-s"><use href="#i-pump"/></svg>цвет пина — топливо по отметкам</div>
+      <div class="hm-legend map-legend" style="margin-top:0">
+        <span><i style="background:#1bb978"></i>АИ-95 есть</span>
+        <span><i style="background:#f5a05a"></i>есть 92</span>
+        <span><i style="background:#6ea8ff"></i>только дизель</span>
+        <span><i style="background:#ef5350"></i>ничего нет</span>
+        <span><i style="background:#a7b1c1"></i>нет данных</span>
+      </div>
     </section>
     <section class="panel">
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pump"/></svg></div><div class="p1-t"><div class="nowcard-title">АЗС города</div><div class="nowcard-sub">в строке — факт по топливу и окно прогноза, тап по строке — полная карточка АЗС</div></div></div>
       <div class="search">
         <svg class="ic"><use href="#i-search"/></svg>
         <input id="searchInput" type="text" placeholder="Найти АЗС или адрес">
@@ -379,7 +431,7 @@ body { overflow:hidden; }
         <button class="ctl-chip" id="ctlOnlyPred" onclick="toggleOnlyPred()">Только с прогнозом</button>
         <button class="ctl-chip" id="ctlSortWin" onclick="toggleSortWin()">Сортировка: ближайшее окно</button>
       </div>
-      <div class="listhead"><span>АЗС города</span><small id="listCount"></small></div>
+      <div class="listhead"><span>Показано</span><small id="listCount"></small></div>
       <div class="panel-scroll">
         <main id="app"><div class="status">Подключаюсь к данным...</div></main>
       </div>
@@ -645,6 +697,7 @@ function stationCard(station, obs, pred) {
     '<div class="station-info"><div class="station-name">' + escapeHtml(station.name || 'АЗС') + '</div>' +
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + ' · ' : '') + escapeHtml(station.address || '') + '</div></div>' +
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
+    '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
     '<div class="fuels">' +
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
@@ -722,6 +775,22 @@ function openSheet(id) {
 function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
   document.getElementById('sheetBack').classList.remove('open');
+  // карточку открыли с карты — возвращаемся на панель карты;
+  // центр и зум не тронуты (карта не пересоздавалась), место то же
+  if (sheetFromMap) { sheetFromMap = false; pagerGo(1); }
+}
+function showOnMap(id) {
+  const st = allStations.find(s => s.id === id);
+  if (!st) return;
+  closeSheet();
+  pagerGo(1);
+  ensureMap();
+  const fly = () => {
+    if (!mapObj) { setTimeout(fly, 150); return; }
+    mapObj.stop();
+    mapObj.easeTo({ center: [Number(st.lon), Number(st.lat)], zoom: 15, duration: 900 });
+  };
+  fly();
 }
 function toggleFeedback(stationId) {
   const panel = document.getElementById('feedback-' + stationId);
@@ -1139,9 +1208,44 @@ let objMarkers = [];
 let lastClusterCenterByStation = {};
 let lastRenderZoom = null;
 let activePopup = null;
+let activeRing = null;
+let activeQuick = null;
+let sheetFromMap = false;
 let queueById = {};
 let clusterHits = [], pinHits = [];
 let userMarker = null;
+let floatChips = [];
+function clearFloatChips() {
+  for (const el of floatChips) if (el.parentNode) el.parentNode.removeChild(el);
+  floatChips = [];
+}
+// мягкое снятие чипов на старте движения: не мгновенное исчезновение,
+// а затухание 0.5с; элементы удаляются из DOM только после затухания
+function fadeFloatChips() {
+  if (!floatChips.length) return;
+  const dying = floatChips.slice();
+  floatChips = [];
+  for (const box of dying) {
+    if (!box.parentNode) continue;
+    box.classList.add('out');
+    setTimeout(() => { if (box.parentNode) box.parentNode.removeChild(box); }, 550);
+  }
+}
+// бейджи очереди на зонах: 0 = далеко (центр круга), 1 = близко
+// (маленький в левом нижнем углу под пином); переход на зуме 12.8–13.4
+let zoneBadges = [];
+function zoneBadgeT(z) { return Math.max(0, Math.min(1, (z - 12.8) / 0.6)); }
+function applyZoneBadgeZoom(badge) {
+  if (!badge || !mapObj) return;
+  const t = zoneBadgeT(mapObj.getZoom());
+  const s = 1 - 0.30 * t;
+  const dx = -14 * t;
+  const dy = 4 * t;
+  badge.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + s + ')';
+}
+function applyZoneBadgesZoom() {
+  for (const b of zoneBadges) applyZoneBadgeZoom(b);
+}
 const OUR_LABELS = [
   { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true, minZoom: 0 },
   { name: 'Краснодар', lon: 38.98, lat: 45.03, minZoom: 0 },
@@ -1155,6 +1259,37 @@ const OUR_LABELS = [
   { name: 'Мысхако', lon: 37.72, lat: 44.635, minZoom: 11 }
 ];
 let labelCtrls = [];
+// зоны спроса: вдали — лёгкая дымка, с приближением контрастнее и чётче;
+// мягкая пульсация заставляет зону «дышать», а не стоять пятном
+// зоны спроса: прозрачность и толщина считаются в JS обычными числами
+// (MapLibre составные выражения для opacity применяет непредсказуемо):
+// вдали — дымка, ближе — ярче и чётче; сверху мягкая пульсация «дыхания»
+const ZONE_STOPS = {
+  fill: [[12, 0.10], [13, 0.16], [15, 0.26]],
+  line: [[12, 0.30], [13, 0.45], [15, 0.75]],
+  width: [[12, 1.2], [15, 2.5]]
+};
+function zoneRamp(stops, z) {
+  if (z <= stops[0][0]) return stops[0][1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i], b = stops[i + 1];
+    if (z <= b[0]) return a[1] + (b[1] - a[1]) * (z - a[0]) / (b[0] - a[0]);
+  }
+  return stops[stops.length - 1][1];
+}
+let zonePulseTimer = null;
+function startZonePulse() {
+  if (zonePulseTimer) return;
+  const t0 = Date.now();
+  zonePulseTimer = setInterval(() => {
+    if (!mapObj || !zoneReady || mapObj.getZoom() < 12) return;
+    const p = 0.85 + 0.15 * Math.sin((Date.now() - t0) / 500);
+    const z = mapObj.getZoom();
+    mapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, z) * p);
+    mapObj.setPaintProperty('zones-line', 'line-opacity', zoneRamp(ZONE_STOPS.line, z) * p);
+    mapObj.setPaintProperty('zones-line', 'line-width', zoneRamp(ZONE_STOPS.width, z));
+  }, 66);
+}
 function applyLabelZoom() {
   if (!mapObj) return;
   const z = mapObj.getZoom();
@@ -1188,14 +1323,24 @@ mapObj = new maplibregl.Map({
     }
     applyLabelZoom();
     mapObj.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-    mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.14 } });
-    mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.45, 'line-width': 1.5 } });
+    mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
+    mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.45, 'line-width': 2 } });
     zoneReady = true;
+    startZonePulse();
     renderMap();
     const saved = loadUserLocation();
     if (saved) showUserMarker(saved.lat, saved.lon);
   });
   mapObj.on('zoomend', () => applyLabelZoom());
+  mapObj.on('zoom', applyZoneBadgesZoom);
+  mapObj.on('movestart', () => { fadeFloatChips(); closeRing(); closeQuick(); });
+  // тап мимо пина снимает меню действий и пузырь быстрой отметки
+  document.addEventListener('pointerdown', e => {
+    const t = e.target;
+    const inPin = t.closest && (t.closest('.mring') || t.closest('.mquick') || t.closest('.mpin-wrap'));
+    if (activeRing && !inPin) closeRing();
+    if (activeQuick && !(t.closest && t.closest('.mquick'))) closeQuick();
+  }, { capture: true });
   // Тап по кластеру/пину: гасим совместимые мышиные события маркеров
   // (они сбрасывают полёт камеры) и летаем ПОСЛЕ завершения тача
   const cont = mapObj.getContainer();
@@ -1203,7 +1348,7 @@ mapObj = new maplibregl.Map({
   document.addEventListener('pointerdown', e => {
     tX = e.clientX; tY = e.clientY; tT = Date.now();
     const t = e.target;
-    if (t && t.closest && (t.closest('.mcluster') || t.closest('.mpin-wrap'))) {
+    if (t && t.closest && (t.closest('.mcluster') || (t.closest('.mpin-wrap') && !t.closest('.mring') && !t.closest('.mquick')))) {
       e.preventDefault();
     }
   }, { capture: true });
@@ -1252,8 +1397,41 @@ function demandOf(id) {
   return Math.round(sc);
 }
 function demandRgb(sc) { return sc >= 50 ? '239,83,80' : sc >= 30 ? '245,160,90' : sc >= 12 ? '245,213,101' : '47,211,154'; }
+const QUEUE_SHORT = { small: '2–3', medium: '4–6', large: '7+', huge: '100+' };
+// последняя народная отметка размера очереди за сутки (или null)
+function lastQueueMark(stationId) {
+  const since = Date.now() - 24 * 3600 * 1000;
+  let best = null;
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || f.feedback_type !== 'queue') continue;
+    const t = new Date(f.created_at).getTime();
+    if (t < since) continue;
+    if (!best || t > best.t) best = { t: t, size: f.queue_size };
+  }
+  return best;
+}
+// свежая (≤6 ч) народная отметка «топливо есть» по станции (null, если нет):
+// подставляем на карте, когда источник по топливу молчит
+function folkFuel(stationId, fuel) {
+  const since = Date.now() - 6 * 3600 * 1000;
+  let best = null;
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || f.fuel_type !== fuel) continue;
+    if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+    const t = new Date(f.created_at).getTime();
+    if (t < since) continue;
+    if (!best || t > best.t) best = { t: t, ok: f.feedback_type === 'available' };
+  }
+  return best && best.ok ? best : null;
+}
 function pinKey(o) {
-  return !o || o.fuel_95_status === null || o.fuel_95_status === undefined ? 'unknown' : o.fuel_95_status ? 'yes' : 'no';
+  if (!o || o.fuel_95_status === null || o.fuel_95_status === undefined) return 'unknown';
+  if (o.fuel_95_status) return 'yes';
+  // жив ТОЛЬКО дизель (92 и 95 не доступны) — светло-синий пин
+  if (o.diesel_status === true && o.fuel_92_status !== true) return 'diesel';
+  // АИ-95 нет, но жив АИ-92 (дизель может быть тоже) — частичный состав
+  if (o.fuel_92_status === true) return 'part';
+  return 'no';
 }
 function fuelChip(label, status) {
   if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
@@ -1275,6 +1453,10 @@ function renderMap() {
   if (!mapObj || !zoneReady) return;
   for (const m of objMarkers) m.remove();
   objMarkers = [];
+  clearFloatChips();
+  zoneBadges = [];
+  closeRing();
+  closeQuick();
   const last = getLastObservations();
   const zoom = mapObj.getZoom();
   const zoomChanged = lastRenderZoom === null || Math.round(zoom) !== Math.round(lastRenderZoom);
@@ -1292,9 +1474,21 @@ function renderMap() {
     if (!Number.isFinite(Number(st.lat)) || !inView(st)) continue;
     items.push({ st: st, o: last[id] });
     const sc = demandOf(id);
-    // зона спроса видна только там, где различимо место станции (z >= 12):
-    // с далека красное пятно на пол-экрана не читается и только шумит
+    // зона спроса видна с z >= 12: вдали — мягкое дышащее кольцо-подсказка
+    // вокруг кластера, с z >= 13 (пины) — ярче и чётче вокруг каждой капли
     if (sc >= 12 && zoom >= 12) feats.push(circleFeature(Number(st.lat), Number(st.lon), 100 + sc * 6, 'rgb(' + demandRgb(sc) + ')'));
+    // иконка очереди живёт на всех зумах зоны: вдали — в центре круга,
+    // с приближением плавно уменьшается и уезжает в левый нижний угол под пин
+    if (sc >= 12 && zoom >= 12) {
+      const elZ = document.createElement('div');
+      elZ.className = 'mzone-ico';
+      elZ.style.zIndex = '1';
+      elZ.innerHTML = '<div class="mzone-badge" style="color:rgb(' + demandRgb(sc) + ')"><svg class="ic"><use href="#i-queue"/></svg></div>';
+      const mkZ = new maplibregl.Marker({ element: elZ, anchor: 'center' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(mapObj);
+      zoneBadges.push(elZ.firstElementChild);
+      applyZoneBadgeZoom(elZ.firstElementChild);
+      objMarkers.push(mkZ);
+    }
   }
   mapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
   if (zoom < 13) {
@@ -1319,17 +1513,29 @@ function renderMap() {
     for (const key of Object.keys(cells)) {
       const group = cells[key];
       if (group.length === 1) { newCenters[group[0].st.id] = [Number(group[0].st.lon), Number(group[0].st.lat)]; addPin(group[0], null, zoomChanged); continue; }
-      let g = 0, r = 0;
-      for (const it of group) { const k = pinKey(it.o); if (k === 'yes') g++; else if (k === 'no') r++; }
+      // полоса кластера — те же цвета, что и пины: зелёный = АИ-95 есть,
+      // оранжевый = есть 92, светло-синий = только дизель,
+      // красный = ничего, серый = нет данных
+      const cnt = { yes: 0, part: 0, diesel: 0, no: 0, unknown: 0 };
+      for (const it of group) cnt[pinKey(it.o)]++;
       const n = group.length;
-      const pg = Math.round(100 * g / n), pr = pg + Math.round(100 * r / n);
+      const CLUSTER_COLS = { yes: '#1bb978', part: '#f5a05a', diesel: '#6ea8ff', no: '#ef5350', unknown: '#a7b1c1' };
+      const stops = [];
+      let acc = 0;
+      for (const k of ['yes', 'part', 'diesel', 'no', 'unknown']) {
+        if (!cnt[k]) continue;
+        const from = acc;
+        acc += 100 * cnt[k] / n;
+        stops.push(CLUSTER_COLS[k] + ' ' + from.toFixed(1) + '% ' + acc.toFixed(1) + '%');
+      }
       const clon = group.reduce((s, it) => s + Number(it.st.lon), 0) / n;
       const clat = group.reduce((s, it) => s + Number(it.st.lat), 0) / n;
       clusterHits.push({ lon: clon, lat: clat });
       const wrapC = document.createElement('div');
+      wrapC.style.zIndex = '2';
       const el = document.createElement('div');
       el.className = 'mcluster';
-      el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,#1bb978 0 ' + pg + '%, #ef5350 ' + pg + '% ' + pr + '%, #a7b1c1 ' + pr + '% 100%)"></i>';
+      el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,' + stops.join(', ') + ')"></i>';
       if (zoomChanged) el.style.animation = 'mPopBox .3s ease';
       wrapC.appendChild(el);
       const mkC = new maplibregl.Marker({ element: wrapC, anchor: 'center' }).setLngLat([clon, clat]).addTo(mapObj);
@@ -1343,6 +1549,125 @@ function renderMap() {
   lastRenderZoom = zoom;
   updateMapPlate();
 }
+function closeRing() {
+  if (activeRing) {
+    const wrapEl = activeRing.parentNode;
+    if (wrapEl) {
+      wrapEl.removeChild(activeRing);
+      if (!wrapEl.querySelector('.mquick')) {
+        const pn = wrapEl.querySelector('.mpin-name');
+        if (pn) pn.classList.remove('on');
+      }
+    }
+  }
+  activeRing = null;
+}
+function toggleFavoriteById(id) {
+  let favs = getFavorites();
+  if (favs.includes(id)) favs = favs.filter(x => x !== id);
+  else favs.push(id);
+  localStorage.setItem('favorites', JSON.stringify(favs));
+  renderDigestPanel();
+}
+// меню действий вокруг капли (стиль The Sims): три синих чипа
+// слева / справа / снизу на равных расстояниях от капли
+function openRing(st, wrap) {
+  closeRing();
+  closeQuick();
+  const fc = wrap.querySelector('.fchips');
+  if (fc) fc.style.display = 'none';
+  const pn = wrap.querySelector('.mpin-name');
+  if (pn) pn.classList.add('on');
+  const ring = document.createElement('div');
+  ring.className = 'mring';
+  const fav = isFavorite(st.id);
+  const actions = [
+    { icon: 'i-heart', label: fav ? 'Убрать из избранного' : 'В избранное', dx: -78, dy: -2, run: () => { toggleFavoriteById(st.id); closeRing(); } },
+    { icon: 'i-check', label: 'Отметка', dx: 0, dy: 44, run: () => { closeRing(); openQuick(st, wrap); } },
+    { icon: 'i-pump', label: 'Карточка АЗС', dx: 78, dy: -2, run: () => { closeRing(); sheetFromMap = true; openSheet(st.id); } }
+  ];
+  for (const a of actions) {
+    const b = document.createElement('button');
+    b.style.left = a.dx + 'px';
+    b.style.top = a.dy + 'px';
+    b.innerHTML = icon(a.icon, 'ic-s') + a.label;
+    // жест начинается на чипе: не отдаём его ни карте, ни пину
+    b.addEventListener('pointerdown', e => e.stopPropagation());
+    b.addEventListener('pointerup', e => e.stopPropagation());
+    b.addEventListener('click', e => { e.stopPropagation(); a.run(); });
+    ring.appendChild(b);
+  }
+  wrap.appendChild(ring);
+  activeRing = ring;
+}
+// быстрая отметка: пузырь «перетекает» из капли с чипами из карточки,
+// сама карточка АЗС не открывается (для неё есть действие «Карточка АЗС»)
+function closeQuick() {
+  if (activeQuick) {
+    const wrapEl = activeQuick.wrap;
+    if (wrapEl && wrapEl.dataset.z !== undefined) wrapEl.style.zIndex = wrapEl.dataset.z;
+    if (activeQuick.el && activeQuick.el.parentNode) activeQuick.el.parentNode.removeChild(activeQuick.el);
+    if (wrapEl && !wrapEl.querySelector('.mring')) {
+      const pn = wrapEl.querySelector('.mpin-name');
+      if (pn) pn.classList.remove('on');
+    }
+  }
+  activeQuick = null;
+}
+function quickChipsHtml() {
+  return '<div class="fb-group"><div class="fb-gl">Топливо есть</div><div class="feedback-grid g3">' +
+    ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="yes" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Топлива нет</div><div class="feedback-grid g3">' +
+    ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="no" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Очередь</div><div class="feedback-grid g4">' +
+    ['small','medium','large','huge'].map(q => '<button class="feedback-option" data-fact="queue" data-queue="' + q + '" onclick="fbToggle(this)">' + (q === 'small' ? '2–3' : q === 'medium' ? '4–6' : q === 'large' ? '7+' : '100+') + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Ещё</div><div class="feedback-grid g3">' +
+    '<button class="feedback-option" data-fact="delivery" onclick="fbToggle(this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
+    '<button class="feedback-option" data-fact="free" onclick="fbToggle(this)">' + icon('i-check','ic-s') + 'Свободно</button></div></div>';
+}
+function openQuick(st, wrap) {
+  closeQuick();
+  closeRing();
+  const el = document.createElement('div');
+  el.className = 'mquick';
+  el.innerHTML = '<div class="feedback-panel open" id="quick-' + st.id + '">' + quickChipsHtml() +
+    '<button class="fb-send" onclick="quickSend(\'' + st.id + '\')">Отправить отметку</button></div>';
+  el.addEventListener('pointerdown', e => e.stopPropagation());
+  el.addEventListener('pointerup', e => e.stopPropagation());
+  const pn = wrap.querySelector('.mpin-name');
+  if (pn) pn.classList.add('on');
+  // пузырь открывается центром карты: ширина/высота учтены через
+  // max-width/max-height + внутренний скролл — виден целиком при любом пине
+  const host = document.getElementById('mapBox') || wrap;
+  host.appendChild(el);
+  activeQuick = { el: el, wrap: wrap };
+}
+async function quickSend(stationId) {
+  const panel = document.getElementById('quick-' + stationId);
+  if (!panel) return;
+  const rows = [];
+  panel.querySelectorAll('.feedback-option.selected').forEach(b => {
+    const fact = b.dataset.fact;
+    const base = { feedback_type: null, fuel_type: null, queue_size: null, comment_text: null };
+    if (fact === 'yes') Object.assign(base, { feedback_type: 'available', fuel_type: b.dataset.fuel });
+    else if (fact === 'no') Object.assign(base, { feedback_type: 'unavailable', fuel_type: b.dataset.fuel });
+    else if (fact === 'queue') Object.assign(base, { feedback_type: 'queue', queue_size: b.dataset.queue });
+    else if (fact === 'delivery') Object.assign(base, { feedback_type: 'delivery' });
+    else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
+    rows.push(base);
+  });
+  if (!rows.length) { alert('Выберите хотя бы один факт.'); return; }
+  const key = 'fb_' + stationId;
+  const history = JSON.parse(localStorage.getItem(key) || '[]');
+  const now = Date.now();
+  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+  rows.forEach(r => { r.station_id = stationId; r.device_id = deviceId; });
+  try { await dbInsert('user_feedback', rows); } catch (e) { alert('Не удалось отправить отметку.\n' + e.message); return; }
+  history.push(now);
+  localStorage.setItem(key, JSON.stringify(history));
+  rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+  closeQuick();
+}
 function addPin(it, fromCenter, zoomChanged) {
   const st = it.st, o = it.o;
   pinHits.push({ lon: Number(st.lon), lat: Number(st.lat) });
@@ -1350,38 +1675,87 @@ function addPin(it, fromCenter, zoomChanged) {
   const sc = demandOf(st.id);
   const wrap = document.createElement('div');
   wrap.className = 'mpin-wrap';
-  wrap.innerHTML = '<div class="mpin ' + stKey + '"><svg class="ic"><use href="#i-pump"/></svg>' + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
-  const p = pickPrediction(st.id, o);
-  const chips = [fuelChip('АИ-92', o && o.fuel_92_status), fuelChip('АИ-95', o && o.fuel_95_status), fuelChip('дизель', o && o.diesel_status)];
-  if (o && o.timestamp) {
-    const ageH = Math.round((Date.now() - new Date(o.timestamp).getTime()) / 3600000);
-    if (ageH >= 2) chips.push('<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-clock', 'ic-s') + 'данные: ' + ageH + ' ч назад</span>');
+  // приоритет наложения: пин с топливом выше пустого, пустой выше серого
+  wrap.style.zIndex = String({ unknown: 3, no: 4, diesel: 5, part: 6, yes: 7 }[stKey] || 3);
+  // пин двух/трёх цветов: градиент от кончика капли вверх в порядке
+  // дизель (синий) → АИ-92 (оранжевый) → АИ-95 (зелёный);
+  // направление to top right в локальных координатах капли = снизу вверх на экране
+  const availCols = [];
+  if (o && o.diesel_status === true) availCols.push('#6ea8ff');
+  if (o && o.fuel_92_status === true) availCols.push('#f5a05a');
+  if (o && o.fuel_95_status === true) availCols.push('#1bb978');
+  let pinStyle = '';
+  if (availCols.length >= 2) {
+    const stops = availCols.length === 2
+      ? availCols[0] + ', ' + availCols[1]
+      : availCols[0] + ', ' + availCols[1] + ' 50%, ' + availCols[2];
+    pinStyle = 'background:linear-gradient(to top right,' + stops + ');border-color:#fff;color:#fff;';
   }
-  if (o && o.queue_level === 'high') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь сейчас</span>');
-  chips.push('<span class="rc-chip ' + (sc >= 30 ? 'queue' : 'yes') + '">' + icon('i-chart', 'ic-s') + 'спрос ' + sc + '/100</span>');
-  if (p) chips.push('<span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>');
-  const popupHtml = '<div style="min-width:190px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>';
+  wrap.innerHTML = '<div class="mpin ' + stKey + '" style="' + pinStyle + '"><svg class="ic"><use href="#i-pump"/></svg>' + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
+  // табличка над пином: название жирным с иконкой бренда слева, улица обычным
+  const nameEl = document.createElement('div');
+  nameEl.className = 'mpin-name';
+  nameEl.innerHTML = '<b><span class="mpin-logo">' + stationLogo(st) + '</span>' + escapeHtml(st.name || 'АЗС') + '</b><span>' + escapeHtml(st.address || '') + '</span>';
+  wrap.appendChild(nameEl);
   const mk = new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(mapObj);
-  const openCard = () => {
-    if (activePopup) activePopup.remove();
-    activePopup = new maplibregl.Popup({ offset: [0, -38], closeOnClick: false, closeOnMove: false })
-      .setLngLat([Number(st.lon), Number(st.lat)]).setHTML(popupHtml).addTo(mapObj);
-  };
   // тап через pointer-события: мобильная карта съедает синтетический click
   let downX = 0, downY = 0, downT = 0, tapped = false;
   wrap.addEventListener('pointerdown', e => { e.stopPropagation(); downX = e.clientX; downY = e.clientY; downT = Date.now(); tapped = false; }, { passive: true });
   wrap.addEventListener('pointerup', e => {
     if (Math.abs(e.clientX - downX) <= 16 && Math.abs(e.clientY - downY) <= 16 && Date.now() - downT <= 700) {
       tapped = true;
-      openCard();
+      if (activeRing && activeRing.parentNode === wrap) closeRing();
+      else openRing(st, wrap);
     }
   }, { passive: true });
   mk.on('click', e => {
     if (tapped) { tapped = false; return; }
     if (e && e.originalEvent) e.originalEvent.stopPropagation();
-    openCard();
+    if (activeRing && activeRing.parentNode === wrap) closeRing();
+    else openRing(st, wrap);
   });
   objMarkers.push(mk);
+  // воздушные чипы топлива над каплей (zoom >= 13): появляются по очереди,
+  // цикл проходит дважды и затухает; при движении карты убираются сразу
+  if (mapObj.getZoom() >= 13 && o) {
+    const avail = [];
+    let fuelInfo = 0;
+    const srcFuels = [['92', 'АИ-92', o.fuel_92_status], ['95', 'АИ-95', o.fuel_95_status], ['diesel', 'дизель', o.diesel_status]];
+    for (const s of srcFuels) if (s[2] === true) { avail.push({ t: s[1], q: 0, k: s[0] }); fuelInfo++; }
+    // источник по топливу молчит — подставляем свежую народную отметку из карточки
+    for (const s of srcFuels) if (s[2] === null || s[2] === undefined) {
+      if (folkFuel(st.id, s[0])) { avail.push({ t: s[1] + ' · народ', q: 0, k: s[0] }); fuelInfo++; }
+    }
+    // очередь: уровень по силе спроса + сколько машин отмечают народно
+    if (sc >= 12) {
+      const mark = lastQueueMark(st.id);
+      const cars = mark && mark.size ? ' · ' + (QUEUE_SHORT[mark.size] || '') + ' машин' : '';
+      const lbl = sc >= 50 ? 'очередь огромная' : sc >= 30 ? 'очередь терпимая' : 'очередь малая';
+      avail.push({ t: lbl + cars, q: sc >= 50 ? 3 : sc >= 30 ? 2 : 1 });
+    }
+    // ни источника, ни народа по топливу — честно подписываем молчание
+    if (!fuelInfo) avail.push({ t: 'топливо: источник молчит', q: -1 });
+    if (avail.length) {
+      const box = document.createElement('div');
+      box.className = 'fchips';
+      avail.forEach((item, i) => {
+        const c = document.createElement('div');
+        c.className = 'fchip' + (item.q === 3 ? ' fchip-q' : item.q === 2 ? ' fchip-q2' : item.q === 1 ? ' fchip-q1' : item.q === -1 ? ' fchip-x' : item.k === 'diesel' ? ' fchip-dt' : item.k === '92' ? ' fchip-92' : '');
+        c.style.animationDelay = (0.25 + i * 0.45) + 's';
+        c.textContent = item.t;
+        box.appendChild(c);
+      });
+      wrap.appendChild(box);
+      floatChips.push(box);
+      // на время жизни чипов пин с ними выше соседних пинов (z 8 против 3–7),
+      // иначе плашки уходят под чужие капли; через 6.5с возвращаем базовый z
+      const baseZ = wrap.style.zIndex;
+      wrap.style.zIndex = '8';
+      setTimeout(() => {
+        if (!wrap.querySelector('.mquick') && !wrap.querySelector('.mring')) wrap.style.zIndex = baseZ;
+      }, 6500);
+    }
+  }
   // плавный «разлёт»: пина стартует из центра своего кластера
   // и за 0.5с доезжает до своей точки; трансформ маркера не трогаем
   const inner = wrap.firstElementChild;
@@ -1500,6 +1874,7 @@ function showUserMarker(lat, lon) {
   if (!userMarker) {
     const el = document.createElement('div');
     el.className = 'user-dot';
+    el.style.zIndex = '10';
     userMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(mapObj);
   } else {
     userMarker.setLngLat([lon, lat]);
