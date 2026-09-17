@@ -209,6 +209,7 @@ body { overflow:hidden; }
 .rc-chip.no { background:#fdecec; color:#c2403f; }
 .rc-chip.queue { background:#fff2e8; color:#c26a2a; }
 .rc-chip.info { background:#e7f0ff; color:#2465ee; }
+.rc-extra { margin-top:6px; padding-top:6px; border-top:1px dashed #dfe8f2; }
 .dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
 .dg-strip .ic { color:#2465ee; }
 .dg-strip b { font-weight:900; }
@@ -487,15 +488,16 @@ function recentFeedback(stationId) {
     const g = batches[k];
     const minutes = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
     const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
+    // порядок детерминированный: топливо → очередь/свободно → привезли отдельной строкой
     const chips = [];
-    for (const f of g) {
-      if (f.feedback_type === 'available') chips.push('<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + fuelShort(f.fuel_type) + ' есть</span>');
-      else if (f.feedback_type === 'unavailable') chips.push('<span class="rc-chip no">' + icon('i-cross', 'ic-s') + fuelShort(f.fuel_type) + ' нет</span>');
-      else if (f.feedback_type === 'queue') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
-      else if (f.feedback_type === 'delivery') chips.push('<span class="rc-chip info">' + icon('i-truck', 'ic-s') + 'привезли</span>');
-      else if (f.feedback_type === 'free') chips.push('<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
-    }
-    return '<div class="rc-batch"><div class="rc-time">' + ago + ' назад</div><div class="rc-chips">' + chips.join('') + '</div></div>';
+    const extra = [];
+    for (const f of g) if (f.feedback_type === 'available') chips.push('<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + fuelShort(f.fuel_type) + ' есть</span>');
+    for (const f of g) if (f.feedback_type === 'unavailable') chips.push('<span class="rc-chip no">' + icon('i-cross', 'ic-s') + fuelShort(f.fuel_type) + ' нет</span>');
+    for (const f of g) if (f.feedback_type === 'queue') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
+    for (const f of g) if (f.feedback_type === 'free') chips.push('<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
+    for (const f of g) if (f.feedback_type === 'delivery') extra.push('<span class="rc-chip info">' + icon('i-truck', 'ic-s') + 'привезли</span>');
+    return '<div class="rc-batch"><div class="rc-time">' + ago + ' назад</div><div class="rc-chips">' + chips.join('') + '</div>' +
+      (extra.length ? '<div class="rc-chips rc-extra">' + extra.join('') + '</div>' : '') + '</div>';
   }).join('');
 }
 function feedbackPanel(stationId) {
