@@ -1168,6 +1168,7 @@ function ensureMap() {
   if (!box || mapObj) return;
   loadYmaps().then(() => {
     mapObj = new ymapsLib.Map('mapBox', { center: [44.72, 37.77], zoom: 12, controls: ['zoomControl'] });
+    setTimeout(() => { if (mapObj) mapObj.container.fitToViewport(); }, 300);
     renderMap();
   }).catch(e => { box.innerHTML = '<div class="status">Карта недоступна<br><small>' + escapeHtml(e.message) + ' — проверь YANDEX_MAPS_KEY</small></div>'; });
 }
@@ -1190,11 +1191,15 @@ function renderMap() {
       fillColor: 'rgba(' + rgb + ',0.14)', strokeColor: 'rgba(' + rgb + ',0.45)', strokeWidth: 1.5
     }));
   }
-  const clusterer = new ymapsLib.Clusterer({
-    gridSize: 72, minClusterSize: 3,
-    clusterIconLayout: ClusterLayout,
-    clusterIconShape: { type: 'Circle', coordinates: [0, 0], radius: 23 }
-  });
+  if (!PinLayout) initMapLayouts();
+  let clusterer = null;
+  try {
+    clusterer = new ymapsLib.Clusterer({
+      gridSize: 72, minClusterSize: 3,
+      clusterIconLayout: ClusterLayout,
+      clusterIconShape: { type: 'Circle', coordinates: [0, 0], radius: 23 }
+    });
+  } catch (e) { console.log('clusterer: ' + e.message); }
   const pins = [];
   for (const id of localIdsGlobal) {
     const st = allStations.find(s => s.id === id);
@@ -1210,10 +1215,12 @@ function renderMap() {
     pins.push(new ymapsLib.Placemark([Number(st.lat), Number(st.lon)], {
       st: stKey, q: o && o.queue_level === 'high' ? 1 : 0,
       balloonContent: '<div style="min-width:200px"><div class="rc-time" style="margin-bottom:4px">' + escapeHtml(st.name || 'АЗС') + (st.address ? ' · ' + escapeHtml(st.address) : '') + '</div><div class="rc-chips">' + chips.join('') + '</div></div>'
-    }, { iconLayout: PinLayout, iconShape: { type: 'Rectangle', coordinates: [[-17, -40], [17, 0]] } }));
+    }, PinLayout
+      ? { iconLayout: PinLayout, iconShape: { type: 'Rectangle', coordinates: [[-17, -40], [17, 0]] } }
+      : { preset: 'islands#circleDotIcon', iconColor: stKey === 'yes' ? '#1bb978' : stKey === 'no' ? '#ef5350' : '#a7b1c1' }));
   }
-  clusterer.add(pins);
-  mapObj.geoObjects.add(clusterer);
+  if (clusterer) { clusterer.add(pins); mapObj.geoObjects.add(clusterer); }
+  else for (const pm of pins) mapObj.geoObjects.add(pm);
   updateMapPlate();
 }
 function updateMapPlate() {
