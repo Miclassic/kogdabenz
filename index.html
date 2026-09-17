@@ -505,11 +505,15 @@ async function fbSend(stationId) {
   const rows = [];
   panel.querySelectorAll('.feedback-option.selected').forEach(b => {
     const fact = b.dataset.fact;
-    if (fact === 'yes') rows.push({ feedback_type: 'available', fuel_type: b.dataset.fuel });
-    else if (fact === 'no') rows.push({ feedback_type: 'unavailable', fuel_type: b.dataset.fuel });
-    else if (fact === 'queue') rows.push({ feedback_type: 'queue', queue_size: b.dataset.queue });
-    else if (fact === 'delivery') rows.push({ feedback_type: 'delivery' });
-    else if (fact === 'free') rows.push({ feedback_type: 'free' });
+    // PostgREST требует одинаковый набор ключей у всех строк массива (PGRST102):
+    // недостающие поля явно null
+    const base = { feedback_type: null, fuel_type: null, queue_size: null, comment_text: null };
+    if (fact === 'yes') Object.assign(base, { feedback_type: 'available', fuel_type: b.dataset.fuel });
+    else if (fact === 'no') Object.assign(base, { feedback_type: 'unavailable', fuel_type: b.dataset.fuel });
+    else if (fact === 'queue') Object.assign(base, { feedback_type: 'queue', queue_size: b.dataset.queue });
+    else if (fact === 'delivery') Object.assign(base, { feedback_type: 'delivery' });
+    else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
+    rows.push(base);
   });
   if (!rows.length) { alert('Выберите хотя бы один факт.'); return; }
   const key = 'fb_' + stationId;
