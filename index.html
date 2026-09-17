@@ -420,7 +420,7 @@ function fuelConfLine(obs, status) {
     if (!obs || obs.data_freshness_minutes === null || obs.data_freshness_minutes === undefined) return '—';
     const m = obs.data_freshness_minutes;
     const t = m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн';
-    return 'отметка ' + t + ' назад';
+    return 'данные источника: ' + t + ' назад';
   }
   return '≈ ' + (status ? c : Math.max(3, 100 - c)) + '%';
 }

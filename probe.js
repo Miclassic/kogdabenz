@@ -34,6 +34,7 @@ async function fetchFrame(f) {
 }
 
 async function main() {
+  if (process.argv.includes('--dump')) { await dumpKeys(); return; }
   console.log('=== РАЗВЕДКА ПОКРЫТИЯ GdeBenz ===');
   for (const f of FRAMES) {
     const list = await fetchFrame(f);
@@ -52,6 +53,27 @@ async function main() {
     await new Promise(res => setTimeout(res, 1500)); // вежливо к источнику
   }
   console.log('✅ Разведка завершена');
+}
+
+async function dumpKeys() {
+  console.log('=== ДАМП КЛЮЧЕЙ ОДНОЙ СТАНЦИИ ===');
+  const list = await fetchFrame(FRAMES[0].url, FRAMES[0].name);
+  if (!list.length) { console.log('Станций нет в первой рамке.'); return; }
+  const s = list[0];
+  console.log('Станция: ' + (s.name || '?') + ' (' + (s.brand || 'без бренда') + ')');
+  console.log('Адрес: ' + (s.addr || '—'));
+  console.log('Всего ключей: ' + Object.keys(s).length);
+  console.log('---');
+  for (const k of Object.keys(s)) {
+    const v = s[k];
+    const type = v === null ? 'null' : Array.isArray(v) ? 'array[' + v.length + ']' : typeof v;
+    const preview = JSON.stringify(v).slice(0, 200);
+    console.log(k + ' (' + type + '): ' + preview);
+  }
+  console.log('---');
+  console.log('Что искать глазами: поля вроде last_mark, marks_count, status_conflict,');
+  console.log('updated_at, fuels (объект вместо строки), conflict_details —');
+  console.log('они могут помочь отличить "консенсус: нет" от "источник молчит".');
 }
 
 main().catch(e => { console.error('❌ Ошибка разведки: ' + e.message); process.exit(1); });
