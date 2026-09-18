@@ -278,12 +278,18 @@ async function main() {
   const mskMinutesNow = mskNow.getUTCHours() * 60 + mskNow.getUTCMinutes();
   const todayStr = mskNow.toISOString().slice(0, 10);
   const tomorrowStr = new Date(mskNow.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const existing = await sbGet(
+const existing = [];
+for (let offset = 0; ; offset += 1000) {
+  const page = await sbGet(
     '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
-    '&select=id,station_id,fuel_type&limit=1000'
+    '&select=id,station_id,fuel_type&order=id.asc&limit=1000&offset=' + offset
   );
-  const existingByKey = {};
-  for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
+  for (const p of page) existing.push(p);
+  if (page.length < 1000) break;
+}
+const existingByKey = {};
+for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
+console.log('   Существующих PENDING-прогнозов (цель >= сегодня): ' + existing.length);
 
   console.log('5) Строю прогнозы для всех станций региона...');
   let created = 0, updated = 0, skipped = 0, stale = 0;
