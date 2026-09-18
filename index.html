@@ -23,11 +23,29 @@ body { overflow:hidden; }
 .logo { width:46px; height:46px; display:grid; place-items:center; border-radius:16px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; box-shadow:0 10px 26px rgba(55,100,180,.22); }
 .logo .ic-l { width:26px; height:26px; }
 .logo-title { font-size:24px; font-weight:900; letter-spacing:-1px; }
+.logo-sup { font-style:normal; font-size:12px; font-weight:900; letter-spacing:.4px; color:var(--blue); vertical-align:top; position:relative; top:-6px; margin-left:2px; }
 .logo-title span { background:linear-gradient(90deg,#2465ee,#2ea3ff); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .logo-subtitle { margin-top:2px; color:#5b7ba6; font-size:11px; font-weight:600; letter-spacing:.4px; }
 @media(max-width:420px){ .logo-title { font-size:20px; } .logo { width:40px; height:40px; border-radius:14px; } .logo-subtitle { font-size:10px; } }
 .location { display:flex; align-items:center; gap:6px; border:1px solid var(--border); background:rgba(255,255,255,.85); color:var(--text); border-radius:14px; padding:8px 11px; font-size:11px; font-weight:700; box-shadow:0 7px 20px rgba(50,80,130,.06); cursor:pointer; }
 .location .ic { color:var(--red); }
+.header-actions { display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+.header-div { width:1px; height:22px; background:rgba(20,33,61,.18); }
+@media(max-width:400px){ .header-actions { gap:6px; } .location { padding:8px 9px; } }
+.help-h { font-size:16px; font-weight:900; letter-spacing:-.4px; margin:2px 0 6px; }
+.help-lead { color:#5b6b86; font-size:11px; line-height:1.5; margin-bottom:4px; }
+.help-item { padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.9); border:1px solid #e6ebf4; margin-top:8px; }
+.help-q { font-size:12px; font-weight:850; color:#14213d; }
+.help-a { margin-top:4px; color:#5b6b86; font-size:10.5px; line-height:1.5; }
+.hello-back { position:fixed; inset:0; background:rgba(15,27,51,.45); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:80; }
+.hello-back.open { opacity:1; pointer-events:auto; }
+.hello-pop { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.95); width:min(320px, calc(100vw - 32px)); max-height:80dvh; overflow-y:auto; background:#fff; border-radius:22px; padding:16px; box-shadow:0 24px 60px rgba(15,27,51,.35); z-index:81; opacity:0; pointer-events:none; transition:.25s; }
+.hello-pop.open { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+.hello-title { font-size:15px; font-weight:900; letter-spacing:-.4px; }
+.hello-list { margin:10px 0 12px; padding-left:16px; color:#5b6b86; font-size:11px; line-height:1.55; display:flex; flex-direction:column; gap:6px; }
+.hello-list b { color:#14213d; }
+.hello-pop .cta-btn { width:100%; }
+.hello-pop .cta-btn.ghost { margin-top:6px; }
 .tagline { margin:0 2px 6px; min-height:46px; }
 .tagline-slogan { font-size:14px; font-weight:900; letter-spacing:-.3px; }
 .tagline-slogan span { color:var(--blue); }
@@ -105,6 +123,8 @@ body { overflow:hidden; }
 .chip3 div { min-width:0; }
 .chip3 small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
 .chip3 b { font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+.chip3 b.qadv { font-size:8px; }
+.pulse-tip.under { transform:translate(-50%, 14px); }
 /* кардиограмма */
 .mini-graph { flex:1; min-height:84px; display:flex; flex-direction:column; padding:8px 8px 6px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; position:relative; }
 .mini-cap { display:flex; align-items:center; gap:5px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
@@ -236,7 +256,7 @@ body { overflow:hidden; }
 .feedback-grid.g3 { grid-template-columns:repeat(3,1fr); }
 .feedback-grid.g4 { grid-template-columns:repeat(4,1fr); }
 .map-wrap { position:relative; flex:1; min-height:360px; }
-.map-box { position:absolute; inset:0; border-radius:18px; overflow:hidden; border:1px solid #e8edf7; background:#eef2f8; }
+.map-box { position:absolute; inset:0; border-radius:18px; overflow:hidden; border:1px solid #e8edf7; background:#eef2f8; z-index:0; }
 .map-box > .status { position:absolute; inset:0; margin:0; display:grid; place-items:center; border:0; box-shadow:none; background:transparent; }
 .map-plate { position:absolute; left:10px; right:10px; top:10px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; pointer-events:none; z-index:5; }
 .gp { display:inline-flex; align-items:center; gap:5px; padding:6px 9px; border-radius:12px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
@@ -313,6 +333,12 @@ body { overflow:hidden; }
 .fchip-q1 { background:rgba(255,250,235,.95); border-color:rgba(245,213,101,.9); color:#c2902a; }
 .fchip-x { background:rgba(238,242,248,.95); border-color:rgba(167,177,193,.7); color:#7c899e; }
 .fchip-dt { background:rgba(231,240,255,.95); border-color:rgba(110,168,255,.8); color:#2465ee; }
+.why-pop { position:fixed; z-index:70; display:none; width:250px; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.98); border:1px solid #e3ecf5; box-shadow:0 14px 34px rgba(15,27,51,.22); }
+.why-pop.open { display:block; }
+.why-pop b { display:block; font-size:11px; font-weight:900; color:#14213d; margin-bottom:4px; }
+.why-pop span { display:block; font-size:10px; line-height:1.45; color:#5b6b86; font-weight:600; }
+.why-pop i { display:block; margin-top:6px; padding-top:6px; border-top:1px dashed #dfe8f2; font-style:normal; font-size:9.5px; font-weight:700; color:#2465ee; }
+.chip3.tap, .info.tap { cursor:pointer; }
 .fchip-92 { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
 @keyframes chipFloat { 0% { opacity:0; transform:translateY(26px) scale(.75); } 18% { opacity:1; transform:translateY(0) scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translateY(-8px); } }
 .user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
@@ -338,17 +364,22 @@ body { overflow:hidden; }
 <symbol id="i-cross" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></symbol>
 <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
 <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h11v10H2z"/><path d="M13 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.9.4c0 1.6-2.4 2.1-2.4 3.6"/><path d="M12 16.8h.01"/></symbol>
 </svg>
 <div class="page">
   <header class="header">
     <div class="logo-wrap">
       <div class="logo"><svg class="ic ic-l"><use href="#i-pump-fast"/></svg></div>
       <div>
-        <div class="logo-title">Когда<span>Бенз</span></div>
+        <div class="logo-title">Когда<span>Бенз<i class="logo-sup">юг</i></span></div>
         <div class="logo-subtitle">Данные о топливе. Вовремя.</div>
       </div>
     </div>
-    <button class="location" onclick="findNearby()"><svg class="ic ic-s"><use href="#i-pin"/></svg>Рядом</button>
+    <div class="header-actions">
+      <button class="location" onclick="findNearby()"><svg class="ic ic-s"><use href="#i-pin"/></svg>Рядом</button>
+      <span class="header-div" aria-hidden="true"></span>
+      <button class="location" onclick="openHelp()"><svg class="ic ic-s"><use href="#i-help"/></svg>Помощь</button>
+    </div>
   </header>
   <div class="tagline">
     <div class="tagline-slogan" id="tagSlogan">Данными. <span>Не догадками.</span></div>
@@ -394,9 +425,9 @@ body { overflow:hidden; }
         </div>
       </div>
       <div class="chips3">
-        <div class="chip3"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · АИ-95 есть</small><b id="triNow">—</b></div></div>
-        <div class="chip3"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
-        <div class="chip3"><svg class="ic"><use href="#i-queue"/></svg><div><small>Спокойно</small><b id="triFc">—</b></div></div>
+        <div class="chip3 tap" onclick="openWhyChip(this,'now95')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · АИ-95 есть</small><b id="triNow">—</b></div></div>
+        <div class="chip3 tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
+        <div class="chip3 tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
       <div class="mini-graph">
         <div class="mini-cap" style="justify-content:space-between">
@@ -424,7 +455,7 @@ body { overflow:hidden; }
     </section>
     <section class="panel">
       <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а круг вокруг — где очередь. Нажми на каплю — появятся кнопки.</div></div></div>
-      <div class="map-wrap">
+      <div class="map-wrap" id="mapWrap">
         <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
         <div class="map-plate" id="mapPlate"></div>
         <div class="cov-pop" id="covPop"></div>
@@ -469,10 +500,24 @@ body { overflow:hidden; }
     </div>
   <div class="pager-dots" id="pagerDots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
+  <div class="why-pop" id="whyPop"></div>
   <div class="sheet" id="sheet">
     <div class="sheet-grab"></div>
     <button class="sheet-close" onclick="closeSheet()"><svg class="ic"><use href="#i-close"/></svg></button>
     <div id="sheetBody"></div>
+  </div>
+  <div class="hello-back" id="helloBack" onclick="closeHello(false)"></div>
+  <div class="hello-pop" id="helloPop">
+    <div class="hello-title">Вы попали в КогдаБенз — подсказчик топлива</div>
+    <ul class="hello-list">
+      <li>Подсказываем, <b>когда</b> лучше заправиться, а не просто где есть бензин</li>
+      <li>Капли на карте — заправки: цвет показывает, какое топливо есть прямо сейчас</li>
+      <li>Круги вокруг капель — очереди: чем краснее, тем больше людей стоит</li>
+      <li>Кнопка «Куда ехать» подбирает ближайшую заправку с топливом</li>
+      <li>Ваши отметки о топливе и очередях делают прогнозы точнее для всего города</li>
+    </ul>
+    <button class="cta-btn" onclick="closeHello(false)">Понятно, смотрю</button>
+    <button class="cta-btn ghost" onclick="closeHello(true)">Расскажите подробнее</button>
   </div>
 </div>
 <script>
@@ -743,9 +788,9 @@ function stationCard(station, obs, pred) {
     '<div class="forecast-right"><div class="graph-title">История АИ-95</div>' +
     '<div class="chart">' + graph + (pred && isSoon(pred) ? '<div class="soon-badge">' + icon('i-truck','ic-s') + 'Скоро</div>' : '') + '</div>' +
     '<div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div></div></section>' +
-    '<div class="info-row"><div class="info"><div class="info-label">На основе</div><div class="info-value">' + hc + ' наблюдений</div></div>' +
-    '<div class="info"><div class="info-label">Пополнение</div><div class="info-value">' + lastRestoration(station.id) + '</div></div>' +
-    '<div class="info"><div class="info-label">Точность</div><div class="info-value">' + accuracyLabel(station.id) + '</div></div></div>' +
+    '<div class="info-row"><div class="info tap" onclick="openWhyChip(this,\'based\')"><div class="info-label">На основе</div><div class="info-value">' + hc + ' наблюдений</div></div>' +
+    '<div class="info tap" onclick="openWhyChip(this,\'restore\')"><div class="info-label">Пополнение</div><div class="info-value">' + lastRestoration(station.id) + '</div></div>' +
+    '<div class="info tap" onclick="openWhyChip(this,\'acc\')"><div class="info-label">Точность</div><div class="info-value">' + accuracyLabel(station.id) + '</div></div></div>' +
     '<section class="feedback"><div class="feedback-header"><div class="feedback-icon">＋</div><div>' +
     '<div class="feedback-title">Вы были на этой АЗС?</div><div class="feedback-sub">Отметка сделает прогноз точнее</div></div>' +
     '<button class="feedback-button" onclick="toggleFeedback(\'' + station.id + '\')">Отметить</button></div>' +
@@ -889,6 +934,13 @@ function priceCell(stationId, col, cityKey) {
   }
   return '<div class="info-value">' + Number(v).toFixed(1) + ' ₽</div><div class="info-delta">' + d + '</div>';
 }
+function goodRow(r) {
+  if (!r) false;
+  if (!r) return false;
+  const bad = r.k95 ? 1 - r.a95 / r.k95 : 0.5;
+  const q = r.selling ? r.q / r.selling : 0;
+  return bad < 0.4 && q < 0.1;
+}
 function peakAndCalm() {
   const byHour = {};
   for (const r of fuelHourly) byHour[new Date(r.hour).getHours()] = r;
@@ -902,16 +954,62 @@ function peakAndCalm() {
   for (let h = 0; h < 24; h++) {
     let len = 0;
     while (len < 8) {
-      const r = byHour[(h + len) % 24];
-      const bad = r && r.k95 ? 1 - r.a95 / r.k95 : 0.5;
-      const q = r && r.selling ? r.q / r.selling : 0;
-      if (bad < 0.4 && q < 0.1) len++; else break;
+      if (goodRow(byHour[(h + len) % 24])) len++; else break;
     }
     if (len >= 2 && (!best || len > best.len)) best = { h, len };
   }
+  // последний завершённый «хороший» отрезок 2+ часа хронологически (за 3 суток)
+  let lastCalm = 'за 3 суток не было';
+  let runStart = null, runLen = 0, lastRun = null;
+  for (const r of fuelHourly) {
+    if (goodRow(r)) { if (runStart === null) runStart = r.hour; runLen++; }
+    else { if (runLen >= 2) lastRun = { start: runStart, len: runLen }; runStart = null; runLen = 0; }
+  }
+  if (runLen >= 2) lastRun = { start: runStart, len: runLen };
+  if (lastRun) {
+    const s = new Date(lastRun.start);
+    const e = new Date(s.getTime() + lastRun.len * 3600000);
+    const now = new Date();
+    const hh = d => String(d.getHours()).padStart(2, '0');
+    let day;
+    if (s.toDateString() === now.toDateString()) day = 'сегодня';
+    else if (s.toDateString() === new Date(now.getTime() - 86400000).toDateString()) day = 'вчера';
+    else day = String(s.getDate()).padStart(2, '0') + '.' + String(s.getMonth() + 1).padStart(2, '0');
+    lastCalm = day + ' ' + hh(s) + '–' + hh(e);
+  }
+  // совет: с какого часа лучше вставать в очередь — следующее начало хорошего
+  // окна по истории за 3 суток; если вся история «плохая» — час с минимальной очередью
+  let advice = null;
+  if (fuelHourly.length) {
+    const nowH = new Date().getHours();
+    const qSum = {}, qN = {}, bSum = {}, bN = {};
+    for (const r of fuelHourly) {
+      const h = new Date(r.hour).getHours();
+      if (r.selling) { qSum[h] = (qSum[h] || 0) + r.q / r.selling; qN[h] = (qN[h] || 0) + 1; }
+      if (r.k95) { bSum[h] = (bSum[h] || 0) + (1 - r.a95 / r.k95); bN[h] = (bN[h] || 0) + 1; }
+    }
+    const goodH = h => (bN[h] ? bSum[h] / bN[h] : 0.5) < 0.4 && (qN[h] ? qSum[h] / qN[h] : 1) < 0.1;
+    let advH = null;
+    for (let off = 1; off <= 24 && advH === null; off++) {
+      const h = (nowH + off) % 24;
+      if (goodH(h) && goodH((h + 1) % 24)) advH = h;
+    }
+    if (advH === null) {
+      let bq = Infinity;
+      for (let off = 1; off <= 24; off++) {
+        const h = (nowH + off) % 24;
+        if (!qN[h]) continue;
+        const v = qSum[h] / qN[h];
+        if (v < bq) { bq = v; advH = h; }
+      }
+    }
+    if (advH !== null) advice = String(advH).padStart(2, '0') + ':00';
+  }
   return {
-    peak: peakV > 0 ? String(peakH).padStart(2,'0') + ':00–' + String((peakH + 3) % 24).padStart(2,'0') + ':00' : '—',
-    calm: best ? String(best.h).padStart(2,'0') + ':00–' + String((best.h + best.len) % 24).padStart(2,'0') + ':00' : '—'
+    peak: peakV > 0 ? String(peakH).padStart(2, '0') + ':00–' + String((peakH + 3) % 24).padStart(2, '0') + ':00' : '—',
+    calm: best ? String(best.h).padStart(2, '0') + ':00–' + String((best.h + best.len) % 24).padStart(2, '0') + ':00' : '—',
+    lastCalm: lastCalm,
+    advice: advice
   };
 }
 /* кардиограмма */
@@ -1022,10 +1120,17 @@ function renderPulse() {
     if (!Number.isFinite(i) || !buckets[i]) { tip.style.opacity = 0; return; }
     const b = buckets[i];
     const box = svg.getBoundingClientRect();
-    tip.style.left = (xAt(i) / W * box.width) + 'px';
-    tip.style.top = (qPts[i][1] / H * box.height) + 'px';
+    const host = tip.offsetParent || svg.parentNode;
+    const hostRect = host.getBoundingClientRect();
+    const yPix = qPts[i][1] / H * box.height;
     tip.innerHTML = '<b>' + b.label + '</b><br>очереди: ' + b.queuePct + '% · АИ-95: ' + (b.availPct === null ? '—' : b.availPct + '%');
+    tip.classList.toggle('under', yPix < 70);
+    tip.style.top = yPix + 'px';
     tip.style.opacity = 1;
+    let cx = (xAt(i) / W * box.width) + (box.left - hostRect.left);
+    const half = tip.offsetWidth / 2;
+    cx = Math.max(half + 4, Math.min(hostRect.width - half - 4, cx));
+    tip.style.left = cx + 'px';
   };
 }
 /* герой, чипы, дайджест, шапка */
@@ -1062,9 +1167,14 @@ function renderHero() {
     tn.textContent = known ? avail + ' из ' + known + ' АЗС' : 'нет данных';
   }
   const tu = document.getElementById('triUsually');
-  if (tu) tu.textContent = pc.peak;
+  if (tu) tu.textContent = pc.peak === '—' ? '—' : pc.peak.replace(/:00/g, '');
   const tf = document.getElementById('triFc');
-  if (tf) tf.textContent = pc.calm;
+  const tfLbl = document.getElementById('triFcLbl');
+  if (tf) {
+    tf.textContent = pc.calm !== '—' ? pc.calm : (pc.advice ? 'очередь с ' + pc.advice : '—');
+    tf.classList.toggle('qadv', pc.calm === '—' && !!pc.advice);
+  }
+  if (tfLbl) tfLbl.textContent = pc.calm !== '—' ? 'Спокойно' : ('Спокойно было: ' + pc.lastCalm);
 }
 function renderDigestPanel() {
   const el = document.getElementById('digestBody');
@@ -1197,6 +1307,64 @@ function renderAccuracy() {
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз → факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
     '<div class="recent">Средняя |ошибка|: ' + fmtErrMin(mean) + ' · P90: ' + fmtErrMin(p90) + '. Верификатор работает ночью в 02:10 МСК; цензурированные проверки без факта в обучение не попадают и здесь показываются честно.</div>';
 }
+/* окошко «что это?» для чипов: простое объяснение + полезная добавка */
+function covNowCount() {
+  const last = getLastObservations();
+  let n = 0;
+  for (const id of localIdsGlobal) {
+    const o = last[id];
+    if (!o) continue;
+    if ((o.fuel_92_status !== null && o.fuel_92_status !== undefined) || (o.fuel_95_status !== null && o.fuel_95_status !== undefined) || (o.diesel_status !== null && o.diesel_status !== undefined)) n++;
+  }
+  return n;
+}
+function qNowPct() {
+  const last = getLastObservations();
+  let tot = 0, q = 0;
+  for (const id of localIdsGlobal) {
+    const o = last[id];
+    if (!o) continue;
+    tot++;
+    if (o.queue_level === 'high') q++;
+  }
+  return tot ? Math.round(100 * q / tot) : 0;
+}
+const WHY_MAP = {
+  now95: { t: 'Сейчас · АИ-95 есть', x: 'Сколько станций источник прямо сейчас видит с АИ-95. В знаменателе — станции с данными, а не все АЗС города.', e: () => 'Источник видит любое топливо на ' + covNowCount() + ' из ' + localIdsGlobal.length + ' АЗС: остальные молчат, на карте их пины несут народные отметки.' },
+  peak: { t: 'Пик спроса', x: 'Часы, когда очереди на заправках случались чаще всего за последние сутки. Если есть выбор — в это время лучше не заправляться.', e: () => 'Сейчас очередь на ' + qNowPct() + '% станций с данными.' },
+  calm: { t: 'Спокойное время', x: 'Когда очередей мало и топливо в наличии — лучшее окно для заправки. Если за сутки такого не было, показываем, когда оно было последний раз и с какого часа лучше вставать в очередь.', e: () => { const m = cityQueueMedian24(); return 'Медиана завершённой очереди за сутки: ' + (m === null ? '—' : ageRu(m)) + '.'; } },
+  plate95: { t: 'АИ-95 в городе', x: 'Сколько станций из видимых источником прямо сейчас с АИ-95. Красная точка — меньше половины, зелёная — больше половины.', e: () => 'Источник видит любое топливо на ' + covNowCount() + ' из ' + localIdsGlobal.length + ' АЗС.' },
+  plateQ: { t: 'Очереди сейчас', x: 'Сколько станций источник видит с очередью в этот момент. Это красные зоны спроса и оранжевые точки на пинах карты.', e: () => { const m = cityQueueMedian24(); return 'Медиана завершённой очереди за сутки: ' + (m === null ? '—' : ageRu(m)) + '.'; } },
+  platePeak: { t: 'Пик спроса', x: 'Часы, когда очереди случались чаще всего за последние сутки. Зоны на карте — сила очереди сейчас, этот чип — когда она обычно пиковая в течение дня.', e: null },
+  based: { t: 'На основе', x: 'Сколько снимков источника накопилось по этой АЗС за 30 дней. Чем больше наблюдений, тем надёжнее ритм станции и окно прогноза.', e: null },
+  restore: { t: 'Пополнение', x: 'Когда источник последний раз зафиксировал возврат топлива на этой АЗС. Из таких возвратов строится прогноз; если их не было — берём ритм похожих станций бренда или города.', e: null },
+  acc: { t: 'Точность', x: 'Доля прогнозов по этой АЗС, попавших в факт вовремя. Показываем при 10 и более проверках, до этого — «мало данных».', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'По городу: проверено ' + v + ', с измеренной ошибкой ' + m + ' — подробности в панели «Наша точность прогнозов».'; } }
+};
+let whyOpenKey = null;
+function closeWhy() {
+  const p = document.getElementById('whyPop');
+  if (p) p.classList.remove('open');
+  whyOpenKey = null;
+}
+function openWhyChip(el, key) {
+  const p = document.getElementById('whyPop');
+  if (!p || !WHY_MAP[key]) return;
+  if (whyOpenKey === key && p.classList.contains('open')) { closeWhy(); return; }
+  const w = WHY_MAP[key];
+  const extra = w.e ? w.e() : null;
+  p.innerHTML = '<b>' + w.t + '</b><span>' + w.x + '</span>' + (extra ? '<i>' + extra + '</i>' : '');
+  p.classList.add('open');
+  whyOpenKey = key;
+  const r = el.getBoundingClientRect();
+  const pw = p.offsetWidth, ph = p.offsetHeight;
+  let left = r.left + r.width / 2 - pw / 2;
+  left = Math.max(8, Math.min(window.innerWidth - pw - 8, left));
+  let top = r.bottom + 6;
+  if (top + ph > window.innerHeight - 8) top = r.top - ph - 6;
+  if (top < 8) top = 8;
+  p.style.left = left + 'px';
+  p.style.top = top + 'px';
+}
 let currentPanel = 0;
 function setTagline(i) {
   const sl = document.getElementById('tagSlogan');
@@ -1268,8 +1436,13 @@ function renderNow() {
         if (sc > bestScore) { bestScore = sc; best = s; bestKm = km; bestReason = base === 30 ? 'diesel' : 'fuel'; }
       }
     }
+    // совет по открытому окну — только станциям, где источник видит хоть какое-то
+    // топливо: иначе кнопка везёт водителя вслепую на «нет данных»
+    const anyFuel = (o.fuel_92_status !== null && o.fuel_92_status !== undefined) ||
+                    (o.fuel_95_status !== null && o.fuel_95_status !== undefined) ||
+                    (o.diesel_status !== null && o.diesel_status !== undefined);
     const p = pickPrediction(s.id, o);
-    if (p && fresh) {
+    if (p && fresh && anyFuel) {
       const fp = p.from_time.split(':'), tp = p.to_time.split(':');
       const f = Number(fp[0]) * 60 + Number(fp[1]), t = Number(tp[0]) * 60 + Number(tp[1]);
       let wv = 0;
@@ -1494,7 +1667,7 @@ mapObj = new maplibregl.Map({
   });
   mapObj.on('zoomend', () => applyLabelZoom());
   mapObj.on('zoom', applyZoneBadgesZoom);
-  mapObj.on('movestart', () => { fadeFloatChips(); closeRing(); closeQuick(); closeCovPop(); });
+  mapObj.on('movestart', () => { fadeFloatChips(); closeRing(); closeQuick(); closeCovPop(); closeWhy(); });
   // тап мимо пина снимает меню действий и пузырь быстрой отметки
   document.addEventListener('pointerdown', e => {
     const t = e.target;
@@ -1849,7 +2022,7 @@ function openQuick(st, wrap) {
   if (pn) pn.classList.add('on');
   // пузырь открывается центром карты: ширина/высота учтены через
   // max-width/max-height + внутренний скролл — виден целиком при любом пине
-  const host = document.getElementById('mapBox') || wrap;
+  const host = document.getElementById('mapWrap') || document.getElementById('mapBox') || wrap;
   host.appendChild(el);
   activeQuick = { el: el, wrap: wrap };
 }
@@ -2008,9 +2181,9 @@ function updateMapPlate() {
   }
   const pc = peakAndCalm();
   el.innerHTML =
-    '<span class="gp"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
-    '<span class="gp"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
-    '<span class="gp">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
+    '<span class="gp gp-btn" onclick="openWhyChip(this,\'plate95\')"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
+    '<span class="gp gp-btn" onclick="openWhyChip(this,\'plateQ\')"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
+    '<span class="gp gp-btn" onclick="openWhyChip(this,\'platePeak\')">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
     '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + localIdsGlobal.length + ' АЗС' + covSpark() + '</span>';
 }
 // мини-график покрытия за 24 ч: сколько станций источник видел в каждый час
@@ -2183,15 +2356,16 @@ function findNearby() {
 }
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchStations(); });
 document.addEventListener('pointerdown', e => {
-  const pop = document.getElementById('covPop');
-  if (!pop || !pop.classList.contains('open')) return;
   const t = e.target;
-  if (t.closest && (t.closest('#covPop') || t.closest('#covChip'))) return;
-  pop.classList.remove('open');
+  const pop = document.getElementById('covPop');
+  if (pop && pop.classList.contains('open') && !(t.closest && (t.closest('#covPop') || t.closest('#covChip')))) pop.classList.remove('open');
+  const wp = document.getElementById('whyPop');
+  if (wp && wp.classList.contains('open') && !(t.closest && (t.closest('#whyPop') || t.closest('.chip3.tap') || t.closest('.gp-btn') || t.closest('.info.tap')))) closeWhy();
 }, { capture: true });
 async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const since72 = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
   try {
     const [hourly, events] = await Promise.all([
       dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95,selling&hour=gte.' + since + '&order=hour.asc&limit=1000'),
@@ -2202,7 +2376,7 @@ async function loadPulse() {
   } catch (e) { console.log('pulse main: ' + e.message); }
   renderPulse();
   requestAnimationFrame(() => renderPulse());
-  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&hour=gte.' + since24 + '&order=hour.asc&limit=48')
+  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&hour=gte.' + since72 + '&order=hour.asc&limit=96')
     .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); updateMapPlate(); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
   dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
@@ -2210,6 +2384,39 @@ async function loadPulse() {
     .catch(() => { dailyEvents = []; });
   // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
   setTimeout(() => { renderPulse(); renderNow(); }, 400);
+}
+/* помощь: карточка вопрос-ответ простым языком + окно при первом заходе */
+function helpHtml() {
+  return '<div class="help-h">Что такое КогдаБенз и чем он помогает</div>' +
+    '<div class="help-lead">КогдаБенз — помощник водителя юга: Краснодарский край и Адыгея. Мы не просто показываем, где бензин: каждые 10 минут собираем отметки заправок и сообщения водителей, а потом подсказываем, когда топливо вернётся на заправку и когда лучше поехать.</div>' +
+    '<div class="help-item"><div class="help-q">Зачем создан этот сайт?</div><div class="help-a">В дефицит бензин пропадает с заправок, а очереди появляются внезапно. Чтобы не ездить по городу вслепую, мы собрали все отметки в одном месте и заранее подсказываем, когда и куда лучше заправиться.</div></div>' +
+    '<div class="help-item"><div class="help-q">Откуда берутся данные?</div><div class="help-a">Из двух источников: народная карта заправок (обновляется каждые 10 минут) и отметки таких же водителей, как вы: «топливо есть», «очередь», «привезли». Чем больше людей отмечают, тем точнее подсказки.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что за круги вокруг капель?</div><div class="help-a">Это очереди. Чем краснее и заметнее круг, тем больше людей стоят в очереди прямо сейчас. Значок с человечками внутри круга — отметка очереди.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что такое «окно возврата»?</div><div class="help-a">Часы, когда топливо с большей вероятностью вернётся на заправку. Мы считаем их по истории заправки: когда и как обычно туда привозят бензин. Рядом с окном всегда показана уверенность в процентах.</div></div>' +
+    '<div class="help-item"><div class="help-q">Можно ли доверять сайту?</div><div class="help-a">Каждую ночь мы сверяем свои подсказки с тем, что случилось на самом деле, и честно показываем ошибку на панели «Наша точность прогнозов». Если данных мало — говорим об этом прямо и не выдумываем цифры.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что делает кнопка «Куда ехать»?</div><div class="help-a">Подбирает ближайшую к вам заправку с топливом по свежим отметкам и показывает расстояние. Если топлива сейчас нигде нет — подскажет ближайшее окно возврата.</div></div>' +
+    '<div class="help-item"><div class="help-q">Как я могу помочь?</div><div class="help-a">Нажмите на каплю на карте и выберите «Отметка»: пара нажатий — и ваша отметка о топливе или очереди улучшит подсказки для всего города.</div></div>';
+}
+function openHelp() {
+  document.getElementById('sheetBody').innerHTML = helpHtml();
+  document.getElementById('sheet').classList.add('open');
+  document.getElementById('sheetBack').classList.add('open');
+}
+function closeHello(more) {
+  document.getElementById('helloPop').classList.remove('open');
+  document.getElementById('helloBack').classList.remove('open');
+  try { localStorage.setItem('seenHello', '1'); } catch (e) {}
+  if (more) openHelp();
+}
+function maybeHello() {
+  let seen = false;
+  try { seen = !!localStorage.getItem('seenHello'); } catch (e) { seen = true; }
+  if (seen) return;
+  setTimeout(() => {
+    document.getElementById('helloPop').classList.add('open');
+    document.getElementById('helloBack').classList.add('open');
+  }, 600);
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
@@ -2220,10 +2427,12 @@ loadPulse().catch(e => console.log('pulse: ' + e.message));
 currentPanel = 1;
 setTagline(1);
 requestAnimationFrame(() => { const pg = document.getElementById('pager'); if (pg) pg.scrollLeft = pg.clientWidth; });
+maybeHello();
 tickClock();
 setInterval(tickClock, 30000);
 const pagerEl = document.getElementById('pager');
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
+  closeWhy();
   const i = Math.round(pagerEl.scrollLeft / pagerEl.clientWidth);
   if (i !== currentPanel) { currentPanel = i; setTagline(i); if (i === 2) ensureMap(); }
   document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
