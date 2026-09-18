@@ -18,8 +18,9 @@ body { overflow:hidden; }
 .ic { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:0 0 auto; }
 .ic-s { width:14px; height:14px; }
 .ic-l { width:22px; height:22px; }
-.header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:8px; }
-.logo-wrap { display:flex; align-items:center; gap:12px; }
+.header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.logo-wrap { display:flex; align-items:center; gap:12px; min-width:0; flex:1; }
+.logo-wrap > div { min-width:0; }
 .logo { width:46px; height:46px; display:grid; place-items:center; border-radius:16px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; box-shadow:0 10px 26px rgba(55,100,180,.22); }
 .logo .ic-l { width:26px; height:26px; }
 .logo-title { font-size:24px; font-weight:900; letter-spacing:-1px; }
@@ -1395,10 +1396,12 @@ function setTagline(i) {
     sTxt = 'Далеко — кластеры с составом по АИ-95, близко — пины станций. Зоны — сила спроса, плашка сверху — сводка города.';
   } else if (i === 3) {
     const last = getLastObservations();
+    const city = cityStationList();
     let withFuel = 0, withPred = 0;
-    for (const id of localIdsGlobal) { const o = last[id]; if (o && o.fuel_95_status === true) withFuel++; if (pickPrediction(id, o)) withPred++; }
+    for (const s of city) { const o = last[s.id]; if (o && o.fuel_95_status === true) withFuel++; if (pickPrediction(s.id, o)) withPred++; }
+    const c = cityBox();
     sHtml = 'АЗС города. <span>Тап — и всё видно.</span>';
-    sTxt = 'В городе ' + localIdsGlobal.length + ' АЗС: АИ-95 есть на ' + withFuel + ', окна у ' + withPred + '. Тап по строке — полная карточка с прогнозом.';
+    sTxt = 'В ' + (c.nameIn || c.name) + ' ' + city.length + ' АЗС: АИ-95 есть на ' + withFuel + ', окна у ' + withPred + '. Остальной юг — на карте. Тап по строке — полная карточка.';
   } else if (i === 4) {
     const since = Date.now() - 24 * 3600 * 1000;
     const ev = pulseEv.filter(e => e.t.getTime() > since);
@@ -2284,7 +2287,7 @@ async function start() {
     queueEpisodes = queueEps || [];
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
-    renderStations(stations);
+    renderStations(cityStationList());
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
   } catch (e) {
@@ -2306,7 +2309,7 @@ async function start() {
       const cityBtnTxt = document.getElementById('mgScopeCityTxt');
       if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
       // пере-считаем список и сводки с учётом города пользователя
-      renderStations(allStations);
+      renderStations(cityStationList());
       loadPulse();
     }, () => {}, { timeout: 5000, maximumAge: 300000 });
   }
@@ -2323,8 +2326,9 @@ function toggleFavorite(button) {
 }
 function searchStations() {
   const query = document.getElementById('searchInput').value.trim().toLowerCase();
-  if (!query) { renderStations(allStations.filter(s => localIdsGlobal.includes(s.id))); return; }
-  renderStations(allStations.filter(st => [st.name || '', st.brand || '', st.address || ''].join(' ').toLowerCase().includes(query)));
+  const city = cityStationList();
+  if (!query) { renderStations(city); return; }
+  renderStations(city.filter(st => [st.name || '', st.brand || '', st.address || ''].join(' ').toLowerCase().includes(query)));
 }
 function saveUserLocation(lat, lon) {
   try {
@@ -2334,15 +2338,15 @@ function saveUserLocation(lat, lon) {
 
 /* гео-разрез: города юга боксами; сводки по умолчанию = город пользователя */
 const CITY_BOXES = [
-  { key: 'novorossiysk', name: 'Новороссийск', lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.00 },
-  { key: 'gelendzhik', name: 'Геленджик', lat1: 44.45, lat2: 44.68, lon1: 37.95, lon2: 38.25 },
-  { key: 'anapa', name: 'Анапа', lat1: 44.80, lat2: 45.10, lon1: 37.20, lon2: 37.60 },
-  { key: 'krymsk', name: 'Крымск', lat1: 44.85, lat2: 45.05, lon1: 37.85, lon2: 38.15 },
-  { key: 'krasnodar', name: 'Краснодар', lat1: 44.90, lat2: 45.15, lon1: 38.80, lon2: 39.15 },
-  { key: 'sochi', name: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
-  { key: 'tuapse', name: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
-  { key: 'armavir', name: 'Армавир', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
-  { key: 'maykop', name: 'Майкоп', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 }
+  { key: 'novorossiysk', name: 'Новороссийск', nameIn: 'Новороссийске', lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.00 },
+  { key: 'gelendzhik', name: 'Геленджик', nameIn: 'Геленджике', lat1: 44.45, lat2: 44.68, lon1: 37.95, lon2: 38.25 },
+  { key: 'anapa', name: 'Анапа', nameIn: 'Анапе', lat1: 44.80, lat2: 45.10, lon1: 37.20, lon2: 37.60 },
+  { key: 'krymsk', name: 'Крымск', nameIn: 'Крымске', lat1: 44.85, lat2: 45.05, lon1: 37.85, lon2: 38.15 },
+  { key: 'krasnodar', name: 'Краснодар', nameIn: 'Краснодаре', lat1: 44.90, lat2: 45.15, lon1: 38.80, lon2: 39.15 },
+  { key: 'sochi', name: 'Сочи', nameIn: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
+  { key: 'tuapse', name: 'Туапсе', nameIn: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
+  { key: 'armavir', name: 'Армавир', nameIn: 'Армавире', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
+  { key: 'maykop', name: 'Майкоп', nameIn: 'Майкопе', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 }
 ];
 /* переключение скоупа кардиограммы: город пользователя или весь юг */
 function mgScope(scope, btn) {
@@ -2386,6 +2390,10 @@ function scopeIds() {
     const s = stationById(id);
     return s && s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2;
   });
+  function cityBox() { return CITY_BOXES.find(x => x.key === userCityKey) || CITY_BOXES[0]; }
+function cityStationList() {
+  const c = cityBox();
+  return allStations.filter(s => s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2);
 }
 
 function loadUserLocation() {
@@ -2436,7 +2444,8 @@ function findNearby() {
         const dLat = (sLat - lat) * 111, dLon = (sLon - lon) * 111 * Math.cos(lat * Math.PI / 180);
         return { station, distance: Math.sqrt(dLat*dLat + dLon*dLon) };
       }).sort((a,b) => a.distance - b.distance).map(x => x.station);
-      renderStations(sorted, true);
+      const cityIds = new Set(cityStationList().map(s => s.id));
+      renderStations(sorted.filter(s => cityIds.has(s.id)), true);
     }
   }, () => alert('Не удалось определить местоположение.'));
 }
