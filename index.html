@@ -430,18 +430,18 @@ body { overflow:hidden; }
         <div class="chip3 tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
       <div class="mini-graph">
-        <div class="mini-cap" style="justify-content:space-between">
-          <span style="display:flex;align-items:center;gap:5px"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма <span id="mgCityLbl">города</span></span>
+        <div class="mini-cap">
+          <span style="display:flex;align-items:center;gap:5px;min-width:0"><svg class="ic ic-s"><use href="#i-chart"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">кардиограмма · <span id="mgCityLbl">города</span></span></span>
+        </div>
+        <div class="mini-cap" style="justify-content:space-between;margin-top:4px;flex-wrap:wrap;gap:4px">
+          <span class="mg-tabs" id="mgScopeTabs">
+            <button class="mg-tab active" onclick="mgScope('city',this)" id="mgScopeCity"><span id="mgScopeCityTxt">город</span></button>
+            <button class="mg-tab" onclick="mgScope('south',this)">весь юг</button>
+          </span>
           <span class="mg-tabs">
             <button class="mg-tab active" onclick="mgRange('day',this)">День</button>
             <button class="mg-tab" onclick="mgRange('week',this)">Неделя</button>
             <button class="mg-tab" onclick="mgRange('month',this)">Месяц</button>
-          </span>
-        </div>
-        <div class="mini-cap" style="justify-content:space-between;margin-top:2px">
-          <span class="mg-tabs" id="mgScopeTabs">
-            <button class="mg-tab active" onclick="mgScope('city',this)" id="mgScopeCity"><span id="mgScopeCityTxt">город</span></button>
-            <button class="mg-tab" onclick="mgScope('south',this)">весь юг</button>
           </span>
         </div>
         <svg class="pulse-svg" id="pulseSvg"></svg>
@@ -1187,7 +1187,7 @@ function renderHero() {
   const tf = document.getElementById('triFc');
   const tfLbl = document.getElementById('triFcLbl');
   if (tf) {
-    tf.textContent = pc.calm !== '—' ? pc.calm : (pc.advice ? 'очередь с ' + pc.advice : '—');
+    tf.textContent = pc.calm !== '—' ? pc.calm : (pc.advice ? 'очередь ' + pc.advice : '—');
     tf.classList.toggle('qadv', pc.calm === '—' && !!pc.advice);
   }
   if (tfLbl) tfLbl.textContent = pc.calm !== '—' ? 'Спокойно' : ('Спокойно было: ' + pc.lastCalm);
@@ -2257,7 +2257,7 @@ async function start() {
     const stations = await dbQuery('/rest/v1/stations?select=*');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
-    localIdsGlobal = allStations.map(s => s.id);
+    localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
