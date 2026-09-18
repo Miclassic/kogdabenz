@@ -304,8 +304,8 @@ body { overflow:hidden; }
 .fchips { position:absolute; bottom:calc(100% + 30px); left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:none; transition:opacity .5s ease; }
 .fchips.out { opacity:0; }
 .mring { position:absolute; left:17px; top:17px; width:0; height:0; pointer-events:none; z-index:6; }
-.mring button { position:absolute; transform:translate(-50%,-50%); display:inline-flex; align-items:center; gap:4px; padding:7px 10px; border:0; border-radius:99px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:9.5px; font-weight:800; box-shadow:0 8px 18px rgba(38,69,120,.35); white-space:nowrap; pointer-events:auto; animation:mPopRing .22s ease; }
-.mring button .ic { width:12px; height:12px; }
+.mring button { position:absolute; transform:translate(-50%,-50%); display:inline-flex; align-items:center; gap:4px; padding:7px 10px; border:1px solid rgba(226,232,244,.9); border-radius:99px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); white-space:nowrap; pointer-events:auto; animation:mPopRing .22s ease; }
+.mring button .ic { width:12px; height:12px; color:#2465ee; }
 @keyframes mPopRing { from { transform:translate(-50%,-50%) scale(.6); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
 .mring-name { position:absolute; left:0; top:-26px; transform:translate(-50%,-100%); text-align:center; pointer-events:none; white-space:nowrap; animation:ringFade .25s ease; }
 .mring-name b { display:block; font-size:11px; font-weight:900; letter-spacing:-.2px; color:#14213d; text-shadow:0 1px 0 rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.75); }
@@ -777,7 +777,7 @@ function workStrip(obs) {
   if (st === 'yes' || st === 'queue' || st === 'low') { txt = 'источник: станция работает'; ico = 'i-check'; }
   else if (st === 'no') { txt = 'источник: станция не работает'; ico = 'i-cross'; }
   else { txt = 'источник молчит о станции'; }
-  return '<div class="dg-strip" style="margin-top:8px">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
+  return '<div class="dg-strip chip3 tap" style="margin:0 0 10px" onclick="openWhyChip(this,\'work\')">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
 }
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
@@ -790,11 +790,11 @@ function stationCard(station, obs, pred) {
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + ' · ' : '') + escapeHtml(station.address || '') + '</div></div>' +
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
     '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
+    workStrip(obs) +
     '<div class="fuels">' +
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
-    workStrip(obs) +
     '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
@@ -1369,6 +1369,7 @@ const WHY_MAP = {
   plate95: { t: 'АИ-95 в городе', x: 'Сколько станций из видимых источником прямо сейчас с АИ-95. Красная точка — меньше половины, зелёная — больше половины.', e: () => 'Источник видит любое топливо на ' + covNowCount() + ' из ' + cityStationList().length + ' АЗС.' },
   plateQ: { t: 'Очереди сейчас', x: 'Сколько станций источник видит с очередью в этот момент. Это красные зоны спроса и оранжевые точки на пинах карты.', e: () => { const m = cityQueueMedian24(); return 'Медиана завершённой очереди за сутки: ' + (m === null ? '—' : ageRu(m)) + '.'; } },
   platePeak: { t: 'Пик спроса', x: 'Часы, когда очереди случались чаще всего за последние сутки. Зоны на карте — сила очереди сейчас, этот чип — когда она обычно пиковая в течение дня.', e: null },
+  work: { t: 'Вердикт источника о станции', x: 'Автоматический сигнал GdeBenz по оплатам и отметкам водителей: продаёт ли станция сейчас обычным людям. Это не про топливо: у работающей станции состав может быть неизвестен, а «не работает» или «молчит» объясняет, почему нет данных.', e: null },
   based: { t: 'На основе', x: 'Сколько снимков источника накопилось по этой АЗС за 30 дней. Чем больше наблюдений, тем надёжнее ритм станции и окно прогноза.', e: null },
   restore: { t: 'Пополнение', x: 'Когда источник последний раз зафиксировал возврат топлива на этой АЗС. Из таких возвратов строится прогноз; если их не было — берём ритм похожих станций бренда или города.', e: null },
   acc: { t: 'Точность', x: 'Доля прогнозов по этой АЗС, попавших в факт вовремя. Показываем при 10 и более проверках, до этого — «мало данных».', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'По городу: проверено ' + v + ', с измеренной ошибкой ' + m + ' — подробности в панели «Наша точность прогнозов».'; } }
@@ -2000,24 +2001,30 @@ function openRing(st, wrap) {
   if (pn) pn.classList.add('on');
   const ring = document.createElement('div');
   ring.className = 'mring';
+  // кольцо вешаем на каплю сразу: кнопкам нужно быть в DOM,
+  // чтобы измерить свою реальную ширину и встать симметрично
+  wrap.appendChild(ring);
   const fav = isFavorite(st.id);
   const actions = [
-    { icon: 'i-heart', label: fav ? 'Убрать из избранного' : 'В избранное', dx: -78, dy: -2, run: () => { toggleFavoriteById(st.id); closeRing(); } },
-    { icon: 'i-check', label: 'Отметка', dx: 0, dy: 44, run: () => { closeRing(); openQuick(st, wrap); } },
-    { icon: 'i-pump', label: 'Карточка АЗС', dx: 78, dy: -2, run: () => { closeRing(); sheetFromMap = true; openSheet(st.id); } }
+    { icon: 'i-heart', label: fav ? 'Убрать из избранного' : 'В избранное', side: 'left', dy: -2, run: () => { toggleFavoriteById(st.id); closeRing(); } },
+    { icon: 'i-check', label: 'Отметка', side: 'bottom', dy: 52, run: () => { closeRing(); openQuick(st, wrap); } },
+    { icon: 'i-pump', label: 'Карточка АЗС', side: 'right', dy: -2, run: () => { closeRing(); sheetFromMap = true; openSheet(st.id); } }
   ];
   for (const a of actions) {
     const b = document.createElement('button');
-    b.style.left = a.dx + 'px';
     b.style.top = a.dy + 'px';
     b.innerHTML = icon(a.icon, 'ic-s') + a.label;
+    ring.appendChild(b);
+    // боковые чипы отстоят от капли внутренним краем на равные 12px:
+    // длина подписи больше не сдвигает композицию вправо/влево
+    const w = b.offsetWidth;
+    const gap = 28;
+    b.style.left = (a.side === 'left' ? -(gap + w / 2) : a.side === 'right' ? (gap + w / 2) : 0) + 'px';
     // жест начинается на чипе: не отдаём его ни карте, ни пину
     b.addEventListener('pointerdown', e => e.stopPropagation());
     b.addEventListener('pointerup', e => e.stopPropagation());
     b.addEventListener('click', e => { e.stopPropagation(); a.run(); });
-    ring.appendChild(b);
   }
-  wrap.appendChild(ring);
   activeRing = ring;
 }
 // быстрая отметка: пузырь «перетекает» из капли с чипами из карточки,
