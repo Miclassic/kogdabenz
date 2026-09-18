@@ -916,7 +916,10 @@ function renderHeat() {
     const s = last ? row.stat(last) : null;
     let stTxt = '—', stCls = 'n';
     if (s !== null) {
-      const good = row.inv ? (s < 0.07 ? 2 : s < 0.15 ? 1 : 0) : (s >= 0.6 ? 2 : s >= 0.3 ? 1 : 0);
+      // подпись в той же шкале «плохости» 0..1, что и цвет клетки:
+      // зелёное слово до четверти шкалы, жёлтое до 60%, дальше красное
+      const v = row.inv ? Math.min(1, s / 0.3) : 1 - s;
+      const good = v < 0.25 ? 2 : v < 0.6 ? 1 : 0;
       if (good === 2) { stTxt = row.inv ? 'низкая' : 'есть'; stCls = 'g'; }
       else if (good === 1) { stTxt = row.inv ? 'средняя' : 'мало'; stCls = 'y'; }
       else { stTxt = row.inv ? 'высокая' : 'нет'; stCls = 'r'; }
