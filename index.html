@@ -355,6 +355,17 @@ body { overflow:hidden; }
     <div class="tagline-text" id="tagText">Каждые 10 минут — отметки АЗС и голоса водителей: алгоритм предсказывает окна возврата.</div>
   </div>
   <div class="pager" id="pager">
+    <section class="panel">
+      <div class="p1-head">
+        <div class="p1-ico"><svg class="ic"><use href="#i-check"/></svg></div>
+        <div class="p1-t">
+          <div class="nowcard-title">Наша точность прогнозов</div>
+          <div class="nowcard-sub">верификатор каждую ночь сверяет прогнозы с фактом: честная ошибка в минутах и сравнение с голой медианой</div>
+        </div>
+        <div class="p1-clock"><svg class="ic ic-s"><use href="#i-check"/></svg><span id="accCount">—</span></div>
+      </div>
+      <div class="panel-scroll" id="accBody"><div class="status">Точность ещё измеряется…</div></div>
+    </section>
     <section class="panel p1">
       <div class="p1-head">
         <div class="p1-ico"><svg class="ic"><use href="#i-chart"/></svg></div>
@@ -456,7 +467,7 @@ body { overflow:hidden; }
       <div class="panel-scroll" id="digestBody"></div>
     </section>
     </div>
-  <div class="pager-dots" id="pagerDots"><i class="on"></i><i></i><i></i><i></i></div>
+  <div class="pager-dots" id="pagerDots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
   <div class="sheet" id="sheet">
     <div class="sheet-grab"></div>
@@ -799,13 +810,13 @@ function closeSheet() {
   document.getElementById('sheetBack').classList.remove('open');
   // карточку открыли с карты — возвращаемся на панель карты;
   // центр и зум не тронуты (карта не пересоздавалась), место то же
-  if (sheetFromMap) { sheetFromMap = false; pagerGo(1); }
+  if (sheetFromMap) { sheetFromMap = false; pagerGo(2); }
 }
 function showOnMap(id) {
   const st = allStations.find(s => s.id === id);
   if (!st) return;
   closeSheet();
-  pagerGo(1);
+  pagerGo(2);
   ensureMap();
   const fly = () => {
     if (!mapObj) { setTimeout(fly, 150); return; }
@@ -818,7 +829,7 @@ function toggleFeedback(stationId) {
   const panel = document.getElementById('feedback-' + stationId);
   if (panel) panel.classList.toggle('open');
 }
-function ctaDigest() { pagerGo(3); }
+function ctaDigest() { pagerGo(4); }
 function pagerGo(i) { const p = document.getElementById('pager'); if (p) p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
 /* тепло */
 function badColor(v) {
@@ -1094,22 +1105,117 @@ function renderDigestPanel() {
   } else html += '<div class="recent" style="margin-top:8px">Пока пусто — открой карточку АЗС и нажми сердечко.</div>';
   el.innerHTML = html;
 }
+/* панель «Наша точность прогнозов»: честные цифры верификатора */
+function fmtErrMin(m) {
+  if (m === null || m === undefined || !isFinite(m)) return '—';
+  m = Math.round(Math.abs(m));
+  if (m < 60) return m + ' мин';
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h + ' ч' + (mm ? ' ' + mm + ' мин' : '');
+}
+function quantileOf(sorted, q) {
+  if (!sorted.length) return null;
+  const idx = (sorted.length - 1) * q;
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+function renderAccuracy() {
+  const body = document.getElementById('accBody');
+  if (!body) return;
+  const verified = allPredictions.filter(p => p.is_verified);
+  const measured = verified.filter(p => p.error_minutes !== null && p.error_minutes !== undefined);
+  const censored = verified.length - measured.length;
+  const cnt = document.getElementById('accCount');
+  if (cnt) cnt.textContent = measured.length + '/' + verified.length;
+  if (measured.length < 3) {
+    body.innerHTML = '<div class="status" style="margin-top:8px">Пока нечего измерять: ' + measured.length + ' из ' + verified.length + ' прогнозов получили факт возврата топлива.<br><small>' +
+      verified.length + ' прогнозов уже проверено верификатором. Но дефицит глубокий: по ним ещё не случилось подтверждённого возврата топлива, поэтому честную ошибку посчитать невозможно. Когда возвраты накопятся (минимум 3), здесь появится настоящая аналитика ошибки — а пока эта пустота норма, а не поломка.</small></div>';
+    return;
+  }
+  const errs = measured.map(p => Math.abs(p.error_minutes)).sort((a, b) => a - b);
+  const mean = Math.round(errs.reduce((a, b) => a + b, 0) / errs.length);
+  const med = Math.round(quantileOf(errs, 0.5));
+  const p90 = Math.round(quantileOf(errs, 0.9));
+  const baseErrs = measured.filter(p => p.baseline_error_minutes !== null && p.baseline_error_minutes !== undefined)
+    .map(p => Math.abs(p.baseline_error_minutes)).sort((a, b) => a - b);
+  const baseMed = baseErrs.length ? Math.round(quantileOf(baseErrs, 0.5)) : null;
+  const succ = verified.filter(p => p.result === 'SUCCESS').length;
+  const succTxt = verified.length >= 10 ? Math.round(100 * succ / verified.length) + '%' : 'мало данных';
+  const limits = [30, 60, 120, 240];
+  const labels = ['≤30м', '≤1ч', '≤2ч', '≤4ч', '>4ч'];
+  const counts = [0, 0, 0, 0, 0];
+  for (const e of errs) {
+    let bi = limits.findIndex(l => e <= l);
+    if (bi === -1) bi = 4;
+    counts[bi]++;
+  }
+  const maxC = Math.max(1, ...counts);
+  const W = 300, H = 92, bw = 44, gap = 14;
+  let bars = '';
+  counts.forEach((c, i) => {
+    const h = c ? Math.max(6, Math.round(c / maxC * 58)) : 4;
+    const x = 10 + i * (bw + gap);
+    bars += '<rect x="' + x + '" y="' + (H - 20 - h) + '" width="' + bw + '" height="' + h + '" rx="6" fill="' + (i <= 1 ? '#35c894' : i === 2 ? '#f5d565' : '#ef5350') + '" opacity=".85"/>' +
+      '<text x="' + (x + bw / 2) + '" y="' + (H - 24 - h) + '" font-size="9" font-weight="800" fill="#5b6b86" text-anchor="middle">' + c + '</text>' +
+      '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" font-size="8" font-weight="700" fill="#93a1b8" text-anchor="middle">' + labels[i] + '</text>';
+  });
+  const histSvg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:' + H + 'px;display:block">' + bars + '</svg>';
+  const cmpRows = [
+    { lbl: 'медиана модели', v: med, color: '#397cff' },
+    { lbl: 'P90 модели', v: p90, color: '#7c6dff' },
+    { lbl: 'медиана baseline', v: baseMed, color: '#a7b1c1' }
+  ];
+  const maxV = Math.max(1, med || 0, p90 || 0, baseMed || 0);
+  let cmp = '';
+  cmpRows.forEach((r, i) => {
+    const y = 6 + i * 26;
+    const w = r.v === null ? 0 : Math.max(4, Math.round(r.v / maxV * 160));
+    cmp += '<text x="0" y="' + (y + 11) + '" font-size="9" font-weight="700" fill="#71809c">' + r.lbl + '</text>' +
+      '<rect x="92" y="' + y + '" width="' + w + '" height="14" rx="7" fill="' + r.color + '" opacity=".8"/>' +
+      '<text x="' + (92 + w + 6) + '" y="' + (y + 11) + '" font-size="9" font-weight="800" fill="#33445f">' + (r.v === null ? '—' : fmtErrMin(r.v)) + '</text>';
+  });
+  const cmpSvg = '<svg viewBox="0 0 300 80" style="width:100%;height:80px;display:block">' + cmp + '</svg>';
+  const stories = measured.slice().sort((a, b) => new Date(b.actual_restore_at || 0) - new Date(a.actual_restore_at || 0)).slice(0, 3);
+  const stHtml = stories.map(p => {
+    const st = allStations.find(s => s.id === p.station_id);
+    const dAt = p.actual_restore_at ? new Date(p.actual_restore_at) : null;
+    const hh = dAt ? String((dAt.getUTCHours() + 3) % 24).padStart(2, '0') + ':' + String(dAt.getUTCMinutes()).padStart(2, '0') : '—';
+    const sign = p.error_minutes > 0 ? '+' : p.error_minutes < 0 ? '−' : '±';
+    return '<div class="rc-batch"><div class="rc-time">' + escapeHtml(st ? st.name || 'АЗС' : 'АЗС') + ' · ' + fuelLabel(p.fuel_type) + '</div>' +
+      '<div class="rc-chips"><span class="rc-chip info">' + icon('i-clock', 'ic-s') + 'окно ' + time5(p.from_time) + '–' + time5(p.to_time) + '</span>' +
+      '<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'факт ' + hh + '</span>' +
+      '<span class="rc-chip ' + (Math.abs(p.error_minutes) <= 60 ? 'yes' : 'queue') + '">' + icon('i-chart', 'ic-s') + 'ошибка ' + sign + fmtErrMin(p.error_minutes) + '</span></div></div>';
+  }).join('');
+  body.innerHTML =
+    '<div class="chips3">' +
+    '<div class="chip3"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено</small><b>' + verified.length + ' · ценз. ' + censored + '</b></div></div>' +
+    '<div class="chip3"><svg class="ic"><use href="#i-clock"/></svg><div><small>Медиана |ошибки|</small><b>' + fmtErrMin(med) + '</b></div></div>' +
+    '<div class="chip3"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попадание в окно</small><b>' + succTxt + '</b></div></div>' +
+    '</div>' +
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">модель против baseline · медиана |ошибки|</div>' + cmpSvg + '</div>' +
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">распределение |ошибки| прогнозов</div>' + histSvg + '</div>' +
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз → факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
+    '<div class="recent">Средняя |ошибка|: ' + fmtErrMin(mean) + ' · P90: ' + fmtErrMin(p90) + '. Верификатор работает ночью в 02:10 МСК; цензурированные проверки без факта в обучение не попадают и здесь показываются честно.</div>';
+}
 let currentPanel = 0;
 function setTagline(i) {
   const sl = document.getElementById('tagSlogan');
   const tx = document.getElementById('tagText');
   if (!sl || !tx) return;
   let sHtml, sTxt;
-  if (i === 1) {
+  if (i === 0) {
+    sHtml = 'Точность. <span>Честная.</span>';
+    sTxt = 'Верификатор каждую ночь сверяет прогнозы с фактом: |ошибка| в минутах, сравнение с голой медианой, цензурированные проверки без факта — всё как есть, без округлений в свою пользу.';
+  } else if (i === 2) {
     sHtml = 'Карта. <span>Где спрос.</span>';
     sTxt = 'Далеко — кластеры с составом по АИ-95, близко — пины станций. Зоны — сила спроса, плашка сверху — сводка города.';
-  } else if (i === 2) {
+  } else if (i === 3) {
     const last = getLastObservations();
     let withFuel = 0, withPred = 0;
     for (const id of localIdsGlobal) { const o = last[id]; if (o && o.fuel_95_status === true) withFuel++; if (pickPrediction(id, o)) withPred++; }
     sHtml = 'АЗС города. <span>Тап — и всё видно.</span>';
     sTxt = 'В городе ' + localIdsGlobal.length + ' АЗС: АИ-95 есть на ' + withFuel + ', окна у ' + withPred + '. Тап по строке — полная карточка с прогнозом.';
-  } else if (i === 3) {
+  } else if (i === 4) {
     const since = Date.now() - 24 * 3600 * 1000;
     const ev = pulseEv.filter(e => e.t.getTime() > since);
     sHtml = 'Дайджест. <span>Город в цифрах.</span>';
@@ -1167,7 +1273,7 @@ function renderNow() {
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
       cta.onclick = () => openSheet(best.id);
     }
-    else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(2); }
+    else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(3); }
   }
   const qPct = tot ? Math.round(100 * q / tot) : 0;
   const aPct = known ? Math.round(100 * avail / known) : 0;
@@ -1186,6 +1292,7 @@ function renderNow() {
   updateMapPlate();
   renderHero();
   renderDigestPanel();
+  renderAccuracy();
   setTagline(currentPanel);
 }
 let onlyPred = false, sortWin = false, lastKeepOrder = false;
@@ -2095,13 +2202,15 @@ function tickClock() {
 }
 start();
 loadPulse().catch(e => console.log('pulse: ' + e.message));
-setTagline(0);
+currentPanel = 1;
+setTagline(1);
+requestAnimationFrame(() => { const pg = document.getElementById('pager'); if (pg) pg.scrollLeft = pg.clientWidth; });
 tickClock();
 setInterval(tickClock, 30000);
 const pagerEl = document.getElementById('pager');
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
   const i = Math.round(pagerEl.scrollLeft / pagerEl.clientWidth);
-  if (i !== currentPanel) { currentPanel = i; setTagline(i); if (i === 1) ensureMap(); }
+  if (i !== currentPanel) { currentPanel = i; setTagline(i); if (i === 2) ensureMap(); }
   document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
 });
 let hintCancelled = false;
@@ -2112,10 +2221,10 @@ let hintCancelled = false;
   setTimeout(() => {
     if (hintCancelled) return;
     pager.style.scrollSnapType = 'none';
-    pager.scrollTo({ left: Math.round(pager.clientWidth * 0.25), behavior: 'smooth' });
+    pager.scrollTo({ left: Math.round(pager.clientWidth * 1.25), behavior: 'smooth' });
     setTimeout(() => {
       if (hintCancelled) return;
-      pager.scrollTo({ left: 0, behavior: 'smooth' });
+      pager.scrollTo({ left: pager.clientWidth, behavior: 'smooth' });
       setTimeout(() => { pager.style.scrollSnapType = ''; }, 700);
     }, 600);
   }, 900);
