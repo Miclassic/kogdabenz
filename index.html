@@ -242,6 +242,16 @@ body { overflow:hidden; }
 .gp { display:inline-flex; align-items:center; gap:5px; padding:6px 9px; border-radius:12px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
 .gp .dot { width:7px; height:7px; }
 .gp .ic { width:11px; height:11px; }
+.gp .cov-spark { width:36px; height:12px; margin-left:2px; }
+.gp-btn { pointer-events:auto; cursor:pointer; }
+.cov-pop { position:absolute; left:10px; right:10px; top:46px; z-index:6; display:none; background:rgba(255,255,255,.97); border:1px solid #e3ecf5; border-radius:14px; box-shadow:0 10px 30px rgba(15,27,51,.18); padding:6px; max-height:46%; overflow-y:auto; }
+.cov-pop.open { display:block; }
+.cov-row { display:flex; align-items:center; gap:8px; width:100%; border:0; background:transparent; padding:8px; border-radius:10px; text-align:left; cursor:pointer; }
+.cov-row:active { background:#eef4ff; }
+.cov-row b { font-size:11px; font-weight:850; color:#14213d; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cov-row small { display:block; font-size:9px; color:#71809c; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cov-fuels { margin-left:auto; display:flex; gap:3px; flex:0 0 auto; }
+.cov-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
 .mcluster { width:46px; height:46px; border-radius:15px; background:#fff; border:1px solid #e3ecf5; box-shadow:0 8px 20px rgba(15,27,51,.16); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
 .mcluster span { font-size:14px; font-weight:900; color:#14213d; line-height:1; }
 .mcluster i { width:26px; height:4px; border-radius:99px; display:block; }
@@ -294,6 +304,8 @@ body { overflow:hidden; }
 .mquick .feedback-option { padding:6px 2px; font-size:9px; gap:3px; }
 .mquick .feedback-option .ic { width:12px; height:12px; }
 .mquick .fb-send { margin-top:6px; padding:9px 12px; font-size:11px; }
+.q-thanks { padding:16px 10px; text-align:center; font-size:12px; font-weight:850; color:#13845e; }
+.q-thanks small { display:block; margin-top:4px; font-size:9px; font-weight:700; color:#7485a0; }
 @keyframes mPopQuick { from { transform:translate(-50%,-50%) scale(.7); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
 .fchip { padding:2px 7px; border-radius:9px; background:rgba(255,255,255,.92); border:1px solid rgba(139,216,186,.7); color:#12855c; font-size:8.5px; font-weight:800; box-shadow:0 4px 12px rgba(15,27,51,.14); white-space:nowrap; animation:chipFloat 2.2s ease both; animation-iteration-count:2; }
 .fchip-q { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
@@ -401,10 +413,11 @@ body { overflow:hidden; }
       </div>
     </section>
     <section class="panel">
-      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">пины — статус АИ-95 и очередь, кольца кластеров — состав, зоны — сила спроса</div></div></div>
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">пины — статус АИ-95 и очередь, кольца кластеров — состав, зоны — сила спроса; плашка сверху — сводка города, график у «топливо видно» — сколько АЗС с данными было каждый час за сутки</div></div></div>
       <div class="map-wrap">
         <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
         <div class="map-plate" id="mapPlate"></div>
+        <div class="cov-pop" id="covPop"></div>
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
       </div>
@@ -460,6 +473,7 @@ let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let allLastPrice = {}, priceHourly = [];
+let queueEpisodes = [];
 async function dbQuery(path) {
   const r = await fetch(SUPABASE_URL + path, { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } });
   if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -709,7 +723,8 @@ function stationCard(station, obs, pred) {
     '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
     '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
-    '<div class="info"><div class="info-label">Цена ДТ</div>' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div>' +
+    '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
+    queueStrip(station.id, obs) +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
@@ -1089,6 +1104,7 @@ function renderDigestPanel() {
   const ver = allPredictions.filter(p => p.is_verified);
   const acc = ver.length >= 10 ? Math.round(ver.filter(p => p.result === 'SUCCESS').length / ver.length * 100) + '%' : '—';
   const avgAvail = pulseRaw.length ? Math.round(pulseRaw.reduce((s, r) => s + (r.availPct || 0), 0) / pulseRaw.length) : null;
+  const qMed = cityQueueMedian24();
   let html = '<div class="p1-head"><div class="p1-ico">' + icon('i-sun') + '</div><div class="p1-t"><div class="nowcard-title">Дайджест · 24 часа</div><div class="nowcard-sub">город в цифрах · события, прогнозы, люди</div></div></div>' +
     '<div class="info-row" style="margin-top:10px"><div class="info"><div class="info-label">вернулось</div><div class="info-value">' + rest + '</div></div>' +
     '<div class="info"><div class="info-label">кончилось</div><div class="info-value">' + dis + '</div></div>' +
@@ -1096,7 +1112,11 @@ function renderDigestPanel() {
     '<div class="info-row"><div class="info"><div class="info-label">отметок народа</div><div class="info-value">' + fb24 + '</div></div>' +
     '<div class="info"><div class="info-label">прогнозов активно</div><div class="info-value">' + pend + '</div></div>' +
     '<div class="info"><div class="info-label">точность верификатора</div><div class="info-value">' + acc + '</div></div></div>' +
-    '<div class="dg-strip">' + icon('i-chart','ic-s') + '<span>Средняя доступность АИ-95 за сутки: <b>' + (avgAvail === null ? '—' : avgAvail + '%') + '</b> · событий всего: <b>' + ev.length + '</b></span></div>' +
+    '<div class="dg-strip">' + icon('i-chart','ic-s') + '<span class="ps-wrap">' +
+    '<i>Средняя доступность АИ-95 за сутки: <b>' + (avgAvail === null ? '—' : avgAvail + '%') + '</b> ·</i>' +
+    '<i>событий всего: <b>' + ev.length + '</b> ·</i>' +
+    '<i>медиана очереди за сутки: <b>' + (qMed === null ? '—' : ageRu(qMed)) + '</b></i>' +
+    '</span></div>' +
     '<div class="listhead" style="margin-top:14px"><span>' + icon('i-heart','ic-s') + ' Избранное</span><small>' + favs.length + '</small></div>';
   if (favs.length) {
     html += favs.map(s => {
@@ -1387,7 +1407,7 @@ mapObj = new maplibregl.Map({
   });
   mapObj.on('zoomend', () => applyLabelZoom());
   mapObj.on('zoom', applyZoneBadgesZoom);
-  mapObj.on('movestart', () => { fadeFloatChips(); closeRing(); closeQuick(); });
+  mapObj.on('movestart', () => { fadeFloatChips(); closeRing(); closeQuick(); closeCovPop(); });
   // тап мимо пина снимает меню действий и пузырь быстрой отметки
   document.addEventListener('pointerdown', e => {
     const t = e.target;
@@ -1463,6 +1483,47 @@ function lastQueueMark(stationId) {
     if (!best || t > best.t) best = { t: t, size: f.queue_size };
   }
   return best;
+}
+// сколько минут стоит очередь станции (null, если очереди нет)
+function queueAgeMin(stationId) {
+  let best = null;
+  for (const e of queueEpisodes) {
+    if (e.station_id !== stationId || e.ended_at) continue;
+    const t = new Date(e.started_at).getTime();
+    if (best === null || t > best) best = t;
+  }
+  return best === null ? null : Math.max(0, Math.round((Date.now() - best) / 60000));
+}
+function ageRu(min) {
+  if (min === null || min === undefined) return null;
+  if (min < 60) return min + ' мин';
+  const h = Math.floor(min / 60), m = min % 60;
+  if (h < 24) return h + ' ч' + (m ? ' ' + m + ' мин' : '');
+  return Math.floor(h / 24) + ' дн';
+}
+// медианная длительность завершённых очередей за сутки по городу
+function cityQueueMedian24() {
+  const since = Date.now() - 24 * 3600 * 1000;
+  const durs = [];
+  for (const e of queueEpisodes) {
+    if (!e.ended_at) continue;
+    const end = new Date(e.ended_at).getTime();
+    if (end < since) continue;
+    const d = (end - new Date(e.started_at).getTime()) / 60000;
+    if (d > 3 && d < 24 * 60) durs.push(d);
+  }
+  if (!durs.length) return null;
+  durs.sort((a, b) => a - b);
+  return Math.round(durs.length % 2 ? durs[(durs.length - 1) / 2] : (durs[durs.length / 2 - 1] + durs[durs.length / 2]) / 2);
+}
+function queueStrip(stationId, obs) {
+  const age = queueAgeMin(stationId);
+  const high = obs && obs.queue_level === 'high';
+  if (age === null && !high) return '';
+  const txt = age !== null
+    ? 'очередь стоит <b>' + ageRu(age) + '</b>'
+    : 'очередь сейчас — началась только что';
+  return '<div class="dg-strip" style="margin-top:8px">' + icon('i-queue', 'ic-s') + '<span>' + txt + '</span></div>';
 }
 // свежая (≤6 ч) народная отметка «топливо есть» по станции (null, если нет):
 // подставляем на карте, когда источник по топливу молчит
@@ -1720,7 +1781,10 @@ async function quickSend(stationId) {
   history.push(now);
   localStorage.setItem(key, JSON.stringify(history));
   rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
-  closeQuick();
+  // подтверждение прямо в пузыре: спасибо + счётчик фактов, затем автозакрытие
+  const done = document.getElementById('quick-' + stationId);
+  if (done) done.innerHTML = '<div class="q-thanks">Спасибо за вашу отметку 🙏<small>' + rows.length + ' факт(ов) учтено</small></div>';
+  setTimeout(closeQuick, 1200);
 }
 function addPin(it, fromCenter, zoomChanged) {
   const st = it.st, o = it.o;
@@ -1780,12 +1844,13 @@ function addPin(it, fromCenter, zoomChanged) {
     for (const s of srcFuels) if (s[2] === null || s[2] === undefined) {
       if (folkFuel(st.id, s[0])) { avail.push({ t: s[1] + ' · народ', q: 0, k: s[0] }); fuelInfo++; }
     }
-    // очередь: уровень по силе спроса + сколько машин отмечают народно
+    // очередь: уровень по силе спроса + сколько стоит + сколько машин народно
     if (sc >= 12) {
       const mark = lastQueueMark(st.id);
       const cars = mark && mark.size ? ' · ' + (QUEUE_SHORT[mark.size] || '') + ' машин' : '';
+      const ageS = ageRu(queueAgeMin(st.id));
       const lbl = sc >= 50 ? 'очередь огромная' : sc >= 30 ? 'очередь терпимая' : 'очередь малая';
-      avail.push({ t: lbl + cars, q: sc >= 50 ? 3 : sc >= 30 ? 2 : 1 });
+      avail.push({ t: lbl + (ageS ? ' · ' + ageS : '') + cars, q: sc >= 50 ? 3 : sc >= 30 ? 2 : 1 });
     }
     // ни источника, ни народа по топливу — честно подписываем молчание
     if (!fuelInfo) avail.push({ t: 'топливо: источник молчит', q: -1 });
@@ -1834,19 +1899,72 @@ function updateMapPlate() {
   const el = document.getElementById('mapPlate');
   if (!el) return;
   const last = getLastObservations();
-  let known = 0, avail = 0, qn = 0;
+  let known = 0, avail = 0, qn = 0, knownAny = 0;
   for (const id of localIdsGlobal) {
     const o = last[id];
     if (!o) continue;
     if (o.fuel_95_status === true) { avail++; known++; }
     else if (o.fuel_95_status === false) known++;
+    if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) knownAny++;
+    else if (o.fuel_92_status !== null && o.fuel_92_status !== undefined) knownAny++;
+    else if (o.diesel_status !== null && o.diesel_status !== undefined) knownAny++;
     if (o.queue_level === 'high') qn++;
   }
   const pc = peakAndCalm();
   el.innerHTML =
     '<span class="gp"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
     '<span class="gp"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
-    '<span class="gp">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>';
+    '<span class="gp">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
+    '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + localIdsGlobal.length + ' АЗС' + covSpark() + '</span>';
+}
+// мини-график покрытия за 24 ч: сколько станций источник видел в каждый час
+function covSpark() {
+  const rows = fuelHourly.slice(-24);
+  const vals = rows.map(r => Number(r.knownany || 0));
+  if (vals.length < 2) return '';
+  const W = 36, H = 12;
+  const max = Math.max(1, ...vals);
+  const d = vals.map((v, i) => (i ? 'L' : 'M') + (i / (vals.length - 1) * W).toFixed(1) + ',' + (H - 1 - (v / max) * (H - 2)).toFixed(1)).join('');
+  return '<svg class="cov-spark" viewBox="0 0 ' + W + ' ' + H + '"><path d="' + d + '" fill="none" stroke="#397cff" stroke-width="1.4" stroke-linecap="round"/></svg>';
+}
+function closeCovPop() {
+  const pop = document.getElementById('covPop');
+  if (pop) pop.classList.remove('open');
+}
+function toggleCovPop() {
+  const pop = document.getElementById('covPop');
+  if (!pop) return;
+  if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+  const last = getLastObservations();
+  const rows = [];
+  for (const id of localIdsGlobal) {
+    const o = last[id];
+    if (!o) continue;
+    const vis = (o.fuel_92_status !== null && o.fuel_92_status !== undefined) ||
+                (o.fuel_95_status !== null && o.fuel_95_status !== undefined) ||
+                (o.diesel_status !== null && o.diesel_status !== undefined);
+    if (!vis) continue;
+    const st = allStations.find(s => s.id === id);
+    if (st) rows.push({ st: st, o: o });
+  }
+  const dot = v => '<i class="cov-dot" style="background:' + (v === true ? '#1bb978' : v === false ? '#ef5350' : '#a7b1c1') + '"></i>';
+  pop.innerHTML = '<div class="recent" style="margin:2px 6px 4px">Источник видит сейчас эти АЗС · точки: АИ-92 · АИ-95 · дизель</div>' +
+    (rows.length ? rows.map(r =>
+      '<button class="cov-row" onclick="flyToStation(\'' + r.st.id + '\')">' +
+      '<span style="min-width:0"><b>' + escapeHtml(r.st.name || 'АЗС') + '</b><small>' + escapeHtml(r.st.address || '') + '</small></span>' +
+      '<span class="cov-fuels">' + dot(r.o.fuel_92_status) + dot(r.o.fuel_95_status) + dot(r.o.diesel_status) + '</span>' +
+      '</button>').join('')
+    : '<div class="recent" style="margin:4px 6px">Сейчас источник не видит ни одну АЗС города.</div>');
+  const plate = document.getElementById('mapPlate');
+  if (plate) pop.style.top = (plate.offsetHeight + 14) + 'px';
+  pop.classList.add('open');
+}
+function flyToStation(id) {
+  const st = allStations.find(s => s.id === id);
+  if (!st || !mapObj) return;
+  closeCovPop();
+  mapObj.stop();
+  mapObj.easeTo({ center: [Number(st.lon), Number(st.lat)], zoom: 15, duration: 900 });
 }
 async function start() {
   const app = document.getElementById('app');
@@ -1856,7 +1974,7 @@ async function start() {
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = localIds;
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows] = await Promise.all([
+    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
       dbQuery('/rest/v1/predictions?select=*'),
@@ -1866,7 +1984,8 @@ async function start() {
       dbQuery('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7').catch(() => []),
       dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes').catch(() => []),
       dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
-      dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => [])
+      dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => []),
+      dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
     queueById = {};
@@ -1877,6 +1996,7 @@ async function start() {
     allLastPrice = {};
     for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x;
     priceHourly = priceRows || [];
+    queueEpisodes = queueEps || [];
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     renderStations(stations.filter(s => localIds.includes(s.id)));
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
@@ -1966,6 +2086,13 @@ function findNearby() {
   }, () => alert('Не удалось определить местоположение.'));
 }
 document.getElementById('searchInput').addEventListener('keydown', e => { if (e.key === 'Enter') searchStations(); });
+document.addEventListener('pointerdown', e => {
+  const pop = document.getElementById('covPop');
+  if (!pop || !pop.classList.contains('open')) return;
+  const t = e.target;
+  if (t.closest && (t.closest('#covPop') || t.closest('#covChip'))) return;
+  pop.classList.remove('open');
+}, { capture: true });
 async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
@@ -1979,8 +2106,8 @@ async function loadPulse() {
   } catch (e) { console.log('pulse main: ' + e.message); }
   renderPulse();
   requestAnimationFrame(() => renderPulse());
-  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks,selling&hour=gte.' + since24 + '&order=hour.asc&limit=48')
-    .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); })
+  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&hour=gte.' + since24 + '&order=hour.asc&limit=48')
+    .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); updateMapPlate(); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
   dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
     .then(d => { dailyEvents = d; renderPulse(); })
