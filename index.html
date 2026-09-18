@@ -2283,7 +2283,8 @@ async function start() {
     priceHourly = priceRows || [];
     queueEpisodes = queueEps || [];
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
-    renderStations(stations.filter(s => localIds.includes(s.id)));
+    // весь юг: список показывает все станции, сортируются позже по геолокации
+    renderStations(stations);
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
   } catch (e) {
@@ -2299,6 +2300,14 @@ async function start() {
       const lat = position.coords.latitude, lon = position.coords.longitude;
       saveUserLocation(lat, lon);
       showUserMarker(lat, lon);
+      detectUserCity();
+      const mgCityLbl = document.getElementById('mgCityLbl');
+      if (mgCityLbl) mgCityLbl.textContent = userCityName();
+      const cityBtnTxt = document.getElementById('mgScopeCityTxt');
+      if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
+      // пере-считаем список и сводки с учётом города пользователя
+      renderStations(allStations);
+      loadPulse();
     }, () => {}, { timeout: 5000, maximumAge: 300000 });
   }
 }
@@ -2416,8 +2425,8 @@ function findNearby() {
     detectUserCity();
     const mgCityLbl = document.getElementById('mgCityLbl');
     if (mgCityLbl) mgCityLbl.textContent = userCityName();
-    const cityBtn = document.getElementById('mgScopeCity');
-    if (cityBtn) cityBtn.textContent = userCityName();
+    const cityBtnTxt = document.getElementById('mgScopeCityTxt');
+    if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
     if (mapObj) {
       flyToUserLocation(lat, lon);
     } else {
