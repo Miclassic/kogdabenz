@@ -1,6 +1,7 @@
 // ===== State Machine Analyzer v1.0 =====
-// Читает историю наблюдений и пересчитывает состояние топлива (AVAILABLE / LOSS / RECOVERY)
-// Запускается отдельно от collector.js, чтобы не рисковать сбором данных.
+// Анализирует историю наблюдений и определяет "чистое" состояние станции
+// (AVAILABLE / SUSPECTED_LOSS / CONFIRMED_LOSS / RECOVERING)
+// Запускается отдельно от collector.js, чтобы фильтровать шум.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -9,15 +10,10 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const CONFIG = {
   LOOKBACK_HOURS: 24, // Сколько часов истории смотреть
   BATCH_SIZE: 50,     // Сколько станций обрабатывать за один запрос к DB
-  MIN_OBSERVATIONS_FOR_STATE: 3, // Минимум наблюдений, чтобы точно определить состояние
   
   // Пороги для подтверждения потери/восстановления
-  // Например, если топливо пропало 2 раза подряд -> CONFIRMED_LOSS
-  CONSECUTIVE_MISSING_TO_CONFIRM: 2, 
-  
-  // Если топливо появилось 1 раз после долгого отсутствия -> RECOVERING
-  // Если оно держится 2 цикла -> AVAILABLE
-  CONSECUTIVE_PRESENT_TO_RESTORE: 2
+  CONSECUTIVE_MISSING_TO_CONFIRM: 2, // Если нет топлива N раз подряд -> CONFIRMED_LOSS
+  CONSECUTIVE_PRESENT_TO_RESTORE: 2  // Если появилось топливо N раз подряд -> AVAILABLE
 };
 
 async function sbGet(path) {
@@ -54,9 +50,9 @@ function analyzeStationHistory(history) {
   let consecutivePresent = 0;
 
   // Проходим по всей истории, чтобы найти текущее состояние
-  // Но нас интересует только ПОСЛЕДНЕЕ значение, которое мы запишем в базу
   for (let i = 0; i < sorted.length; i++) {
     const obs = sorted[i];
+    // Используем AI-95 как основной индикатор дефицита
     const isAvailable = obs.fuel_95_status === true;
     const isMissing = obs.fuel_95_status === false;
     
@@ -116,7 +112,6 @@ function calculateConfidence(history, state) {
   if (total === 0) return 0;
   
   // Чем больше наблюдений в окне, тем выше уверенность
-  // Кап на 0.95
   let conf = Math.min(0.95, total / 10); 
   
   // Если состояние нестабильное (часто меняется), снижаем уверенность
@@ -139,9 +134,6 @@ async function main() {
   const since = new Date(Date.now() - CONFIG.LOOKBACK_HOURS * 3600 * 1000).toISOString();
   
   // Запрос на получение последних наблюдений для группировки по станциям
-  // PostgREST позволяет фильтровать, но не делает GROUP BY эффективно для этого случая.
-  // Поэтому получим все свежие наблюдения и сгруппируем в JS.
-  
   const rawObservations = await sbGet(`/rest/v1/observations?timestamp=gte.${since}&select=id,station_id,fuel_95_status,timestamp,fuel_state&order=timestamp.asc`);
   
   if (!rawObservations.length) {
@@ -173,10 +165,7 @@ async function main() {
         const result = analyzeStationHistory(history);
         
         if (result && result.finalState !== 'UNKNOWN') {
-          // Обновляем ТОЛЬКО последнее наблюдение в цепочке, чтобы не плодить записи
-          // В реальной системе лучше создать отдельную таблицу station_current_states
-          // Но для MVP обновим последнюю запись в observations
-          
+          // Обновляем ТОЛЬКО последнее наблюдение в цепочке
           const updatePromise = sbPatch('observations', result.lastObsId, {
             fuel_state: result.finalState,
             reliability_score: result.confidence
