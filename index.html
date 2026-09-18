@@ -1235,8 +1235,15 @@ function renderNow() {
   const cta = document.getElementById('ctaBest');
   if (!allStations.length) return;
   const last = getLastObservations();
-  let best = null, bestScore = 0, bestReason = '', q = 0, tot = 0, avail = 0, known = 0;
+  let best = null, bestScore = -1, bestReason = '', bestKm = null, q = 0, tot = 0, avail = 0, known = 0;
   const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  const loc = loadUserLocation();
+  const distKm = st => {
+    if (!loc || !Number.isFinite(Number(st.lat))) return null;
+    const dLat = (Number(st.lat) - loc.lat) * 111;
+    const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+    return Math.sqrt(dLat * dLat + dLon * dLon);
+  };
   for (const s of allStations) {
     if (!localIdsGlobal.includes(s.id)) continue;
     const o = last[s.id];
@@ -1249,10 +1256,17 @@ function renderNow() {
     // иначе кнопка ведёт на АЗС, которую источник не видит неделями
     const fresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
     // шкала ценности для водителя: дефицитные топлива выше, дизель почти везде — в конце
+    const km = distKm(s);
+    const distPenalty = km === null ? 0 : Math.min(25, km * 1.5);
     if (fresh) {
-      if (o.fuel_95_status === true && 90 > bestScore) { bestScore = 90; best = s; bestReason = 'fuel'; }
-      if (o.fuel_92_status === true && 80 > bestScore) { bestScore = 80; best = s; bestReason = 'fuel'; }
-      if (o.diesel_status === true && 30 > bestScore) { bestScore = 30; best = s; bestReason = 'diesel'; }
+      let base = 0;
+      if (o.fuel_95_status === true) base = 90;
+      else if (o.fuel_92_status === true) base = 80;
+      else if (o.diesel_status === true) base = 30;
+      if (base) {
+        const sc = base - distPenalty;
+        if (sc > bestScore) { bestScore = sc; best = s; bestKm = km; bestReason = base === 30 ? 'diesel' : 'fuel'; }
+      }
     }
     const p = pickPrediction(s.id, o);
     if (p && fresh) {
@@ -1262,14 +1276,15 @@ function renderNow() {
       if (nowM >= f && nowM <= t) wv = 70;
       else if (f - nowM > 0 && f - nowM <= 180) wv = 50;
       if (wv) {
-        const w = wv + (p.fuel_type === '95' ? 0 : p.fuel_type === '92' ? -10 : -50);
-        if (w > bestScore) { bestScore = w; best = s; bestReason = 'win'; }
+        const w = wv + (p.fuel_type === '95' ? 0 : p.fuel_type === '92' ? -10 : -50) - distPenalty;
+        if (w > bestScore) { bestScore = w; best = s; bestKm = km; bestReason = 'win'; }
       }
     }
   }
   if (cta) {
     if (best) {
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
+        (bestKm !== null ? ' · ' + (bestKm < 1 ? Math.round(bestKm * 1000) + ' м' : bestKm.toFixed(1) + ' км') : '') +
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
       cta.onclick = () => openSheet(best.id);
     }
