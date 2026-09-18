@@ -387,7 +387,6 @@ body { overflow:hidden; }
         <div class="chip3"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3"><svg class="ic"><use href="#i-queue"/></svg><div><small>Спокойно</small><b id="triFc">—</b></div></div>
       </div>
-      <div class="dg-strip" id="priceStrip" style="display:none"></div>
       <div class="mini-graph">
         <div class="mini-cap" style="justify-content:space-between">
           <span style="display:flex;align-items:center;gap:5px"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма города</span>
@@ -866,39 +865,7 @@ function renderHeat() {
   const line = document.getElementById('hmNow');
   if (line) { const d = new Date(); line.style.setProperty('--frac', ((d.getHours() + d.getMinutes() / 60) / 24).toFixed(3)); }
 }
-/* цены: медиана города, дельты 24ч/7сут, разброс, покрытие */
-function fmtPriceDelta(v) {
-  if (v === null || v === undefined || !isFinite(v)) return '—';
-  return (v > 0.049 ? '+' : v < -0.049 ? '−' : '±') + Math.abs(v).toFixed(1) + ' ₽';
-}
-function priceRowAgo(hours) {
-  if (!priceHourly.length) return null;
-  const t0 = new Date(priceHourly[0].hour).getTime();
-  for (const r of priceHourly) if (t0 - new Date(r.hour).getTime() >= hours * 3600000) return r;
-  return null;
-}
-function renderPrices() {
-  const el = document.getElementById('priceStrip');
-  if (!el) return;
-  const cur = priceHourly.find(r => r.p95 !== null);
-  if (!cur) { el.style.display = 'none'; return; }
-  const a24 = priceRowAgo(24), a168 = priceRowAgo(168);
-  const d24 = a24 && a24.p95 !== null ? cur.p95 - a24.p95 : null;
-  const d7 = a168 && a168.p95 !== null ? cur.p95 - a168.p95 : null;
-  const spread = cur.min95 !== null && cur.max95 !== null ? cur.max95 - cur.min95 : null;
-  const withPrice = localIdsGlobal.filter(id => {
-    const p = allLastPrice[id];
-    return p && (p.price_92 !== null || p.price_95 !== null || p.price_diesel !== null);
-  }).length;
-  el.style.display = '';
-  el.innerHTML = icon('i-chart', 'ic-s') + '<span class="ps-wrap">' +
-    '<i>АИ-95 в городе: <b>' + Number(cur.p95).toFixed(1) + ' ₽</b> ·</i>' +
-    '<i>сутки: <b>' + fmtPriceDelta(d24) + '</b> ·</i>' +
-    '<i>неделя: <b>' + fmtPriceDelta(d7) + '</b> ·</i>' +
-    '<i>разброс <b>' + (spread === null ? '—' : Number(spread).toFixed(1) + ' ₽') + '</b> ·</i>' +
-    '<i>цены на ' + withPrice + ' из ' + localIdsGlobal.length + ' АЗС</i>' +
-    '</span>';
-}
+/* цена станции для карточки: последняя известная цена + дельта к городу */
 function priceCell(stationId, col, cityKey) {
   const p = allLastPrice[stationId];
   const v = p ? p[col] : null;
@@ -1217,7 +1184,6 @@ function renderNow() {
     else title.textContent = 'Ситуация ровная';
   }
   updateMapPlate();
-  renderPrices();
   renderHero();
   renderDigestPanel();
   setTagline(currentPanel);
