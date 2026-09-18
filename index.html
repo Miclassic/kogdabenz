@@ -2390,7 +2390,8 @@ function scopeIds() {
     const s = stationById(id);
     return s && s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2;
   });
-  function cityBox() { return CITY_BOXES.find(x => x.key === userCityKey) || CITY_BOXES[0]; }
+}
+function cityBox() { return CITY_BOXES.find(x => x.key === userCityKey) || CITY_BOXES[0]; }
 function cityStationList() {
   const c = cityBox();
   return allStations.filter(s => s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2);
