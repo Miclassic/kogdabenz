@@ -145,8 +145,7 @@ async function main() {
     const patch = {
       result: hit ? 'SUCCESS' : 'MISS',
       is_verified: true,
-      verified_at: new Date().toISOString(),
-      actual_event_time: hit ? hit.e.detected_at : null
+      verified_at: new Date().toISOString()
     };
     if (actual) {
       patch.actual_restore_at = actual.e.detected_at;
