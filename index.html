@@ -1158,8 +1158,9 @@ function renderHero() {
   if (!fuelEl) return;
   const last = getLastObservations();
   const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  const citySet = new Set(cityStationList().map(s => s.id));
   let best = null;
-  for (const id of localIdsGlobal) {
+  for (const id of citySet) {
     const p = pickPrediction(id, last[id]);
     if (!p) continue;
     const f = Number(p.from_time.split(':')[0]) * 60 + Number(p.from_time.split(':')[1]);
@@ -1180,7 +1181,7 @@ function renderHero() {
   const tn = document.getElementById('triNow');
   if (tn) {
     let known = 0, avail = 0;
-    for (const id of localIdsGlobal) { const o = last[id]; if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { known++; if (o.fuel_95_status) avail++; } }
+    for (const id of citySet) { const o = last[id]; if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { known++; if (o.fuel_95_status) avail++; } }
     tn.textContent = known ? avail + ' из ' + known + ' АЗС' : 'нет данных';
   }
   const tu = document.getElementById('triUsually');
@@ -1431,8 +1432,9 @@ function renderNow() {
     const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
     return Math.sqrt(dLat * dLat + dLon * dLon);
   };
+  const citySet = new Set(cityStationList().map(s => s.id));
   for (const s of allStations) {
-    if (!localIdsGlobal.includes(s.id)) continue;
+    if (!citySet.has(s.id)) continue;
     const o = last[s.id];
     if (!o) continue;
     tot++;
@@ -2188,7 +2190,8 @@ function updateMapPlate() {
   if (!el) return;
   const last = getLastObservations();
   let known = 0, avail = 0, qn = 0, knownAny = 0;
-  for (const id of localIdsGlobal) {
+  const citySet = new Set(cityStationList().map(s => s.id));
+  for (const id of citySet) {
     const o = last[id];
     if (!o) continue;
     if (o.fuel_95_status === true) { avail++; known++; }
@@ -2225,7 +2228,8 @@ function toggleCovPop() {
   if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
   const last = getLastObservations();
   const rows = [];
-  for (const id of localIdsGlobal) {
+  const citySet = new Set(cityStationList().map(s => s.id));
+  for (const id of citySet) {
     const o = last[id];
     if (!o) continue;
     const vis = (o.fuel_92_status !== null && o.fuel_92_status !== undefined) ||
