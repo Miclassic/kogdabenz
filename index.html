@@ -431,11 +431,17 @@ body { overflow:hidden; }
       </div>
       <div class="mini-graph">
         <div class="mini-cap" style="justify-content:space-between">
-          <span style="display:flex;align-items:center;gap:5px"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма города</span>
+          <span style="display:flex;align-items:center;gap:5px"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма <span id="mgCityLbl">города</span></span>
           <span class="mg-tabs">
             <button class="mg-tab active" onclick="mgRange('day',this)">День</button>
             <button class="mg-tab" onclick="mgRange('week',this)">Неделя</button>
             <button class="mg-tab" onclick="mgRange('month',this)">Месяц</button>
+          </span>
+        </div>
+        <div class="mini-cap" style="justify-content:space-between;margin-top:2px">
+          <span class="mg-tabs" id="mgScopeTabs">
+            <button class="mg-tab active" onclick="mgScope('city',this)" id="mgScopeCity"><span id="mgScopeCityTxt">город</span></button>
+            <button class="mg-tab" onclick="mgScope('south',this)">весь юг</button>
           </span>
         </div>
         <svg class="pulse-svg" id="pulseSvg"></svg>
@@ -1057,8 +1063,12 @@ function renderPulse() {
   const rect = svg.getBoundingClientRect();
   const W = Math.max(300, Math.round(rect.width || 640)), H = Math.max(80, Math.round(rect.height || 110)), PADL = 26, PADR = 10, BASE = H - 14, TOP = 6;
   const n = buckets.length;
+  // динамическая шкала: максимум текущих данных, округлённый вверх до 20 (минимум 40)
+  let maxV = 0;
+  buckets.forEach(b => { maxV = Math.max(maxV, b.queuePct || 0, b.availPct || 0); });
+  const SCALE = Math.max(40, Math.ceil(maxV / 20) * 20);
   const xAt = i => PADL + (W - PADL - PADR) * (i / (n - 1));
-  const yAt = v => BASE - Math.max(0, Math.min(100, v)) / 100 * (BASE - TOP);
+  const yAt = v => BASE - Math.max(0, Math.min(SCALE, v)) / SCALE * (BASE - TOP);
   const step = (W - PADL - PADR) / Math.max(1, n - 1);
   const qPts = [], aPts = [];
   buckets.forEach((b, i) => { qPts.push([xAt(i), yAt(b.queuePct)]); if (b.availPct !== null) aPts.push([xAt(i), yAt(b.availPct)]); });
@@ -1095,6 +1105,12 @@ function renderPulse() {
       '<circle cx="' + x + '" cy="' + y + '" r="3.5" fill="#7c6dff" stroke="#fff" stroke-width="1.5"/>';
   }
   let axis = '';
+  // линейка процентов слева: три деления динамической шкалы + тонкие линии
+  for (const tv of [SCALE, SCALE / 2, 0]) {
+    const y = yAt(tv);
+    axis += '<text x="' + (PADL - 5) + '" y="' + (y + 3) + '" font-size="7.5" fill="#9aa7bd" text-anchor="end">' + Math.round(tv) + '</text>' +
+      '<line x1="' + PADL + '" y1="' + y + '" x2="' + (W - PADR) + '" y2="' + y + '" stroke="rgba(154,167,189,.18)" stroke-width="1"' + (tv === 0 ? '' : ' stroke-dasharray="2 3"') + '/>';
+  }
   buckets.forEach((b, i) => {
     const show = mgRangeH === 'day' ? (b.t.getHours() % 6 === 0) : (mgRangeH === 'week' ? true : (i % 5 === 0 || i === buckets.length - 1));
     if (show) axis += '<text x="' + xAt(i) + '" y="' + (H - 3) + '" font-size="8" fill="#9aa7bd" text-anchor="middle">' + b.label + '</text>';
@@ -2241,7 +2257,7 @@ async function start() {
     const stations = await dbQuery('/rest/v1/stations?select=*');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
-    localIdsGlobal = localIds;
+    localIdsGlobal = allStations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
@@ -2307,6 +2323,62 @@ function saveUserLocation(lat, lon) {
   } catch (e) {}
 }
 
+/* гео-разрез: города юга боксами; сводки по умолчанию = город пользователя */
+const CITY_BOXES = [
+  { key: 'novorossiysk', name: 'Новороссийск', lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.00 },
+  { key: 'gelendzhik', name: 'Геленджик', lat1: 44.45, lat2: 44.68, lon1: 37.95, lon2: 38.25 },
+  { key: 'anapa', name: 'Анапа', lat1: 44.80, lat2: 45.10, lon1: 37.20, lon2: 37.60 },
+  { key: 'krymsk', name: 'Крымск', lat1: 44.85, lat2: 45.05, lon1: 37.85, lon2: 38.15 },
+  { key: 'krasnodar', name: 'Краснодар', lat1: 44.90, lat2: 45.15, lon1: 38.80, lon2: 39.15 },
+  { key: 'sochi', name: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
+  { key: 'tuapse', name: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
+  { key: 'armavir', name: 'Армавир', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
+  { key: 'maykop', name: 'Майкоп', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 }
+];
+/* переключение скоупа кардиограммы: город пользователя или весь юг */
+function mgScope(scope, btn) {
+  pulseScope = scope;
+  const tabs = document.getElementById('mgScopeTabs');
+  if (tabs) {
+    tabs.querySelectorAll('.mg-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+  }
+  const lbl = document.getElementById('mgCityLbl');
+  if (lbl) lbl.textContent = scope === 'south' ? 'всего юга' : userCityName();
+  loadPulse();
+}
+let pulseScope = 'city';
+let userCityKey = 'novorossiysk';
+function detectUserCity() {
+  const loc = loadUserLocation();
+  if (!loc) return;
+  for (const c of CITY_BOXES) {
+    if (loc.lat >= c.lat1 && loc.lat <= c.lat2 && loc.lon >= c.lon1 && loc.lon <= c.lon2) { userCityKey = c.key; return; }
+  }
+  let best = null, bestD = 60;
+  for (const c of CITY_BOXES) {
+    const clat = (c.lat1 + c.lat2) / 2, clon = (c.lon1 + c.lon2) / 2;
+    const dLat = (loc.lat - clat) * 111, dLon = (loc.lon - clon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+    const d = Math.sqrt(dLat * dLat + dLon * dLon);
+    if (d < bestD) { bestD = d; best = c.key; }
+  }
+  if (best) userCityKey = best;
+}
+function userCityName() {
+  const c = CITY_BOXES.find(x => x.key === userCityKey);
+  return c ? c.name : 'регион';
+}
+function stationById(id) { return allStations.find(s => s.id === id); }
+function scopeIds() {
+  if (pulseScope === 'south') return localIdsGlobal;
+  const c = CITY_BOXES.find(x => x.key === userCityKey);
+  if (!c) return localIdsGlobal;
+  return localIdsGlobal.filter(id => {
+    const s = stationById(id);
+    return s && s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2;
+  });
+}
+
 function loadUserLocation() {
   try {
     const saved = localStorage.getItem('userLocation');
@@ -2341,6 +2413,11 @@ function findNearby() {
   navigator.geolocation.getCurrentPosition(position => {
     const lat = position.coords.latitude, lon = position.coords.longitude;
     saveUserLocation(lat, lon);
+    detectUserCity();
+    const mgCityLbl = document.getElementById('mgCityLbl');
+    if (mgCityLbl) mgCityLbl.textContent = userCityName();
+    const cityBtn = document.getElementById('mgScopeCity');
+    if (cityBtn) cityBtn.textContent = userCityName();
     if (mapObj) {
       flyToUserLocation(lat, lon);
     } else {
@@ -2366,20 +2443,22 @@ async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const since24 = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const since72 = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
+  // региональные вьюхи: city=south всегда + city=город пользователя (по умолчанию)
+  const cityFilter = pulseScope === 'south' ? 'south' : userCityKey;
   try {
     const [hourly, events] = await Promise.all([
-      dbQuery('/rest/v1/city_hourly?select=hour,marks,queue_marks,avail95,known95,selling&hour=gte.' + since + '&order=hour.asc&limit=1000'),
-      dbQuery('/rest/v1/city_events?select=event_type,detected_at&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
+      dbQuery('/rest/v1/region_hourly?select=city,hour,marks,queue_marks,avail95,known95,selling&city=eq.' + cityFilter + '&hour=gte.' + since + '&order=hour.asc&limit=1000'),
+      dbQuery('/rest/v1/region_events?select=city,event_type,detected_at&city=eq.' + cityFilter + '&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=1000')
     ]);
     pulseRaw = hourly.map(h => ({ t: new Date(h.hour), marks: h.marks, queuePct: h.selling ? Math.round(100 * h.queue_marks / h.selling) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null }));
     pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
   } catch (e) { console.log('pulse main: ' + e.message); }
   renderPulse();
   requestAnimationFrame(() => renderPulse());
-  dbQuery('/rest/v1/city_fuel_hourly?select=hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&hour=gte.' + since72 + '&order=hour.asc&limit=96')
+  dbQuery('/rest/v1/region_fuel_hourly?select=city,hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&city=eq.' + cityFilter + '&hour=gte.' + since72 + '&order=hour.asc&limit=96')
     .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); updateMapPlate(); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
-  dbQuery('/rest/v1/city_daily_events?select=day,dis,res&order=day.asc&limit=60')
+  dbQuery('/rest/v1/region_daily_events?select=city,day,dis,res&city=eq.' + cityFilter + '&order=day.asc&limit=60')
     .then(d => { dailyEvents = d; renderPulse(); })
     .catch(() => { dailyEvents = []; });
   // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
@@ -2428,6 +2507,11 @@ currentPanel = 1;
 setTagline(1);
 requestAnimationFrame(() => { const pg = document.getElementById('pager'); if (pg) pg.scrollLeft = pg.clientWidth; });
 maybeHello();
+detectUserCity();
+const mgCityLbl = document.getElementById('mgCityLbl');
+if (mgCityLbl) mgCityLbl.textContent = userCityName();
+const cityBtnTxt = document.getElementById('mgScopeCityTxt');
+if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
 tickClock();
 setInterval(tickClock, 30000);
 const pagerEl = document.getElementById('pager');

@@ -13,8 +13,8 @@ const MIN_EVENTS_FULL = 5;
 const HISTORY_DAYS = 30;
 const MIN_WINDOW_MIN = 15;
 
-// Новороссийская рамка — на сайте показываем только эти станции
-const OWN_BOX = { lat1: 44.62, lat2: 44.82, lon1: 37.62, lon2: 38.00 };
+// Рамка всего юга (дом + донор Кубань+Адыгея): прогнозы и очереди по всем станциям
+const OWN_BOX = { lat1: 43.20, lat2: 46.10, lon1: 37.20, lon2: 41.60 };
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -164,7 +164,7 @@ async function main() {
     }
     return { missing: missing, total: total };
   }
-  console.log('   Контекст города: АИ-95 есть на ' + (cityAvailShare === null ? '—' : Math.round(cityAvailShare * 100) + '%') +
+  console.log('   Контекст региона: АИ-95 есть на ' + (cityAvailShare === null ? '—' : Math.round(cityAvailShare * 100) + '%') +
     ', режим ' + regime + ', возвратов/исчезновений за 6ч: ' + restores6h + '/' + disappears6h);
 
   // Группируем события по (station_id, fuel)
@@ -280,7 +280,7 @@ async function main() {
   const existingByKey = {};
   for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
 
-  console.log('5) Строю прогнозы для новороссийских станций...');
+  console.log('5) Строю прогнозы для всех станций региона...');
   let created = 0, updated = 0, skipped = 0, stale = 0;
   const fuels = ['92', '95', 'diesel'];
   const fuelCol = { '92': 'fuel_92_status', '95': 'fuel_95_status', 'diesel': 'diesel_status' };
@@ -385,14 +385,8 @@ async function main() {
             : []);
 
         if (pairDurations.length >= MIN_EVENTS_PRELIM) {
-          // Когда именно исчезло сейчас?
-          let disappearedAt = null;
-          const recent = await sbGet(
-            '/rest/v1/events?station_id=eq.' + st.id +
-            '&fuel_type=eq.' + fuel +
-            '&event_type=eq.fuel_disappeared&order=detected_at.desc&limit=1'
-          );
-          if (recent.length) disappearedAt = new Date(recent[0].detected_at).getTime();
+          // последнее исчезновение пары берём из уже загруженного массива (без лишнего запроса)
+       const disappearedAt = lastDisByPair[pairKey] || null;
           if (disappearedAt) {
             const elapsed = (Date.now() - disappearedAt) / 60000;
             // v1.3: похожие ситуации первичны, медиана пары — фолбэк
