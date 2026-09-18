@@ -1,18 +1,16 @@
-// ===== Предиктор Новороссийска v1.3 =====
+// ===== Предиктор Новороссийска v1.6 (+ State Machine Awareness) =====
 // Умное объединение: свои события → по бренду → по городу.
 // Модель длительности дефицита: если топливо сейчас исчезло,
 // считаем, когда его обычно возвращают.
 // v1.2: снапшот признаков в момент прогноза + режим города.
 // v1.3: k-NN по эпизодам "исчезло → вернулось" для ETA.
-
+// v1.6: учет состояний (State Machine) для фильтрации шума и оценки глубины кризиса.
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-
 const MIN_EVENTS_PRELIM = 3;
 const MIN_EVENTS_FULL = 5;
 const HISTORY_DAYS = 30;
 const MIN_WINDOW_MIN = 15;
-
 // Рамка всего юга (дом + донор Кубань+Адыгея): прогнозы и очереди по всем станциям
 const OWN_BOX = { lat1: 43.20, lat2: 46.10, lon1: 37.20, lon2: 41.60 };
 
@@ -23,7 +21,6 @@ async function sbGet(path) {
   if (!r.ok) throw new Error('GET ' + path + ' → ' + r.status + ' ' + await r.text());
   return r.json();
 }
-
 async function sbPost(path, rows) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     method: 'POST',
@@ -35,7 +32,6 @@ async function sbPost(path, rows) {
   });
   if (!r.ok) throw new Error('POST ' + path + ' → ' + r.status + ' ' + await r.text());
 }
-
 async function sbPatch(path, row) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     method: 'PATCH',
@@ -47,31 +43,27 @@ async function sbPatch(path, row) {
   });
   if (!r.ok) throw new Error('PATCH ' + path + ' → ' + r.status + ' ' + await r.text());
 }
-
 function moscowMinutes(iso) {
   const d = new Date(iso);
   return ((d.getUTCHours() + 3) % 24) * 60 + d.getUTCMinutes();
 }
-
 function minutesToTime(m) {
   m = Math.max(0, Math.min(1439, Math.round(m)));
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') + ':00';
 }
-
 function medianOf(sorted) {
   const n = sorted.length;
   return n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
 }
-
 function isOwn(s) {
   return s.lat >= OWN_BOX.lat1 && s.lat <= OWN_BOX.lat2 &&
          s.lon >= OWN_BOX.lon1 && s.lon <= OWN_BOX.lon2;
 }
 
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.3 (умное объединение + дефицит + k-NN) ===');
+  console.log('=== ПРЕДИКТОР v1.6 (State Machine Aware) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
-
+  
   console.log('1) Достаю станции...');
   const stations = await sbGet('/rest/v1/stations?select=id,name,brand,address,lat,lon&limit=2000');
   console.log('   Всего: ' + stations.length + ' (в Новороссийске: ' + stations.filter(isOwn).length + ')');
@@ -98,14 +90,13 @@ async function main() {
   const queueEvents = queueEventsRaw.map(e => ({ station_id: e.station_id, type: e.event_type, t: new Date(e.detected_at).getTime() }));
   console.log('   Событий: ' + queueEvents.length);
 
-  console.log('4) Достаю последние наблюдения...');
+  console.log('4) Достаю последние наблюдения (с состояниями)...');
+  // ВАЖНОЕ ИЗМЕНЕНИЕ v1.6: Выбираем поле fuel_state
   const lastObs = {};
-  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp');
+  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score');
   for (const o of obs) if (!lastObs[o.station_id]) lastObs[o.station_id] = o;
 
   // v1.4: станция "жива на источнике" = недавно был ненулевой статус топлива.
-  // Строки наблюдений пишутся каждый цикл даже при пустом составе,
-  // поэтому возраст строки для гейта непригоден. obs отсортирован по убыванию.
   const lastNonNullTs = {};
   for (const o of obs) {
     if (lastNonNullTs[o.station_id]) continue;
@@ -114,10 +105,10 @@ async function main() {
     if (o.diesel_status !== null && o.diesel_status !== undefined) lastNonNullTs[o.station_id] = new Date(o.timestamp).getTime();
   }
 
-  // --- v1.2: городской контекст и снапшоты признаков для будущего обучения ---
+  // --- v1.2: городской контекст и снапшоты признаков ---
   const QUEUE_RANK = { low: 1, medium: 2, high: 3 };
   const recentByStation = {};
-  for (const o of obs) {
+  for (const o of obs) { 
     const arr = recentByStation[o.station_id] || (recentByStation[o.station_id] = []);
     if (arr.length < 4) arr.push(o);
   }
@@ -130,27 +121,39 @@ async function main() {
     if (nowRank < oldRank) return 'falling';
     return 'flat';
   }
+
   let cityKnown = 0, cityAvail = 0;
+  let cityConfirmedLoss = 0; // NEW METRIC
   for (const s of stations) {
     if (!isOwn(s)) continue;
     const o = lastObs[s.id];
-    if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { cityKnown++; if (o.fuel_95_status) cityAvail++; }
+    if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { 
+      cityKnown++; 
+      if (o.fuel_95_status) cityAvail++; 
+      else if (o.fuel_state === 'CONFIRMED_LOSS') cityConfirmedLoss++; // Count deep deficits
+    }
   }
   const cityAvailShare = cityKnown ? cityAvail / cityKnown : null;
   const sixHoursAgo = Date.now() - 6 * 3600 * 1000;
   const restores6h = restoredEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
   const disappears6h = disappearedEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+  
   let regime = cityAvailShare === null ? 'UNKNOWN' : 'NORMAL';
   if (cityAvailShare !== null && cityAvailShare < 0.60) {
     regime = cityAvailShare < 0.30 ? 'CITY_SHORTAGE' : 'LOCAL_SHORTAGE';
     if (restores6h >= 2 && restores6h > disappears6h) regime = 'RECOVERY';
   }
+  
+  // Если много подтвержденных потерь — усиливаем сигнал дефицита
+  if (cityConfirmedLoss > cityKnown * 0.4) regime = 'DEEP_SHORTAGE'; 
+
   const lastDisByPair = {};
   for (const e of disappearedEvents) {
     const key = e.station_id + '|' + e.fuel_type;
     const t = new Date(e.detected_at).getTime();
     if (!lastDisByPair[key] || t > lastDisByPair[key]) lastDisByPair[key] = t;
   }
+
   function nearbyMissing95(st) {
     let missing = 0, total = 0;
     for (const s of stations) {
@@ -164,8 +167,10 @@ async function main() {
     }
     return { missing: missing, total: total };
   }
+
   console.log('   Контекст региона: АИ-95 есть на ' + (cityAvailShare === null ? '—' : Math.round(cityAvailShare * 100) + '%') +
-    ', режим ' + regime + ', возвратов/исчезновений за 6ч: ' + restores6h + '/' + disappears6h);
+              ', режим ' + regime + ', возвратов/исчезновений за 6ч: ' + restores6h + '/' + disappears6h +
+              ', глубоких дефицитов: ' + cityConfirmedLoss);
 
   // Группируем события по (station_id, fuel)
   const restoredByPair = {};
@@ -173,14 +178,12 @@ async function main() {
     const key = e.station_id + '|' + e.fuel_type;
     (restoredByPair[key] = restoredByPair[key] || []).push(e.detected_at);
   }
-
-  // Пары "исчезло → вернулось" для модели длительности дефицита
   const disByPair = {};
   for (const e of disappearedEvents) {
     const key = e.station_id + '|' + e.fuel_type;
     (disByPair[key] = disByPair[key] || []).push(e.detected_at);
   }
-  const pairsByPair = {}; // pair_key -> длительности дефицита в минутах
+  const pairsByPair = {}; 
   for (const [key, disList] of Object.entries(disByPair)) {
     const resList = (restoredByPair[key] || []).slice().sort();
     const disSorted = disList.slice().sort();
@@ -195,16 +198,18 @@ async function main() {
     if (durations.length >= MIN_EVENTS_PRELIM) pairsByPair[key] = durations.sort((a, b) => a - b);
   }
 
-  // --- v1.3: эпизоды "исчезло → вернулось" с контекстом из событий (база k-NN) ---
+  // --- v1.3: эпизоды "исчезло → вернулось" (база k-NN) ---
   const restoredMsByPair = {};
   for (const e of restoredEvents) {
     const key = e.station_id + '|' + e.fuel_type;
     (restoredMsByPair[key] = restoredMsByPair[key] || []).push(new Date(e.detected_at).getTime());
   }
   for (const k of Object.keys(restoredMsByPair)) restoredMsByPair[k].sort((a, b) => a - b);
+  
   const stationById = {};
   for (const s of stations) stationById[s.id] = s;
   const disMsAll = disappearedEvents.map(e => ({ st: e.station_id, fuel: e.fuel_type, t: new Date(e.detected_at).getTime() }));
+  
   function waveAt(fuel, t) {
     let w = 0;
     for (const x of disMsAll) if (x.fuel === fuel && Math.abs(x.t - t) <= 2 * 3600 * 1000) w++;
@@ -214,8 +219,6 @@ async function main() {
     for (const q of queueEvents) if ((q.type === 'queue_high' || q.type === 'queue_appeared') && q.station_id === stationId && q.t <= t && t - q.t <= 90 * 60000) return true;
     return false;
   }
-  // v1.5: минуты с момента появления очереди; null, если очередь не активна
-  // (последний положительный сигнал позже последнего отрицательного)
   function queueAgeMin(stationId, nowMs) {
     let lastPos = null, lastNeg = null;
     for (const q of queueEvents) {
@@ -226,6 +229,7 @@ async function main() {
     if (lastPos === null || (lastNeg !== null && lastNeg > lastPos)) return null;
     return Math.round((nowMs - lastPos) / 60000);
   }
+
   const episodes = [];
   for (const [key, disList] of Object.entries(disByPair)) {
     const parts = key.split('|');
@@ -250,6 +254,7 @@ async function main() {
       });
     }
   }
+
   function similarEpisodes(st, fuel, disMs) {
     const d = new Date(disMs + 3 * 3600 * 1000);
     const hour = d.getUTCHours(), dow = d.getUTCDay();
@@ -260,7 +265,7 @@ async function main() {
       if (e.fuel !== fuel) continue;
       const dh = Math.min(Math.abs(e.hour - hour), 24 - Math.abs(e.hour - hour)) / 12;
       const dist = dh + (e.dow === dow ? 0 : 0.5) + Math.abs(e.wave - wave) / 4 +
-        (e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
+                   (e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
       scored.push({ dist: dist, e: e });
     }
     scored.sort((a, b) => a.dist - b.dist);
@@ -287,10 +292,7 @@ async function main() {
 
   for (const st of stations) {
     if (!isOwn(st)) continue;
-
-    // v1.4: гейт по собственной свежести данных источника: станция мертва,
-    // если её данные старше 7 суток; при свежести null — фолбэк на ненулевой
-    // статус топлива в окне наблюдений
+    
     const fm = lastObs[st.id] ? lastObs[st.id].data_freshness_minutes : null;
     const fmStale = (fm === null || fm === undefined)
       ? !lastNonNullTs[st.id]
@@ -302,16 +304,15 @@ async function main() {
       const label = (st.name || '?') + ' / ' + fuel;
       const ownTimes = (restoredByPair[pairKey] || []).map(moscowMinutes).sort((a, b) => a - b);
       const ownCount = ownTimes.length;
-
+      
       let useTimes = null, source = null, basedOnStations = 1, usedCount = 0;
-
+      
       // Попытка 1: свои события
       if (ownCount >= MIN_EVENTS_PRELIM) {
         useTimes = ownTimes;
         source = 'own';
         usedCount = ownCount;
       }
-
       // Попытка 2: по бренду
       if (!useTimes && st.brand) {
         const brandTimes = [];
@@ -329,7 +330,6 @@ async function main() {
           usedCount = brandTimes.length;
         }
       }
-
       // Попытка 3: по городу
       if (!useTimes) {
         const cityTimes = [];
@@ -347,7 +347,6 @@ async function main() {
           usedCount = cityTimes.length;
         }
       }
-
       if (!useTimes) { skipped++; continue; }
 
       // Окно времени
@@ -356,23 +355,29 @@ async function main() {
       const variance = useTimes.reduce((s, t) => s + (t - mean) * (t - mean), 0) / useTimes.length;
       let sd = Math.sqrt(variance);
       if (sd < MIN_WINDOW_MIN) sd = MIN_WINDOW_MIN;
-
       const from = minutesToTime(med - sd);
       const to = minutesToTime(med + sd);
-
       const tightness = 1 / (1 + sd / 60);
+      
       let confidence = 0.35 + 0.30 * tightness + Math.min(0.15, usedCount * 0.01);
       if (source === 'brand') confidence *= 0.85;
       if (source === 'city') confidence *= 0.70;
       if (usedCount >= MIN_EVENTS_FULL && source === 'own') confidence += 0.10;
+      
+      // v1.6 Adjustment: Penalize confidence slightly if state is unstable or suspect
+      const curObs = lastObs[st.id];
+      if (curObs && curObs.fuel_state === 'SUSPECTED_LOSS') {
+          confidence *= 0.9; // Less sure about recovery timing if loss isn't confirmed yet
+      }
+
       confidence = Math.min(0.95, Math.max(0.05, confidence));
 
-      // Модель длительности дефицита: если топливо СЕЙЧАС исчезло
+      // Модель длительности дефицита
       let expectedRestoreAt = null;
       let baselineRestoreAt = null;
       let knnInfo = null;
-      const cur = lastObs[st.id];
-      const currentStatus = cur ? cur[fuelCol[fuel]] : null;
+      const currentStatus = curObs ? curObs[fuelCol[fuel]] : null;
+      
       if (currentStatus === false) {
         const pairDurations = pairsByPair[pairKey] ||
           (source === 'brand' && st.brand
@@ -383,26 +388,27 @@ async function main() {
             ? [].concat(...stations.filter(s => isOwn(s))
                 .map(s => pairsByPair[s.id + '|' + fuel] || []))
             : []);
-
+            
         if (pairDurations.length >= MIN_EVENTS_PRELIM) {
-          // последнее исчезновение пары берём из уже загруженного массива (без лишнего запроса)
-       const disappearedAt = lastDisByPair[pairKey] || null;
+          const disappearedAt = lastDisByPair[pairKey] || null;
           if (disappearedAt) {
             const elapsed = (Date.now() - disappearedAt) / 60000;
-            // v1.3: похожие ситуации первичны, медиана пары — фолбэк
+            
             const knnScored = similarEpisodes(st, fuel, disappearedAt);
             const knn = knnScored.map(x => x.e);
             let knnMedian = null, knnSupport = 0, p2h = null, knnDist = null;
+            
             if (knn.length >= 8) {
               knnSupport = knn.length;
               knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
               p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
               knnDist = Math.round(1000 * knnScored.reduce((s, x) => s + x.dist, 0) / knnScored.length) / 1000;
             }
+            
             const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
             const remaining = Math.max(5, useDur - elapsed);
             expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
-            // измерение: baseline — всегда голая медиана пары, чтобы верификатор сравнил на одних прогнозах
+            
             const baseDur = medianOf(pairDurations);
             baselineRestoreAt = new Date(Date.now() + Math.max(5, baseDur - elapsed) * 60000).toISOString();
             knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h, mean_dist: knnDist };
@@ -411,7 +417,8 @@ async function main() {
       }
 
       const toMin = Number(to.slice(0, 2)) * 60 + Number(to.slice(3, 5));
-      // v1.2: снапшот признаков в момент прогноза — учебный материал для модели v2
+      
+      // Features Snapshot v1.6
       const nb = nearbyMissing95(st);
       const features = {
         v: 1,
@@ -419,7 +426,7 @@ async function main() {
         dow_msk: mskNow.getUTCDay(),
         deficit_age_min: currentStatus === false && lastDisByPair[pairKey]
           ? Math.round((Date.now() - lastDisByPair[pairKey]) / 60000) : null,
-        queue_level: cur && cur.queue_level ? cur.queue_level : null,
+        queue_level: curObs && curObs.queue_level ? curObs.queue_level : null,
         queue_trend: queueTrend(st.id),
         queue_age_min: queueAgeMin(st.id, Date.now()),
         city_avail95_pct: cityAvailShare === null ? null : Math.round(cityAvailShare * 100),
@@ -431,8 +438,10 @@ async function main() {
         knn_support: knnInfo ? knnInfo.support : 0,
         knn_median_dur_min: knnInfo ? knnInfo.median_dur_min : null,
         knn_p_restore_2h: knnInfo ? knnInfo.p_restore_2h : null,
-        knn_mean_dist: knnInfo ? knnInfo.mean_dist : null
+        knn_mean_dist: knnInfo ? knnInfo.mean_dist : null,
+        station_state: curObs ? curObs.fuel_state : 'UNKNOWN' // NEW FEATURE
       };
+
       const row = {
         station_id: st.id,
         fuel_type: fuel,
@@ -442,7 +451,7 @@ async function main() {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.3|' + source,
+        algorithm_version: 'v1.6|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
@@ -459,7 +468,7 @@ async function main() {
         await sbPost('predictions', [row]);
         created++;
       }
-
+      
       const prelim = source === 'own' && usedCount < MIN_EVENTS_FULL ? ' [предв.]' : '';
       const eta = expectedRestoreAt ? ', ждём ~' + new Date(expectedRestoreAt).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }) + (knnInfo && knnInfo.support ? ' (k-NN ' + knnInfo.support + ', P<2ч ' + knnInfo.p_restore_2h + '%)' : '') : '';
       console.log('   ' + label + ' (' + source + ', станций ' + basedOnStations + '): ' +
@@ -467,18 +476,17 @@ async function main() {
         ' (' + usedCount + ' соб.)' + prelim + eta);
     }
   }
-
   console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped + ', молчащих станций (>72ч): ' + stale);
+  
   if (created > 0 && process.env.TELEGRAM_BOT_TOKEN) {
     try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: '🔮 КогдаБенз: появились первые прогнозы (' + created + ' шт)! Открой сайт.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: '🔮 КогдаБенз v1.6: появились новые прогнозы (' + created + ' шт)! Учитываем состояния станций.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.3 завершил работу');
+  console.log('✅ Предиктор v1.6 завершил работу');
 }
-
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
