@@ -190,6 +190,7 @@ body { overflow:hidden; }
 .info { padding:8px 9px; border-radius:13px; background:#f7f9fc; min-width:0; }
 .info-label { color:#8291a9; font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .info-value { margin-top:3px; color:var(--text); font-size:11px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.info-delta { margin-top:2px; color:#93a1b8; font-size:9px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .feedback { margin-top:8px; padding:10px 12px; border-radius:16px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; }
 .feedback-header { display:flex; align-items:center; gap:9px; }
 .feedback-icon { width:30px; height:30px; display:grid; place-items:center; flex:0 0 auto; border-radius:11px; background:#d7f5e9; color:#15976d; font-size:15px; font-weight:700; }
@@ -220,6 +221,8 @@ body { overflow:hidden; }
 .dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
 .dg-strip .ic { color:#2465ee; }
 .dg-strip b { font-weight:900; }
+.ps-wrap { display:flex; flex-wrap:wrap; gap:2px 5px; min-width:0; }
+.ps-wrap i { font-style:normal; white-space:nowrap; }
 /* шторка */
 .sheet-backdrop { position:fixed; inset:0; background:rgba(15,27,51,.35); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:40; }
 .sheet-backdrop.open { opacity:1; pointer-events:auto; }
@@ -372,6 +375,7 @@ body { overflow:hidden; }
         <div class="chip3"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3"><svg class="ic"><use href="#i-queue"/></svg><div><small>Спокойно</small><b id="triFc">—</b></div></div>
       </div>
+      <div class="dg-strip" id="priceStrip" style="display:none"></div>
       <div class="mini-graph">
         <div class="mini-cap" style="justify-content:space-between">
           <span style="display:flex;align-items:center;gap:5px"><svg class="ic ic-s"><use href="#i-chart"/></svg>кардиограмма города</span>
@@ -455,6 +459,7 @@ const LOGO_FALLBACK = "<svg class='ic ic-l'><use href='#i-pump'/></svg>";
 let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
+let allLastPrice = {}, priceHourly = [];
 async function dbQuery(path) {
   const r = await fetch(SUPABASE_URL + path, { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } });
   if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -702,6 +707,9 @@ function stationCard(station, obs, pred) {
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
+    '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
+    '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
+    '<div class="info"><div class="info-label">Цена ДТ</div>' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div>' +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
@@ -711,7 +719,7 @@ function stationCard(station, obs, pred) {
     '<div class="chart">' + graph + (pred && isSoon(pred) ? '<div class="soon-badge">' + icon('i-truck','ic-s') + 'Скоро</div>' : '') + '</div>' +
     '<div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div></div></section>' +
     '<div class="info-row"><div class="info"><div class="info-label">На основе</div><div class="info-value">' + hc + ' наблюдений</div></div>' +
-    '<div class="info"><div class="info-label">Последнее пополнение</div><div class="info-value">' + lastRestoration(station.id) + '</div></div>' +
+    '<div class="info"><div class="info-label">Пополнение</div><div class="info-value">' + lastRestoration(station.id) + '</div></div>' +
     '<div class="info"><div class="info-label">Точность</div><div class="info-value">' + accuracyLabel(station.id) + '</div></div></div>' +
     '<section class="feedback"><div class="feedback-header"><div class="feedback-icon">＋</div><div>' +
     '<div class="feedback-title">Вы были на этой АЗС?</div><div class="feedback-sub">Отметка сделает прогноз точнее</div></div>' +
@@ -842,6 +850,51 @@ function renderHeat() {
   grid.innerHTML = html;
   const line = document.getElementById('hmNow');
   if (line) { const d = new Date(); line.style.setProperty('--frac', ((d.getHours() + d.getMinutes() / 60) / 24).toFixed(3)); }
+}
+/* цены: медиана города, дельты 24ч/7сут, разброс, покрытие */
+function fmtPriceDelta(v) {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  return (v > 0.049 ? '+' : v < -0.049 ? '−' : '±') + Math.abs(v).toFixed(1) + ' ₽';
+}
+function priceRowAgo(hours) {
+  if (!priceHourly.length) return null;
+  const t0 = new Date(priceHourly[0].hour).getTime();
+  for (const r of priceHourly) if (t0 - new Date(r.hour).getTime() >= hours * 3600000) return r;
+  return null;
+}
+function renderPrices() {
+  const el = document.getElementById('priceStrip');
+  if (!el) return;
+  const cur = priceHourly.find(r => r.p95 !== null);
+  if (!cur) { el.style.display = 'none'; return; }
+  const a24 = priceRowAgo(24), a168 = priceRowAgo(168);
+  const d24 = a24 && a24.p95 !== null ? cur.p95 - a24.p95 : null;
+  const d7 = a168 && a168.p95 !== null ? cur.p95 - a168.p95 : null;
+  const spread = cur.min95 !== null && cur.max95 !== null ? cur.max95 - cur.min95 : null;
+  const withPrice = localIdsGlobal.filter(id => {
+    const p = allLastPrice[id];
+    return p && (p.price_92 !== null || p.price_95 !== null || p.price_diesel !== null);
+  }).length;
+  el.style.display = '';
+  el.innerHTML = icon('i-chart', 'ic-s') + '<span class="ps-wrap">' +
+    '<i>АИ-95 в городе: <b>' + Number(cur.p95).toFixed(1) + ' ₽</b> ·</i>' +
+    '<i>сутки: <b>' + fmtPriceDelta(d24) + '</b> ·</i>' +
+    '<i>неделя: <b>' + fmtPriceDelta(d7) + '</b> ·</i>' +
+    '<i>разброс <b>' + (spread === null ? '—' : Number(spread).toFixed(1) + ' ₽') + '</b> ·</i>' +
+    '<i>цены на ' + withPrice + ' из ' + localIdsGlobal.length + ' АЗС</i>' +
+    '</span>';
+}
+function priceCell(stationId, col, cityKey) {
+  const p = allLastPrice[stationId];
+  const v = p ? p[col] : null;
+  if (v === null || v === undefined) return '<div class="info-value">нет данных</div>';
+  const cur = priceHourly.find(r => r[cityKey] !== null);
+  let d = 'город: —';
+  if (cur) {
+    const dv = v - cur[cityKey];
+    d = (dv > 0.049 ? '+' : dv < -0.049 ? '−' : '±') + Math.abs(dv).toFixed(1) + ' ₽ к городу';
+  }
+  return '<div class="info-value">' + Number(v).toFixed(1) + ' ₽</div><div class="info-delta">' + d + '</div>';
 }
 function peakAndCalm() {
   const byHour = {};
@@ -1145,6 +1198,7 @@ function renderNow() {
     else title.textContent = 'Ситуация ровная';
   }
   updateMapPlate();
+  renderPrices();
   renderHero();
   renderDigestPanel();
   setTagline(currentPanel);
@@ -1802,7 +1856,7 @@ async function start() {
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = localIds;
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows] = await Promise.all([
+    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
       dbQuery('/rest/v1/predictions?select=*'),
@@ -1810,7 +1864,9 @@ async function start() {
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
       dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')'),
       dbQuery('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7').catch(() => []),
-      dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes').catch(() => [])
+      dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes').catch(() => []),
+      dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
+      dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
     queueById = {};
@@ -1818,6 +1874,9 @@ async function start() {
     allLastObs = {};
     for (const o of (lastRows || [])) allLastObs[o.station_id] = o;
     allPredictions = predictions; allEvents = events; allFeedback = feedback; allHourly = hourly;
+    allLastPrice = {};
+    for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x;
+    priceHourly = priceRows || [];
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     renderStations(stations.filter(s => localIds.includes(s.id)));
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
