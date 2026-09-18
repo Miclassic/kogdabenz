@@ -768,6 +768,17 @@ function whyHtml(pred) {
   if (!items.length) return '';
   return '<div class="why"><div class="why-t">Почему такой прогноз</div>' + items.map(t => '<span class="why-i">' + escapeHtml(t) + '</span>').join('') + '</div>';
 }
+/* операционный вердикт источника (поле status): отдельно от топлива —
+   «работает» не значит «есть бензин», а «не работает» объясняет «нет данных» */
+function workStrip(obs) {
+  if (!obs) return '';
+  const st = obs.source_status;
+  let txt, ico = 'i-minus';
+  if (st === 'yes' || st === 'queue' || st === 'low') { txt = 'источник: станция работает'; ico = 'i-check'; }
+  else if (st === 'no') { txt = 'источник: станция не работает'; ico = 'i-cross'; }
+  else { txt = 'источник молчит о станции'; }
+  return '<div class="dg-strip" style="margin-top:8px">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
+}
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const graph = createGraph(station.id);
@@ -783,6 +794,7 @@ function stationCard(station, obs, pred) {
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
+    workStrip(obs) +
     '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
@@ -2270,14 +2282,14 @@ async function start() {
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
-      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
+      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
       dbQuery('/rest/v1/predictions?select=*'),
       dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
       dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')'),
       dbQuery('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7').catch(() => []),
-      dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes').catch(() => []),
+      dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status').catch(() => []),
       dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
       dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => []),
       dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => [])
