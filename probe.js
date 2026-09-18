@@ -92,4 +92,71 @@ async function dumpKeys() {
   console.log('цены: старше 7 сут ' + pricesOld7 + ', отсутствуют ' + pricesNull);
 }
 
-main().catch(e => { console.error('❌ Ошибка разведки: ' + e.message); process.exit(1); });
+// принудительный дамп: смотрим ключи сразу двух станций
+// (живая = с топливом сейчас; молчащая = без данных), чтобы не пропустить
+// поле, которое появляется только на «свежих» станциях
+async function autoDump() {
+  console.log('=== АВТО-ДАМП ДВУХ СТАНЦИЙ ===');
+  const list = await fetchFrame(FRAMES[0]);
+  if (!list.length) { console.log('Станций нет в первой рамке.'); return; }
+  const live = list.find(s => s.fuels_now && String(s.fuels_now).length);
+  const silent = list.find(s => !s.fuels_now || !String(s.fuels_now).length);
+  for (const [label, s] of [['живая (с топливом)', live], ['молчащая', silent]]) {
+    if (!s) { console.log('   ' + label + ': такой станции не нашлось'); continue; }
+    console.log('--- ' + label + ': ' + (s.name || '?') + ' (' + (s.brand || 'без бренда') + ') ---');
+    console.log('Адрес: ' + (s.addr || '—'));
+    for (const k of Object.keys(s)) {
+      const v = s[k];
+      const type = v === null ? 'null' : Array.isArray(v) ? 'array[' + v.length + ']' : typeof v;
+      const preview = JSON.stringify(v).slice(0, 250);
+      console.log(k + ' (' + type + '): ' + preview);
+    }
+  }
+  console.log('=== АГРЕГАТЫ (' + list.length + ' станций) ===');
+  const stat = {};
+  let dtOnly = 0, hasMeta = 0, fuelsEmpty = 0, fuelsFilled = 0, conflictQueue = 0;
+  // считаем новые поля-кандидаты: всё, что похоже на автопометки о работе/оплате
+  const candidates = ['status','working','pay','payment','mark','marks','history','confirmed','auth','payment_seen','works','is_working'];
+  const candCount = {};
+  for (const k of candidates) candCount[k] = 0;
+  for (const x of list) {
+    const sv = (x.status === null || x.status === undefined) ? 'null' : String(x.status);
+    stat[sv] = (stat[sv] || 0) + 1;
+    if (x.dt_only === 1) dtOnly++;
+    if (x.meta && x.meta.f && x.meta.f.length) hasMeta++;
+    if (x.fuels_now && String(x.fuels_now).length) fuelsFilled++; else fuelsEmpty++;
+    if (x.conflict === 'queue') conflictQueue++;
+    for (const k of candidates) if (x[k] !== undefined && x[k] !== null) candCount[k]++;
+  }
+  console.log('значения status: ' + JSON.stringify(stat));
+  console.log('dt_only=1: ' + dtOnly + ' | meta.f: ' + hasMeta + ' | conflict=queue: ' + conflictQueue);
+  console.log('fuels_now: заполнен ' + fuelsFilled + ', пустой ' + fuelsEmpty);
+  console.log('поля-кандидаты (станций с заполненным полем): ' + JSON.stringify(candCount));
+}
+
+(async () => {
+  try {
+    if (process.argv.includes('--dump')) { await dumpKeys(); return; }
+    // сначала обычный прогон по всем рамкам
+    console.log('=== РАЗВЕДКА ПОКРЫТИЯ GdeBenz ===');
+    for (const f of FRAMES) {
+      const lst = await fetchFrame(f);
+      const total = lst.length;
+      let fuels = 0, prices = 0, queue = 0;
+      for (const s of lst) {
+        if (s.fuels_now && String(s.fuels_now).length) fuels++;
+        if (s.prices_now && Object.keys(s.prices_now).length) prices++;
+        if (s.conflict === 'queue') queue++;
+      }
+      const pct = total ? Math.round(100 * fuels / total) : 0;
+      console.log(f.name + ': станций ' + total +
+        ', с топливом ' + fuels + ' (' + pct + '%)' +
+        ', с ценами ' + prices +
+        ', с очередями ' + queue);
+      await new Promise(res => setTimeout(res, 1500));
+    }
+    console.log('✅ Разведка завершена');
+    // и сразу дамп двух станций — чтобы не запускать отдельно
+    await autoDump();
+  } catch (e) { console.error('❌ Ошибка: ' + e.message); process.exit(1); }
+})();
