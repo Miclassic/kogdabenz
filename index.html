@@ -413,7 +413,7 @@ body { overflow:hidden; }
       </div>
     </section>
     <section class="panel">
-      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">пины — статус АИ-95 и очередь, кольца кластеров — состав, зоны — сила спроса; плашка сверху — сводка города, график у «топливо видно» — сколько АЗС с данными было каждый час за сутки</div></div></div>
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а круг вокруг — где очередь. Нажми на каплю — появятся кнопки.</div></div></div>
       <div class="map-wrap">
         <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
         <div class="map-plate" id="mapPlate"></div>
@@ -1125,7 +1125,6 @@ function renderDigestPanel() {
       return '<div class="srow-wrap"><button class="srow" onclick="openSheet(\'' + s.id + '\')"><span class="sbar" style="background:' + (BRAND_COLORS[brandKey(s)] || '#7c89a0') + '"></span><span class="srow-main"><span class="srow-top"><span class="srow-name">' + escapeHtml(s.name || 'АЗС') + '</span><span class="sbadge ' + b.cls + '">' + b.text + '</span></span><span class="srow-addr">' + escapeHtml(s.address || '') + '</span></span></button></div>';
     }).join('');
   } else html += '<div class="recent" style="margin-top:8px">Пока пусто — открой карточку АЗС и нажми сердечко.</div>';
-  html += '<div class="recent" style="margin-top:12px">Полный дайджест приходит в Telegram каждое утро в 08:00.</div>';
   el.innerHTML = html;
 }
 let currentPanel = 0;
@@ -1147,7 +1146,7 @@ function setTagline(i) {
     const since = Date.now() - 24 * 3600 * 1000;
     const ev = pulseEv.filter(e => e.t.getTime() > since);
     sHtml = 'Дайджест. <span>Город в цифрах.</span>';
-    sTxt = 'За сутки: вернулось ' + ev.filter(e => e.type === 'fuel_restored').length + ', кончилось ' + ev.filter(e => e.type === 'fuel_disappeared').length + '. Избранного: ' + getFavorites().length + '. Полная сводка — в Telegram в 08:00.';
+    sTxt = 'За сутки: вернулось ' + ev.filter(e => e.type === 'fuel_restored').length + ', кончилось ' + ev.filter(e => e.type === 'fuel_disappeared').length + '. Избранного: ' + getFavorites().length + '.';
   } else {
     const marks = pulseRaw.reduce((s, r) => s + r.marks, 0);
     const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
@@ -1619,14 +1618,23 @@ function renderMap() {
         y: (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * size
       };
     };
+    // кластеры считаем по ВСЕМ станциям, а не только по видимым: иначе при
+    // панораме станции входят/выходят из кадра и квадраты меняют цифру и центр
     const cells = {};
-    for (const it of items) {
-      const p = worldPx(Number(it.st.lon), Number(it.st.lat));
+    for (const st of allStations) {
+      if (!Number.isFinite(Number(st.lat))) continue;
+      const p = worldPx(Number(st.lon), Number(st.lat));
       const key = Math.floor(p.x / 70) + ':' + Math.floor(p.y / 70);
-      (cells[key] = cells[key] || []).push(it);
+      (cells[key] = cells[key] || []).push({ st: st, o: last[st.id] });
     }
     for (const key of Object.keys(cells)) {
       const group = cells[key];
+      // кластер рисуем, только если его центр в кадре: состав и центр теперь
+      // не зависят от панорамы — квадраты не прыгают и цифры не меняются
+      const cn = group.length;
+      const clon0 = group.reduce((s, it) => s + Number(it.st.lon), 0) / cn;
+      const clat0 = group.reduce((s, it) => s + Number(it.st.lat), 0) / cn;
+      if (clon0 < vb.getWest() - pad || clon0 > vb.getEast() + pad || clat0 < vb.getSouth() - pad || clat0 > vb.getNorth() + pad) continue;
       if (group.length === 1) { newCenters[group[0].st.id] = [Number(group[0].st.lon), Number(group[0].st.lat)]; addPin(group[0], null, zoomChanged); continue; }
       // полоса кластера — те же цвета, что и пины: зелёный = АИ-95 есть,
       // оранжевый = есть 92, светло-синий = только дизель,
