@@ -2267,7 +2267,7 @@ async function start() {
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
-      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
+      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
       dbQuery('/rest/v1/predictions?select=*'),
       dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
