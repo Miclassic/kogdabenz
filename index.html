@@ -541,6 +541,18 @@ async function dbQuery(path) {
   if (!r.ok) throw new Error('HTTP ' + r.status);
   return r.json();
 }
+// постраничное чтение таблиц, переросших лимит Supabase в 1000 строк:
+// страницы по 1000 со стабильным порядком, пока страница не придёт неполной
+async function dbQueryAll(path) {
+  const sep = path.indexOf('?') >= 0 ? '&' : '?';
+  const out = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await dbQuery(path + sep + 'order=id.asc&limit=1000&offset=' + offset);
+    for (const r of page) out.push(r);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
 async function dbInsert(table, rows) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(rows) });
   if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
@@ -2291,7 +2303,7 @@ async function start() {
     const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
-      dbQuery('/rest/v1/predictions?select=*'),
+      dbQueryAll('/rest/v1/predictions?select=*'),
       dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
       dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')'),
