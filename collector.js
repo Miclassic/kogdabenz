@@ -145,6 +145,55 @@ function freshnessMinutes(pricesNow) {
   return Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
 }
 
+// === Машина состояний v1 (тень): состояние станции по серии статусов АИ-95 ===
+// AVAILABLE / SUSPECTED_LOSS / CONFIRMED_LOSS / DEPLETION /
+// RECOVERY_STARTED / RECOVERY_CONFIRMED / UNKNOWN (молчание).
+// Гистерезис: одно «нет» ещё не дефицит; >=2 подряд — подтверждённая потеря;
+// молчание >=1 ч поверх потери — DEPLETION; одно «есть» после потери — только
+// начало восстановления, >=3 подряд — снова AVAILABLE.
+// Нулевые промежутки короче 6 наблюдений (~1 ч) видим сквозь (дух gap-детектора).
+function computeFuelState(hist) {
+  const SILENCE = 6;
+  let i = 0, gapHead = 0;
+  while (i < hist.length && (hist[i] === null || hist[i] === undefined)) { gapHead++; i++; }
+  if (i >= hist.length) return 'UNKNOWN'; // за сутки не было ни одной отметки
+  const runs = [];
+  while (i < hist.length) {
+    const v = hist[i];
+    let len = 0;
+    while (i < hist.length) {
+      if (hist[i] === v) { len++; i++; continue; }
+      if (hist[i] === null || hist[i] === undefined) {
+        let j = i, gap = 0;
+        while (j < hist.length && (hist[j] === null || hist[j] === undefined)) { gap++; j++; }
+        if (gap < SILENCE && j < hist.length && hist[j] === v) { i = j; continue; }
+        break;
+      }
+      break;
+    }
+    runs.push({ v: v, len: len });
+  }
+  const head = runs[0];
+  if (gapHead >= SILENCE) return head.v === false ? 'DEPLETION' : 'UNKNOWN';
+  if (head.v === false) return head.len >= 2 ? 'CONFIRMED_LOSS' : 'SUSPECTED_LOSS';
+  const prev = runs[1];
+  if (prev && prev.v === false && prev.len >= 2) {
+    if (head.len === 1) return 'RECOVERY_STARTED';
+    if (head.len === 2) return 'RECOVERY_CONFIRMED';
+  }
+  return 'AVAILABLE';
+}
+// Надёжность v1: доля наблюдений лукбэка, где источник дал хоть одно топливо
+function reliabilityOf(histAny) {
+  if (!histAny.length) return null;
+  let n = 0;
+  for (const o of histAny) {
+    if (o.fuel_92_status !== null && o.fuel_92_status !== undefined) { n++; continue; }
+    if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { n++; continue; }
+    if (o.diesel_status !== null && o.diesel_status !== undefined) n++;
+  }
+  return Math.round(100 * n / histAny.length) / 100;
+}
 async function main() {
   console.log('1) Качаю GdeBenz (Новороссийск)...');
   const list = await fetchGdebenz();
@@ -237,12 +286,26 @@ async function main() {
       price_92: p['92'] ? p['92'].p : null,
       price_95: p['95'] ? p['95'].p : null,
       price_diesel: p['ДТ'] ? p['ДТ'].p : null,
-      queue_level: s.conflict === 'queue' ? 'high' : null,
+      qqueue_level: s.conflict === 'queue' ? 'high' : null,
       source_status: s.status === undefined ? null : s.status,
+      fuel_state: null,
+      reliability_score: null,
       data_freshness_minutes: freshnessMinutes(p)
     };
   };
   const obsRows = list.map(s => mkRow(s, idByExt[String(s.osm_id)])).filter(r => r.station_id);
+// Машина состояний v1 (тень): состояния и надёжность считаем только дому —
+// у доноров запись разреженная (heartbeat 1ч), серии нерепрезентативны.
+// События на состояния ещё не смотрят: сначала неделя замера распределения.
+const stateCounts = {};
+for (const row of obsRows) {
+  if (!homeIdSet.has(row.station_id)) continue;
+  const hist = recentByStation[row.station_id] || [];
+  row.fuel_state = computeFuelState([row.fuel_95_status].concat(hist.map(o => o.fuel_95_status)));
+  row.reliability_score = reliabilityOf(hist);
+  stateCounts[row.fuel_state] = (stateCounts[row.fuel_state] || 0) + 1;
+}
+console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   // доноры: строка при смене статуса/очереди, heartbeat раз в 1ч или при первой встрече
 // (часовой heartbeat нужен, чтобы почасовые сводки региона были живыми)
   const HEARTBEAT_MS = 1 * 3600 * 1000;
