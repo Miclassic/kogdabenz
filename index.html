@@ -392,7 +392,7 @@ body { overflow:hidden; }
         <div class="p1-ico"><svg class="ic"><use href="#i-check"/></svg></div>
         <div class="p1-t">
           <div class="nowcard-title">Наша точность прогнозов</div>
-          <div class="nowcard-sub">верификатор каждую ночь сверяет прогнозы с фактом: честная ошибка в минутах и сравнение с голой медианой</div>
+          <div class="nowcard-sub">каждую ночь сверяем прогнозы с фактом: на сколько минут ошиблись и лучше ли мы простого способа</div>
         </div>
         <div class="p1-clock"><svg class="ic ic-s"><use href="#i-check"/></svg><span id="accCount">—</span></div>
       </div>
@@ -1316,9 +1316,9 @@ function renderAccuracy() {
   });
   const histSvg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:' + H + 'px;display:block">' + bars + '</svg>';
   const cmpRows = [
-    { lbl: 'медиана модели', v: med, color: '#397cff' },
-    { lbl: 'P90 модели', v: p90, color: '#7c6dff' },
-    { lbl: 'медиана baseline', v: baseMed, color: '#a7b1c1' }
+    { lbl: 'наш прогноз (обычно)', v: med, color: '#397cff' },
+    { lbl: 'наш прогноз (худшие 10%)', v: p90, color: '#7c6dff' },
+    { lbl: 'голый ритм (обычно)', v: baseMed, color: '#a7b1c1' }
   ];
   const maxV = Math.max(1, med || 0, p90 || 0, baseMed || 0);
   let cmp = '';
@@ -1343,14 +1343,14 @@ function renderAccuracy() {
   }).join('');
   body.innerHTML =
     '<div class="chips3">' +
-    '<div class="chip3"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено</small><b>' + verified.length + ' · ценз. ' + censored + '</b></div></div>' +
-    '<div class="chip3"><svg class="ic"><use href="#i-clock"/></svg><div><small>Медиана |ошибки|</small><b>' + fmtErrMin(med) + '</b></div></div>' +
-    '<div class="chip3"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попадание в окно</small><b>' + succTxt + '</b></div></div>' +
+    '<div class="chip3 tap" onclick="openWhyChip(this,\'accChecked\')"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено ночами</small><b>' + verified.length + ' прогнозов</b></div></div>' +
+    '<div class="chip3 tap" onclick="openWhyChip(this,\'accErr\')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Ошибка обычно</small><b>' + fmtErrMin(med) + '</b></div></div>' +
+    '<div class="chip3 tap" onclick="openWhyChip(this,\'accHit\')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попали в окно</small><b>' + succTxt + '</b></div></div>' +
     '</div>' +
-    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">модель против baseline · медиана |ошибки|</div>' + cmpSvg + '</div>' +
-    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">распределение |ошибки| прогнозов</div>' + histSvg + '</div>' +
-    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз → факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
-    '<div class="recent">Средняя |ошибка|: ' + fmtErrMin(mean) + ' · P90: ' + fmtErrMin(p90) + '. Верификатор работает ночью в 02:10 МСК; цензурированные проверки без факта в обучение не попадают и здесь показываются честно.</div>';
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">сравниваем с простым способом</div>' + cmpSvg + '</div>' +
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">как часто какая ошибка бывает</div>' + histSvg + '</div>' +
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз и факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
+    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Проверяем каждую ночь в 02:10; прогнозы, по которым факт ещё не случился, показываем отдельно и в обучение не берём.</div>';
 }
 /* окошко «что это?» для чипов: простое объяснение + полезная добавка */
 function covNowCount() {
@@ -1384,7 +1384,10 @@ const WHY_MAP = {
   work: { t: 'Вердикт источника о станции', x: 'Автоматический сигнал по оплатам и отметкам водителей: продаёт ли станция сейчас обычным людям. Это не про топливо: у работающей станции состав может быть неизвестен, а «не работает» или «молчит» объясняет, почему нет данных.', e: null },
   based: { t: 'На основе', x: 'Сколько снимков источника накопилось по этой АЗС за 30 дней. Чем больше наблюдений, тем надёжнее ритм станции и окно прогноза.', e: null },
   restore: { t: 'Пополнение', x: 'Когда источник последний раз зафиксировал возврат топлива на этой АЗС. Из таких возвратов строится прогноз; если их не было — берём ритм похожих станций бренда или города.', e: null },
-  acc: { t: 'Точность', x: 'Доля прогнозов по этой АЗС, попавших в факт вовремя. Показываем при 10 и более проверках, до этого — «мало данных».', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'По городу: проверено ' + v + ', с измеренной ошибкой ' + m + ' — подробности в панели «Наша точность прогнозов».'; } }
+  acc: { t: 'Точность', x: 'Доля прогнозов по этой АЗС, попавших в факт вовремя. Показываем при 10 и более проверках, до этого — «мало данных».', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'По городу: проверено ' + v + ', с измеренной ошибкой ' + m + ' — подробности в панели «Наша точность прогнозов».'; } },
+  accChecked: { t: 'Как проверяем прогнозы', x: 'Каждую ночь сервис сравнивает вчерашние прогнозы с тем, что реально случилось на заправках. Прогнозы, по которым факт ещё не случился (топливо пока не вернули), считаем отдельно — они ошибку не портят.', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'Проверено: ' + v + ', из них ждут факта: ' + (v - m) + '.'; } },
+  accErr: { t: 'Что значит «обычно»', x: 'Все ошибки прогнозов выстраиваем от меньшей к большей и берём серединную: половина прогнозов точнее неё, половина — нет. Это честная типичная ошибка по времени.', e: () => { const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).map(p => Math.abs(p.error_minutes)).sort((a, b) => a - b); if (!m.length) return 'Измерений пока нет.'; const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))]; return 'Половина прогнозов ошибается меньше чем на ' + fmtErrMin(q(m, 0.5)) + ', худшие 10% — больше чем на ' + fmtErrMin(q(m, 0.9)) + '.'; } },
+  accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } }
 };
 let whyOpenKey = null;
 function closeWhy() {
@@ -1419,7 +1422,7 @@ function setTagline(i) {
   let sHtml, sTxt;
   if (i === 0) {
     sHtml = 'Точность. <span>Честная.</span>';
-    sTxt = 'Верификатор каждую ночь сверяет прогнозы с фактом: |ошибка| в минутах, сравнение с голой медианой, цензурированные проверки без факта — всё как есть, без округлений в свою пользу.';
+    sTxt = 'Каждую ночь проверяем вчерашние прогнозы: на сколько минут ошиблись и лучше ли мы простого способа. Прогнозы, по которым факт ещё не случился, показываем отдельно — без округлений в свою пользу.';
   } else if (i === 2) {
     sHtml = 'Карта. <span>Где спрос.</span>';
     sTxt = 'Далеко — кластеры с составом по АИ-95, близко — пины станций. Зоны — сила спроса, плашка сверху — сводка города.';
