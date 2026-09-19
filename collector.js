@@ -286,7 +286,7 @@ async function main() {
       price_92: p['92'] ? p['92'].p : null,
       price_95: p['95'] ? p['95'].p : null,
       price_diesel: p['ДТ'] ? p['ДТ'].p : null,
-      qqueue_level: s.conflict === 'queue' ? 'high' : null,
+      queue_level: s.conflict === 'queue' ? 'high' : null,
       source_status: s.status === undefined ? null : s.status,
       fuel_state: null,
       reliability_score: null,
