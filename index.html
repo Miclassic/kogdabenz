@@ -122,7 +122,7 @@ body { overflow:hidden; }
 .chip3 { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:13px; background:#fff; border:1px solid #edf1f8; min-width:0; }
 .chip3 .ic { color:#2465ee; width:15px; height:15px; }
 .chip3 div { min-width:0; }
-.chip3 small { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; min-height:2.6em; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.chip3 small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
 .chip3 b { font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
 .chip3 b.qadv { font-size:8px; }
 .pulse-tip.under { transform:translate(-50%, 14px); }
@@ -426,7 +426,7 @@ body { overflow:hidden; }
         </div>
       </div>
       <div class="chips3">
-        <div class="chip3 tap" onclick="openWhyChip(this,'now95')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · АИ-95 есть</small><b id="triNow">—</b></div></div>
+        <div class="chip3 tap" onclick="openWhyChip(this,'now95')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · АИ-95</small><b id="triNow">—</b></div></div>
         <div class="chip3 tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3 tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
@@ -1219,7 +1219,7 @@ function renderHero() {
     tf.textContent = pc.calm !== '—' ? pc.calm : (pc.advice ? 'очередь ' + pc.advice : '—');
     tf.classList.toggle('qadv', pc.calm === '—' && !!pc.advice);
   }
-  if (tfLbl) tfLbl.textContent = pc.calm !== '—' ? 'Спокойно' : ('Спокойно было: ' + (pc.lastCalm === 'за 3 суток не было' ? 'нет за 3 сут' : pc.lastCalm));
+  if (tfLbl) tfLbl.textContent = 'Спокойно';
 }
 function renderDigestPanel() {
   const el = document.getElementById('digestBody');
@@ -1377,7 +1377,7 @@ function qNowPct() {
 const WHY_MAP = {
   now95: { t: 'Сейчас · АИ-95 есть', x: 'Сколько станций источник прямо сейчас видит с АИ-95. В знаменателе — станции с данными, а не все АЗС города.', e: () => 'Источник видит любое топливо на ' + covNowCount() + ' из ' + cityStationList().length + ' АЗС: остальные молчат, на карте их пины несут народные отметки.' },
   peak: { t: 'Пик спроса', x: 'Часы, когда очереди на заправках случались чаще всего за последние сутки. Если есть выбор — в это время лучше не заправляться.', e: () => 'Сейчас очередь на ' + qNowPct() + '% станций с данными.' },
-  calm: { t: 'Спокойное время', x: 'Когда очередей мало и топливо в наличии — лучшее окно для заправки. Если за сутки такого не было, показываем, когда оно было последний раз и с какого часа лучше вставать в очередь.', e: () => { const m = cityQueueMedian24(); return 'Медиана завершённой очереди за сутки: ' + (m === null ? '—' : ageRu(m)) + '.'; } },
+  calm: { t: 'Спокойное время', x: 'Когда очередей мало и топливо в наличии — лучшее окно для заправки. Если сейчас такого окна нет, на чипе показываем, с какого часа лучше вставать в очередь.', e: () => { const pc = peakAndCalm(); const m = cityQueueMedian24(); return 'Спокойно было последний раз: ' + pc.lastCalm + '. Медиана завершённой очереди за сутки: ' + (m === null ? '—' : ageRu(m)) + '.'; } },
   plate95: { t: 'АИ-95 в городе', x: 'Сколько станций из видимых источником прямо сейчас с АИ-95. Красная точка — меньше половины, зелёная — больше половины.', e: () => 'Источник видит любое топливо на ' + covNowCount() + ' из ' + cityStationList().length + ' АЗС.' },
   plateQ: { t: 'Очереди сейчас', x: 'Сколько станций источник видит с очередью в этот момент. Это красные зоны спроса и оранжевые точки на пинах карты.', e: () => { const m = cityQueueMedian24(); return 'Медиана завершённой очереди за сутки: ' + (m === null ? '—' : ageRu(m)) + '.'; } },
   platePeak: { t: 'Пик спроса', x: 'Часы, когда очереди случались чаще всего за последние сутки. Зоны на карте — сила очереди сейчас, этот чип — когда она обычно пиковая в течение дня.', e: null },
