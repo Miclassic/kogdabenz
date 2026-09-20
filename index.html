@@ -258,7 +258,8 @@ body { overflow:hidden; }
 /* шторка */
 .sheet-backdrop { position:fixed; inset:0; background:rgba(15,27,51,.35); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:40; }
 .sheet-backdrop.open { opacity:1; pointer-events:auto; }
-.sheet { position:fixed; left:0; right:0; bottom:0; max-height:86dvh; overflow-y:auto; background:#f6f8fd; border-radius:28px 28px 0 0; padding:10px 12px calc(16px + env(safe-area-inset-bottom)); transform:translateY(100%); transition:.3s cubic-bezier(.2,.8,.2,1); z-index:41; box-shadow:0 -20px 60px rgba(15,27,51,.25); }
+.sheet { position:fixed; left:0; right:0; bottom:0; max-height:86dvh; overflow:hidden; background:#f6f8fd; border-radius:28px 28px 0 0; transform:translateY(100%); transition:.3s cubic-bezier(.2,.8,.2,1); z-index:41; box-shadow:0 -20px 60px rgba(15,27,51,.25); }
+.sheet-scroll { height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:10px 12px calc(16px + env(safe-area-inset-bottom)); }
 .sheet.open { transform:translateY(0); }
 .sheet-grab { width:44px; height:5px; border-radius:99px; background:#d7dde8; margin:4px auto 10px; }
 .sheet-close { position:sticky; top:0; float:right; margin:2px 2px 6px auto; width:32px; height:32px; border:0; border-radius:12px; background:#e9edf5; color:#5b6b86; cursor:pointer; z-index:5; display:grid; place-items:center; }
@@ -613,9 +614,11 @@ body { overflow:hidden; }
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
   <div class="why-pop" id="whyPop"></div>
   <div class="sheet" id="sheet">
-    <div class="sheet-grab"></div>
-    <button class="sheet-close" onclick="closeSheet()"><svg class="ic"><use href="#i-close"/></svg></button>
-    <div id="sheetBody"></div>
+    <div class="sheet-scroll">
+      <div class="sheet-grab"></div>
+      <button class="sheet-close" onclick="closeSheet()"><svg class="ic"><use href="#i-close"/></svg></button>
+      <div id="sheetBody"></div>
+    </div>
   </div>
   <div class="hello-back" id="helloBack" onclick="closeHello(false)"></div>
   <div class="hello-pop" id="helloPop">
