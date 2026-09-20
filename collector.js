@@ -25,12 +25,28 @@ const BROWSER_HEADERS = {
 
 async function fetchFrame(url, label) {
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const r = await fetch(url, { headers: BROWSER_HEADERS });
+    let r;
+    try {
+      r = await fetch(url, { headers: BROWSER_HEADERS });
+    } catch (netErr) {
+      // сетевая ошибка (таймаут/DNS/сброс): источник не досягаем — не мучаем ретраями
+      const e = new Error(label + ': сеть не пустила (' + netErr.message + ')');
+      e.upstream = true;
+      throw e;
+    }
     if (r.ok) return r.json();
+    // 429/503 — источник throttling'ует или под атакой: выходим сразу, без ретраев
+    if (r.status === 429 || r.status === 503) {
+      const e = new Error(label + ': статус ' + r.status + ' (похоже на DDoS или защиту)');
+      e.upstream = true;
+      throw e;
+    }
     console.log('   ' + label + ': попытка ' + attempt + ': статус ' + r.status + ', жду 10 сек и повторю...');
     await new Promise(res => setTimeout(res, 10000));
   }
-  throw new Error(label + ': не ответил после 3 попыток');
+  const e = new Error(label + ': не ответил после 3 попыток');
+  e.upstream = true;
+  throw e;
 }
 async function fetchGdebenz() { return fetchFrame(GDEBENZ_URL, 'GdeBenz (Новороссийск)'); }
 
@@ -123,6 +139,18 @@ async function tg(text) {
     });
   } catch (e) { console.log('   ! Телеграм: ' + e.message); }
 }
+// Уведомление «источник недоступен» — не чаще раза в час: чужой DDoS
+// не повод будить владельца каждые 10 минут. Тихий режим bot_meta учитывается внутри tg().
+async function tgUpstreamThrottled(text) {
+  try {
+    const now = Date.now();
+    const cur = await sbGet('/rest/v1/bot_meta?key=eq.upstream_alert&select=value');
+    const last = cur.length ? Date.parse(cur[0].value) : 0;
+    if (now - last < 60 * 60 * 1000) { console.log('   Троттлинг: о недоступности уже сообщали меньше часа назад'); return; }
+    await sbPost('bot_meta?on_conflict=key', [{ key: 'upstream_alert', value: new Date(now).toISOString(), updated_at: new Date(now).toISOString() }], 'return=minimal,resolution=merge-duplicates');
+    await tg(text);
+  } catch (e) { console.log('   ! Троттлинг: ' + e.message); }
+}
 
 function fuelSet(fuelsNow) {
   const empty = !fuelsNow;
@@ -195,6 +223,8 @@ function reliabilityOf(histAny) {
   return Math.round(100 * n / histAny.length) / 100;
 }
 async function main() {
+  // джиттер до 45 сек: не стучим синхронно с волнами атаки и другими клиентами
+  await new Promise(res => setTimeout(res, Math.floor(Math.random() * 45000)));
   console.log('1) Качаю GdeBenz (Новороссийск)...');
   const list = await fetchGdebenz();
   console.log('   Станций в ответе: ' + list.length);
@@ -441,4 +471,14 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   console.log('✅ Цикл завершён');
 }
 
-main().catch(e => { console.error('❌ Ошибка: ' + e.message); process.exit(1); });
+main().catch(async e => {
+  // Источник недоступен/под атакой — это НЕ баг коллектора: выходим тихо
+  // (workflow зелёный), владельца тревожим не чаще раза в час.
+  if (e && e.upstream) {
+    console.error('⚠️ Источник недоступен: ' + e.message);
+    await tgUpstreamThrottled('⚠️ GdeBenz недоступен (похоже на DDoS или защиту). Цикл пропущен, сайт показывает последние данные; вернусь через 10 минут.');
+    process.exit(0);
+  }
+  console.error('❌ Ошибка: ' + e.message);
+  process.exit(1);
+});

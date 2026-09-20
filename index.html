@@ -350,7 +350,7 @@ body { overflow:hidden; }
 .why-pop b { display:block; font-size:11px; font-weight:900; color:#14213d; margin-bottom:4px; }
 .why-pop span { display:block; font-size:10px; line-height:1.45; color:#5b6b86; font-weight:600; }
 .why-pop i { display:block; margin-top:6px; padding-top:6px; border-top:1px dashed #dfe8f2; font-style:normal; font-size:9.5px; font-weight:700; color:#2465ee; }
-.chip3.tap, .info.tap { cursor:pointer; }
+.chip3.tap, .info.tap, .dg-strip.tap { cursor:pointer; }
 /* Большой знак вопроса как декоративная часть фона чипа:
    фирменный синий, полупрозрачный, справа; текст чипа читается поверх.
    Маркер всех чипов с подсказкой+фактом по тапу. */
@@ -444,6 +444,10 @@ body { overflow:hidden; }
 .user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
 .user-dot::after { content:''; position:absolute; inset:-8px; border-radius:50%; background:rgba(57,124,255,.18); animation:userPulse 2s ease-out infinite; }
 @keyframes userPulse { 0% { transform:scale(.6); opacity:1; } 100% { transform:scale(1.8); opacity:0; } }
+.mpin.conflict { background:#fff2e8; border-color:#f5a05a; color:#c26a2a; }
+.mpin .qmark { transform:rotate(45deg); font-size:15px; font-weight:900; line-height:1; }
+.fchip-no { background:rgba(253,236,236,.95); border-color:rgba(239,83,80,.7); color:#c2403f; }
+.fchip-conflict { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
 </style>
 </head>
 <body>
@@ -582,6 +586,7 @@ body { overflow:hidden; }
         <span><i style="background:#6ea8ff"></i>только дизель</span>
         <span><i style="background:#ef5350"></i>ничего нет</span>
         <span><i style="background:#a7b1c1"></i>нет данных</span>
+        <span><i style="background:#f5a05a"></i>разные мнения (народ)</span>
       </div>
     </section>
     <section class="panel">
@@ -633,6 +638,7 @@ const LOGO_FALLBACK = "<svg class='ic ic-l'><use href='#i-pump'/></svg>";
 let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
+let allQueueEvents = [];
 let allLastPrice = {}, priceHourly = [];
 let queueEpisodes = [];
 async function dbQuery(path) {
@@ -857,6 +863,8 @@ async function fbSend(stationId) {
   history.push(now);
   localStorage.setItem(key, JSON.stringify(history));
   rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+  // народный консенсус мог перекрасить пин — обновляем карту после «спасибо»
+  setTimeout(() => { if (mapObj) renderMap(); }, 1400);
   const station = sendBtn.closest('.station');
   const recentElement = station && station.querySelector('.recent');
   if (recentElement) recentElement.textContent = 'Спасибо! Учёт ' + rows.length + ' фактов.';
@@ -912,6 +920,7 @@ function stationCard(station, obs, pred) {
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
     queueStrip(station.id, obs) +
+    queueForecastStrip(station.id) +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
@@ -1488,7 +1497,8 @@ const WHY_MAP = {
   acc: { t: 'Точность', x: 'Доля прогнозов по этой АЗС, попавших в факт вовремя. Показываем при 10 и более проверках, до этого — «мало данных».', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'По городу: проверено ' + v + ', с измеренной ошибкой ' + m + ' — подробности в панели «Наша точность прогнозов».'; } },
   accChecked: { t: 'Как проверяем прогнозы', x: 'Каждую ночь сервис сравнивает вчерашние прогнозы с тем, что реально случилось на заправках. Прогнозы, по которым факт ещё не случился (топливо пока не вернули), считаем отдельно — они ошибку не портят.', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'Проверено: ' + v + ', из них ждут факта: ' + (v - m) + '.'; } },
   accErr: { t: 'Что значит «обычно»', x: 'Все ошибки прогнозов выстраиваем от меньшей к большей и берём серединную: половина прогнозов точнее неё, половина — нет. Это честная типичная ошибка по времени.', e: () => { const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).map(p => Math.abs(p.error_minutes)).sort((a, b) => a - b); if (!m.length) return 'Измерений пока нет.'; const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))]; return 'Половина прогнозов ошибается меньше чем на ' + fmtErrMin(q(m, 0.5)) + ', худшие 10% — больше чем на ' + fmtErrMin(q(m, 0.9)) + '.'; } },
-  accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } }
+  accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } },
+  qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории: очередь может прийти раньше или позже, либо не прийти вовсе.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null }
 };
 let whyOpenKey = null;
 function closeWhy() {
@@ -1938,19 +1948,94 @@ function queueStrip(stationId, obs) {
     : 'очередь сейчас — началась только что';
   return '<div class="dg-strip" style="margin-top:8px">' + icon('i-queue', 'ic-s') + '<span>' + txt + '</span></div>';
 }
-// свежая (≤6 ч) народная отметка «топливо есть» по станции (null, если нет):
-// подставляем на карте, когда источник по топливу молчит
-function folkFuel(stationId, fuel) {
-  const since = Date.now() - 6 * 3600 * 1000;
-  let best = null;
+/* Прогноз очереди (шаг 5): медианное окно появления очереди по истории.
+   Берём часы, когда очередь появлялась, строим медиану ± разброс. Своих
+   событий станции мало (<3) — берём весь город. Оценка по прошлому, не гарантия. */
+function queueWindowFor(stationId) {
+  const own = allQueueEvents.filter(e => e.station_id === stationId);
+  let use = own, src = 'own';
+  if (use.length < 3) { use = allQueueEvents; src = 'city'; }
+  if (use.length < 3) return null;
+  const mins = use.map(e => {
+    const d = new Date(new Date(e.detected_at).getTime() + 3 * 3600 * 1000);
+    return d.getUTCHours() * 60 + d.getUTCMinutes();
+  }).sort((a, b) => a - b);
+  const med = mins.length % 2 ? mins[(mins.length - 1) / 2] : (mins[mins.length / 2 - 1] + mins[mins.length / 2]) / 2;
+  const mean = mins.reduce((a, b) => a + b, 0) / mins.length;
+  const variance = mins.reduce((s, t) => s + (t - mean) * (t - mean), 0) / mins.length;
+  let sd = Math.sqrt(variance);
+  if (sd < 30) sd = 30;
+  const wrap = m => ((m % 1440) + 1440) % 1440;
+  const fmt = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const tightness = 1 / (1 + sd / 120);
+  const conf = Math.min(0.9, Math.max(0.1, 0.3 + 0.3 * tightness + Math.min(0.2, use.length * 0.02)));
+  return {
+    window: fmt(wrap(Math.round(med - sd))) + '–' + fmt(wrap(Math.round(med + sd))),
+    confidence: Math.round(conf * 100),
+    basedOn: use.length,
+    src: src
+  };
+}
+function queueForecastStrip(stationId) {
+  const fw = queueWindowFor(stationId);
+  if (!fw) return '';
+  const srcTxt = fw.src === 'own' ? 'по истории этой АЗС' : 'по городу (по этой АЗС мало)';
+  return '<div class="dg-strip tap why-tap" data-qf="' + srcTxt + '" style="margin-top:6px" onclick="openWhyChip(this,\'qfcst\')">' +
+    icon('i-clock', 'ic-s') +
+    '<span>Очередь вероятна: <b>' + fw.window + '</b> · ' + fw.confidence + '%</span></div>';
+}
+// Народный консенсус (защита от фейковых отметок): считаем голоса РАЗНЫХ
+// устройств (device_id) за последние 60 минут. Источник всегда в приоритете:
+// народ красит пин только когда источник молчит обо всех топливах.
+// 2 голоса — ранний сигнал (красим), 3 голоса — подтверждённый консенсус,
+// «есть» и «нет» по одному топливу встретились — «разные мнения».
+let folkMap = null, folkMapAt = 0, folkMapCount = -1;
+function getFolkMap() {
+  const now = Date.now();
+  if (folkMap && now - folkMapAt < 60000 && folkMapCount === allFeedback.length) return folkMap;
+  const since = now - 60 * 60 * 1000;
+  const votes = {};
   for (const f of allFeedback) {
-    if (f.station_id !== stationId || f.fuel_type !== fuel) continue;
     if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
-    const t = new Date(f.created_at).getTime();
-    if (t < since) continue;
-    if (!best || t > best.t) best = { t: t, ok: f.feedback_type === 'available' };
+    if (!f.fuel_type) continue;
+    if (new Date(f.created_at).getTime() < since) continue;
+    const key = f.station_id + '|' + f.fuel_type + '|' + (f.feedback_type === 'available' ? 'yes' : 'no');
+    (votes[key] = votes[key] || new Set()).add(f.device_id || '?');
   }
-  return best && best.ok ? best : null;
+  const map = {};
+  for (const key of Object.keys(votes)) {
+    const parts = key.split('|');
+    const st = map[parts[0]] = map[parts[0]] || {};
+    st[parts[1]] = st[parts[1]] || { yes: 0, no: 0 };
+    st[parts[1]][parts[2]] = votes[key].size;
+  }
+  folkMap = map; folkMapAt = now; folkMapCount = allFeedback.length;
+  return map;
+}
+function folkVerdict(c) {
+  if (!c) return null;
+  if (c.yes >= 2 && c.yes > c.no) return { verdict: 'yes', votes: c.yes, strong: c.yes >= 3 };
+  if (c.no >= 2 && c.no > c.yes) return { verdict: 'no', votes: c.no, strong: c.no >= 3 };
+  if (c.yes >= 1 && c.no >= 1) return { verdict: 'conflict', votes: c.yes + c.no, strong: false };
+  return null;
+}
+function folkCounts(stationId, fuel) { return (getFolkMap()[stationId] || {})[fuel] || null; }
+function folkConsensus(stationId, fuel) { return folkVerdict(folkCounts(stationId, fuel)); }
+// Народное состояние пина: только когда источник молчит обо всех топливах
+function folkPinState(stationId, o) {
+  if (o && (o.fuel_92_status != null || o.fuel_95_status != null || o.diesel_status != null)) return null;
+  const f95 = folkConsensus(stationId, '95'), f92 = folkConsensus(stationId, '92'), fdt = folkConsensus(stationId, 'diesel');
+  if (!f95 && !f92 && !fdt) return null;
+  if (f95 && f95.verdict === 'yes') return 'yes';
+  if (f92 && f92.verdict === 'yes') return 'part';
+  if (fdt && fdt.verdict === 'yes') return 'diesel';
+  if ((f95 && f95.verdict === 'conflict') || (f92 && f92.verdict === 'conflict') || (fdt && fdt.verdict === 'conflict')) return 'conflict';
+  return 'no';
+}
+function effPinKey(st, o) {
+  const k = pinKey(o);
+  if (k !== 'unknown') return k;
+  return folkPinState(st.id, o) || 'unknown';
 }
 function pinKey(o) {
   if (!o || o.fuel_95_status === null || o.fuel_95_status === undefined) return 'unknown';
@@ -2053,13 +2138,13 @@ function renderMap() {
       // полоса кластера — те же цвета, что и пины: зелёный = АИ-95 есть,
       // оранжевый = есть 92, светло-синий = только дизель,
       // красный = ничего, серый = нет данных
-      const cnt = { yes: 0, part: 0, diesel: 0, no: 0, unknown: 0 };
-      for (const it of group) cnt[pinKey(it.o)]++;
+      const cnt = { yes: 0, part: 0, diesel: 0, no: 0, conflict: 0, unknown: 0 };
+      for (const it of group) cnt[effPinKey(it.st, it.o)]++;
       const n = group.length;
-      const CLUSTER_COLS = { yes: '#1bb978', part: '#f5a05a', diesel: '#6ea8ff', no: '#ef5350', unknown: '#a7b1c1' };
+      const CLUSTER_COLS = { yes: '#1bb978', part: '#f5a05a', diesel: '#6ea8ff', no: '#ef5350', conflict: '#f5a05a', unknown: '#a7b1c1' };
       const stops = [];
       let acc = 0;
-      for (const k of ['yes', 'part', 'diesel', 'no', 'unknown']) {
+      for (const k of ['yes', 'part', 'diesel', 'no', 'conflict', 'unknown']) {
         if (!cnt[k]) continue;
         const from = acc;
         acc += 100 * cnt[k] / n;
@@ -2217,19 +2302,36 @@ async function quickSend(stationId) {
 function addPin(it, fromCenter, zoomChanged) {
   const st = it.st, o = it.o;
   pinHits.push({ lon: Number(st.lon), lat: Number(st.lat) });
-  const stKey = pinKey(o);
+  let stKey = pinKey(o);
+  // источник молчит обо всех топливах — смотрим народный консенсус
+  const srcSilent = !o || (o.fuel_92_status == null && o.fuel_95_status == null && o.diesel_status == null);
+  const fcons = srcSilent ? { '92': folkConsensus(st.id, '92'), '95': folkConsensus(st.id, '95'), 'diesel': folkConsensus(st.id, 'diesel') } : null;
+  if (stKey === 'unknown' && fcons) {
+    const v = f => fcons[f] ? fcons[f].verdict : null;
+    if (v('95') === 'yes') stKey = 'yes';
+    else if (v('92') === 'yes') stKey = 'part';
+    else if (v('diesel') === 'yes') stKey = 'diesel';
+    else if (v('95') === 'conflict' || v('92') === 'conflict' || v('diesel') === 'conflict') stKey = 'conflict';
+    else if (v('95') === 'no' || v('92') === 'no' || v('diesel') === 'no') stKey = 'no';
+  }
   const sc = demandOf(st.id);
   const wrap = document.createElement('div');
   wrap.className = 'mpin-wrap';
   // приоритет наложения: пин с топливом выше пустого, пустой выше серого
-  wrap.style.zIndex = String({ unknown: 3, no: 4, diesel: 5, part: 6, yes: 7 }[stKey] || 3);
+  wrap.style.zIndex = String({ unknown: 3, no: 4, conflict: 5, diesel: 5, part: 6, yes: 7 }[stKey] || 3);
   // пин двух/трёх цветов: градиент от кончика капли вверх в порядке
   // дизель (синий) → АИ-92 (оранжевый) → АИ-95 (зелёный);
   // направление to top right в локальных координатах капли = снизу вверх на экране
   const availCols = [];
-  if (o && o.diesel_status === true) availCols.push('#6ea8ff');
-  if (o && o.fuel_92_status === true) availCols.push('#f5a05a');
-  if (o && o.fuel_95_status === true) availCols.push('#1bb978');
+  if (srcSilent && fcons) {
+    if (fcons.diesel && fcons.diesel.verdict === 'yes') availCols.push('#6ea8ff');
+    if (fcons['92'] && fcons['92'].verdict === 'yes') availCols.push('#f5a05a');
+    if (fcons['95'] && fcons['95'].verdict === 'yes') availCols.push('#1bb978');
+  } else if (o) {
+    if (o.diesel_status === true) availCols.push('#6ea8ff');
+    if (o.fuel_92_status === true) availCols.push('#f5a05a');
+    if (o.fuel_95_status === true) availCols.push('#1bb978');
+  }
   let pinStyle = '';
   if (availCols.length >= 2) {
     const stops = availCols.length === 2
@@ -2237,7 +2339,8 @@ function addPin(it, fromCenter, zoomChanged) {
       : availCols[0] + ', ' + availCols[1] + ' 50%, ' + availCols[2];
     pinStyle = 'background:linear-gradient(to top right,' + stops + ');border-color:#fff;color:#fff;';
   }
-  wrap.innerHTML = '<div class="mpin ' + stKey + '" style="' + pinStyle + '"><svg class="ic"><use href="#i-pump"/></svg>' + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
+  const pinIco = stKey === 'conflict' ? '<span class="qmark">?</span>' : '<svg class="ic"><use href="#i-pump"/></svg>';
+  wrap.innerHTML = '<div class="mpin ' + stKey + '" style="' + pinStyle + '">' + pinIco + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
   // табличка над пином: название жирным с иконкой бренда слева, улица обычным
   const nameEl = document.createElement('div');
   nameEl.className = 'mpin-name';
@@ -2263,14 +2366,19 @@ function addPin(it, fromCenter, zoomChanged) {
   objMarkers.push(mk);
   // воздушные чипы топлива над каплей (zoom >= 13): появляются по очереди,
   // цикл проходит дважды и затухает; при движении карты убираются сразу
-  if (mapObj.getZoom() >= 13 && o) {
+  if (mapObj.getZoom() >= 13) {
     const avail = [];
     let fuelInfo = 0;
-    const srcFuels = [['92', 'АИ-92', o.fuel_92_status], ['95', 'АИ-95', o.fuel_95_status], ['diesel', 'дизель', o.diesel_status]];
+    const srcFuels = [['92', 'АИ-92', o ? o.fuel_92_status : null], ['95', 'АИ-95', o ? o.fuel_95_status : null], ['diesel', 'дизель', o ? o.diesel_status : null]];
     for (const s of srcFuels) if (s[2] === true) { avail.push({ t: s[1], q: 0, k: s[0] }); fuelInfo++; }
-    // источник по топливу молчит — подставляем свежую народную отметку из карточки
+    // источник по топливу молчит — показываем народный консенсус (2 голоса — рано, 3 — подтверждён)
     for (const s of srcFuels) if (s[2] === null || s[2] === undefined) {
-      if (folkFuel(st.id, s[0])) { avail.push({ t: s[1] + ' · народ', q: 0, k: s[0] }); fuelInfo++; }
+      const c = folkCounts(st.id, s[0]);
+      const v = folkVerdict(c);
+      if (v && v.verdict === 'yes') { avail.push({ t: s[1] + (v.strong ? ' · народ подтвердил: ' + v.votes : ' · народ: ' + v.votes + ' мнения'), q: 0, k: s[0] }); fuelInfo++; }
+      else if (v && v.verdict === 'no') { avail.push({ t: s[1] + ' нет · народ: ' + v.votes, q: -2, k: s[0] }); fuelInfo++; }
+      else if (v && v.verdict === 'conflict') { avail.push({ t: s[1] + ' · разные мнения', q: -3, k: s[0] }); fuelInfo++; }
+      else if (c && c.yes === 1 && c.no === 0) { avail.push({ t: s[1] + ' · народ', q: 0, k: s[0] }); fuelInfo++; }
     }
     // очередь: уровень по силе спроса + сколько стоит + сколько машин народно
     if (sc >= 12) {
@@ -2287,7 +2395,7 @@ function addPin(it, fromCenter, zoomChanged) {
       box.className = 'fchips';
       avail.forEach((item, i) => {
         const c = document.createElement('div');
-        c.className = 'fchip' + (item.q === 3 ? ' fchip-q' : item.q === 2 ? ' fchip-q2' : item.q === 1 ? ' fchip-q1' : item.q === -1 ? ' fchip-x' : item.k === 'diesel' ? ' fchip-dt' : item.k === '92' ? ' fchip-92' : '');
+        c.className = 'fchip' + (item.q === 3 ? ' fchip-q' : item.q === 2 ? ' fchip-q2' : item.q === 1 ? ' fchip-q1' : item.q === -1 ? ' fchip-x' : item.q === -2 ? ' fchip-no' : item.q === -3 ? ' fchip-conflict' : item.k === 'diesel' ? ' fchip-dt' : item.k === '92' ? ' fchip-92' : '');
         c.style.animationDelay = (0.25 + i * 0.45) + 's';
         c.textContent = item.t;
         box.appendChild(c);
@@ -2404,7 +2512,8 @@ async function start() {
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps] = await Promise.all([
+  const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status'),
       dbQuery('/rest/v1/station_counts?select=station_id,total'),
       dbQueryAll('/rest/v1/predictions?select=*'),
@@ -2415,7 +2524,8 @@ async function start() {
       dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status').catch(() => []),
       dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
       dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => []),
-      dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => [])
+      dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => []),
+      dbQueryAll('/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
     queueById = {};
@@ -2427,13 +2537,14 @@ async function start() {
     for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x;
     priceHourly = priceRows || [];
     queueEpisodes = queueEps || [];
+    allQueueEvents = queueEvAll || [];
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
   } catch (e) {
-    app.innerHTML = '<div class="status">Не удалось загрузить данные<br><small>' + escapeHtml(e.message) + '</small></div>';
+    app.innerHTML = '<div class="status">Не удалось загрузить данные.<br><small>' + escapeHtml(e.message) + '</small><br><br><button class="cta-btn" style="width:auto;padding:10px 24px" onclick="retryStart()">Попробовать снова</button></div>';
     const t1 = document.getElementById('nowTitle');
     const s1 = document.getElementById('nowSub');
     if (t1) t1.textContent = 'Ошибка загрузки данных';
@@ -2455,6 +2566,11 @@ async function start() {
       loadPulse();
     }, () => {}, { timeout: 5000, maximumAge: 300000 });
   }
+}
+function retryStart() {
+  const app = document.getElementById('app');
+  if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
+  start();
 }
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
 function isFavorite(id) { return getFavorites().includes(id); }
@@ -2631,7 +2747,7 @@ function helpHtml() {
     '<div class="help-lead">КогдаБенз — помощник водителя юга: Краснодарский край и Адыгея. Мы не просто показываем, где бензин: каждые 10 минут собираем отметки заправок и сообщения водителей, а потом подсказываем, когда топливо вернётся на заправку и когда лучше поехать.</div>' +
     '<div class="help-item"><div class="help-q">Зачем создан этот сайт?</div><div class="help-a">В дефицит бензин пропадает с заправок, а очереди появляются внезапно. Чтобы не ездить по городу вслепую, мы собрали все отметки в одном месте и заранее подсказываем, когда и куда лучше заправиться.</div></div>' +
     '<div class="help-item"><div class="help-q">Откуда берутся данные?</div><div class="help-a">Из двух источников: народная карта заправок (обновляется каждые 10 минут) и отметки таких же водителей, как вы: «топливо есть», «очередь», «привезли». Чем больше людей отмечают, тем точнее подсказки.</div></div>' +
-    '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов. Когда источник станцию не видит, каплю красят отметки людей: 2 голоса — ранний сигнал, 3 голоса — подтверждено; оранжевая капля со знаком вопроса — мнения людей разошлись.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за круги вокруг капель?</div><div class="help-a">Это очереди. Чем краснее и заметнее круг, тем больше людей стоят в очереди прямо сейчас. Значок с человечками внутри круга — отметка очереди.</div></div>' +
     '<div class="help-item"><div class="help-q">Что такое «окно возврата»?</div><div class="help-a">Часы, когда топливо с большей вероятностью вернётся на заправку. Мы считаем их по истории заправки: когда и как обычно туда привозят бензин. Рядом с окном всегда показана уверенность в процентах.</div></div>' +
     '<div class="help-item"><div class="help-q">Можно ли доверять сайту?</div><div class="help-a">Каждую ночь мы сверяем свои подсказки с тем, что случилось на самом деле, и честно показываем ошибку на панели «Наша точность прогнозов». Если данных мало — говорим об этом прямо и не выдумываем цифры.</div></div>' +
@@ -2675,6 +2791,8 @@ const cityBtnTxt = document.getElementById('mgScopeCityTxt');
 if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
 tickClock();
 setInterval(tickClock, 30000);
+// народные голоса живут 60 минут: периодически обновляем открытую карту
+setInterval(() => { if (mapObj && currentPanel === 2 && !mapObj.isMoving()) renderMap(); }, 5 * 60 * 1000);
 const pagerEl = document.getElementById('pager');
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
   closeWhy();
