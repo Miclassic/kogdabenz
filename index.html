@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>КогдаБенз — когда лучше заправиться?</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2048'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%234b93ff'/%3E%3Cstop%20offset='.55'%20stop-color='%232465ee'/%3E%3Cstop%20offset='1'%20stop-color='%231746c8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='48'%20height='48'%20rx='12'%20fill='url(%23g)'/%3E%3Cpath%20fill='%23fff'%20d='M24%208c0%200-11%2012.6-11%2019a11%2011%200%200%200%2022%200C35%2020.6%2024%208%2024%208Z'/%3E%3Cpath%20fill='none'%20stroke='%232465ee'%20stroke-width='3'%20stroke-linecap='round'%20stroke-linejoin='round'%20d='M24%2021v6l4.5%202.7'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
@@ -21,7 +22,17 @@ body { overflow:hidden; }
 .header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 .logo-wrap { display:flex; align-items:center; gap:12px; min-width:0; flex:1; }
 .logo-wrap > div { min-width:0; }
-.logo { width:46px; height:46px; display:grid; place-items:center; border-radius:16px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; box-shadow:0 10px 26px rgba(55,100,180,.22); }
+.logo { width:46px; height:46px; display:grid; place-items:center; border-radius:15px; position:relative;
+  background:
+    radial-gradient(120% 90% at 18% 8%, rgba(255,255,255,.42), rgba(255,255,255,0) 46%),
+    linear-gradient(140deg,#4b93ff 0%,#2465ee 52%,#1746c8 100%);
+  box-shadow:
+    0 12px 28px rgba(36,101,238,.38),
+    0 3px 8px rgba(23,70,200,.28),
+    inset 0 1px 0 rgba(255,255,255,.5),
+    inset 0 -2px 6px rgba(10,40,120,.35); }
+.logo::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 1px rgba(255,255,255,.22); pointer-events:none; }
+.logo-mark { width:27px; height:27px; filter:drop-shadow(0 2px 3px rgba(10,40,120,.35)); }
 .logo .ic-l { width:26px; height:26px; }
 .logo-title { font-size:24px; font-weight:900; letter-spacing:-1px; }
 .logo-sup { font-style:normal; font-size:12px; font-weight:900; letter-spacing:.4px; color:var(--blue); vertical-align:top; position:relative; top:-6px; margin-left:2px; }
@@ -122,7 +133,7 @@ body { overflow:hidden; }
 .chip3 { display:flex; align-items:center; gap:6px; padding:7px 8px; border-radius:13px; background:#fff; border:1px solid #edf1f8; min-width:0; }
 .chip3 .ic { color:#2465ee; width:15px; height:15px; }
 .chip3 div { min-width:0; }
-.chip3 small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.chip3 small { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#93a1b8; font-size:7px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; }
 .chip3 b { font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
 .chip3 b.qadv { font-size:8px; }
 .pulse-tip.under { transform:translate(-50%, 14px); }
@@ -340,6 +351,91 @@ body { overflow:hidden; }
 .why-pop span { display:block; font-size:10px; line-height:1.45; color:#5b6b86; font-weight:600; }
 .why-pop i { display:block; margin-top:6px; padding-top:6px; border-top:1px dashed #dfe8f2; font-style:normal; font-size:9.5px; font-weight:700; color:#2465ee; }
 .chip3.tap, .info.tap { cursor:pointer; }
+/* Большой знак вопроса как декоративная часть фона чипа:
+   фирменный синий, полупрозрачный, справа; текст чипа читается поверх.
+   Маркер всех чипов с подсказкой+фактом по тапу. */
+/* Маркер подсказки: россыпь из четырёх полупрозрачных «?» разных размеров
+   по разным местам чипа (фоновый слой ПОД текстом) + мыльный блик справа.
+   Текст и иконки подняты слоем выше, место не резервируем — ничего не режется. */
+.why-tap { position:relative; overflow:hidden; --q1:30px; --q2:18px; --q3:12px; --q4:9px; }
+.why-tap > * { position:relative; z-index:1; }
+.why-tap::after {
+  content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text x='12' y='19' font-size='26' font-weight='900' text-anchor='middle' fill='%23397cff' fill-opacity='.16'>?</text></svg>") right 5px center / 30px 30px no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text x='12' y='19' font-size='26' font-weight='900' text-anchor='middle' fill='%23397cff' fill-opacity='.11'>?</text></svg>") right 38px top 3px / 18px 18px no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text x='12' y='19' font-size='26' font-weight='900' text-anchor='middle' fill='%23397cff' fill-opacity='.13'>?</text></svg>") right 22px bottom 3px / 12px 12px no-repeat,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><text x='12' y='19' font-size='26' font-weight='900' text-anchor='middle' fill='%23397cff' fill-opacity='.08'>?</text></svg>") left 40% center / 9px 9px no-repeat;
+  background-size: var(--q1) var(--q1), var(--q2) var(--q2), var(--q3) var(--q3), var(--q4) var(--q4);
+  animation: whyPulse 9s ease-in-out infinite;
+}
+/* соседние чипы дышат не синхронно: каждый следующий чип получает свой
+   отрицательный delay — анимация стартует с середины цикла и ритмы расходятся */
+.why-tap:nth-of-type(2)::after, .why-tap:nth-of-type(2)::before { animation-delay: -3.1s; }
+.why-tap:nth-of-type(3)::after, .why-tap:nth-of-type(3)::before { animation-delay: -6.4s; }
+.why-tap:nth-of-type(4)::after, .why-tap:nth-of-type(4)::before { animation-delay: -1.7s; }
+.why-tap:nth-of-type(5)::after, .why-tap:nth-of-type(5)::before { animation-delay: -4.9s; }
+/* широкие строки (панель точности, полоска вердикта): россыпь крупнее и глубже;
+   размеры — свои переменные, картинки и волна наследуются из базового правила */
+.chips3[style] .why-tap, .dg-strip.why-tap { --q1:52px; --q2:26px; --q3:17px; --q4:12px; }
+.chips3[style] .why-tap::after, .dg-strip.why-tap::after {
+  background-position: right 8px center, right 66px top 4px, right 40px bottom 4px, left 55% center;
+}
+.why-tap::before {
+  content:''; position:absolute; right:-2px; top:50%; transform:translateY(-50%);
+  width:56px; height:115%; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(circle at 62% 22%, rgba(255,255,255,0) 0 1px, rgba(120,220,255,.30) 1.4px, rgba(170,140,255,.15) 2.1px, rgba(170,140,255,0) 2.9px),
+    radial-gradient(circle at 32% 74%, rgba(255,255,255,0) 0 .8px, rgba(170,140,255,.26) 1.2px, rgba(120,220,255,.13) 1.8px, rgba(120,220,255,0) 2.5px),
+    radial-gradient(circle at 55% 45%, rgba(120,200,255,.10), rgba(120,200,255,0) 60%),
+    radial-gradient(circle at 76% 70%, rgba(170,140,255,.08), rgba(170,140,255,0) 55%);
+  -webkit-mask-image: radial-gradient(ellipse at 60% 50%, #000 25%, rgba(0,0,0,.5) 55%, transparent 80%);
+  mask-image: radial-gradient(ellipse at 60% 50%, #000 25%, rgba(0,0,0,.5) 55%, transparent 80%);
+  animation:whyShimmer 5s ease-in-out infinite;
+}
+@keyframes whyShimmer {
+  0%, 100% { opacity:.55; transform:translateY(-50%) scale(.98); }
+  50%      { opacity:1;   transform:translateY(-51%) scale(1.05); }
+}
+/* волна по знакам в том же порядке: большой → средний → малый → крошечный;
+   каждый плавно подрастает и возвращается, мелкие — с большим множителем,
+   чтобы пульс был заметен на всех размерах */
+/* у каждого знака свой ритм: пульсы в разных фазах цикла, без порядка;
+   мелкие знаки дышат заметнее (множитель больше), большие — сдержаннее */
+@keyframes whyPulse {
+  0%, 28%, 42%, 56%, 77%, 100% {
+    background-size: var(--q1) var(--q1), var(--q2) var(--q2), var(--q3) var(--q3), var(--q4) var(--q4);
+  }
+  7% {
+    background-size: var(--q1) var(--q1), var(--q2) var(--q2), calc(var(--q3) * 1.5) calc(var(--q3) * 1.5), var(--q4) var(--q4);
+  }
+  14% {
+    background-size: calc(var(--q1) * 1.25) calc(var(--q1) * 1.25), var(--q2) var(--q2), var(--q3) var(--q3), var(--q4) var(--q4);
+  }
+  21% {
+    background-size: var(--q1) var(--q1), var(--q2) var(--q2), var(--q3) var(--q3), calc(var(--q4) * 1.7) calc(var(--q4) * 1.7);
+  }
+  35% {
+    background-size: var(--q1) var(--q1), calc(var(--q2) * 1.35) calc(var(--q2) * 1.35), var(--q3) var(--q3), var(--q4) var(--q4);
+  }
+  49% {
+    background-size: var(--q1) var(--q1), var(--q2) var(--q2), calc(var(--q3) * 1.5) calc(var(--q3) * 1.5), var(--q4) var(--q4);
+  }
+  63% {
+    background-size: calc(var(--q1) * 1.25) calc(var(--q1) * 1.25), var(--q2) var(--q2), var(--q3) var(--q3), var(--q4) var(--q4);
+  }
+  70% {
+    background-size: var(--q1) var(--q1), var(--q2) var(--q2), var(--q3) var(--q3), calc(var(--q4) * 1.7) calc(var(--q4) * 1.7);
+  }
+  84% {
+    background-size: var(--q1) var(--q1), calc(var(--q2) * 1.35) calc(var(--q2) * 1.35), var(--q3) var(--q3), var(--q4) var(--q4);
+  }
+  91% {
+    background-size: var(--q1) var(--q1), var(--q2) var(--q2), var(--q3) var(--q3), calc(var(--q4) * 1.7) calc(var(--q4) * 1.7);
+  }
+}
+@media (prefers-reduced-motion: reduce) { .why-tap::before, .why-tap::after { animation:none; } }
+.gp.why-tap::before { width:38px; }
 .fchip-92 { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
 @keyframes chipFloat { 0% { opacity:0; transform:translateY(26px) scale(.75); } 18% { opacity:1; transform:translateY(0) scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translateY(-8px); } }
 .user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
@@ -370,7 +466,7 @@ body { overflow:hidden; }
 <div class="page">
   <header class="header">
     <div class="logo-wrap">
-      <div class="logo"><svg class="ic ic-l"><use href="#i-pump-fast"/></svg></div>
+      <div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
       <div>
         <div class="logo-title">Когда<span>Бенз<i class="logo-sup">юг</i></span></div>
         <div class="logo-subtitle">Данные о топливе. Вовремя.</div>
@@ -426,9 +522,9 @@ body { overflow:hidden; }
         </div>
       </div>
       <div class="chips3">
-        <div class="chip3 tap" onclick="openWhyChip(this,'now95')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · АИ-95</small><b id="triNow">—</b></div></div>
-        <div class="chip3 tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
-        <div class="chip3 tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
+        <div class="chip3 tap why-tap" onclick="openWhyChip(this,'now95')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · 95</small><b id="triNow">—</b></div></div>
+        <div class="chip3 tap why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
+        <div class="chip3 tap why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
       <div class="mini-graph">
         <div class="mini-cap">
@@ -789,7 +885,7 @@ function workStrip(obs) {
   if (st === 'yes' || st === 'queue' || st === 'low') { txt = 'источник: станция работает'; ico = 'i-check'; }
   else if (st === 'no') { txt = 'источник: станция не работает'; ico = 'i-cross'; }
   else { txt = 'источник молчит о станции'; }
-  return '<div class="dg-strip chip3 tap" style="margin:0 0 10px" onclick="openWhyChip(this,\'work\')">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
+  return '<div class="dg-strip chip3 tap why-tap" style="margin:0 0 10px" onclick="openWhyChip(this,\'work\')">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
 }
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
@@ -1324,12 +1420,12 @@ function renderAccuracy() {
   let cmp = '';
   cmpRows.forEach((r, i) => {
     const y = 6 + i * 26;
-    const w = r.v === null ? 0 : Math.max(4, Math.round(r.v / maxV * 160));
-    cmp += '<text x="0" y="' + (y + 11) + '" font-size="9" font-weight="700" fill="#71809c">' + r.lbl + '</text>' +
-      '<rect x="92" y="' + y + '" width="' + w + '" height="14" rx="7" fill="' + r.color + '" opacity=".8"/>' +
-      '<text x="' + (92 + w + 6) + '" y="' + (y + 11) + '" font-size="9" font-weight="800" fill="#33445f">' + (r.v === null ? '—' : fmtErrMin(r.v)) + '</text>';
+    const w = r.v === null ? 0 : Math.max(4, Math.round(r.v / maxV * 130));
+    cmp += '<text x="0" y="' + (y + 11) + '" font-size="8.5" font-weight="700" fill="#71809c">' + r.lbl + '</text>' +
+      '<rect x="122" y="' + y + '" width="' + w + '" height="14" rx="7" fill="' + r.color + '" opacity=".8"/>' +
+      '<text x="' + (122 + w + 6) + '" y="' + (y + 11) + '" font-size="9" font-weight="800" fill="#33445f">' + (r.v === null ? '—' : fmtErrMin(r.v)) + '</text>';
   });
-  const cmpSvg = '<svg viewBox="0 0 300 80" style="width:100%;height:80px;display:block">' + cmp + '</svg>';
+  const cmpSvg = '<svg viewBox="0 0 320 80" style="width:100%;height:80px;display:block">' + cmp + '</svg>';
   const stories = measured.slice().sort((a, b) => new Date(b.actual_restore_at || 0) - new Date(a.actual_restore_at || 0)).slice(0, 3);
   const stHtml = stories.map(p => {
     const st = allStations.find(s => s.id === p.station_id);
@@ -1342,10 +1438,10 @@ function renderAccuracy() {
       '<span class="rc-chip ' + (Math.abs(p.error_minutes) <= 60 ? 'yes' : 'queue') + '">' + icon('i-chart', 'ic-s') + 'ошибка ' + sign + fmtErrMin(p.error_minutes) + '</span></div></div>';
   }).join('');
   body.innerHTML =
-    '<div class="chips3">' +
-    '<div class="chip3 tap" onclick="openWhyChip(this,\'accChecked\')"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено ночами</small><b>' + verified.length + ' прогнозов</b></div></div>' +
-    '<div class="chip3 tap" onclick="openWhyChip(this,\'accErr\')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Ошибка обычно</small><b>' + fmtErrMin(med) + '</b></div></div>' +
-    '<div class="chip3 tap" onclick="openWhyChip(this,\'accHit\')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попали в окно</small><b>' + succTxt + '</b></div></div>' +
+    '<div class="chips3" style="grid-template-columns:1fr">' +
+    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accChecked\')"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено ночами</small><b>' + verified.length + ' прогнозов</b></div></div>' +
+    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accErr\')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Ошибка обычно</small><b>' + fmtErrMin(med) + '</b></div></div>' +
+    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accHit\')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попали в окно</small><b>' + succTxt + '</b></div></div>' +
     '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">сравниваем с простым способом</div>' + cmpSvg + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">как часто какая ошибка бывает</div>' + histSvg + '</div>' +
@@ -2240,9 +2336,9 @@ function updateMapPlate() {
   }
   const pc = peakAndCalm();
   el.innerHTML =
-    '<span class="gp gp-btn" onclick="openWhyChip(this,\'plate95\')"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
-    '<span class="gp gp-btn" onclick="openWhyChip(this,\'plateQ\')"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
-    '<span class="gp gp-btn" onclick="openWhyChip(this,\'platePeak\')">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
+    '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'plate95\')"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
+    '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'plateQ\')"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
+    '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'platePeak\')">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
     '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + citySet.size + ' АЗС' + covSpark() + '</span>';
 }
 // мини-график покрытия за 24 ч: сколько станций источник видел в каждый час
