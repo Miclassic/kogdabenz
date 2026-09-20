@@ -1780,6 +1780,13 @@ function startZonePulse() {
   const t0 = Date.now();
   zonePulseTimer = setInterval(() => {
     if (!mapObj || !zoneReady || mapObj.getZoom() < 12) return;
+    // не пульсируем картой позади шторки и на других панелях: непрерывная
+    // перерисовка WebGL под blur-подложкой даёт «мерцание» по краям экрана
+    if (currentPanel !== 2) return;
+    const shEl = document.getElementById('sheet');
+    if (shEl && shEl.classList.contains('open')) return;
+    const hbEl = document.getElementById('helloBack');
+    if (hbEl && hbEl.classList.contains('open')) return;
     const p = 0.85 + 0.15 * Math.sin((Date.now() - t0) / 500);
     const z = mapObj.getZoom();
     mapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, z) * p);
