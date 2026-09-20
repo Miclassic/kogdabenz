@@ -5,6 +5,8 @@
 // v1.2: снапшот признаков в момент прогноза + режим города.
 // v1.3: k-NN по эпизодам "исчезло → вернулось" для ETA.
 // v1.6: учет состояний (State Machine) для фильтрации шума и оценки глубины кризиса.
+// v1.7: день недели в k-NN — круговое расстояние между днями + класс будни/выходные
+//       (суббота ближе к воскресенью, чем к понедельнику; пятница и суббота — разные классы).
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MIN_EVENTS_PRELIM = 3;
@@ -61,7 +63,7 @@ function isOwn(s) {
 }
 
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.6 (State Machine Aware) ===');
+  console.log('=== ПРЕДИКТОР v1.7 (State Machine Aware) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
   
   console.log('1) Достаю станции...');
@@ -256,21 +258,25 @@ async function main() {
   }
 
   function similarEpisodes(st, fuel, disMs) {
-    const d = new Date(disMs + 3 * 3600 * 1000);
-    const hour = d.getUTCHours(), dow = d.getUTCDay();
-    const wave = waveAt(fuel, disMs);
-    const qb = queueBeforeAt(st.id, disMs);
-    const scored = [];
-    for (const e of episodes) {
-      if (e.fuel !== fuel) continue;
-      const dh = Math.min(Math.abs(e.hour - hour), 24 - Math.abs(e.hour - hour)) / 12;
-      const dist = dh + (e.dow === dow ? 0 : 0.5) + Math.abs(e.wave - wave) / 4 +
-                   (e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
-      scored.push({ dist: dist, e: e });
-    }
-    scored.sort((a, b) => a.dist - b.dist);
-    return scored.slice(0, 12);
-  }
+const d = new Date(disMs + 3 * 3600 * 1000);
+const hour = d.getUTCHours(), dow = d.getUTCDay();
+const wave = waveAt(fuel, disMs);
+const qb = queueBeforeAt(st.id, disMs);
+const isWe = x => x === 0 || x === 6;
+const scored = [];
+for (const e of episodes) {
+if (e.fuel !== fuel) continue;
+const dh = Math.min(Math.abs(e.hour - hour), 24 - Math.abs(e.hour - hour)) / 12;
+// v1.7: день недели — круговое расстояние (0..3 дня), приведённое к прежней шкале 0..0.5,
+// плюс штраф за границу классов будни/выходные (пятница→суббота — смена ритма)
+const dd = Math.min(Math.abs(e.dow - dow), 7 - Math.abs(e.dow - dow));
+const dist = dh + 0.5 * (dd / 3) + (isWe(e.dow) === isWe(dow) ? 0 : 0.25) + Math.abs(e.wave - wave) / 4 +
+(e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
+scored.push({ dist: dist, e: e });
+}
+scored.sort((a, b) => a.dist - b.dist);
+return scored.slice(0, 12);
+}
   console.log('   Эпизодов дефицита для k-NN: ' + episodes.length);
 
   // Существующие прогнозы на сегодня
@@ -457,11 +463,11 @@ console.log('   Существующих PENDING-прогнозов (цель >=
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.6|' + source,
+        algorithm_version: 'v1.7|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.1'
+        model_version: 'v1.2'
       };
       if (expectedRestoreAt) row.expected_restore_at = expectedRestoreAt;
       if (baselineRestoreAt) row.baseline_restore_at = baselineRestoreAt;
@@ -489,7 +495,7 @@ console.log('   Существующих PENDING-прогнозов (цель >=
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, text: '🔮 КогдаБенз v1.6: появились новые прогнозы (' + created + ' шт)! Учитываем состояния станций.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.7: появились новые прогнозы (' + created + ' шт)! День недели в k-NN.' })
       });
     } catch (e) {}
   }
