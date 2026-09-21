@@ -2,9 +2,9 @@
 // Стратегия: статика — cache-first (мгновенное открытие), API — network-first с фолбэком на кэш
 const CACHE_VERSION = 'kogdabenz-v1';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
+  './',
+  './index.html',
+  './manifest.json',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];
