@@ -32,18 +32,19 @@ async function sbUpsertMeta(key, value) {
 
 async function main() {
   console.log('=== КАЛИБРАТОР v1 ===');
-  // только строки с измеренной ошибкой: верификатор ставит error_minutes,
-  // когда возврат топлива реально случился; цензурированные (факта ещё не было) не берём
+  // ВСЕ верифицированные прогнозы: окно закрылось, исход известен.
+  // Топливо не вернулось к моменту проверки = честный MISS (водитель его не получил);
+  // выбросить их = ошибка выжившего и завышенная уверенность
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
     const page = await sbGet(
-      '/rest/v1/predictions?is_verified=eq.true&error_minutes=not.is.null' +
+      '/rest/v1/predictions?is_verified=eq.true' +
       '&select=confidence,result,features&order=id.asc&limit=1000&offset=' + offset
     );
     for (const p of page) rows.push(p);
     if (page.length < 1000) break;
   }
-  console.log('Проверенных прогнозов с измеренной ошибкой: ' + rows.length);
+  console.log('Проверенных прогнозов (закрытые окна): ' + rows.length);
   const data = rows.map(p => {
     const f = p.features || {};
     // v1.8+ берём сырую уверенность из features.conf_raw; старые строки — из confidence
