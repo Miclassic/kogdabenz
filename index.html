@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>КогдаБенз — когда лучше заправиться?</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2048%2048'%3E%3Cdefs%3E%3ClinearGradient%20id='g'%20x1='0'%20y1='0'%20x2='1'%20y2='1'%3E%3Cstop%20offset='0'%20stop-color='%234b93ff'/%3E%3Cstop%20offset='.55'%20stop-color='%232465ee'/%3E%3Cstop%20offset='1'%20stop-color='%231746c8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width='48'%20height='48'%20rx='12'%20fill='url(%23g)'/%3E%3Cpath%20fill='%23fff'%20d='M24%208c0%200-11%2012.6-11%2019a11%2011%200%200%200%2022%200C35%2020.6%2024%208%2024%208Z'/%3E%3Cpath%20fill='none'%20stroke='%232465ee'%20stroke-width='3'%20stroke-linecap='round'%20stroke-linejoin='round'%20d='M24%2021v6l4.5%202.7'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2465ee">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="КогдаБенз">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
@@ -2836,6 +2841,15 @@ if (window.ResizeObserver) {
   const ro = new ResizeObserver(() => renderPulse());
   const psvg = document.getElementById('pulseSvg');
   if (psvg) ro.observe(psvg);
+}
+<script>
+// Регистрация service worker для PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => console.log('[SW] Зарегистрирован:', reg.scope))
+      .catch(err => console.log('[SW] Ошибка регистрации:', err));
+  });
 }
 </script>
 </body>
