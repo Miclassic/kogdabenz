@@ -15,6 +15,7 @@ const FRESH_DAYS = 14;
 const FRESH_DAYS_WIDE = 30;
 const MIN_PER_BIN = 5;
 const MAX_BINS = 8;
+const MIN_SPREAD = 0.15; // минимальный разброс бинов, иначе таблица не отличает станцию от станции
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -99,6 +100,16 @@ async function main() {
     }
   }
   for (const b of iso) console.log('   сырая ' + b.c.toFixed(2) + ' → факт ' + Math.round(b.p * 100) + '% (n ' + b.n + ')');
+  // Ворота 3: различимость. Плоская таблица (дефицит: все бины 0-3%) не отличает
+  // станцию от станции - на экран такое не годится, только в лог как измерение.
+  const ps = iso.map(b => b.p);
+  const spread = Math.max(...ps) - Math.min(...ps);
+  if (spread < MIN_SPREAD) {
+    await sbDeleteMeta('calibration_table');
+    console.log('Таблица плоская (разброс ' + Math.round(spread * 100) + '% < ' + Math.round(MIN_SPREAD * 100) + '%): на экран не годится.');
+    console.log('Таблица удалена (если была), предиктор на сырой уверенности. Бины остаются в логе как измерение.');
+    return;
+  }
   const table = {
     v: 2,
     built_at: new Date().toISOString(),
