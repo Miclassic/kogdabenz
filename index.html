@@ -2586,7 +2586,6 @@ async function start() {
     queueEpisodes = queueEps || [];
     allQueueEvents = queueEvAll || [];
     flushFeedbackQueue();
-    saveCache(); // снимок сразу после основной загрузки: офлайн-режим получит данные раньше
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
@@ -2877,10 +2876,10 @@ async function loadPulse() {
   requestAnimationFrame(() => renderPulse());
   dbQuery('/rest/v1/region_fuel_hourly?select=city,hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&city=eq.' + cityFilter + '&hour=gte.' + since72 + '&order=hour.asc&limit=96')
     .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); updateMapPlate(); saveCache(); })
-    .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
+    .catch(() => { if (!offlineMode) fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
   dbQuery('/rest/v1/region_daily_events?select=city,day,dis,res&city=eq.' + cityFilter + '&order=day.asc&limit=60')
     .then(d => { dailyEvents = d; renderPulse(); })
-    .catch(() => { dailyEvents = []; });
+    .catch(() => { if (!offlineMode) dailyEvents = []; });
   // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
   setTimeout(() => { renderPulse(); renderNow(); }, 400);
 }
