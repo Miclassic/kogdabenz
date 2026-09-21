@@ -7,6 +7,9 @@
 // v1.6: учет состояний (State Machine) для фильтрации шума и оценки глубины кризиса.
 // v1.7: день недели в k-NN — круговое расстояние между днями + класс будни/выходные
 //       (суббота ближе к воскресенью, чем к понедельнику; пятница и суббота — разные классы).
+// v1.8: калибровка уверенности: ночью калибратор сравнивает сырую уверенность с фактом
+//       попаданий и пишет таблицу пересчёта в bot_meta; предиктор применяет её утром.
+//       Нет таблицы (мало данных) — работаем по сырой уверенности, как раньше.
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MIN_EVENTS_PRELIM = 3;
@@ -61,9 +64,34 @@ function isOwn(s) {
   return s.lat >= OWN_BOX.lat1 && s.lat <= OWN_BOX.lat2 &&
          s.lon >= OWN_BOX.lon1 && s.lon <= OWN_BOX.lon2;
 }
+// --- v1.8: калибровка уверенности по таблице из bot_meta ---
+let calibPoints = null;
+async function loadCalibration() {
+  try {
+    const cur = await sbGet('/rest/v1/bot_meta?key=eq.calibration_table&select=value');
+    if (!cur.length) { console.log('   Таблицы калибровки ещё нет — сырая уверенность'); return; }
+    const t = typeof cur[0].value === 'string' ? JSON.parse(cur[0].value) : cur[0].value;
+    if (!t || !Array.isArray(t.points) || t.points.length < 2) { console.log('   Таблица калибровки битая — сырая уверенность'); return; }
+    if (Date.now() - Date.parse(t.built_at) > 21 * 24 * 3600 * 1000) { console.log('   Таблица калибровки старше 21 дня — сырая уверенность'); return; }
+    calibPoints = t.points;
+    console.log('   Калибровка применится: таблица от ' + String(t.built_at).slice(0, 10) + ' по ' + t.n + ' проверенным прогнозам');
+  } catch (e) { console.log('   Калибровка: ' + e.message + ' — сырая уверенность'); }
+}
+function calibrate(c) {
+  if (!calibPoints) return c;
+  const pts = calibPoints;
+  if (c <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    if (c <= pts[i][0]) {
+      const x0 = pts[i - 1][0], y0 = pts[i - 1][1], x1 = pts[i][0], y1 = pts[i][1];
+      return x1 === x0 ? y1 : y0 + (y1 - y0) * (c - x0) / (x1 - x0);
+    }
+  }
+  return pts[pts.length - 1][1];
+}
 
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.7 (State Machine Aware) ===');
+  console.log('=== ПРЕДИКТОР v1.8 (State Machine Aware) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
   
   console.log('1) Достаю станции...');
@@ -297,6 +325,8 @@ const existingByKey = {};
 for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
 console.log('   Существующих PENDING-прогнозов (цель >= сегодня): ' + existing.length);
 
+  console.log('4.9) Читаю таблицу калибровки уверенности...');
+  await loadCalibration();
   console.log('5) Строю прогнозы для всех станций региона...');
   let created = 0, updated = 0, skipped = 0, stale = 0;
   const fuels = ['92', '95', 'diesel'];
@@ -383,6 +413,8 @@ console.log('   Существующих PENDING-прогнозов (цель >=
       }
 
       confidence = Math.min(0.95, Math.max(0.05, confidence));
+      const rawConfidence = confidence;
+      confidence = Math.min(0.95, Math.max(0.05, calibrate(confidence)));
 
       // Модель длительности дефицита
       let expectedRestoreAt = null;
@@ -451,7 +483,8 @@ console.log('   Существующих PENDING-прогнозов (цель >=
         knn_median_dur_min: knnInfo ? knnInfo.median_dur_min : null,
         knn_p_restore_2h: knnInfo ? knnInfo.p_restore_2h : null,
         knn_mean_dist: knnInfo ? knnInfo.mean_dist : null,
-        station_state: curObs ? curObs.fuel_state : 'UNKNOWN' // NEW FEATURE
+        station_state: curObs ? curObs.fuel_state : 'UNKNOWN', // NEW FEATURE
+        conf_raw: Math.round(rawConfidence * 1000) / 1000 // v1.8: сырая уверенность до калибровки (метка для калибратора)
       };
 
       const row = {
@@ -463,7 +496,7 @@ console.log('   Существующих PENDING-прогнозов (цель >=
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.7|' + source,
+        algorithm_version: 'v1.8|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
@@ -495,10 +528,10 @@ console.log('   Существующих PENDING-прогнозов (цель >=
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.7: появились новые прогнозы (' + created + ' шт)! День недели в k-NN.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.8: появились новые прогнозы (' + created + ' шт)! Уверенность калибруется по факту попаданий.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.6 завершил работу');
+  console.log('✅ Предиктор v1.8 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
