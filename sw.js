@@ -1,6 +1,6 @@
 // Service Worker v1 для КогдаБенз
 // Стратегия: статика — cache-first (мгновенное открытие), API — network-first с фолбэком на кэш
-const CACHE_VERSION = 'kogdabenz-v2';
+const CACHE_VERSION = 'kogdabenz-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -43,11 +43,13 @@ self.addEventListener('fetch', event => {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          // обновляем кэш свежим ответом
-          const responseClone = response.clone();
-          caches.open(CACHE_VERSION).then(cache => {
-            cache.put(event.request, responseClone);
-          });
+          // в кэш кладём только успешные ответы: 503 не должен консервироваться
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_VERSION).then(cache => {
+              cache.put(event.request, responseClone);
+            });
+          }
           return response;
         })
         .catch(() => {

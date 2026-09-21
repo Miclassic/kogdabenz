@@ -2586,6 +2586,7 @@ async function start() {
     queueEpisodes = queueEps || [];
     allQueueEvents = queueEvAll || [];
     flushFeedbackQueue();
+    saveCache(); // снимок сразу после основной загрузки: офлайн-режим получит данные раньше
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
