@@ -454,6 +454,9 @@ body { overflow:hidden; }
 .mpin .qmark { transform:rotate(45deg); font-size:15px; font-weight:900; line-height:1; }
 .fchip-no { background:rgba(253,236,236,.95); border-color:rgba(239,83,80,.7); color:#c2403f; }
 .fchip-conflict { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
+.offline-bar { position:fixed; left:0; right:0; top:0; z-index:90; display:none; padding:calc(8px + env(safe-area-inset-top)) 12px 8px; background:#fff2e8; color:#c26a2a; font-size:11px; font-weight:800; text-align:center; box-shadow:0 6px 18px rgba(194,106,42,.25); }
+.offline-bar.on { display:block; }
+body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 </style>
 </head>
 <body>
@@ -477,6 +480,7 @@ body { overflow:hidden; }
 <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.9.4c0 1.6-2.4 2.1-2.4 3.6"/><path d="M12 16.8h.01"/></symbol>
 </svg>
 <div class="page">
+  <div class="offline-bar" id="offlineBar"></div>
   <header class="header">
     <div class="logo-wrap">
       <div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
@@ -865,9 +869,22 @@ async function fbSend(stationId) {
   rows.forEach((r, i) => { r.station_id = stationId; r.device_id = deviceId; if (i === 0 && comment) r.comment_text = comment; });
   const sendBtn = document.getElementById('fb-send-' + stationId);
   sendBtn.disabled = true;
-  let ok = true, err = '';
-  try { await dbInsert('user_feedback', rows); } catch (e) { ok = false; err = e.message; }
-  if (!ok) { sendBtn.disabled = false; alert('Не удалось отправить отметку.\n' + err); return; }
+let ok = true;
+  try { await dbInsert('user_feedback', rows); } catch (e) { ok = false; }
+  if (!ok) {
+    // сети нет: отметка копится в локальной очереди и уйдёт сама позже
+    queueFeedbackLocally(rows);
+    history.push(now);
+    localStorage.setItem(key, JSON.stringify(history));
+    rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+    const stEl = sendBtn.closest('.station');
+    const rcEl = stEl && stEl.querySelector('.recent');
+    if (rcEl) rcEl.textContent = 'Нет связи: отметка сохранена, уйдёт автоматически.';
+    panel.classList.remove('open');
+    sendBtn.disabled = false;
+    panel.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
+    return;
+  }
   history.push(now);
   localStorage.setItem(key, JSON.stringify(history));
   rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
@@ -2305,7 +2322,18 @@ async function quickSend(stationId) {
   const now = Date.now();
   if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
   rows.forEach(r => { r.station_id = stationId; r.device_id = deviceId; });
-  try { await dbInsert('user_feedback', rows); } catch (e) { alert('Не удалось отправить отметку.\n' + e.message); return; }
+let qok = true;
+  try { await dbInsert('user_feedback', rows); } catch (e) { qok = false; }
+  if (!qok) {
+    queueFeedbackLocally(rows);
+    history.push(now);
+    localStorage.setItem(key, JSON.stringify(history));
+    rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+    const saved = document.getElementById('quick-' + stationId);
+    if (saved) saved.innerHTML = '<div class="q-thanks">Нет связи — отметка сохранена<small>уйдёт автоматически, когда связь вернётся</small></div>';
+    setTimeout(closeQuick, 1600);
+    return;
+  }
   history.push(now);
   localStorage.setItem(key, JSON.stringify(history));
   rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
@@ -2521,6 +2549,10 @@ function flyToStation(id) {
 }
 async function start() {
   const app = document.getElementById('app');
+  offlineMode = false;
+  document.body.classList.remove('offline');
+  const ob = document.getElementById('offlineBar');
+  if (ob) ob.classList.remove('on');
   try {
     const stations = await dbQuery('/rest/v1/stations?select=*');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
@@ -2553,17 +2585,35 @@ async function start() {
     priceHourly = priceRows || [];
     queueEpisodes = queueEps || [];
     allQueueEvents = queueEvAll || [];
+    flushFeedbackQueue();
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
   } catch (e) {
-    app.innerHTML = '<div class="status">Не удалось загрузить данные.<br><small>' + escapeHtml(e.message) + '</small><br><br><button class="cta-btn" style="width:auto;padding:10px 24px" onclick="retryStart()">Попробовать снова</button></div>';
+    // Связь отвалилась: если в памяти есть снимок — показываем его с честной
+    // плашкой; человек видит прежние данные и может ставить отметки.
+    const c = loadCache();
+    if (c) {
+      applyCache(c);
+      offlineMode = true;
+      showOfflineBar(c.t);
+      detectUserCity();
+      const mg1 = document.getElementById('mgCityLbl');
+      if (mg1) mg1.textContent = userCityName();
+      const mg2 = document.getElementById('mgScopeCityTxt');
+      if (mg2) mg2.textContent = userCityName();
+      renderStations(cityStationList());
+      renderPulse();
+      renderHeat();
+      return;
+    }
+    app.innerHTML = '<div class="status">Сейчас не получилось загрузить данные.<br><small>Проверьте интернет и попробуйте ещё раз — обычно это на пару минут.</small><br><br><button class="cta-btn" style="width:auto;padding:10px 24px" onclick="retryStart()">Попробовать снова</button></div>';
     const t1 = document.getElementById('nowTitle');
     const s1 = document.getElementById('nowSub');
-    if (t1) t1.textContent = 'Ошибка загрузки данных';
-    if (s1) s1.textContent = 'Supabase не ответила: ' + escapeHtml(e.message);
+    if (t1) t1.textContent = 'Нет связи';
+    if (s1) s1.textContent = 'База данных не ответила: ' + escapeHtml(e.message);
   }
   // автоопределение местоположения пользователя
   if (navigator.geolocation) {
@@ -2586,6 +2636,83 @@ function retryStart() {
   const app = document.getElementById('app');
   if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
   start();
+}
+// === Спасательный круг: снимок данных в памяти телефона ===
+// После каждой удачной загрузки пишем свежий снимок в localStorage.
+// Если следующая загрузка упала (сеть/503) — показываем снимок с честной
+// плашкой «нет связи, данные на HH:MM», отметки копим в локальной очереди.
+let offlineMode = false;
+const LS_CACHE = 'kbCache';
+function saveCache() {
+  if (offlineMode) return; // офлайн-данные не должны затирать хороший снимок
+  try {
+    localStorage.setItem(LS_CACHE, JSON.stringify({
+      t: Date.now(),
+      stations: allStations,
+      lastObs: Object.values(allLastObs),
+      preds: allPredictions.filter(p => p.result === 'PENDING' || (p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined)).slice(0, 800),
+      feedback: allFeedback.slice(0, 300),
+      counts: allCounts,
+      hourly: allHourly,
+      lastPrice: allLastPrice,
+      priceHourly: priceHourly,
+      queueEpisodes: queueEpisodes,
+      fuelHourly: fuelHourly,
+      pulseRaw: pulseRaw,
+      pulseEv: pulseEv,
+      dailyEvents: dailyEvents
+    }));
+  } catch (e) { console.log('Кэш не записан: ' + e.message); }
+}
+function loadCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(LS_CACHE) || 'null');
+    return c && c.stations && c.stations.length ? c : null;
+  } catch (e) { return null; }
+}
+function applyCache(c) {
+  allStations = c.stations || [];
+  localIdsGlobal = allStations.map(s => s.id);
+  allLastObs = {};
+  for (const o of (c.lastObs || [])) allLastObs[o.station_id] = o;
+  allPredictions = c.preds || [];
+  allFeedback = c.feedback || [];
+  allCounts = c.counts || [];
+  allHourly = c.hourly || [];
+  allLastPrice = c.lastPrice || {};
+  priceHourly = c.priceHourly || [];
+  queueEpisodes = c.queueEpisodes || [];
+  allQueueEvents = [];
+  fuelHourly = c.fuelHourly || [];
+  pulseRaw = (c.pulseRaw || []).map(r => Object.assign({}, r, { t: new Date(r.t) }));
+  pulseEv = (c.pulseEv || []).map(e => Object.assign({}, e, { t: new Date(e.t) }));
+  dailyEvents = c.dailyEvents || [];
+  queueById = {};
+}
+function showOfflineBar(cacheTime) {
+  const el = document.getElementById('offlineBar');
+  if (!el) return;
+  const d = new Date(cacheTime);
+  el.textContent = 'Нет связи — показываем данные на ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '. Отметки принимаются и уйдут, когда связь вернётся.';
+  el.classList.add('on');
+  document.body.classList.add('offline');
+}
+function queueFeedbackLocally(rows) {
+  try {
+    const q = JSON.parse(localStorage.getItem('fbQueue') || '[]');
+    for (const r of rows) q.push(r);
+    localStorage.setItem('fbQueue', JSON.stringify(q));
+  } catch (e) {}
+}
+async function flushFeedbackQueue() {
+  try {
+    const q = JSON.parse(localStorage.getItem('fbQueue') || '[]');
+    if (!q.length) return;
+    await dbInsert('user_feedback', q);
+    localStorage.setItem('fbQueue', '[]');
+    for (const r of q) allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r));
+    console.log('Отметки из очереди отправлены: ' + q.length);
+  } catch (e) { console.log('Очередь отметок не ушла, попробуем в следующий раз'); }
 }
 function getFavorites() { return JSON.parse(localStorage.getItem('favorites') || '[]'); }
 function isFavorite(id) { return getFavorites().includes(id); }
@@ -2748,7 +2875,7 @@ async function loadPulse() {
   renderPulse();
   requestAnimationFrame(() => renderPulse());
   dbQuery('/rest/v1/region_fuel_hourly?select=city,hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&city=eq.' + cityFilter + '&hour=gte.' + since72 + '&order=hour.asc&limit=96')
-    .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); updateMapPlate(); })
+    .then(f => { fuelHourly = f; renderHeat(); renderHero(); renderDigestPanel(); setTagline(currentPanel); updateMapPlate(); saveCache(); })
     .catch(() => { fuelHourly = []; renderHeat(); renderHero(); renderDigestPanel(); });
   dbQuery('/rest/v1/region_daily_events?select=city,day,dis,res&city=eq.' + cityFilter + '&order=day.asc&limit=60')
     .then(d => { dailyEvents = d; renderPulse(); })
