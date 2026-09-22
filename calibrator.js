@@ -1,4 +1,4 @@
-// ===== Калибратор уверенности v2 =====
+// ===== Калибратор уверенности v3 =====
 // Ночью после верификатора (02:25 MSK).
 // Отличия v2 от v1:
 //   1) Свежесть: только верифицированные строки за 14 дней (если их мало — 30).
@@ -64,7 +64,7 @@ function toData(rows, days) {
 }
 
 async function main() {
-  console.log('=== КАЛИБРАТОР v2 ===');
+  console.log('=== КАЛИБРАТОР v3 ===');
   const rows = await fetchVerified();
   console.log('Верифицированных прогнозов всего: ' + rows.length);
   let data = toData(rows, FRESH_DAYS);
