@@ -1094,10 +1094,11 @@ function showOnMap(id) {
 function mapReady() { return mapObj.isStyleLoaded() ? Promise.resolve() : new Promise(res => mapObj.once('load', res)); }
 function clearRoute() {
   if (mapObj && mapObj.getSource('route')) mapObj.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+  if (window.__routeEndMarker) { window.__routeEndMarker.remove(); window.__routeEndMarker = null; }
   const plate = document.getElementById('routePlate');
   if (plate) plate.classList.remove('open');
 }
-async function drawRouteTo(st) {
+async function drawRouteTo(st) {async function drawRouteTo(st) {
   const stLon = Number(st.lon), stLat = Number(st.lat);
   const fallbackFly = () => { mapObj.stop(); mapObj.easeTo({ center: [stLon, stLat], zoom: 15, duration: 900 }); };
   let loc = loadUserLocation();
@@ -1108,38 +1109,59 @@ async function drawRouteTo(st) {
     if (loc) { saveUserLocation(loc.lat, loc.lon); showUserMarker(loc.lat, loc.lon); detectUserCity(); }
   }
   if (!loc) { fallbackFly(); alert('Разреши определение местоположения — и в следующий раз маршрут от тебя до АЗС построится сразу.'); return; }
-  try {
-    const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + loc.lon + ',' + loc.lat + ';' + stLon + ',' + stLat + '?overview=full&geometries=geojson');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
-    if (j.code !== 'Ok' || !j.routes || !j.routes.length) throw new Error('маршрут не найден');
-    const rt = j.routes[0];
-    await mapReady();
-    // геометрию ОСRM заворачиваем в FeatureCollection явно: «голая» линия
-    // в части версий MapLibre молча даёт пустой источник (плашка есть, линии нет)
-    const routeFC = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: rt.geometry }] };
-    if (!mapObj.getSource('route')) mapObj.addSource('route', { type: 'geojson', data: routeFC });
-    if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'route', paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
-    if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
-    // данные и порядок слоёв форсируем безусловно: источник мог пережить
-    // прошлый запуск без слоёв, а линия обязана быть поверх подложки
-    mapObj.getSource('route').setData(routeFC);
-    mapObj.moveLayer('route-casing');
-    mapObj.moveLayer('route-line');
-    console.log('route: точек ' + rt.geometry.coordinates.length + ', слой на месте: ' + !!mapObj.getLayer('route-line'));
-    let minLon = 1e9, maxLon = -1e9, minLat = 1e9, maxLat = -1e9;
-    for (const c of rt.geometry.coordinates) { if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0]; if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1]; }
-    mapObj.stop();
-    mapObj.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 70, maxZoom: 15, duration: 900 });
-    const min = Math.max(1, Math.round(rt.duration / 60)), km = rt.distance / 1000;
-    const plate = document.getElementById('routePlate');
-    if (plate) {
-      plate.innerHTML = icon('i-truck', 'ic-s') + '<span>≈ ' + (min < 60 ? min + ' мин' : Math.floor(min / 60) + ' ч ' + (min % 60) + ' мин') + ' · ' + (km < 1 ? Math.round(km * 1000) + ' м' : km.toFixed(1) + ' км') + ' по дорогам</span><button onclick="clearRoute()" aria-label="Убрать маршрут">' + icon('i-close', 'ic-s') + '</button>';
-      plate.classList.add('open');
+  // OSRM из РФ часто блокирует/троттлит — пробуем основной хост, а если
+  // не отвечает за 6 сек или отдаёт ошибку, переключаемся на публичное зеркало Fossgis
+  const query = loc.lon + ',' + loc.lat + ';' + stLon + ',' + stLat + '?overview=full&geometries=geojson';
+  const hosts = [
+    'https://router.project-osrm.org/route/v1/driving/',
+    'https://osrm.fossgis.de/routing-engine/v1/driving/'
+  ];
+  let rt = null, lastErr = null;
+  for (const host of hosts) {
+    try {
+      const ctrl = new AbortController();
+      const tm = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(host + query, { signal: ctrl.signal });
+      clearTimeout(tm);
+      if (!r.ok) { lastErr = new Error(host + ' → HTTP ' + r.status); continue; }
+      const j = await r.json();
+      if (j.code !== 'Ok' || !j.routes || !j.routes.length) { lastErr = new Error(host + ' → маршрут не найден'); continue; }
+      rt = j.routes[0];
+      console.log('route OK от ' + host + ': точек ' + rt.geometry.coordinates.length + ', ' + Math.round(rt.distance) + ' м, ' + Math.round(rt.duration) + ' с');
+      break;
+    } catch (e) {
+      lastErr = e;
+      console.log('route fail ' + host + ': ' + e.message);
     }
-  } catch (e) {
-    console.log('route: ' + e.message);
-    fallbackFly();
+  }
+  if (!rt) { console.log('route: оба хоста молчат (' + (lastErr && lastErr.message) + ') — летим к АЗС без линии'); fallbackFly(); return; }
+  await mapReady();
+  const routeFC = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: rt.geometry }] };
+  if (!mapObj.getSource('route')) mapObj.addSource('route', { type: 'geojson', data: routeFC });
+  if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'route', paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
+  if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
+  mapObj.getSource('route').setData(routeFC);
+  mapObj.moveLayer('route-casing');
+  mapObj.moveLayer('route-line');
+  // маркер финиша на АЗС — даже если линия не видна (очень редкий случай),
+  // цель поездки очевидна: синий флаг на пине АЗС
+  if (!window.__routeEndMarker) {
+    const el = document.createElement('div');
+    el.className = 'route-end-pin';
+    el.innerHTML = '<div style="width:22px;height:22px;border-radius:50%;background:#2465ee;border:3px solid #fff;box-shadow:0 4px 12px rgba(36,101,238,.5);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:900">★</div>';
+    window.__routeEndMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([stLon, stLat]).addTo(mapObj);
+  } else {
+    window.__routeEndMarker.setLngLat([stLon, stLat]);
+  }
+  let minLon = 1e9, maxLon = -1e9, minLat = 1e9, maxLat = -1e9;
+  for (const c of rt.geometry.coordinates) { if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0]; if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1]; }
+  mapObj.stop();
+  mapObj.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 70, maxZoom: 15, duration: 900 });
+  const min = Math.max(1, Math.round(rt.duration / 60)), km = rt.distance / 1000;
+  const plate = document.getElementById('routePlate');
+  if (plate) {
+    plate.innerHTML = icon('i-truck', 'ic-s') + '<span>≈ ' + (min < 60 ? min + ' мин' : Math.floor(min / 60) + ' ч ' + (min % 60) + ' мин') + ' · ' + (km < 1 ? Math.round(km * 1000) + ' м' : km.toFixed(1) + ' км') + ' по дорогам</span><button onclick="clearRoute()" aria-label="Убрать маршрут">' + icon('i-close', 'ic-s') + '</button>';
+    plate.classList.add('open');
   }
 }
 function toggleFeedback(stationId) {
