@@ -1093,7 +1093,8 @@ function showOnMap(id) {
    просто полёт к АЗС, как раньше. */
 function mapReady() { return mapObj.isStyleLoaded() ? Promise.resolve() : new Promise(res => mapObj.once('load', res)); }
 function clearRoute() {
-  if (mapObj && mapObj.getSource('route')) mapObj.getSource('route').setData({ type: 'FeatureCollection', features: [] });
+  routeFeature = null;
+  if (mapObj && zoneReady) renderMap();
   if (window.__routeEndMarker) { window.__routeEndMarker.remove(); window.__routeEndMarker = null; }
   const plate = document.getElementById('routePlate');
   if (plate) plate.classList.remove('open');
@@ -1135,37 +1136,11 @@ async function drawRouteTo(st) {
     }
   }
   if (!rt) { console.log('route: оба хоста молчат (' + (lastErr && lastErr.message) + ') — летим к АЗС без линии'); fallbackFly(); return; }
-  await mapReady();
-  const routeFC = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: rt.geometry }] };
-  if (!mapObj.getSource('route')) mapObj.addSource('route', { type: 'geojson', data: routeFC });
-  if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'route', paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
-  if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
-  mapObj.getSource('route').setData(routeFC);
-  mapObj.moveLayer('route-casing');
-  mapObj.moveLayer('route-line');
-  // самодиагностика + лечение: иногда слой не отрисовывается с первого раза —
-    // дёргаем карту и через 1.5 сек спрашиваем, видна ли линия; если источник
-    // живой, а слой не рисуется — пересоздаём источник и слои с нуля
-    mapObj.resize();
-    mapObj.triggerRepaint();
-    setTimeout(() => {
-      try {
-        const srcN = mapObj.querySourceFeatures('route').length;
-        const midC = rt.geometry.coordinates[Math.floor(rt.geometry.coordinates.length / 2)];
-        const px = mapObj.project(midC);
-        const rendN = mapObj.queryRenderedFeatures([px.x, px.y], { layers: ['route-line', 'route-casing'] }).length;
-        console.log('route diag: src ' + srcN + ', rend ' + rendN);
-        if (srcN > 0 && rendN === 0) {
-          mapObj.removeLayer('route-line'); mapObj.removeLayer('route-casing'); mapObj.removeSource('route');
-          mapObj.addSource('route', { type: 'geojson', data: routeFC });
-          mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'route', paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
-          mapObj.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
-          console.log('route diag: слои и источник пересозданы с нуля');
-        }
-        const pl = document.getElementById('routePlate');
-        if (pl) pl.insertAdjacentHTML('beforeend', '<span style="position:absolute;left:12px;top:calc(100% + 2px);font-size:8.5px;color:#7487a7;font-weight:700">diag: src ' + srcN + ' / rend ' + rendN + '</span>');
-      } catch (e) { console.log('route diag: ' + e.message); }
-    }, 1500);
+  await mapReady();await mapReady();
+  // линия живёт в источнике зон (kind 'route'): этот конвейер на телефоне
+  // доказанно работает (лужи рисуются), в отличие от отдельного geojson-источника
+  routeFeature = { type: 'Feature', properties: { color: '#2465ee', kind: 'route' }, geometry: rt.geometry };
+  renderMap();
   // маркер финиша на АЗС — даже если линия не видна (очень редкий случай),
   // цель поездки очевидна: синий флаг на пине АЗС
   if (!window.__routeEndMarker) {
@@ -1968,6 +1943,7 @@ function renderStations(stations, keepOrder) {
    надписи и слои спроса — только наши. Станет медленно из РФ — скажи,
    поменяем URL стиля одной строкой. */
 let mapObj = null, allQueue = [];
+let routeFeature = null; // линия маршрута как фича рабочего источника zones
 let zoneReady = false;
 let objMarkers = [];
 let lastClusterCenterByStation = {};
@@ -2103,6 +2079,10 @@ mapObj = new maplibregl.Map({
     mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
     mapObj.addLayer({ id: 'zones-core', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'core'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.24 } });
     mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.24, 'line-width': 1.2, 'line-dasharray': [1, 1.8] } });
+    // линия маршрута едет на том же (рабочем) источнике zones отдельным kind:
+    // белая подложка + сплошная синяя сверху; пульс зон её не трогает
+    if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
+    if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
     zoneReady = true;
     startZonePulse();
     renderMap();
@@ -2404,6 +2384,7 @@ function renderMap() {
       objMarkers.push(mkZ);
     }
   }
+  if (routeFeature) feats.push(routeFeature);
   mapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
   if (zoom < 13) {
     // свои кластеры: сетка ~70px текущего зума
