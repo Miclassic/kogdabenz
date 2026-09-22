@@ -133,6 +133,10 @@ body { overflow:hidden; }
 .hm-stat.g { color:#168d61; } .hm-stat.y { color:#c2902a; } .hm-stat.r { color:#d64d51; } .hm-stat.n { color:#93a1b8; }
 .hm-cells { display:grid; grid-template-columns:repeat(24,1fr); gap:2px; height:20px; }
 .hm-cell { border-radius:4px; }
+.hm-cell.fut { opacity:.35; }
+.hm-cell.fc { opacity:.6; box-shadow:inset 0 0 0 1.5px rgba(36,101,238,.5); }
+.hm-fcline { position:absolute; top:-2px; bottom:0; width:0; }
+.hm-fctag { position:absolute; top:-14px; left:50%; transform:translateX(-50%); background:#5b6b86; color:#fff; font-size:7.5px; font-weight:800; padding:2px 6px; border-radius:7px; white-space:nowrap; }
 .hm-nowline { position:absolute; top:-2px; bottom:0; width:2px; border-radius:2px; background:#2465ee; box-shadow:0 0 0 2px rgba(36,101,238,.14); left:calc(86px + (100% - 86px) * var(--frac, .5)); }
 .hm-nowline i { position:absolute; left:50%; transform:translate(-50%,-50%); width:7px; height:7px; border-radius:50%; background:#2465ee; border:2px solid #fff; }
 .hm-nowline i:nth-of-type(1){top:10px}.hm-nowline i:nth-of-type(2){top:34px}.hm-nowline i:nth-of-type(3){top:58px}.hm-nowline i:nth-of-type(4){top:82px}
@@ -570,6 +574,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           <span><i style="background:#f5d565"></i>умеренный</span>
           <span><i style="background:#f5a05a"></i>высокий</span>
           <span><i style="background:#ef5350"></i>очень высокий</span>
+          <span><i style="background:rgba(47,211,154,.35)"></i>тусклые пилюли — прогноз по ритму</span>
+          <span><i style="background:#eef2f8;box-shadow:inset 0 0 0 1.5px rgba(36,101,238,.5)"></i>синий контур — окно возврата по прогнозу</span>
         </div>
       </div>
       <div class="chips3">
@@ -1297,6 +1303,34 @@ function heatRows() {
     { label:'Очереди', icon:'i-queue', bad:r => r.selling ? Math.min(1, (r.q / r.selling) / 0.3) : null, stat:r => r.selling ? r.q / r.selling : null, inv:true }
   ];
 }
+/* Прогноз на тепловой матрице: тусклые пилюли справа от «сейчас» = прогноз по
+   ритму за 3 суток; синий контур = окно возврата по PENDING-прогнозам города
+   (для очередей — медианное окно городских очередных событий). Факт и прогноз
+   разделены визуально, как требует правило продукта. */
+function bandOf(cnt) {
+  let max = 0, at = -1;
+  for (let h = 0; h < 24; h++) if (cnt[h] > max) { max = cnt[h]; at = h; }
+  if (at < 0 || max < 1) return null;
+  let s = at, e = at;
+  while (s > 0 && cnt[s - 1] >= max / 2) s--;
+  while (e < 23 && cnt[e + 1] >= max / 2) e++;
+  return [s, e];
+}
+function inBand(h, b) { return b[0] <= b[1] ? (h >= b[0] && h <= b[1]) : (h >= b[0] || h <= b[1]); }
+function cityQueueBand() {
+  const ids = new Set(cityStationList().map(s => s.id));
+  const mins = [];
+  for (const e of allQueueEvents) if (ids.has(e.station_id)) {
+    const d = new Date(new Date(e.detected_at).getTime() + 3 * 3600 * 1000);
+    mins.push(d.getUTCHours() * 60 + d.getUTCMinutes());
+  }
+  if (mins.length < 3) return null;
+  mins.sort((a, b) => a - b);
+  const med = mins.length % 2 ? mins[(mins.length - 1) / 2] : (mins[mins.length / 2 - 1] + mins[mins.length / 2]) / 2;
+  const mean = mins.reduce((a, b) => a + b, 0) / mins.length;
+  const sd = Math.max(30, Math.sqrt(mins.reduce((s, t) => s + (t - mean) * (t - mean), 0) / mins.length));
+  return [Math.floor((((med - sd) / 60) % 24 + 24) % 24), Math.floor((((med + sd) / 60) % 24 + 24) % 24)];
+}
 function renderHeat() {
   const grid = document.getElementById('heatGrid');
   if (!grid) return;
@@ -1323,13 +1357,32 @@ function renderHeat() {
     'Дизель': kdt ? adt / kdt : null,
     'Очереди': tot ? qh / tot : null
   };
+  // окна прогноза справа от «сейчас»: топлива — по PENDING-прогнозам города
+  // за сегодня, очереди — по медианному окну городских очередных событий
+  const nowH = new Date().getHours();
+  const cityIds = new Set(cityStationList().map(s => s.id));
+  const todayStr = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const fuelOfRow = { 'АИ-92': '92', 'АИ-95': '95', 'Дизель': 'diesel' };
+  const fcBand = { 'АИ-92': null, 'АИ-95': null, 'Дизель': null, 'Очереди': cityQueueBand() };
+  for (const lbl of ['АИ-92', 'АИ-95', 'Дизель']) {
+    const cnt = new Array(24).fill(0);
+    for (const p of allPredictions) {
+      if (p.result !== 'PENDING' || p.fuel_type !== fuelOfRow[lbl]) continue;
+      if (!cityIds.has(p.station_id) || p.target_date !== todayStr) continue;
+      const f = Number(String(p.from_time).slice(0, 2)), t = Number(String(p.to_time).slice(0, 2));
+      for (let h = nowH + 1; h < 24; h++) if (h >= f && h <= t) cnt[h]++;
+    }
+    fcBand[lbl] = bandOf(cnt);
+  }
   let html = '';
   for (const row of heatRows()) {
     let cells = '';
+    const band = fcBand[row.label];
     for (let h = 0; h < 24; h++) {
       const r = byHour[h];
       const v = r ? row.bad(r) : null;
-      cells += '<div class="hm-cell" style="background:' + (v === null ? '#eef2f8' : badColor(v)) + '"></div>';
+      const fut = h > nowH;
+      cells += '<div class="hm-cell' + (fut ? ' fut' : '') + (fut && band && inBand(h, band) ? ' fc' : '') + '" style="background:' + (v === null ? '#eef2f8' : badColor(v)) + '"></div>';
     }
     const s = nowStat[row.label] !== undefined ? nowStat[row.label] : null;
     let stTxt = '—', stCls = 'n';
@@ -1351,6 +1404,11 @@ function renderHeat() {
     html += '<div class="hm-row"><div class="hm-label">' + icon(row.icon) + '<span><span class="hm-name">' + row.label + '</span><span class="hm-stat ' + stCls + '">' + stTxt + '</span></span></div><div class="hm-cells">' + cells + '</div></div>';
   }
   html += '<div class="hm-nowline" id="hmNow"><span class="hm-nowtag">сейчас</span><i></i><i></i><i></i><i></i></div>';
+  if (fcBand['АИ-95']) {
+    const b = fcBand['АИ-95'];
+    const mid = (b[0] <= b[1] ? (b[0] + b[1] + 1) / 2 : (b[0] + 12) % 24) / 24;
+    html += '<div class="hm-fcline" style="left:calc(86px + (100% - 86px) * ' + mid.toFixed(3) + ')"><span class="hm-fctag">прогноз ' + String(b[0]).padStart(2, '0') + '–' + String((b[1] + 1) % 24).padStart(2, '0') + '</span></div>';
+  }
   grid.innerHTML = html;
   const line = document.getElementById('hmNow');
   if (line) { const d = new Date(); line.style.setProperty('--frac', ((d.getHours() + d.getMinutes() / 60) / 24).toFixed(3)); }
