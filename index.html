@@ -1002,7 +1002,7 @@ function whyHtml(pred) {
   }
   if (f.queue_trend === 'falling') items.push('очередь на АЗС снижается');
   if (f.queue_trend === 'rising') items.push('очередь на АЗС растёт');
-  if (f.knn_support) items.push('k-NN: ' + f.knn_support + ' похожих эпизодов' + (f.knn_p_restore_2h !== null && f.knn_p_restore_2h !== undefined ? ', P<2ч ' + f.knn_p_restore_2h + '%' : ''));
+  if (f.knn_support) items.push('в прошлом было ' + f.knn_support + ' похожих случаев' + (f.knn_p_restore_2h !== null && f.knn_p_restore_2h !== undefined ? ': привозили в ближайшие 2 ч в ' + f.knn_p_restore_2h + '%' : ''));
   if (f.nearby_missing95) items.push('рядом без АИ-95: ' + f.nearby_missing95 + ' из ' + f.nearby_total);
   if (!items.length) return '';
   return '<div class="why"><div class="why-t">Почему такой прогноз</div>' + items.map(t => '<span class="why-i">' + escapeHtml(t) + '</span>').join('') + '</div>';
@@ -1985,7 +1985,7 @@ function renderNow() {
   const sub = document.getElementById('nowSub');
   if (sub) {
     const fr = freshStats();
-    sub.innerHTML = '<span class="why-span" style="color:' + freshColor(fr) + ';font-weight:800;cursor:pointer" onclick="openWhyChip(this,\'fresh\')">Данные: ' + fr.fresh + ' из ' + fr.tot + ' свежие</span> · ' +
+    sub.innerHTML = '<span class="why-span" style="color:' + freshColor(fr) + ';font-weight:800;cursor:pointer" onclick="openWhyChip(this,\'fresh\')">Данные: ' + fr.fresh + ' из ' + fr.tot + ' свежие</span><br>' +
       (known ? 'очереди на ' + qPct + '% АЗС · АИ-95 есть на ' + aPct + '%' : 'нет свежих отметок топлива');
   }
   const title = document.getElementById('nowTitle');
