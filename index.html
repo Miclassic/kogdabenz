@@ -276,7 +276,14 @@ body { overflow:hidden; }
 .map-wrap { position:relative; flex:1; min-height:360px; }
 .map-box { position:absolute; inset:0; border-radius:18px; overflow:hidden; border:1px solid #e8edf7; background:#eef2f8; z-index:0; }
 .map-box > .status { position:absolute; inset:0; margin:0; display:grid; place-items:center; border:0; box-shadow:none; background:transparent; }
-.map-plate { position:absolute; left:10px; right:10px; top:10px; display:flex; gap:6px; justify-content:center; flex-wrap:wrap; pointer-events:none; z-index:5; }
+.map-plate { position:absolute; left:10px; right:10px; top:10px; display:flex; gap:6px; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; pointer-events:auto; z-index:5; scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; padding:3px 2px; -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%); mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%); }
+.map-plate::-webkit-scrollbar { display:none; }
+.map-plate .gp { flex:0 0 auto; white-space:nowrap; }
+/* край карусели гаснет только с той стороны, куда ещё можно скроллить:
+   в упоре слева/справа никакого «обрезано» не видно вовсе */
+.map-plate.start { -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 16px),transparent 100%); mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 16px),transparent 100%); }
+.map-plate.end { -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 100%); mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 100%); }
+.map-plate.start.end { -webkit-mask-image:none; mask-image:none; }
 .gp { display:inline-flex; align-items:center; gap:5px; padding:6px 9px; border-radius:12px; background:rgba(255,255,255,.78); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
 .gp .dot { width:7px; height:7px; }
 .gp .ic { width:11px; height:11px; }
@@ -1169,7 +1176,6 @@ function priceCell(stationId, col, cityKey) {
   return '<div class="info-value">' + Number(v).toFixed(1) + ' ₽</div><div class="info-delta">' + d + '</div>';
 }
 function goodRow(r) {
-  if (!r) false;
   if (!r) return false;
   const bad = r.k95 ? 1 - r.a95 / r.k95 : 0.5;
   const q = r.selling ? r.q / r.selling : 0;
@@ -1786,7 +1792,7 @@ function renderNow() {
   const sub = document.getElementById('nowSub');
   if (sub) {
     const fr = freshStats();
-    sub.innerHTML = '<span style="color:' + freshColor(fr) + ';font-weight:800">Данные: ' + fr.fresh + ' из ' + fr.tot + ' свежие</span> · ' +
+    sub.innerHTML = '<span class="why-span" style="color:' + freshColor(fr) + ';font-weight:800;cursor:pointer" onclick="openWhyChip(this,\'fresh\')">Данные: ' + fr.fresh + ' из ' + fr.tot + ' свежие</span> · ' +
       (known ? 'очереди на ' + qPct + '% АЗС · АИ-95 есть на ' + aPct + '%' : 'нет свежих отметок топлива');
   }
   const title = document.getElementById('nowTitle');
@@ -2624,13 +2630,11 @@ function updateMapPlate() {
     if (o.queue_level === 'high') qn++;
   }
   const pc = peakAndCalm();
-  const fr = freshStats();
   el.innerHTML =
     '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'plate95\')"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
     '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'plateQ\')"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
     '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'platePeak\')">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
-    '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + citySet.size + ' АЗС' + covSpark() + '</span>' +
-    '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'fresh\')"><i class="dot" style="background:' + freshColor(fr) + '"></i>данные: ' + fr.fresh + '/' + fr.tot + ' свежие</span>';
+    '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + citySet.size + ' АЗС' + covSpark() + '</span>';
 }
 // мини-график покрытия за 24 ч: сколько станций источник видел в каждый час
 function covSpark() {
@@ -2724,6 +2728,9 @@ async function start() {
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
+    // подписи строк тепла зависят от снимка последних отметок: первая отрисовка
+    // из loadPulse может случиться раньше загрузки и нарисовать «—» — перерисовываем
+    renderHeat();
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
   } catch (e) {
@@ -2991,7 +2998,7 @@ document.addEventListener('pointerdown', e => {
   const pop = document.getElementById('covPop');
   if (pop && pop.classList.contains('open') && !(t.closest && (t.closest('#covPop') || t.closest('#covChip')))) pop.classList.remove('open');
   const wp = document.getElementById('whyPop');
-  if (wp && wp.classList.contains('open') && !(t.closest && (t.closest('#whyPop') || t.closest('.chip3.tap') || t.closest('.gp-btn') || t.closest('.info.tap')))) closeWhy();
+  if (wp && wp.classList.contains('open') && !(t.closest && (t.closest('#whyPop') || t.closest('.chip3.tap') || t.closest('.gp-btn') || t.closest('.info.tap') || t.closest('.why-span')))) closeWhy();
 }, { capture: true });
 async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
@@ -3069,6 +3076,21 @@ const cityBtnTxt = document.getElementById('mgScopeCityTxt');
 if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
 tickClock();
 setInterval(tickClock, 30000);
+// Плашка карты: мягкие края карусели — фейд только с той стороны,
+// куда есть куда скроллить; в упоре край чистый, ничего не «обрезано»
+(function plateScrollFx() {
+  const el = document.getElementById('mapPlate');
+  if (!el) return;
+  const fx = () => {
+    const max = el.scrollWidth - el.clientWidth;
+    el.classList.toggle('start', el.scrollLeft <= 2);
+    el.classList.toggle('end', el.scrollLeft >= max - 2);
+  };
+  el.addEventListener('scroll', fx, { passive: true });
+  window.addEventListener('resize', fx);
+  new MutationObserver(fx).observe(el, { childList: true, subtree: true, characterData: true });
+  fx();
+})();
 // народные голоса живут 60 минут: периодически обновляем открытую карту
 setInterval(() => { if (mapObj && currentPanel === 2 && !mapObj.isMoving()) renderMap(); }, 5 * 60 * 1000);
 const pagerEl = document.getElementById('pager');
