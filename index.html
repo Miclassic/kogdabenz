@@ -162,7 +162,7 @@ body { overflow:hidden; }
 /* кардиограмма */
 .mini-graph { flex:1; min-height:64px; display:flex; flex-direction:column; padding:6px 7px 4px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; position:relative; overflow:hidden; }
 .mini-cap { display:flex; align-items:center; gap:5px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
-.mini-graph .pulse-svg { flex:none; min-height:34px; width:100%; display:block; }
+.mini-graph .pulse-svg { flex:1; min-height:34px; width:100%; display:block; }
 .mg-legend { display:flex; gap:9px; flex-wrap:wrap; margin-top:2px; color:#93a1b8; font-size:8px; font-weight:700; }
 .mg-legend span { display:flex; align-items:center; gap:4px; }
 .mg-legend i.ln { width:12px; height:3px; border-radius:2px; }
@@ -1546,8 +1546,8 @@ function renderPulse() {
   const buckets = buildBuckets();
   if (!buckets.length) { svg.innerHTML = ''; return; }
   const rect = svg.getBoundingClientRect();
-  const W = Math.max(300, Math.round(rect.width || 640)), H = 110, PADL = 26, PADR = 10, BASE = H - 14, TOP = 6;
-  svg.style.height = H + 'px'; // фиксированная высота: viewBox всегда совпадает с блоком, «писем» по бокам нет
+  const W = Math.max(300, Math.round(rect.width || 640)), H = Math.max(80, Math.round(rect.height || 110)), PADL = 26, PADR = 10, BASE = H - 14, TOP = 6;
+  svg.setAttribute('preserveAspectRatio', 'none'); // viewBox растягивается в блок без сохранения пропорций: ширина и высота заполнены всегда, без сжатия к центру и без обрезания
   const n = buckets.length;
   // динамическая шкала: максимум текущих данных, округлённый вверх до 20 (минимум 40)
   let maxV = 0;
