@@ -1505,6 +1505,40 @@ function renderAccuracy() {
       '<text x="' + (122 + w + 6) + '" y="' + (y + 11) + '" font-size="9" font-weight="800" fill="#33445f">' + (r.v === null ? '—' : fmtErrMin(r.v)) + '</text>';
   });
   const cmpSvg = '<svg viewBox="0 0 320 80" style="width:100%;height:80px;display:block">' + cmp + '</svg>';
+  // === Улучшение модели: медианная ошибка по неделям верификации, мы vs простой способ ===
+  const weeks = {};
+  for (const p of measured) {
+    if (!p.verified_at) continue;
+    const d = new Date(p.verified_at);
+    const monday = new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86400000);
+    const k = monday.toISOString().slice(0, 10);
+    const w = weeks[k] = weeks[k] || { e: [], b: [] };
+    w.e.push(Math.abs(p.error_minutes));
+    if (p.baseline_error_minutes !== null && p.baseline_error_minutes !== undefined) w.b.push(Math.abs(p.baseline_error_minutes));
+  }
+  const medOf = a => quantileOf(a.slice().sort((x, y) => x - y), 0.5);
+  const wKeys = Object.keys(weeks).sort();
+  let trendHtml = '';
+  if (wKeys.length < 2) {
+    trendHtml = '<div class="recent">Динамика ещё копится: сравнение по неделям появится, когда наберётся 2+ недели с измеренными прогнозами.</div>';
+  } else {
+    trendHtml = wKeys.map(k => {
+      const w = weeks[k];
+      const d0 = new Date(k + 'T00:00:00Z');
+      const lbl = String(d0.getUTCDate()).padStart(2, '0') + '.' + String(d0.getUTCMonth() + 1).padStart(2, '0');
+      return '<div class="rc-batch"><div class="rc-time">неделя с ' + lbl + ' · измерений ' + w.e.length + '</div>' +
+        '<div class="rc-chips"><span class="rc-chip info">' + icon('i-chart', 'ic-s') + 'мы ' + fmtErrMin(Math.round(medOf(w.e))) + '</span>' +
+        (w.b.length ? '<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-minus', 'ic-s') + 'простой способ ' + fmtErrMin(Math.round(medOf(w.b))) + '</span>' : '') + '</div></div>';
+    }).join('');
+    const firstW = weeks[wKeys[0]], lastW = weeks[wKeys[wKeys.length - 1]];
+    if (firstW.e.length >= 3 && lastW.e.length >= 3) {
+      const fe = Math.round(medOf(firstW.e)), le = Math.round(medOf(lastW.e));
+      const verdict = le < fe ? 'модель улучшается' : le > fe ? 'сейчас хуже, чем было — следим за причиной (режим, объём данных)' : 'уровень тот же';
+      trendHtml += '<div class="recent">Было ' + fmtErrMin(fe) + ' → стало ' + fmtErrMin(le) + ': ' + verdict + '.</div>';
+    } else {
+      trendHtml += '<div class="recent">Вывод «было → стало» появится, когда в крайней неделе будет 3+ измерений: сейчас это шум, а не тренд.</div>';
+    }
+  }
   const stories = measured.slice().sort((a, b) => new Date(b.actual_restore_at || 0) - new Date(a.actual_restore_at || 0)).slice(0, 3);
   const stHtml = stories.map(p => {
     const st = allStations.find(s => s.id === p.station_id);
@@ -1524,6 +1558,7 @@ function renderAccuracy() {
     '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accChecked\')"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено ночами</small><b>' + verified.length + ' прогнозов</b></div></div>' +
     '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">сравниваем с простым способом</div>' + cmpSvg + '</div>' +
+    '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">улучшение модели · ошибка по неделям</div>' + trendHtml + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">как часто какая ошибка бывает</div>' + histSvg + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз и факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
     '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Из ' + verified.length + ' проверенных измерено ' + measured.length + ', ещё ' + (verified.length - measured.length) + ' ждут факта возврата — в ошибку они не входят. Проверяем каждую ночь в 02:10.</div>';
