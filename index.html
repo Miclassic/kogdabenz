@@ -333,7 +333,7 @@ body { overflow:hidden; }
 .route-plate .ic { color:#2465ee; flex:0 0 auto; }
 .route-plate span { min-width:0; }
 .route-plate button { margin-left:auto; flex:0 0 auto; border:0; background:#eef2f9; color:#5b6b86; width:26px; height:26px; border-radius:9px; display:grid; place-items:center; cursor:pointer; }
-.loc-chip { position:absolute; left:50%; transform:translateX(-50%); bottom:58px; z-index:6; display:none; align-items:center; gap:6px; border:0; border-radius:99px; padding:9px 14px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.9); color:#33445f; font-size:10.5px; font-weight:800; box-shadow:0 10px 26px rgba(15,27,51,.18); cursor:pointer; white-space:nowrap; max-width:calc(100% - 20px); }
+.loc-chip { position:absolute; left:50%; transform:translateX(-50%); bottom:58px; z-index:6; display:none; align-items:center; gap:6px; border:0; border-radius:18px; padding:9px 14px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.9); color:#33445f; font-size:10.5px; font-weight:800; line-height:1.35; text-align:center; box-shadow:0 10px 26px rgba(15,27,51,.18); cursor:pointer; max-width:calc(100% - 24px); }
 .loc-chip.on { background:#e7f0ff; color:#2465ee; border-color:#bcd4ff; }
 .loc-plate { position:absolute; left:10px; right:10px; top:52px; z-index:6; display:none; align-items:center; gap:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#fdecec,#fde0de); border:1px solid #f3b7b3; color:#c2403f; font-size:10.5px; font-weight:800; line-height:1.35; box-shadow:0 10px 26px rgba(194,64,63,.18); }
 .loc-plate.open { display:flex; }
@@ -608,7 +608,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       </div>
     </section>
     <section class="panel">
-      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а круг вокруг — где очередь. Нажми на каплю — появятся кнопки.</div></div></div>
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а лужа вокруг — где очередь. Нажми на каплю — появятся кнопки.</div></div></div>
       <div class="map-wrap" id="mapWrap">
         <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
         <div class="map-plate" id="mapPlate"></div>
@@ -1890,7 +1890,7 @@ function setTagline(i) {
     sTxt = 'Каждую ночь проверяем вчерашние прогнозы: на сколько минут ошиблись и лучше ли мы простого способа. Прогнозы, по которым факт ещё не случился, показываем отдельно — без округлений в свою пользу.';
   } else if (i === 2) {
     sHtml = 'Карта. <span>Где спрос.</span>';
-    sTxt = 'Далеко — кластеры с составом по АИ-95, близко — пины станций. Зоны — сила спроса, плашка сверху — сводка города.';
+    sTxt = 'Далеко заправки собраны в квадратики с цифрой — сколько их в этом месте. Приближай карту — квадратики станут каплями-заправками.';
   } else if (i === 3) {
     const last = getLastObservations();
     const city = cityStationList();
@@ -2106,7 +2106,7 @@ function refreshLocChip() {
     chip.style.display = (geoSuspect || manualMode || manualLoc()) ? 'flex' : 'none';
     chip.classList.toggle('on', manualMode);
     chip.innerHTML = manualMode
-      ? icon('i-check', 'ic-s') + 'точка ставится: тапни по карте или тяни её · ещё тап — готово'
+      ? icon('i-check', 'ic-s') + '<span>точка ставится: тапни по карте или тяни её<br>ещё тап по чипу — готово</span>'
       : icon('i-pin', 'ic-s') + 'указать своё местоположение';
   }
   if (plate) plate.classList.toggle('open', geoSuspect && !manualMode && !locPlateDismissed);
