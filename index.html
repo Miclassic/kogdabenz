@@ -325,7 +325,7 @@ body { overflow:hidden; }
 .mzone-ico { width:26px; height:26px; pointer-events:none; }
 .mzone-badge { width:100%; height:100%; border-radius:50%; background:rgba(255,255,255,.85); border:1px solid rgba(226,232,244,.9); box-shadow:0 4px 12px rgba(15,27,51,.12); display:grid; place-items:center; will-change:transform; }
 .mzone-ico .ic { width:14px; height:14px; }
-.fchips { position:absolute; bottom:calc(100% + 30px); left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:none; transition:opacity .5s ease; }
+.fchips { position:absolute; left:calc(100% + 5px); top:17px; transform:translateY(-50%); display:flex; flex-direction:column; align-items:flex-start; gap:3px; pointer-events:none; transition:opacity .5s ease; }
 .fchips.out { opacity:0; }
 .mring { position:absolute; left:17px; top:17px; width:0; height:0; pointer-events:none; z-index:6; }
 .mring button { position:absolute; transform:translate(-50%,-50%); display:inline-flex; align-items:center; gap:4px; padding:7px 10px; border:1px solid rgba(226,232,244,.9); border-radius:99px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); color:#33445f; font-size:9.5px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); white-space:nowrap; pointer-events:auto; animation:mPopRing .22s ease; }
@@ -453,7 +453,7 @@ body { overflow:hidden; }
 .info.why-tap { --q1:22px; --q2:13px; --q3:9px; --q4:7px; }
 .info.why-tap::before { width:34px; }
 .fchip-92 { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
-@keyframes chipFloat { 0% { opacity:0; transform:translateY(26px) scale(.75); } 18% { opacity:1; transform:translateY(0) scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translateY(-8px); } }
+@keyframes chipFloat { 0% { opacity:0; transform:translateX(-16px) scale(.75); } 18% { opacity:1; transform:translateX(0) scale(1); } 75% { opacity:1; } 100% { opacity:0; transform:translateX(8px); } }
 .user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
 .user-dot::after { content:''; position:absolute; inset:-8px; border-radius:50%; background:rgba(57,124,255,.18); animation:userPulse 2s ease-out infinite; }
 @keyframes userPulse { 0% { transform:scale(.6); opacity:1; } 100% { transform:scale(1.8); opacity:0; } }
@@ -1925,9 +1925,11 @@ let labelCtrls = [];
 // (MapLibre составные выражения для opacity применяет непредсказуемо):
 // вдали — дымка, ближе — ярче и чётче; сверху мягкая пульсация «дыхания»
 const ZONE_STOPS = {
-  fill: [[12, 0.10], [13, 0.16], [15, 0.26]],
-  line: [[12, 0.30], [13, 0.45], [15, 0.75]],
-  width: [[12, 1.2], [15, 2.5]]
+  halo: [[12, 0.05], [13, 0.08], [15, 0.12]],
+  fill: [[12, 0.10], [13, 0.16], [15, 0.24]],
+  core: [[12, 0.16], [13, 0.24], [15, 0.34]],
+  line: [[12, 0.16], [13, 0.24], [15, 0.38]],
+  width: [[12, 1], [15, 1.6]]
 };
 function zoneRamp(stops, z) {
   if (z <= stops[0][0]) return stops[0][1];
@@ -1952,7 +1954,9 @@ function startZonePulse() {
     if (hbEl && hbEl.classList.contains('open')) return;
     const p = 0.85 + 0.15 * Math.sin((Date.now() - t0) / 500);
     const z = mapObj.getZoom();
+    mapObj.setPaintProperty('zones-halo', 'fill-opacity', zoneRamp(ZONE_STOPS.halo, z) * p);
     mapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, z) * p);
+    mapObj.setPaintProperty('zones-core', 'fill-opacity', zoneRamp(ZONE_STOPS.core, z) * p);
     mapObj.setPaintProperty('zones-line', 'line-opacity', zoneRamp(ZONE_STOPS.line, z) * p);
     mapObj.setPaintProperty('zones-line', 'line-width', zoneRamp(ZONE_STOPS.width, z));
   }, 66);
@@ -1990,8 +1994,10 @@ mapObj = new maplibregl.Map({
     }
     applyLabelZoom();
     mapObj.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-    mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
-    mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.45, 'line-width': 2 } });
+    mapObj.addLayer({ id: 'zones-halo', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'halo'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.08 } });
+    mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
+    mapObj.addLayer({ id: 'zones-core', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'core'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.24 } });
+    mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.24, 'line-width': 1.2, 'line-dasharray': [1, 1.8] } });
     zoneReady = true;
     startZonePulse();
     renderMap();
@@ -2221,16 +2227,29 @@ function fuelChip(label, status) {
   if (status === false) return '<span class="rc-chip no">' + icon('i-cross', 'ic-s') + label + ' нет</span>';
   return '<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-minus', 'ic-s') + label + ' нет данных</span>';
 }
-function circleFeature(lat, lon, rMeters, color) {
+/* зоны спроса — не круги с рамкой, а «лужи»: радиус гуляет по контуру тремя
+   плавными гармониками; фазы из хэша id станции — каждая лужа своя, но не
+   дрожит и не переползает между перерисовками. Три слоя: ореол, тело, ядро. */
+function seedOf(id) {
+  let h = 0;
+  const s = String(id);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function blobFeature(lat, lon, rMeters, color, seed, kind, scale) {
+  const p1 = (seed % 628) / 100, p2 = ((seed >> 3) % 628) / 100, p3 = ((seed >> 6) % 628) / 100;
+  const N = 64;
   const pts = [];
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * 2 * Math.PI;
-    const dLat = (rMeters * Math.sin(a)) / 111320;
-    const dLon = (rMeters * Math.cos(a)) / (111320 * Math.cos(lat * Math.PI / 180));
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * 2 * Math.PI;
+    const m = 1 + 0.17 * Math.sin(2 * a + p1) + 0.11 * Math.sin(3 * a + p2) + 0.06 * Math.sin(5 * a + p3);
+    const r = rMeters * scale * m;
+    const dLat = (r * Math.sin(a)) / 111320;
+    const dLon = (r * Math.cos(a)) / (111320 * Math.cos(lat * Math.PI / 180));
     pts.push([lon + dLon, lat + dLat]);
   }
   pts.push(pts[0]);
-  return { type: 'Feature', properties: { color: color }, geometry: { type: 'Polygon', coordinates: [pts] } };
+  return { type: 'Feature', properties: { color: color, kind: kind }, geometry: { type: 'Polygon', coordinates: [pts] } };
 }
 function renderMap() {
   if (!mapObj || !zoneReady) return;
@@ -2259,7 +2278,14 @@ function renderMap() {
     const sc = demandOf(id);
     // зона спроса видна с z >= 12: вдали — мягкое дышащее кольцо-подсказка
     // вокруг кластера, с z >= 13 (пины) — ярче и чётче вокруг каждой капли
-    if (sc >= 12 && zoom >= 12) feats.push(circleFeature(Number(st.lat), Number(st.lon), 100 + sc * 6, 'rgb(' + demandRgb(sc) + ')'));
+    if (sc >= 12 && zoom >= 12) {
+      const seed = seedOf(id);
+      const R = 100 + sc * 6;
+      const col = 'rgb(' + demandRgb(sc) + ')';
+      feats.push(blobFeature(Number(st.lat), Number(st.lon), R, col, seed, 'halo', 1.25));
+      feats.push(blobFeature(Number(st.lat), Number(st.lon), R, col, seed, 'main', 1));
+      feats.push(blobFeature(Number(st.lat), Number(st.lon), R, col, seed, 'core', 0.55));
+    }
     // иконка очереди живёт на всех зумах зоны: вдали — в центре круга,
     // с приближением плавно уменьшается и уезжает в левый нижний угол под пин
     if (sc >= 12 && zoom >= 12) {
@@ -2335,7 +2361,21 @@ function renderMap() {
       for (const m of group) newCenters[m.st.id] = [clon, clat];
     }
   } else {
-    for (const it of items) addPin(it, fromCenters[it.st.id] || null, zoomChanged);
+    // чипы вытекают вправо от капли: запрещаем их пину, если справа на той же
+    // горизонтальной линии (±34px) есть ещё капля, либо у правого края карты
+    // нет 150px места — иначе чипы накроют соседа / обрежутся краем = каша
+    const cw = mapObj.getContainer().clientWidth;
+    const pts = items.map(it => { const p = mapObj.project([Number(it.st.lon), Number(it.st.lat)]); return { id: it.st.id, x: p.x, y: p.y }; });
+    const blocked = new Set();
+    for (const a of pts) {
+      if (a.x > cw - 150) { blocked.add(a.id); continue; }
+      for (const b of pts) {
+        if (a.id === b.id) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        if (dx > -12 && dx < 190 && Math.abs(dy) <= 34) { blocked.add(a.id); break; }
+      }
+    }
+    for (const it of items) addPin(it, fromCenters[it.st.id] || null, zoomChanged, blocked.has(it.st.id));
   }
   lastClusterCenterByStation = newCenters;
   lastRenderZoom = zoom;
@@ -2481,7 +2521,7 @@ let qok = true;
   if (done) done.innerHTML = '<div class="q-thanks">Спасибо за вашу отметку 🙏<small>' + rows.length + ' факт(ов) учтено</small></div>';
   setTimeout(closeQuick, 1200);
 }
-function addPin(it, fromCenter, zoomChanged) {
+function addPin(it, fromCenter, zoomChanged, chipsBlocked) {
   const st = it.st, o = it.o;
   pinHits.push({ lon: Number(st.lon), lat: Number(st.lat) });
   let stKey = pinKey(o);
@@ -2546,9 +2586,9 @@ function addPin(it, fromCenter, zoomChanged) {
     else openRing(st, wrap);
   });
   objMarkers.push(mk);
-  // воздушные чипы топлива над каплей (zoom >= 13): появляются по очереди,
-  // цикл проходит дважды и затухает; при движении карты убираются сразу
-  if (mapObj.getZoom() >= 13) {
+  // воздушные чипы топлива справа от капли (zoom >= 13): вытекают вправо по
+  // очереди, цикл проходит дважды и затухает; при движении карты убираются сразу
+  if (mapObj.getZoom() >= 13 && !chipsBlocked) {
     const avail = [];
     let fuelInfo = 0;
     const srcFuels = [['92', 'АИ-92', o ? o.fuel_92_status : null], ['95', 'АИ-95', o ? o.fuel_95_status : null], ['diesel', 'дизель', o ? o.diesel_status : null]];
@@ -3090,6 +3130,31 @@ setInterval(tickClock, 30000);
   window.addEventListener('resize', fx);
   new MutationObserver(fx).observe(el, { childList: true, subtree: true, characterData: true });
   fx();
+})();
+// Чипы плашки: медленная бегущая строка (~20 px/сек), только на панели карты.
+// У края — пауза 1.2 сек и мягко в обратную сторону (пинг-понг); касание или
+// колесо на плашке ставит автоскролл на паузу 8 сек, чтобы не воевать с пальцем.
+(function plateMarquee() {
+  const el = document.getElementById('mapPlate');
+  if (!el) return;
+  let dir = 1, holdUntil = 0, pauseUntil = 0, last = performance.now();
+  const SPEED = 0.02; // px за мс ≈ 20 px/сек
+  const HOLD = 1200;
+  const touch = () => { pauseUntil = performance.now() + 8000; };
+  el.addEventListener('pointerdown', touch, { passive: true });
+  el.addEventListener('wheel', touch, { passive: true });
+  const tick = now => {
+    const dt = Math.min(50, now - last); last = now;
+    const max = el.scrollWidth - el.clientWidth;
+    if (currentPanel === 2 && max > 4 && now > pauseUntil && now >= holdUntil) {
+      let x = el.scrollLeft + dir * SPEED * dt;
+      if (x >= max) { x = max; dir = -1; holdUntil = now + HOLD; }
+      else if (x <= 0) { x = 0; dir = 1; holdUntil = now + HOLD; }
+      el.scrollLeft = x;
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 })();
 // народные голоса живут 60 минут: периодически обновляем открытую карту
 setInterval(() => { if (mapObj && currentPanel === 2 && !mapObj.isMoving()) renderMap(); }, 5 * 60 * 1000);
