@@ -165,7 +165,9 @@ async function main() {
   const pct = checked ? Math.round(success / checked * 100) : 0;
   console.log('   Проверено: ' + checked + ', точных: ' + success + ' (' + pct + '%)');
   await logTrainingData();
-  const story = pct === 0 ? ' Возвратов не было.' : pct >= 50 ? ' Половина окон попала.' : ' Часть окон попала.';
+  const story = pct === 0
+    ? (events.length ? ' Возвраты были, но мимо окон.' : ' Возвратов в период окон не было.')
+    : pct >= 50 ? ' Половина окон попала.' : ' Часть окон попала.';
   await tg('🧮 Ночь: ' + checked + ' прогнозов, точных ' + success + ' (' + pct + '%).' + story);
   console.log('✅ Верификатор завершил работу');
 }

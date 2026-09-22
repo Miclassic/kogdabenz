@@ -507,7 +507,12 @@ console.log('   Существующих PENDING-прогнозов (цель >=
 
       const existId = existingByKey[pairKey];
       if (existId) {
-        await sbPatch('predictions?id=eq.' + existId, row);
+        // v1.9: при обновлении не трогаем target_date — прицел выбирается один раз
+        // при создании. Иначе вечерний прогон переставит строку на «завтра», и
+        // ночной верификатор никогда не поймает закрывшееся окно (кейс 0/77 23.09).
+        const patchRow = Object.assign({}, row);
+        delete patchRow.target_date;
+        await sbPatch('predictions?id=eq.' + existId, patchRow);
         updated++;
       } else {
         await sbPost('predictions', [row]);
