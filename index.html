@@ -905,6 +905,7 @@ function recentFeedback(stationId) {
     const g = batches[k];
     const minutes = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
     const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
+    const onSite = g.filter(f => f.verified_on_site).length;
     // порядок детерминированный: топливо → очередь/свободно → привезли отдельной строкой
     const chips = [];
     const extra = [];
@@ -913,7 +914,7 @@ function recentFeedback(stationId) {
     for (const f of g) if (f.feedback_type === 'queue') chips.push('<span class="rc-chip queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
     for (const f of g) if (f.feedback_type === 'free') chips.push('<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
     for (const f of g) if (f.feedback_type === 'delivery') extra.push('<span class="rc-chip info">' + icon('i-truck', 'ic-s') + 'привезли</span>');
-    return '<div class="rc-batch"><div class="rc-time">' + ago + ' назад</div><div class="rc-chips">' + chips.join('') + '</div>' +
+    return '<div class="rc-batch"><div class="rc-time">' + ago + ' назад' + (onSite ? ' · 📍 с места: ' + onSite : '') + '</div><div class="rc-chips">' + chips.join('') + '</div>' +
       (extra.length ? '<div class="rc-chips rc-extra">' + extra.join('') + '</div>' : '') + '</div>';
   }).join('');
 }
@@ -931,6 +932,61 @@ function feedbackPanel(stationId) {
     '<button class="feedback-option" data-fact="free" onclick="fbToggle(this)">' + icon('i-check','ic-s') + 'Свободно</button></div></div>' +
     '<input id="fb-text-' + stationId + '" class="fb-text" type="text" maxlength="200" placeholder="Пара слов (необязательно)">' +
     '<button id="fb-send-' + stationId + '" class="fb-send" onclick="fbSend(\'' + stationId + '\')">Отправить отметку</button></div>';
+}
+// === Отметка «с места» (гео-взвешивание народной отметки) ===
+// При отправке пробуем свежий GPS (кэш до 2 мин годится); нет — недавняя
+// (≤15 мин) сохранённая или ручная точка. Расстояние ≤200 м от АЗС —
+// verified_on_site = true. Сырые координаты в базу НЕ шлём: только факт и метры.
+const ON_SITE_RADIUS_M = 200;
+const ON_SITE_MAX_AGE_MIN = 15;
+function distMeters(lat1, lon1, lat2, lon2) {
+  const dLat = (lat2 - lat1) * 111;
+  const dLon = (lon2 - lon1) * 111 * Math.cos(lat1 * Math.PI / 180);
+  return Math.round(Math.sqrt(dLat * dLat + dLon * dLon));
+}
+function recentLocFallback() {
+  try {
+    const m = JSON.parse(localStorage.getItem('kbManualLoc') || 'null');
+    if (m && Number.isFinite(m.lat) && m.t && Date.now() - m.t <= ON_SITE_MAX_AGE_MIN * 60000) return { lat: m.lat, lon: m.lon };
+  } catch (e) {}
+  try {
+    const s = JSON.parse(localStorage.getItem('userLocation') || 'null');
+    if (s && Number.isFinite(s.lat) && s.t && Date.now() - s.t <= ON_SITE_MAX_AGE_MIN * 60000) return { lat: s.lat, lon: s.lon };
+  } catch (e) {}
+  return null;
+}
+function currentLocForOnSite() {
+  return new Promise(res => {
+    if (!navigator.geolocation) { res(recentLocFallback()); return; }
+    navigator.geolocation.getCurrentPosition(
+      p => res({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      () => res(recentLocFallback()),
+      { timeout: 4000, maximumAge: 120000 });
+  });
+}
+async function onSiteFields(station) {
+  const base = { verified_on_site: false, distance_to_station_m: null };
+  if (!station || !Number.isFinite(Number(station.lat)) || !Number.isFinite(Number(station.lon))) return base;
+  const loc = await currentLocForOnSite();
+  if (!loc) return base;
+  const d = distMeters(loc.lat, loc.lon, Number(station.lat), Number(station.lon));
+  return { verified_on_site: d <= ON_SITE_RADIUS_M, distance_to_station_m: d };
+}
+// сколько отметок с места по этой АЗС за последние 24 ч
+function onSiteCount24(stationId) {
+  const since = Date.now() - 24 * 3600 * 1000;
+  let n = 0;
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || !f.verified_on_site) continue;
+    if (new Date(f.created_at).getTime() < since) continue;
+    n++;
+  }
+  return n;
+}
+function onSiteStrip(stationId) {
+  const n = onSiteCount24(stationId);
+  if (!n) return '';
+  return '<div class="dg-strip" style="margin-top:6px">' + icon('i-pin', 'ic-s') + '<span>' + n + ' вод. отметили с места (24 ч)</span></div>';
 }
 function fbToggle(btn) {
   const fact = btn.dataset.fact;
@@ -964,7 +1020,8 @@ async function fbSend(stationId) {
   const now = Date.now();
   if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
   const comment = (document.getElementById('fb-text-' + stationId).value || '').trim();
-  rows.forEach((r, i) => { r.station_id = stationId; r.device_id = deviceId; if (i === 0 && comment) r.comment_text = comment; });
+  const onSite = await onSiteFields(allStations.find(s => s.id === stationId));
+  rows.forEach((r, i) => { r.station_id = stationId; r.device_id = deviceId; Object.assign(r, onSite); if (i === 0 && comment) r.comment_text = comment; });
   const sendBtn = document.getElementById('fb-send-' + stationId);
   sendBtn.disabled = true;
 let ok = true;
@@ -1045,6 +1102,7 @@ function stationCard(station, obs, pred) {
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
     queueStrip(station.id, obs) +
     queueForecastStrip(station.id) +
+    onSiteStrip(station.id) +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
@@ -2484,23 +2542,26 @@ function getFolkMap() {
     if (!f.fuel_type) continue;
     if (new Date(f.created_at).getTime() < since) continue;
     const key = f.station_id + '|' + f.fuel_type + '|' + (f.feedback_type === 'available' ? 'yes' : 'no');
-    (votes[key] = votes[key] || new Set()).add(f.device_id || '?');
+    const v = votes[key] = votes[key] || { devs: new Set(), onSite: new Set() };
+    v.devs.add(f.device_id || '?');
+    if (f.verified_on_site) v.onSite.add(f.device_id || '?');
   }
   const map = {};
   for (const key of Object.keys(votes)) {
     const parts = key.split('|');
     const st = map[parts[0]] = map[parts[0]] || {};
-    st[parts[1]] = st[parts[1]] || { yes: 0, no: 0 };
-    st[parts[1]][parts[2]] = votes[key].size;
+    st[parts[1]] = st[parts[1]] || { yes: 0, no: 0, yesOnSite: 0, noOnSite: 0 };
+    st[parts[1]][parts[2]] = votes[key].devs.size;
+    st[parts[1]][parts[2] + 'OnSite'] = votes[key].onSite.size;
   }
   folkMap = map; folkMapAt = now; folkMapCount = allFeedback.length;
   return map;
 }
 function folkVerdict(c) {
   if (!c) return null;
-  if (c.yes >= 2 && c.yes > c.no) return { verdict: 'yes', votes: c.yes, strong: c.yes >= 3 };
-  if (c.no >= 2 && c.no > c.yes) return { verdict: 'no', votes: c.no, strong: c.no >= 3 };
-  if (c.yes >= 1 && c.no >= 1) return { verdict: 'conflict', votes: c.yes + c.no, strong: false };
+  if (c.yes >= 2 && c.yes > c.no) return { verdict: 'yes', votes: c.yes, strong: c.yes >= 3, onSite: c.yesOnSite || 0 };
+  if (c.no >= 2 && c.no > c.yes) return { verdict: 'no', votes: c.no, strong: c.no >= 3, onSite: c.noOnSite || 0 };
+  if (c.yes >= 1 && c.no >= 1) return { verdict: 'conflict', votes: c.yes + c.no, strong: false, onSite: 0 };
   return null;
 }
 function folkCounts(stationId, fuel) { return (getFolkMap()[stationId] || {})[fuel] || null; }
@@ -2811,7 +2872,8 @@ async function quickSend(stationId) {
   const history = JSON.parse(localStorage.getItem(key) || '[]');
   const now = Date.now();
   if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
-  rows.forEach(r => { r.station_id = stationId; r.device_id = deviceId; });
+  const onSite = await onSiteFields(allStations.find(s => s.id === stationId));
+  rows.forEach(r => { r.station_id = stationId; r.device_id = deviceId; Object.assign(r, onSite); });
 let qok = true;
   try { await dbInsert('user_feedback', rows); } catch (e) { qok = false; }
   if (!qok) {
@@ -2909,7 +2971,7 @@ function addPin(it, fromCenter, zoomChanged, chipsBlocked) {
     for (const s of srcFuels) if (s[2] === null || s[2] === undefined) {
       const c = folkCounts(st.id, s[0]);
       const v = folkVerdict(c);
-      if (v && v.verdict === 'yes') { avail.push({ t: s[1] + (v.strong ? ' · народ подтвердил: ' + v.votes : ' · народ: ' + v.votes + ' мнения'), q: 0, k: s[0] }); fuelInfo++; }
+      if (v && v.verdict === 'yes') { avail.push({ t: s[1] + (v.strong ? ' · народ подтвердил: ' + v.votes : ' · народ: ' + v.votes + ' мнения') + (v.onSite ? ' · 📍' + v.onSite : ''), q: 0, k: s[0] }); fuelInfo++; }
       else if (v && v.verdict === 'no') { avail.push({ t: s[1] + ' нет · народ: ' + v.votes, q: -2, k: s[0] }); fuelInfo++; }
       else if (v && v.verdict === 'conflict') { avail.push({ t: s[1] + ' · разные мнения', q: -3, k: s[0] }); fuelInfo++; }
       else if (c && c.yes === 1 && c.no === 0) { avail.push({ t: s[1] + ' · народ', q: 0, k: s[0] }); fuelInfo++; }
