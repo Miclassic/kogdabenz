@@ -940,8 +940,8 @@ function feedbackPanel(stationId) {
 const ON_SITE_RADIUS_M = 200;
 const ON_SITE_MAX_AGE_MIN = 15;
 function distMeters(lat1, lon1, lat2, lon2) {
-  const dLat = (lat2 - lat1) * 111;
-  const dLon = (lon2 - lon1) * 111 * Math.cos(lat1 * Math.PI / 180);
+  const dLat = (lat2 - lat1) * 111000;
+  const dLon = (lon2 - lon1) * 111000 * Math.cos(lat1 * Math.PI / 180);
   return Math.round(Math.sqrt(dLat * dLat + dLon * dLon));
 }
 function recentLocFallback() {
