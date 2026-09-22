@@ -1561,7 +1561,7 @@ function renderAccuracy() {
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">улучшение модели · ошибка по неделям</div>' + trendHtml + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">как часто какая ошибка бывает</div>' + histSvg + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз и факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
-    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Из ' + verified.length + ' проверенных измерено ' + measured.length + ', ещё ' + (verified.length - measured.length) + ' ждут факта возврата — в ошибку они не входят. Проверяем каждую ночь в 02:10.</div>';
+    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Верификатор проверил ' + verified.length + ' прогнозов: у ' + measured.length + ' уже случился факт возврата (их ошибка измерена), у ' + (verified.length - measured.length) + ' топливо ещё не вернулось (они ждут факта, в ошибку не входят). Проверяем каждую ночь в 02:10.</div>';
 }
 /* окошко «что это?» для чипов: простое объяснение + полезная добавка */
 function covNowCount() {
