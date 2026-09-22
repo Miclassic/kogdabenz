@@ -1468,8 +1468,9 @@ function renderAccuracy() {
   const baseErrs = measured.filter(p => p.baseline_error_minutes !== null && p.baseline_error_minutes !== undefined)
     .map(p => Math.abs(p.baseline_error_minutes)).sort((a, b) => a - b);
   const baseMed = baseErrs.length ? Math.round(quantileOf(baseErrs, 0.5)) : null;
+  const ratioTxt = (baseMed && med && baseMed > med) ? 'в ' + (baseMed / med).toFixed(1).replace('.', ',') + ' раза точнее простого' : null;
   const succ = verified.filter(p => p.result === 'SUCCESS').length;
-  const succTxt = verified.length >= 10 ? Math.round(100 * succ / verified.length) + '%' : 'мало данных';
+  const succTxt = succ + ' из ' + verified.length;
   const limits = [30, 60, 120, 240];
   const labels = ['≤30м', '≤1ч', '≤2ч', '≤4ч', '>4ч'];
   const counts = [0, 0, 0, 0, 0];
@@ -1517,14 +1518,15 @@ function renderAccuracy() {
   }).join('');
   body.innerHTML =
     '<div class="chips3" style="grid-template-columns:1fr">' +
-    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accChecked\')"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено ночами</small><b>' + verified.length + ' прогнозов</b></div></div>' +
     '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accErr\')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Ошибка обычно</small><b>' + fmtErrMin(med) + '</b></div></div>' +
-    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accHit\')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попали в окно</small><b>' + succTxt + '</b></div></div>' +
+    (ratioTxt ? '<div class="chip3"><svg class="ic"><use href="#i-spark"/></svg><div><small>Против простого способа</small><b>' + ratioTxt + '</b></div></div>' : '') +
+    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accHit\')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Попали точно в окно</small><b>' + succTxt + '</b></div></div>' +
+    '<div class="chip3 tap why-tap" onclick="openWhyChip(this,\'accChecked\')"><svg class="ic"><use href="#i-check"/></svg><div><small>Проверено ночами</small><b>' + verified.length + ' прогнозов</b></div></div>' +
     '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">сравниваем с простым способом</div>' + cmpSvg + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">как часто какая ошибка бывает</div>' + histSvg + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз и факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
-    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Проверяем каждую ночь в 02:10; прогнозы, по которым факт ещё не случился, показываем отдельно и в обучение не берём.</div>';
+    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Из ' + verified.length + ' проверенных измерено ' + measured.length + ', ещё ' + (verified.length - measured.length) + ' ждут факта возврата — в ошибку они не входят. Проверяем каждую ночь в 02:10.</div>';
 }
 /* окошко «что это?» для чипов: простое объяснение + полезная добавка */
 function covNowCount() {
