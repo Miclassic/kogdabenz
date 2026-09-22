@@ -1098,7 +1098,7 @@ function clearRoute() {
   const plate = document.getElementById('routePlate');
   if (plate) plate.classList.remove('open');
 }
-async function drawRouteTo(st) {async function drawRouteTo(st) {
+async function drawRouteTo(st) {
   const stLon = Number(st.lon), stLat = Number(st.lat);
   const fallbackFly = () => { mapObj.stop(); mapObj.easeTo({ center: [stLon, stLat], zoom: 15, duration: 900 }); };
   let loc = loadUserLocation();
