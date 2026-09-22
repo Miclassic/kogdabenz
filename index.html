@@ -1103,6 +1103,26 @@ function renderHeat() {
   const byHour = {};
   for (const r of fuelHourly) byHour[new Date(r.hour).getHours()] = r;
   const last = fuelHourly.length ? fuelHourly[fuelHourly.length - 1] : null;
+  // Слова-подписи берём из последних отметок КАЖДОЙ станции (тот же источник,
+  // что чипы и шапка), а не из незакрытого текущего часа тепловой истории:
+  // в начале часа в бакет успевают попасть не все станции и доля проседает.
+  const lastObs = getLastObservations();
+  let k92 = 0, a92 = 0, k95 = 0, a95 = 0, kdt = 0, adt = 0, tot = 0, qh = 0;
+  for (const id of cityStationList().map(s => s.id)) {
+    const o = lastObs[id];
+    if (!o) continue;
+    tot++;
+    if (o.fuel_92_status !== null && o.fuel_92_status !== undefined) { k92++; if (o.fuel_92_status) a92++; }
+    if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { k95++; if (o.fuel_95_status) a95++; }
+    if (o.diesel_status !== null && o.diesel_status !== undefined) { kdt++; if (o.diesel_status) adt++; }
+    if (o.queue_level === 'high') qh++;
+  }
+  const nowStat = {
+    'АИ-92': k92 ? a92 / k92 : null,
+    'АИ-95': k95 ? a95 / k95 : null,
+    'Дизель': kdt ? adt / kdt : null,
+    'Очереди': tot ? qh / tot : null
+  };
   let html = '';
   for (const row of heatRows()) {
     let cells = '';
@@ -1111,13 +1131,19 @@ function renderHeat() {
       const v = r ? row.bad(r) : null;
       cells += '<div class="hm-cell" style="background:' + (v === null ? '#eef2f8' : badColor(v)) + '"></div>';
     }
-    const s = last ? row.stat(last) : null;
+    const s = nowStat[row.label] !== undefined ? nowStat[row.label] : null;
     let stTxt = '—', stCls = 'n';
     if (s !== null) {
-      // подпись в той же шкале «плохости» 0..1, что и цвет клетки:
-      // зелёное слово до четверти шкалы, жёлтое до 60%, дальше красное
-      const v = row.inv ? Math.min(1, s / 0.3) : 1 - s;
-      const good = v < 0.25 ? 2 : v < 0.6 ? 1 : 0;
+      // очереди — в той же шкале «плохости» 0..1, что и цвет клетки;
+      // топливо — честно по смыслу: «нет» только при нуле станций с топливом,
+      // иначе даже 4 из 10 — это «мало», а не «нет»
+      let good;
+      if (row.inv) {
+        const v = Math.min(1, s / 0.3);
+        good = v < 0.25 ? 2 : v < 0.6 ? 1 : 0;
+      } else {
+        good = s <= 0 ? 0 : s < 0.6 ? 1 : 2;
+      }
       if (good === 2) { stTxt = row.inv ? 'низкая' : 'есть'; stCls = 'g'; }
       else if (good === 1) { stTxt = row.inv ? 'средняя' : 'мало'; stCls = 'y'; }
       else { stTxt = row.inv ? 'высокая' : 'нет'; stCls = 'r'; }
