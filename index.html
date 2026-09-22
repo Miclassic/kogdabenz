@@ -63,6 +63,19 @@ body { overflow:hidden; }
 .hello-list b { color:#14213d; }
 .hello-pop .cta-btn { width:100%; }
 .hello-pop .cta-btn.ghost { margin-top:6px; }
+.install-back { position:fixed; inset:0; background:rgba(15,27,51,.45); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:82; }
+.install-back.open { opacity:1; pointer-events:auto; }
+.install-pop { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.95); width:min(330px, calc(100vw - 32px)); max-height:82dvh; overflow-y:auto; background:#fff; border-radius:22px; padding:16px; box-shadow:0 24px 60px rgba(15,27,51,.35); z-index:83; opacity:0; pointer-events:none; transition:.25s; }
+.install-pop.open { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+.install-head { display:flex; align-items:center; gap:12px; }
+.install-head .logo { width:44px; height:44px; border-radius:14px; }
+.install-title { font-size:15px; font-weight:900; letter-spacing:-.4px; }
+.install-sub { margin-top:2px; color:#5b6b86; font-size:10.5px; line-height:1.4; font-weight:600; }
+.install-steps { margin:10px 0 4px; display:flex; flex-direction:column; gap:6px; }
+.install-step { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; background:#f4f7fc; border:1px solid #e6ebf4; color:#33445f; font-size:11px; font-weight:700; line-height:1.35; }
+.install-step b { flex:0 0 auto; width:18px; height:18px; border-radius:50%; background:#2465ee; color:#fff; display:grid; place-items:center; font-size:10px; font-weight:900; }
+.install-pop .cta-btn { width:100%; }
+.install-pop .cta-btn.ghost { margin-top:6px; }
 .tagline { margin:0 2px 6px; min-height:46px; }
 .tagline-slogan { font-size:14px; font-weight:900; letter-spacing:-.3px; }
 .tagline-slogan span { color:var(--blue); }
@@ -320,6 +333,14 @@ body { overflow:hidden; }
 .route-plate .ic { color:#2465ee; flex:0 0 auto; }
 .route-plate span { min-width:0; }
 .route-plate button { margin-left:auto; flex:0 0 auto; border:0; background:#eef2f9; color:#5b6b86; width:26px; height:26px; border-radius:9px; display:grid; place-items:center; cursor:pointer; }
+.loc-chip { position:absolute; left:50%; transform:translateX(-50%); bottom:58px; z-index:6; display:none; align-items:center; gap:6px; border:0; border-radius:99px; padding:9px 14px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.9); color:#33445f; font-size:10.5px; font-weight:800; box-shadow:0 10px 26px rgba(15,27,51,.18); cursor:pointer; white-space:nowrap; max-width:calc(100% - 20px); }
+.loc-chip.on { background:#e7f0ff; color:#2465ee; border-color:#bcd4ff; }
+.loc-plate { position:absolute; left:10px; right:10px; top:52px; z-index:6; display:none; align-items:center; gap:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#fdecec,#fde0de); border:1px solid #f3b7b3; color:#c2403f; font-size:10.5px; font-weight:800; line-height:1.35; box-shadow:0 10px 26px rgba(194,64,63,.18); }
+.loc-plate.open { display:flex; }
+.loc-plate button { flex:0 0 auto; border:0; border-radius:10px; padding:7px 10px; background:#c2403f; color:#fff; font-size:10px; font-weight:850; cursor:pointer; }
+.loc-plate .lp-x { margin-left:auto; background:transparent; color:#c2403f; padding:4px 6px; }
+.mring button.route { background:linear-gradient(135deg,#20b989,#15976d); border-color:transparent; color:#fff; }
+.mring button.route .ic { color:#fff; }
 .mpin .ic { transform:rotate(45deg); width:15px; height:15px; }
 .mpin.yes { background:#e5f8ef; border-color:#1bb978; color:#12855c; }
 .mpin.no { background:#fdecec; border-color:#ef5350; color:#d64d51; }
@@ -342,6 +363,7 @@ body { overflow:hidden; }
 @keyframes ringFade { from { opacity:0; } to { opacity:1; } }
 .mpin-name { position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; white-space:nowrap; opacity:.45; transition:opacity .2s ease; }
 .mpin-name.on { opacity:1; }
+.mpin-name.ring { bottom:calc(100% + 56px); }
 .mpin-name b { display:flex; align-items:center; justify-content:center; gap:4px; font-size:10px; font-weight:900; letter-spacing:-.2px; color:#14213d; text-shadow:0 1px 0 rgba(255,255,255,.92), 0 0 8px rgba(255,255,255,.75); }
 .mpin-logo { width:14px; height:14px; flex:0 0 auto; display:grid; place-items:center; }
 .mpin-logo img { width:100%; height:100%; object-fit:contain; }
@@ -594,6 +616,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
         <div class="route-plate" id="routePlate"></div>
+        <div class="loc-plate" id="locPlate"><span>Мы заметили, что вы в другом месте: точка GPS пришла неточно (похоже на глушилки). Если это так — нажмите</span><button onclick="toggleManualLoc()">сюда</button><button class="lp-x" onclick="dismissLocPlate()" aria-label="Скрыть">✕</button></div>
+        <button class="loc-chip" id="locChip" onclick="toggleManualLoc()"></button>
       </div>
       <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
       <div class="hm-legend map-legend" style="margin-top:0">
@@ -654,6 +678,24 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
     </ul>
     <button class="cta-btn" onclick="closeHello(false)">Понятно, смотрю</button>
     <button class="cta-btn ghost" onclick="closeHello(true)">Расскажите подробнее</button>
+  </div>
+  <div class="install-back" id="installBack" onclick="closeInstallPop(true)"></div>
+  <div class="install-pop" id="installPop">
+    <div class="install-head">
+      <div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
+      <div>
+        <div class="install-title">КогдаБенз всегда под рукой</div>
+        <div class="install-sub">Добавьте сайт на домашний экран — откроется как обычное приложение</div>
+      </div>
+    </div>
+    <ul class="hello-list">
+      <li>Иконка на экране телефона — не искать вкладку в браузере</li>
+      <li>Открывается во весь экран, без полос и адресной строки</li>
+      <li>Работает быстрее при плохой связи: часть данных кэшируется</li>
+    </ul>
+    <div class="install-steps" id="installSteps" style="display:none"></div>
+    <button class="cta-btn" id="installBtn" onclick="installRun()"></button>
+    <button class="cta-btn ghost" onclick="closeInstallPop(true)">Позже</button>
   </div>
 </div>
 <script>
@@ -1075,6 +1117,74 @@ function closeSheet() {
   // центр и зум не тронуты (карта не пересоздавалась), место то же
   if (sheetFromMap) { sheetFromMap = false; pagerGo(2); }
 }
+/* Линия маршрута на отдельном 2D-канвасе поверх карты: GL-слои на этом
+   устройстве линию не отрисовали дважды (отдельный источник, затем источник
+   зон), а обычный канвас рисуется гарантированно. Перерисовка на каждом
+   движении карты; крестик на плашке очищает канвас. */
+function routeCanvasEl() {
+  if (!mapObj) return null;
+  let cv = document.getElementById('routeCanvas');
+  if (!cv) {
+    cv = document.createElement('canvas');
+    cv.id = 'routeCanvas';
+    cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4';
+    mapObj.getContainer().appendChild(cv);
+    mapObj.on('move', drawRouteCanvas);
+    mapObj.on('resize', drawRouteCanvas);
+  }
+  return cv;
+}
+function drawRouteCanvas() {
+  const cv = document.getElementById('routeCanvas');
+  if (!cv || !mapObj) return;
+  const box = mapObj.getContainer().getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.max(1, Math.round(box.width * dpr)), H = Math.max(1, Math.round(box.height * dpr));
+  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, box.width, box.height);
+  if (!routeFeature || !routeFeature.geometry) return;
+  const coords = routeFeature.geometry.coordinates;
+  const step = Math.max(1, Math.floor(coords.length / 400));
+  const pts = [];
+  for (let i = 0; i < coords.length; i += step) pts.push(mapObj.project([coords[i][0], coords[i][1]]));
+  const lastC = coords[coords.length - 1];
+  pts.push(mapObj.project([lastC[0], lastC[1]]));
+  // линия как в навигаторе: мягкая синяя тень → белая окантовка → синий
+  // стержень; углы сглажены квадратами через середины отрезков — лаконично
+  const trace = () => {
+    g.beginPath();
+    g.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
+      g.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+    }
+    const lp = pts[pts.length - 1];
+    g.lineTo(lp.x, lp.y);
+  };
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  // фокус на маршруте: лёгкая мягкая вуаль по всей карте, затем вокруг
+  // линии вырезается коридор с пером (края затухают ступенями) — внимание
+  // остаётся на маршруте, остальное уходит в тень
+  // туман только в обзорном виде: на уличном зуме карта чистая и цветная,
+  // между z 14 и 15.2 вуаль и коридоры плавно тают — на глубоком зуме серая
+  // каша и «прожекторы» не мешают читать улицы
+  const veil = Math.max(0, Math.min(1, (15.2 - mapObj.getZoom()) / 1.2));
+  if (veil > 0.02) {
+    g.fillStyle = 'rgba(20,33,61,' + (0.22 * veil).toFixed(3) + ')';
+    g.fillRect(0, 0, box.width, box.height);
+    g.globalCompositeOperation = 'destination-out';
+    trace(); g.strokeStyle = 'rgba(0,0,0,' + veil.toFixed(3) + ')'; g.lineWidth = 26; g.stroke();
+    trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.6 * veil).toFixed(3) + ')'; g.lineWidth = 46; g.stroke();
+    trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.3 * veil).toFixed(3) + ')'; g.lineWidth = 68; g.stroke();
+    trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.12 * veil).toFixed(3) + ')'; g.lineWidth = 120; g.stroke();
+    g.globalCompositeOperation = 'source-over';
+  }
+  trace(); g.strokeStyle = 'rgba(23,70,200,.16)'; g.lineWidth = 12; g.stroke();
+  trace(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 8.5; g.stroke();
+  trace(); g.strokeStyle = '#2465ee'; g.lineWidth = 5; g.stroke();
+}
 function showOnMap(id) {
   const st = allStations.find(s => s.id === id);
   if (!st) return;
@@ -1094,6 +1204,7 @@ function showOnMap(id) {
 function mapReady() { return mapObj.isStyleLoaded() ? Promise.resolve() : new Promise(res => mapObj.once('load', res)); }
 function clearRoute() {
   routeFeature = null;
+  drawRouteCanvas();
   if (mapObj && zoneReady) renderMap();
   if (window.__routeEndMarker) { window.__routeEndMarker.remove(); window.__routeEndMarker = null; }
   const plate = document.getElementById('routePlate');
@@ -1141,6 +1252,8 @@ async function drawRouteTo(st) {
   // доказанно работает (лужи рисуются), в отличие от отдельного geojson-источника
   routeFeature = { type: 'Feature', properties: { color: '#2465ee', kind: 'route' }, geometry: rt.geometry };
   renderMap();
+  routeCanvasEl();
+  drawRouteCanvas();
   // маркер финиша на АЗС — даже если линия не видна (очень редкий случай),
   // цель поездки очевидна: синий флаг на пине АЗС
   if (!window.__routeEndMarker) {
@@ -1955,6 +2068,49 @@ let sheetFromMap = false;
 let queueById = {};
 let clusterHits = [], pinHits = [];
 let userMarker = null;
+// === ручная точка под глушилки РЭБ ===
+// GPS под глушилками врёт: точность деградирует или точка улетает вне юга.
+// Заметили — красная плашка и чип «указать своё местоположение»; в ручном
+// режиме пин двигается тапом по карте или перетаскиванием. Ручная точка
+// перекрывает GPS (kbManualLoc); кнопка «Рядом» сбрасывает её в авто.
+let manualMode = false, geoSuspect = false, locPlateDismissed = false;
+function manualLoc() {
+  try { const m = JSON.parse(localStorage.getItem('kbManualLoc') || 'null'); return m && Number.isFinite(m.lat) && Number.isFinite(m.lon) ? m : null; } catch (e) { return null; }
+}
+function geoLooksSuspect(pos) {
+  if (!pos || !pos.coords) return true;
+  if (pos.coords.accuracy > 300) return true;
+  const la = pos.coords.latitude, lo = pos.coords.longitude;
+  return !(la >= 42.9 && la <= 46.4 && lo >= 36.9 && lo <= 41.9);
+}
+function saveManualLoc(lat, lon) {
+  try { localStorage.setItem('kbManualLoc', JSON.stringify({ lat: lat, lon: lon, t: Date.now() })); } catch (e) {}
+  saveUserLocation(lat, lon);
+  detectUserCity();
+  const mg1 = document.getElementById('mgCityLbl'); if (mg1) mg1.textContent = userCityName();
+  const mg2 = document.getElementById('mgScopeCityTxt'); if (mg2) mg2.textContent = userCityName();
+  renderStations(cityStationList());
+  refreshLocChip();
+}
+function setGeoSuspect(v) { geoSuspect = v; refreshLocChip(); }
+function dismissLocPlate() { locPlateDismissed = true; refreshLocChip(); }
+function toggleManualLoc() {
+  manualMode = !manualMode;
+  if (userMarker && userMarker.setDraggable) userMarker.setDraggable(manualMode);
+  refreshLocChip();
+}
+function refreshLocChip() {
+  const chip = document.getElementById('locChip');
+  const plate = document.getElementById('locPlate');
+  if (chip) {
+    chip.style.display = (geoSuspect || manualMode || manualLoc()) ? 'flex' : 'none';
+    chip.classList.toggle('on', manualMode);
+    chip.innerHTML = manualMode
+      ? icon('i-check', 'ic-s') + 'точка ставится: тапни по карте или тяни её · ещё тап — готово'
+      : icon('i-pin', 'ic-s') + 'указать своё местоположение';
+  }
+  if (plate) plate.classList.toggle('open', geoSuspect && !manualMode && !locPlateDismissed);
+}
 let floatChips = [];
 function clearFloatChips() {
   for (const el of floatChips) if (el.parentNode) el.parentNode.removeChild(el);
@@ -2079,6 +2235,8 @@ mapObj = new maplibregl.Map({
     mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
     mapObj.addLayer({ id: 'zones-core', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'core'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.24 } });
     mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.24, 'line-width': 1.2, 'line-dasharray': [1, 1.8] } });
+    if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
+    if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
     // линия маршрута едет на том же (рабочем) источнике zones отдельным kind:
     // белая подложка + сплошная синяя сверху; пульс зон её не трогает
     if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
@@ -2134,6 +2292,12 @@ mapObj = new maplibregl.Map({
       }, 120);
     }
   }, { capture: true });
+  // ручная точка: тап по карте в ручном режиме передвигает ваш пин
+  mapObj.on('click', e => {
+    if (!manualMode) return;
+    showUserMarker(e.lngLat.lat, e.lngLat.lng);
+    saveManualLoc(e.lngLat.lat, e.lngLat.lng);
+  });
   let moveTick = false;
   mapObj.on('moveend', () => {
     if (moveTick) return;
@@ -2385,6 +2549,7 @@ function renderMap() {
     }
   }
   if (routeFeature) feats.push(routeFeature);
+  if (routeFeature) feats.push(routeFeature);
   mapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
   if (zoom < 13) {
     // свои кластеры: сетка ~70px текущего зума
@@ -2474,7 +2639,7 @@ function closeRing() {
       wrapEl.removeChild(activeRing);
       if (!wrapEl.querySelector('.mquick')) {
         const pn = wrapEl.querySelector('.mpin-name');
-        if (pn) pn.classList.remove('on');
+        if (pn) { pn.classList.remove('on'); pn.classList.remove('ring'); }
       }
     }
   }
@@ -2495,7 +2660,7 @@ function openRing(st, wrap) {
   const fc = wrap.querySelector('.fchips');
   if (fc) fc.style.display = 'none';
   const pn = wrap.querySelector('.mpin-name');
-  if (pn) pn.classList.add('on');
+  if (pn) { pn.classList.add('on'); pn.classList.add('ring'); }
   const ring = document.createElement('div');
   ring.className = 'mring';
   // кольцо вешаем на каплю сразу: кнопкам нужно быть в DOM,
@@ -2504,11 +2669,13 @@ function openRing(st, wrap) {
   const fav = isFavorite(st.id);
   const actions = [
     { icon: 'i-heart', label: fav ? 'Убрать из избранного' : 'В избранное', side: 'left', dy: -2, run: () => { toggleFavoriteById(st.id); closeRing(); } },
+    { icon: 'i-truck', label: 'Построить маршрут', side: 'top', dy: -52, cls: 'route', run: () => { closeRing(); drawRouteTo(st); } },
     { icon: 'i-check', label: 'Отметка', side: 'bottom', dy: 52, run: () => { closeRing(); openQuick(st, wrap); } },
     { icon: 'i-pump', label: 'Карточка АЗС', side: 'right', dy: -2, run: () => { closeRing(); sheetFromMap = true; openSheet(st.id); } }
   ];
   for (const a of actions) {
     const b = document.createElement('button');
+    if (a.cls) b.classList.add(a.cls);
     b.style.top = a.dy + 'px';
     b.innerHTML = icon(a.icon, 'ic-s') + a.label;
     ring.appendChild(b);
@@ -2533,7 +2700,7 @@ function closeQuick() {
     if (activeQuick.el && activeQuick.el.parentNode) activeQuick.el.parentNode.removeChild(activeQuick.el);
     if (wrapEl && !wrapEl.querySelector('.mring')) {
       const pn = wrapEl.querySelector('.mpin-name');
-      if (pn) pn.classList.remove('on');
+      if (pn) { pn.classList.remove('on'); pn.classList.remove('ring'); }
     }
   }
   activeQuick = null;
@@ -2887,6 +3054,8 @@ async function start() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(position => {
       const lat = position.coords.latitude, lon = position.coords.longitude;
+      setGeoSuspect(geoLooksSuspect(position));
+      if (manualLoc()) return; // точка поставлена вручную — GPS под глушилками её не затирает
       saveUserLocation(lat, lon);
       showUserMarker(lat, lon);
       detectUserCity();
@@ -3066,6 +3235,8 @@ function cityStationList() {
 }
 
 function loadUserLocation() {
+  const m = manualLoc();
+  if (m) return { lat: m.lat, lon: m.lon };
   try {
     const saved = localStorage.getItem('userLocation');
     if (!saved) return null;
@@ -3081,7 +3252,9 @@ function showUserMarker(lat, lon) {
     const el = document.createElement('div');
     el.className = 'user-dot';
     el.style.zIndex = '10';
-    userMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lon, lat]).addTo(mapObj);
+    userMarker = new maplibregl.Marker({ element: el, anchor: 'center', draggable: !!manualMode }).setLngLat([lon, lat]).addTo(mapObj);
+    // перетащили пин в ручном режиме = то же, что тап по карте: точка ручная
+    userMarker.on('dragend', () => { const ll = userMarker.getLngLat(); saveManualLoc(ll.lat, ll.lng); });
   } else {
     userMarker.setLngLat([lon, lat]);
   }
@@ -3098,6 +3271,8 @@ function findNearby() {
   if (!navigator.geolocation) { alert('Ваш браузер не поддерживает определение местоположения.'); return; }
   navigator.geolocation.getCurrentPosition(position => {
     const lat = position.coords.latitude, lon = position.coords.longitude;
+    try { localStorage.removeItem('kbManualLoc'); } catch (e) {}
+    setGeoSuspect(false);
     saveUserLocation(lat, lon);
     detectUserCity();
     const mgCityLbl = document.getElementById('mgCityLbl');
@@ -3173,7 +3348,7 @@ function closeHello(more) {
   document.getElementById('helloPop').classList.remove('open');
   document.getElementById('helloBack').classList.remove('open');
   try { localStorage.setItem('seenHello', '1'); } catch (e) {}
-  if (more) openHelp();
+  if (more) openHelp(); else setTimeout(maybeInstallPop, 500);
 }
 function maybeHello() {
   let seen = false;
@@ -3183,6 +3358,68 @@ function maybeHello() {
     document.getElementById('helloPop').classList.add('open');
     document.getElementById('helloBack').classList.add('open');
   }, 600);
+}
+// === Установка на домашний экран (PWA): красивая подсказка водителю ===
+// Android Chrome даёт системный диалог (beforeinstallprompt) — кнопка
+// «Установить приложение»; iOS и прочие — три коротких шага под платформу.
+// Показываем один раз на устройство (localStorage.seenInstall), не раньше
+// приветствия и никогда в standalone (уже стоит как приложение).
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
+window.addEventListener('appinstalled', () => { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} closeInstallPop(false); });
+function isStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+}
+function isIOSDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function installStepsHtml() {
+  if (isIOSDevice()) return '<div class="install-step"><b>1</b>В Safari нажмите «Поделиться» — квадрат со стрелкой внизу</div>' +
+    '<div class="install-step"><b>2</b>Выберите «На экран “Домой”»</div>' +
+    '<div class="install-step"><b>3</b>Нажмите «Добавить» — иконка появится на экране</div>';
+  return '<div class="install-step"><b>1</b>Откройте меню браузера (⋮ или ≡)</div>' +
+    '<div class="install-step"><b>2</b>Выберите «Установить приложение» или «Добавить на главный экран»</div>' +
+    '<div class="install-step"><b>3</b>Подтвердите — иконка появится на экране</div>';
+}
+function maybeInstallPop() {
+  if (isStandalone()) return;
+  let seen = false;
+  try { seen = !!localStorage.getItem('seenInstall'); } catch (e) { seen = true; }
+  if (seen) return;
+  const hb = document.getElementById('helloBack');
+  if (hb && hb.classList.contains('open')) return; // сначала приветствие, установка — следом
+  const pop = document.getElementById('installPop');
+  const back = document.getElementById('installBack');
+  if (!pop || !back || pop.classList.contains('open')) return;
+  const steps = document.getElementById('installSteps');
+  const btn = document.getElementById('installBtn');
+  if (steps) {
+    if (deferredInstall) { steps.style.display = 'none'; steps.innerHTML = ''; }
+    else { steps.style.display = ''; steps.innerHTML = installStepsHtml(); }
+  }
+  if (btn) btn.innerHTML = deferredInstall ? icon('i-spark') + 'Установить приложение' : icon('i-check') + 'Понятно, сделаю';
+  pop.classList.add('open');
+  back.classList.add('open');
+}
+function closeInstallPop(markSeen) {
+  const pop = document.getElementById('installPop');
+  const back = document.getElementById('installBack');
+  if (pop) pop.classList.remove('open');
+  if (back) back.classList.remove('open');
+  if (markSeen) { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} }
+}
+async function installRun() {
+  if (deferredInstall) {
+    try {
+      await deferredInstall.prompt();
+      const choice = await deferredInstall.userChoice;
+      if (choice && choice.outcome === 'accepted') { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} }
+      deferredInstall = null;
+    } catch (e) {}
+    closeInstallPop(true);
+    return;
+  }
+  closeInstallPop(true);
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
@@ -3195,12 +3432,14 @@ currentPanel = 1;
 setTagline(1);
 requestAnimationFrame(() => { const pg = document.getElementById('pager'); if (pg) pg.scrollLeft = pg.clientWidth; });
 maybeHello();
+setTimeout(maybeInstallPop, 1400);
 detectUserCity();
 const mgCityLbl = document.getElementById('mgCityLbl');
 if (mgCityLbl) mgCityLbl.textContent = userCityName();
 const cityBtnTxt = document.getElementById('mgScopeCityTxt');
 if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
 tickClock();
+refreshLocChip();
 setInterval(tickClock, 30000);
 // Плашка карты: мягкие края карусели — фейд только с той стороны,
 // куда есть куда скроллить; в упоре край чистый, ничего не «обрезано»
