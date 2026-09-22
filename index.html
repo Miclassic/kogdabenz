@@ -1468,7 +1468,16 @@ function renderAccuracy() {
   const baseErrs = measured.filter(p => p.baseline_error_minutes !== null && p.baseline_error_minutes !== undefined)
     .map(p => Math.abs(p.baseline_error_minutes)).sort((a, b) => a - b);
   const baseMed = baseErrs.length ? Math.round(quantileOf(baseErrs, 0.5)) : null;
-  const ratioTxt = (baseMed && med && baseMed > med) ? 'в ' + (baseMed / med).toFixed(1).replace('.', ',') + ' раза точнее простого' : null;
+  // Честное сравнение с простым способом — только по парным прогнозам
+  // (на одном и том же прогнозе измерены и наша ошибка, и ошибка простого).
+  // Медианы по разным выборкам (33 против 1) сравнивать нельзя.
+  const paired = measured.filter(p => p.baseline_error_minutes !== null && p.baseline_error_minutes !== undefined);
+  const pairedMed = paired.length ? Math.round(quantileOf(paired.map(p => Math.abs(p.error_minutes)).sort((a, b) => a - b), 0.5)) : null;
+  let ratioTxt = 'прямое сравнение копится: ' + paired.length + ' из 10';
+  if (paired.length >= 10 && baseMed && pairedMed !== null) {
+    const r = baseMed / Math.max(1, pairedMed);
+    ratioTxt = r > 1 ? 'в ' + Math.min(99, r).toFixed(1).replace('.', ',') + ' раза точнее простого' : 'пока не точнее простого: смотрим данные';
+  }
   const succ = verified.filter(p => p.result === 'SUCCESS').length;
   const succTxt = succ + ' из ' + verified.length;
   const limits = [30, 60, 120, 240];
@@ -1491,9 +1500,9 @@ function renderAccuracy() {
   });
   const histSvg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:' + H + 'px;display:block">' + bars + '</svg>';
   const cmpRows = [
-    { lbl: 'наш прогноз (обычно)', v: med, color: '#397cff' },
+    { lbl: 'наш прогноз · n ' + measured.length, v: med, color: '#397cff' },
     { lbl: 'наш прогноз (худшие 10%)', v: p90, color: '#7c6dff' },
-    { lbl: 'голый ритм (обычно)', v: baseMed, color: '#a7b1c1' }
+    { lbl: 'голый ритм · n ' + baseErrs.length, v: baseMed, color: '#a7b1c1' }
   ];
   const maxV = Math.max(1, med || 0, p90 || 0, baseMed || 0);
   let cmp = '';
@@ -1561,7 +1570,7 @@ function renderAccuracy() {
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">улучшение модели · ошибка по неделям</div>' + trendHtml + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">как часто какая ошибка бывает</div>' + histSvg + '</div>' +
     '<div class="hm-wrap"><div class="mini-cap" style="margin-bottom:4px">прогноз и факт · последние</div>' + (stHtml || '<div class="recent">Историй пока нет.</div>') + '</div>' +
-    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Верификатор проверил ' + verified.length + ' прогнозов: у ' + measured.length + ' уже случился факт возврата (их ошибка измерена), у ' + (verified.length - measured.length) + ' топливо ещё не вернулось (они ждут факта, в ошибку не входят). Проверяем каждую ночь в 02:10.</div>';
+    '<div class="recent">В среднем ошибаемся на ' + fmtErrMin(mean) + ', худшие 10% прогнозов — на ' + fmtErrMin(p90) + '. Верификатор проверил ' + verified.length + ' прогнозов: у ' + measured.length + ' уже случился факт возврата (их ошибка измерена), у ' + (verified.length - measured.length) + ' топливо ещё не вернулось (они ждут факта, в ошибку не входят). Кратность «против простого способа» считаем только по прогнозам, где измерены оба числа: сейчас таких ' + paired.length + ', при 10 чип покажет кратность. Проверяем каждую ночь в 02:10.</div>';
 }
 /* окошко «что это?» для чипов: простое объяснение + полезная добавка */
 function covNowCount() {
