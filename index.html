@@ -339,7 +339,7 @@ body { overflow:hidden; }
 .route-plate button { margin-left:auto; flex:0 0 auto; border:0; background:#eef2f9; color:#5b6b86; width:26px; height:26px; border-radius:9px; display:grid; place-items:center; cursor:pointer; }
 .loc-chip { position:absolute; left:50%; transform:translateX(-50%); bottom:58px; z-index:6; display:none; align-items:center; gap:6px; border:0; border-radius:18px; padding:9px 14px; background:rgba(255,255,255,.92); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.9); color:#33445f; font-size:10.5px; font-weight:800; line-height:1.35; text-align:center; box-shadow:0 10px 26px rgba(15,27,51,.18); cursor:pointer; max-width:calc(100% - 24px); }
 .loc-chip.on { background:#e7f0ff; color:#2465ee; border-color:#bcd4ff; }
-.loc-plate { position:absolute; left:10px; right:10px; top:52px; z-index:6; display:none; align-items:center; gap:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#fdecec,#fde0de); border:1px solid #f3b7b3; color:#c2403f; font-size:10.5px; font-weight:800; line-height:1.35; box-shadow:0 10px 26px rgba(194,64,63,.18); }
+.loc-plate { position:absolute; left:10px; right:10px; top:52px; z-index:6; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#fdecec,#fde0de); border:1px solid #f3b7b3; color:#c2403f; font-size:10.5px; font-weight:800; line-height:1.35; box-shadow:0 10px 26px rgba(194,64,63,.18); }
 .loc-plate.open { display:flex; }
 .loc-plate button { flex:0 0 auto; border:0; border-radius:10px; padding:7px 10px; background:#c2403f; color:#fff; font-size:10px; font-weight:850; cursor:pointer; }
 .loc-plate .lp-x { margin-left:auto; background:transparent; color:#c2403f; padding:4px 6px; }
@@ -622,7 +622,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
         <div class="route-plate" id="routePlate"></div>
-        <div class="loc-plate" id="locPlate"><span>Мы заметили, что вы в другом месте: точка GPS пришла неточно (похоже на глушилки). Если это так — нажмите</span><button onclick="toggleManualLoc()">сюда</button><button class="lp-x" onclick="dismissLocPlate()" aria-label="Скрыть">✕</button></div>
+        <div class="loc-plate" id="locPlate"><span>Мы заметили, что вы в другом месте: точка пришла неточно (глушилки) или вы далеко переместились. Если вы действительно там —</span><button onclick="acceptPendingFix()">я действительно здесь</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-x" onclick="dismissLocPlate()" aria-label="Скрыть">✕</button></div>
         <button class="loc-chip" id="locChip" onclick="toggleManualLoc()"></button>
       </div>
       <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
@@ -2203,6 +2203,35 @@ function geoLooksSuspect(pos) {
   const la = pos.coords.latitude, lo = pos.coords.longitude;
   return !(la >= 42.9 && la <= 46.4 && lo >= 36.9 && lo <= 41.9);
 }
+// Прыжок: новая точка дальше 5 км от последней принятой — молча верить нельзя:
+// это глушилки или реальный переезд. В обоих случаях спрашиваем водителя и
+// НЕ переписываем город/точку до подтверждения (кейс Кабардинка/Геленджик
+// внутри рабочей рамки: детект молчал, а город молча переключался).
+let pendingFix = null;
+function savedAutoLoc() {
+  try {
+    const s = JSON.parse(localStorage.getItem('userLocation') || 'null');
+    return s && Number.isFinite(s.lat) && Number.isFinite(s.lon) ? s : null;
+  } catch (e) { return null; }
+}
+function jumpSuspect(lat, lon) {
+  const s = savedAutoLoc();
+  if (!s || !s.t) return false;
+  if (Date.now() - s.t > 24 * 3600 * 1000) return false; // сохранение старше суток — о прыжке не судим
+  const dLat = (lat - s.lat) * 111, dLon = (lon - s.lon) * 111 * Math.cos(lat * Math.PI / 180);
+  return Math.sqrt(dLat * dLat + dLon * dLon) > 5;
+}
+function acceptPendingFix() {
+  if (!pendingFix) return;
+  saveUserLocation(pendingFix.lat, pendingFix.lon);
+  showUserMarker(pendingFix.lat, pendingFix.lon);
+  detectUserCity();
+  const mg1 = document.getElementById('mgCityLbl'); if (mg1) mg1.textContent = userCityName();
+  const mg2 = document.getElementById('mgScopeCityTxt'); if (mg2) mg2.textContent = userCityName();
+  renderStations(cityStationList());
+  pendingFix = null;
+  setGeoSuspect(false);
+}
 function saveManualLoc(lat, lon) {
   try { localStorage.setItem('kbManualLoc', JSON.stringify({ lat: lat, lon: lon, t: Date.now() })); } catch (e) {}
   saveUserLocation(lat, lon);
@@ -3181,8 +3210,10 @@ async function start() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(position => {
       const lat = position.coords.latitude, lon = position.coords.longitude;
-      setGeoSuspect(geoLooksSuspect(position));
+      const suspect = geoLooksSuspect(position) || jumpSuspect(lat, lon);
+      setGeoSuspect(suspect);
       if (manualLoc()) return; // точка поставлена вручную — GPS под глушилками её не затирает
+      if (suspect) { pendingFix = { lat: lat, lon: lon }; return; } // город и точку не переписываем до подтверждения
       saveUserLocation(lat, lon);
       showUserMarker(lat, lon);
       detectUserCity();
@@ -3400,6 +3431,7 @@ function findNearby() {
     const lat = position.coords.latitude, lon = position.coords.longitude;
     try { localStorage.removeItem('kbManualLoc'); } catch (e) {}
     setGeoSuspect(false);
+    pendingFix = null;
     saveUserLocation(lat, lon);
     detectUserCity();
     const mgCityLbl = document.getElementById('mgCityLbl');
