@@ -122,8 +122,29 @@ function eventStoryRu(e, name) {
 function fuelNameRu(f) {
   return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : '';
 }
+// Города юга боксами (те же, что CITY_BOXES сайта): в живой ленте строки
+// региона получают конкретный город вместо безликого «(регион)»,
+// а строки Новороссийска идут жирным — город владельца виден сразу.
+const CITY_BOXES = [
+  { name: 'Новороссийск', lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.00 },
+  { name: 'Геленджик', lat1: 44.45, lat2: 44.68, lon1: 37.95, lon2: 38.25 },
+  { name: 'Анапа', lat1: 44.80, lat2: 45.10, lon1: 37.20, lon2: 37.60 },
+  { name: 'Крымск', lat1: 44.85, lat2: 45.05, lon1: 37.85, lon2: 38.15 },
+  { name: 'Краснодар', lat1: 44.90, lat2: 45.15, lon1: 38.80, lon2: 39.15 },
+  { name: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
+  { name: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
+  { name: 'Армавир', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
+  { name: 'Майкоп', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 }
+];
+function cityOfStation(s) {
+  if (!s) return null;
+  for (const c of CITY_BOXES) if (s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2) return c.name;
+  return null;
+}
+// экранирование под HTML-режим Телеграма: имена и адреса приходят с источника как есть
+function escTg(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-async function tg(text) {
+async function tg(text, html) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chat = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chat) return;
@@ -135,7 +156,7 @@ async function tg(text) {
     await fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chat, text: text, disable_web_page_preview: true })
+      body: JSON.stringify(html ? { chat_id: chat, text: text, disable_web_page_preview: true, parse_mode: 'HTML' } : { chat_id: chat, text: text, disable_web_page_preview: true })
     });
   } catch (e) { console.log('   ! Телеграм: ' + e.message); }
 }
@@ -271,13 +292,22 @@ async function main() {
   const idByExt = {};
   for (const s of saved) idByExt[s.external_id] = s.id;
   const nameById = {};
-  const wideById = {};
-  const homeIdSet = new Set();
-  for (const s of saved) {
-    nameById[s.id] = (s.name || 'АЗС') + (s.address ? ' · ' + s.address : '');
-    wideById[s.id] = !(s.lat >= 44.60 && s.lat <= 44.85 && s.lon >= 37.55 && s.lon <= 38.05);
-    if (!s.region) homeIdSet.add(s.id);
-  }
+const wideById = {};
+const cityById = {};
+const homeIdSet = new Set();
+for (const s of saved) {
+  nameById[s.id] = escTg((s.name || 'АЗС') + (s.address ? ' · ' + s.address : ''));
+  wideById[s.id] = !(s.lat >= 44.60 && s.lat <= 44.85 && s.lon >= 37.55 && s.lon <= 38.05);
+  cityById[s.id] = cityOfStation(s);
+  if (!s.region) homeIdSet.add(s.id);
+}
+// подпись строки ленты: Новороссийск — жирным и без суффикса,
+// регион — конкретный город в скобках (или «(регион)», если вне всех боксов)
+function stationLabel(id) {
+  const base = nameById[id] || 'АЗС';
+  if (!wideById[id]) return '<b>' + base + '</b>';
+  return base + ' (' + (cityById[id] || 'регион') + ')';
+}
   const tgLines = [];
 
   console.log('3) Достаю последние наблюдения для сравнения...');
@@ -400,10 +430,7 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   }
   if (events.length) await sbPost('events', events);
   console.log('   Событий обнаружено: ' + events.length);
-  for (const e of events) tgLines.push(
-    eventStoryRu(e, (nameById[e.station_id] || 'АЗС') + (wideById[e.station_id] ? ' (регион)' : ''))
-  );
-
+  for (const e of events) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
   // === ШАГ 6: превращаем народные отметки user_feedback в события ===
   console.log('6) Обрабатываю народные отметки...');
   const unprocessed = await sbGet(
@@ -427,7 +454,7 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
       source: 'user_feedback'
     }));
     await sbPost('events', fbEvents);
-    for (const e of fbEvents) tgLines.push(eventStoryRu(e, nameById[e.station_id] || 'АЗС'));
+    for (const e of fbEvents) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
     const ids = unprocessed.map(f => f.id).join(',');
     await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
@@ -466,7 +493,7 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
     const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
     await tg('⚡ ' + hh + ' · ' + tgLines.length +
       (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
-      '\n' + tgLines.slice(0, 8).join('\n'));
+'\n' + tgLines.slice(0, 8).join('\n'), true);
   }
   console.log('✅ Цикл завершён');
 }

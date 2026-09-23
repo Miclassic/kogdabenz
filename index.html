@@ -1379,7 +1379,7 @@ function bandOf(cnt) {
 }
 function inBand(h, b) { return b[0] <= b[1] ? (h >= b[0] && h <= b[1]) : (h >= b[0] || h <= b[1]); }
 function cityQueueBand() {
-  const ids = new Set(cityStationList().map(s => s.id));
+  const ids = new Set(scopeIds());
   const mins = [];
   for (const e of allQueueEvents) if (ids.has(e.station_id)) {
     const d = new Date(new Date(e.detected_at).getTime() + 3 * 3600 * 1000);
@@ -1403,7 +1403,7 @@ function renderHeat() {
   // в начале часа в бакет успевают попасть не все станции и доля проседает.
   const lastObs = getLastObservations();
   let k92 = 0, a92 = 0, k95 = 0, a95 = 0, kdt = 0, adt = 0, tot = 0, qh = 0;
-  for (const id of cityStationList().map(s => s.id)) {
+  for (const id of scopeIds()) {
     const o = lastObs[id];
     if (!o) continue;
     tot++;
@@ -1421,7 +1421,7 @@ function renderHeat() {
   // окна прогноза справа от «сейчас»: топлива — по PENDING-прогнозам города
   // за сегодня, очереди — по медианному окну городских очередных событий
   const nowH = new Date().getHours();
-  const cityIds = new Set(cityStationList().map(s => s.id));
+  const cityIds = new Set(scopeIds());
   const todayStr = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
   const fuelOfRow = { 'АИ-92': '92', 'АИ-95': '95', 'Дизель': 'diesel' };
   const fcBand = { 'АИ-92': null, 'АИ-95': null, 'Дизель': null, 'Очереди': cityQueueBand() };
