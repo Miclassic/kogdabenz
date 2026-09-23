@@ -2859,6 +2859,9 @@ function openQuick(st, wrap) {
 async function quickSend(stationId) {
   const panel = document.getElementById('quick-' + stationId);
   if (!panel) return;
+  const sendBtn = panel.querySelector('.fb-send');
+  if (sendBtn && sendBtn.disabled) return; // двойной тап не должен слать пакет дважды
+  if (sendBtn) sendBtn.disabled = true;
   const rows = [];
   panel.querySelectorAll('.feedback-option.selected').forEach(b => {
     const fact = b.dataset.fact;
@@ -2870,11 +2873,11 @@ async function quickSend(stationId) {
     else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
     rows.push(base);
   });
-  if (!rows.length) { alert('Выберите хотя бы один факт.'); return; }
+  if (!rows.length) { alert('Выберите хотя бы один факт.'); if (sendBtn) sendBtn.disabled = false; return; }
   const key = 'fb_' + stationId;
   const history = JSON.parse(localStorage.getItem(key) || '[]');
   const now = Date.now();
-  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); if (sendBtn) sendBtn.disabled = false; return; }
   const onSite = await onSiteFields(allStations.find(s => s.id === stationId));
   rows.forEach(r => { r.station_id = stationId; r.device_id = deviceId; Object.assign(r, onSite); });
 let qok = true;
