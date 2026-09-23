@@ -622,7 +622,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
         <div class="route-plate" id="routePlate"></div>
-        <div class="loc-plate" id="locPlate"><span>Мы заметили, что вы в другом месте: точка пришла неточно (глушилки) или вы далеко переместились. Если вы действительно там —</span><button onclick="acceptPendingFix()">я действительно здесь</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-x" onclick="dismissLocPlate()" aria-label="Скрыть">✕</button></div>
+        <div class="loc-plate" id="locPlate"><span>GPS пришёл с большой ошибкой (глушилки): новая точка далеко от вашей обычной. Обычную точку сохранили — точка на карте ваша. Если вы действительно в новой точке —</span><button onclick="acceptPendingFix()">я в новой точке</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-x" onclick="dismissLocPlate()" aria-label="Оставить обычную точку">✕</button></div>
         <button class="loc-chip" id="locChip" onclick="toggleManualLoc()"></button>
       </div>
       <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
@@ -2242,7 +2242,11 @@ function saveManualLoc(lat, lon) {
   refreshLocChip();
 }
 function setGeoSuspect(v) { geoSuspect = v; refreshLocChip(); }
-function dismissLocPlate() { locPlateDismissed = true; refreshLocChip(); }
+function dismissLocPlate() {
+  locPlateDismissed = true;
+  try { localStorage.setItem('kbLocPlateDismissed', String(Date.now())); } catch (e) {}
+  refreshLocChip();
+}
 function toggleManualLoc() {
   manualMode = !manualMode;
   if (userMarker && userMarker.setDraggable) userMarker.setDraggable(manualMode);
@@ -2258,7 +2262,9 @@ function refreshLocChip() {
       ? icon('i-check', 'ic-s') + '<span>точка ставится: тапни по карте или тяни её<br>ещё тап по чипу — готово</span>'
       : icon('i-pin', 'ic-s') + 'указать своё местоположение';
   }
-  if (plate) plate.classList.toggle('open', geoSuspect && !manualMode && !locPlateDismissed);
+  let cool = false;
+  try { cool = Date.now() - Number(localStorage.getItem('kbLocPlateDismissed') || 0) < 6 * 3600 * 1000; } catch (e) {}
+  if (plate) plate.classList.toggle('open', geoSuspect && !manualMode && !locPlateDismissed && !cool);
 }
 let floatChips = [];
 function clearFloatChips() {
@@ -3430,8 +3436,9 @@ function findNearby() {
   navigator.geolocation.getCurrentPosition(position => {
     const lat = position.coords.latitude, lon = position.coords.longitude;
     try { localStorage.removeItem('kbManualLoc'); } catch (e) {}
+ pendingFix = null;
+    try { localStorage.removeItem('kbLocPlateDismissed'); } catch (e) {}
     setGeoSuspect(false);
-    pendingFix = null;
     saveUserLocation(lat, lon);
     detectUserCity();
     const mgCityLbl = document.getElementById('mgCityLbl');
