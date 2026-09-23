@@ -622,7 +622,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
         <div class="route-plate" id="routePlate"></div>
-        <div class="loc-plate" id="locPlate"><span>GPS пришёл с большой ошибкой (глушилки): новая точка далеко от вашей обычной. Обычную точку сохранили — точка на карте ваша. Если вы действительно в новой точке —</span><button onclick="acceptPendingFix()">я в новой точке</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-keep" onclick="dismissLocPlate()">всё верно, оставить обычную точку</button></div>
+        <div class="loc-plate" id="locPlate"><span>GPS пришёл с большой ошибкой (глушилки): новая точка далеко от вашей обычной. Обычную точку сохранили — точка на карте ваша. Если вы действительно в новой точке —</span><button onclick="acceptPendingFix()">я в новой точке</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-keep" id="locPlateKeep">всё верно, оставить обычную точку</button></div>
         <button class="loc-chip" id="locChip" onclick="toggleManualLoc()"></button>
       </div>
       <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
@@ -2266,6 +2266,17 @@ function refreshLocChip() {
   try { cool = Date.now() - Number(localStorage.getItem('kbLocPlateDismissed') || 0) < 6 * 3600 * 1000; } catch (e) {}
   if (plate) plate.classList.toggle('open', geoSuspect && !manualMode && !locPlateDismissed && !cool);
 }
+// «Всё верно, оставить обычную точку»: вешаем через делегирование в capture-фазе —
+// inline onclick именно этой кнопки на телефоне не срабатывал (кейс 24.09),
+// так обработчик не зависит ни от атрибутов, ни от имени функции
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t && t.closest && t.closest('#locPlateKeep')) {
+    locPlateDismissed = true;
+    try { localStorage.setItem('kbLocPlateDismissed', String(Date.now())); } catch (e2) {}
+    refreshLocChip();
+  }
+}, true);
 let floatChips = [];
 function clearFloatChips() {
   for (const el of floatChips) if (el.parentNode) el.parentNode.removeChild(el);
