@@ -342,7 +342,7 @@ body { overflow:hidden; }
 .loc-plate { position:absolute; left:10px; right:10px; top:52px; z-index:6; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#fdecec,#fde0de); border:1px solid #f3b7b3; color:#c2403f; font-size:10.5px; font-weight:800; line-height:1.35; box-shadow:0 10px 26px rgba(194,64,63,.18); }
 .loc-plate.open { display:flex; }
 .loc-plate button { flex:0 0 auto; border:0; border-radius:10px; padding:7px 10px; background:#c2403f; color:#fff; font-size:10px; font-weight:850; cursor:pointer; }
-.loc-plate .lp-x { margin-left:auto; background:transparent; color:#c2403f; padding:4px 6px; }
+.loc-plate .lp-keep { flex:1 1 100%; background:#fff; color:#c2403f; border:1px solid #f3b7b3; }
 .mring button.route { background:linear-gradient(135deg,#20b989,#15976d); border-color:transparent; color:#fff; }
 .mring button.route .ic { color:#fff; }
 .mpin .ic { transform:rotate(45deg); width:15px; height:15px; }
@@ -622,7 +622,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <button class="map-attrib-btn" id="mapAttribBtn" onclick="toggleMapAttrib()" aria-label="Данные карты"><svg class="ic ic-s"><use href="#i-spark"/></svg></button>
         <div class="map-attrib-pop" id="mapAttribPop">Базовая карта: Esri Canvas Light Gray (© Esri, Garmin, FAO, NOAA). Слои спроса и статусов — собственные данные КогдаБенз.</div>
         <div class="route-plate" id="routePlate"></div>
-        <div class="loc-plate" id="locPlate"><span>GPS пришёл с большой ошибкой (глушилки): новая точка далеко от вашей обычной. Обычную точку сохранили — точка на карте ваша. Если вы действительно в новой точке —</span><button onclick="acceptPendingFix()">я в новой точке</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-x" onclick="dismissLocPlate()" aria-label="Оставить обычную точку">✕</button></div>
+        <div class="loc-plate" id="locPlate"><span>GPS пришёл с большой ошибкой (глушилки): новая точка далеко от вашей обычной. Обычную точку сохранили — точка на карте ваша. Если вы действительно в новой точке —</span><button onclick="acceptPendingFix()">я в новой точке</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-keep" onclick="dismissLocPlate()">всё верно, оставить обычную точку</button></div>
         <button class="loc-chip" id="locChip" onclick="toggleManualLoc()"></button>
       </div>
       <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
