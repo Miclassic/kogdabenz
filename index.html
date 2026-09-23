@@ -797,7 +797,10 @@ function getPrediction(pred) {
   if (pred.expected_restore_at) {
     const diffMin = Math.round((new Date(pred.expected_restore_at).getTime() - Date.now()) / 60000);
     if (diffMin > 0) eta = diffMin < 60 ? 'через ' + diffMin + ' мин' : diffMin < 1440 ? 'через ~' + Math.round(diffMin / 60) + ' ч' : 'через ~' + Math.round(diffMin / 1440) + ' дн';
-    else eta = 'ожидалось только что';
+    else if (diffMin >= -90) eta = 'ожидалось только что';
+    // ETA, просроченное больше чем на 1.5 ч, — несвежее (источник замолчал
+    // или строку давно не обновляли): «только что» не показываем,
+    // карточка честно падает на текст окна прогноза
   }
   return { time: time5(pred.from_time) + ' — ' + time5(pred.to_time), confidence, note, eta };
 }

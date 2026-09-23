@@ -502,8 +502,11 @@ console.log('   Существующих PENDING-прогнозов (цель >=
         features: features,
         model_version: 'v1.2'
       };
-      if (expectedRestoreAt) row.expected_restore_at = expectedRestoreAt;
-      if (baselineRestoreAt) row.baseline_restore_at = baselineRestoreAt;
+// v1.9: ETA пишем всегда (включая null): иначе при молчании источника
+   // (статус null) или возврате топлива в строке остаётся вчерашний
+   // expected_restore_at и карточка часами показывает «ожидалось только что»
+   row.expected_restore_at = expectedRestoreAt;
+   row.baseline_restore_at = baselineRestoreAt;
 
       const existId = existingByKey[pairKey];
       if (existId) {
