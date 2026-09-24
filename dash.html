@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>КогдаБенз · MAU-дашборд</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f3f7ff; color: #14213d; padding: 20px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #71809c; font-size: 12px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 24px; }
+  .card { background: #fff; border: 1px solid #e6ebf4; border-radius: 14px; padding: 14px; box-shadow: 0 8px 20px rgba(38,69,120,.07); }
+  .card b { display: block; font-size: 26px; margin-top: 4px; }
+  .card span { font-size: 10px; color: #93a1b8; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .section { background: #fff; border: 1px solid #e6ebf4; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 10px 26px rgba(38,69,120,.07); }
+  .section h2 { font-size: 14px; margin-bottom: 10px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .bar-row span { width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 16px; border-radius: 8px; background: linear-gradient(90deg, #4385ff, #2465ee); min-width: 2px; }
+  .bar.green { background: linear-gradient(90deg, #21b986, #19b77a); }
+  .bar.orange { background: linear-gradient(90deg, #f5d565, #f5a05a); }
+  .bar.red { background: linear-gradient(90deg, #ff9f9a, #ef5350); }
+  .chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; margin-top: 10px; }
+  .chart div { flex: 1; background: linear-gradient(180deg, #78a4ff, #d6e3ff); border-radius: 4px 4px 0 0; min-width: 4px; }
+  .chart div.now { background: linear-gradient(180deg, #397cff, #8eb4ff); }
+  .axis { display: flex; justify-content: space-between; font-size: 9px; color: #9aa7bd; margin-top: 4px; }
+  .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
+</style>
+</head>
+<body>
+  <h1>⛽ КогдаБенз · MAU-дашборд</h1>
+  <div class="sub">Анонимная статистика сайта. Только для владельца.</div>
+  <div id="app"><div class="err">Загружаю данные…</div></div>
+
+<script>
+const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
+const DASH_SECRET = 'kb-dash-2026-x9f3k';
+
+async function load() {
+  const app = document.getElementById('app');
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ secret: DASH_SECRET })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.error) throw new Error('Токен неверный');
+    render(d);
+  } catch (e) {
+    app.innerHTML = '<div class="err">Не удалось загрузить: ' + e.message + '</div>';
+  }
+}
+
+function render(d) {
+  const app = document.getElementById('app');
+  const ret = d.retention || {};
+  const fun = d.funnel || [];
+  const daily = d.daily || [];
+  const sources = d.sources || [];
+  const cities = d.cities || [];
+
+  let html = '';
+
+  // Карточки
+  html += '<div class="grid">';
+  html += card('MAU (30 дн)', d.mau_30d);
+  html += card('DAU сегодня', d.dau_today);
+  html += card('DAU вчера', d.dau_yesterday);
+  html += card('Сессий всего', d.total_sessions);
+  html += card('Хитов всего', d.total_hits);
+  html += card('Офлайн %', d.offline_share !== null ? d.offline_share + '%' : '—');
+  html += card('Новые за 7 дн', ret.new_7d ?? '—');
+  html += card('Вернулись за 7 дн', ret.returning_7d ?? '—');
+  html += '</div>';
+
+  // Динамика по дням
+  html += '<div class="section"><h2>Сессии по дням (30 дней)</h2><div class="chart">';
+  const maxSessions = Math.max(1, ...daily.map(x => x.sessions));
+  daily.forEach((day, i) => {
+    const h = Math.round(day.sessions / maxSessions * 100);
+    html += '<div style="height:' + h + '%" title="' + day.day + ': ' + day.sessions + '"></div>';
+  });
+  html += '</div><div class="axis"><span>' + (daily[0]?.day || '') + '</span><span>' + (daily[daily.length-1]?.day || '') + '</span></div></div>';
+
+  // Воронка
+  html += '<div class="section"><h2>Воронка действий</h2>';
+  const maxFunnel = Math.max(1, ...fun.map(x => x.sessions));
+  fun.forEach(f => {
+    const w = Math.round(f.sessions / maxFunnel * 100);
+    html += '<div class="bar-row"><span>' + f.event + '</span><div class="bar" style="width:' + w + '%"></div><b>' + f.sessions + '</b></div>';
+  });
+  html += '</div>';
+
+  // Источники
+  html += '<div class="section"><h2>Источники прихода</h2>';
+  const maxSrc = Math.max(1, ...sources.map(x => x.sessions));
+  sources.forEach(s => {
+    const w = Math.round(s.sessions / maxSrc * 100);
+    html += '<div class="bar-row"><span>' + s.source + '</span><div class="bar green" style="width:' + w + '%"></div><b>' + s.sessions + '</b></div>';
+  });
+  html += '</div>';
+
+  // Города
+  html += '<div class="section"><h2>Города</h2>';
+  const maxCity = Math.max(1, ...cities.map(x => x.sessions));
+  cities.forEach(c => {
+    const w = Math.round(c.sessions / maxCity * 100);
+    html += '<div class="bar-row"><span>' + c.city + '</span><div class="bar orange" style="width:' + w + '%"></div><b>' + c.sessions + '</b></div>';
+  });
+  html += '</div>';
+
+  app.innerHTML = html;
+}
+
+function card(label, value) {
+  return '<div class="card"><span>' + label + '</span><b>' + value + '</b></div>';
+}
+
+load();
+</script>
+</body>
+</html>
