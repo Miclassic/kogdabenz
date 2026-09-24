@@ -10,6 +10,8 @@
 // v1.8: калибровка уверенности: ночью калибратор сравнивает сырую уверенность с фактом
 //       попаданий и пишет таблицу пересчёта в bot_meta; предиктор применяет её утром.
 //       Нет таблицы (мало данных) — работаем по сырой уверенности, как раньше.
+// v1.10: окно по квантилям 20–80% (вместо медиана ± σ), фильтр привозов по классу
+//        дня (будни/выходные), синхронизация окна с ETA при глубоком дефиците.
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MIN_EVENTS_PRELIM = 3;
@@ -56,6 +58,11 @@ function minutesToTime(m) {
   m = Math.max(0, Math.min(1439, Math.round(m)));
   return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0') + ':00';
 }
+// v1.10: день недели по Москве из ISO-метки (0/6 — выходные)
+function isWeIso(iso) {
+  const d = new Date(new Date(iso).getTime() + 3 * 3600 * 1000);
+  return d.getUTCDay() === 0 || d.getUTCDay() === 6;
+}
 function medianOf(sorted) {
   const n = sorted.length;
   return n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
@@ -91,9 +98,9 @@ function calibrate(c) {
 }
 
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.8 (State Machine Aware) ===');
+  console.log('=== ПРЕДИКТОР v1.10 (State Machine Aware) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
-  
+
   console.log('1) Достаю станции...');
   const stations = await sbGet('/rest/v1/stations?select=id,name,brand,address,lat,lon&limit=2000');
   console.log('   Всего: ' + stations.length + ' (в Новороссийске: ' + stations.filter(isOwn).length + ')');
@@ -138,7 +145,7 @@ async function main() {
   // --- v1.2: городской контекст и снапшоты признаков ---
   const QUEUE_RANK = { low: 1, medium: 2, high: 3 };
   const recentByStation = {};
-  for (const o of obs) { 
+  for (const o of obs) {
     const arr = recentByStation[o.station_id] || (recentByStation[o.station_id] = []);
     if (arr.length < 4) arr.push(o);
   }
@@ -157,9 +164,9 @@ async function main() {
   for (const s of stations) {
     if (!isOwn(s)) continue;
     const o = lastObs[s.id];
-    if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { 
-      cityKnown++; 
-      if (o.fuel_95_status) cityAvail++; 
+    if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) {
+      cityKnown++;
+      if (o.fuel_95_status) cityAvail++;
       else if (o.fuel_state === 'CONFIRMED_LOSS') cityConfirmedLoss++; // Count deep deficits
     }
   }
@@ -167,15 +174,15 @@ async function main() {
   const sixHoursAgo = Date.now() - 6 * 3600 * 1000;
   const restores6h = restoredEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
   const disappears6h = disappearedEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
-  
+
   let regime = cityAvailShare === null ? 'UNKNOWN' : 'NORMAL';
   if (cityAvailShare !== null && cityAvailShare < 0.60) {
     regime = cityAvailShare < 0.30 ? 'CITY_SHORTAGE' : 'LOCAL_SHORTAGE';
     if (restores6h >= 2 && restores6h > disappears6h) regime = 'RECOVERY';
   }
-  
+
   // Если много подтвержденных потерь — усиливаем сигнал дефицита
-  if (cityConfirmedLoss > cityKnown * 0.4) regime = 'DEEP_SHORTAGE'; 
+  if (cityConfirmedLoss > cityKnown * 0.4) regime = 'DEEP_SHORTAGE';
 
   const lastDisByPair = {};
   for (const e of disappearedEvents) {
@@ -213,7 +220,7 @@ async function main() {
     const key = e.station_id + '|' + e.fuel_type;
     (disByPair[key] = disByPair[key] || []).push(e.detected_at);
   }
-  const pairsByPair = {}; 
+  const pairsByPair = {};
   for (const [key, disList] of Object.entries(disByPair)) {
     const resList = (restoredByPair[key] || []).slice().sort();
     const disSorted = disList.slice().sort();
@@ -235,11 +242,11 @@ async function main() {
     (restoredMsByPair[key] = restoredMsByPair[key] || []).push(new Date(e.detected_at).getTime());
   }
   for (const k of Object.keys(restoredMsByPair)) restoredMsByPair[k].sort((a, b) => a - b);
-  
+
   const stationById = {};
   for (const s of stations) stationById[s.id] = s;
   const disMsAll = disappearedEvents.map(e => ({ st: e.station_id, fuel: e.fuel_type, t: new Date(e.detected_at).getTime() }));
-  
+
   function waveAt(fuel, t) {
     let w = 0;
     for (const x of disMsAll) if (x.fuel === fuel && Math.abs(x.t - t) <= 2 * 3600 * 1000) w++;
@@ -286,25 +293,25 @@ async function main() {
   }
 
   function similarEpisodes(st, fuel, disMs) {
-const d = new Date(disMs + 3 * 3600 * 1000);
-const hour = d.getUTCHours(), dow = d.getUTCDay();
-const wave = waveAt(fuel, disMs);
-const qb = queueBeforeAt(st.id, disMs);
-const isWe = x => x === 0 || x === 6;
-const scored = [];
-for (const e of episodes) {
-if (e.fuel !== fuel) continue;
-const dh = Math.min(Math.abs(e.hour - hour), 24 - Math.abs(e.hour - hour)) / 12;
-// v1.7: день недели — круговое расстояние (0..3 дня), приведённое к прежней шкале 0..0.5,
-// плюс штраф за границу классов будни/выходные (пятница→суббота — смена ритма)
-const dd = Math.min(Math.abs(e.dow - dow), 7 - Math.abs(e.dow - dow));
-const dist = dh + 0.5 * (dd / 3) + (isWe(e.dow) === isWe(dow) ? 0 : 0.25) + Math.abs(e.wave - wave) / 4 +
-(e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
-scored.push({ dist: dist, e: e });
-}
-scored.sort((a, b) => a.dist - b.dist);
-return scored.slice(0, 12);
-}
+    const d = new Date(disMs + 3 * 3600 * 1000);
+    const hour = d.getUTCHours(), dow = d.getUTCDay();
+    const wave = waveAt(fuel, disMs);
+    const qb = queueBeforeAt(st.id, disMs);
+    const isWe = x => x === 0 || x === 6;
+    const scored = [];
+    for (const e of episodes) {
+      if (e.fuel !== fuel) continue;
+      const dh = Math.min(Math.abs(e.hour - hour), 24 - Math.abs(e.hour - hour)) / 12;
+      // v1.7: день недели — круговое расстояние (0..3 дня), приведённое к прежней шкале 0..0.5,
+      // плюс штраф за границу классов будни/выходные (пятница→суббота — смена ритма)
+      const dd = Math.min(Math.abs(e.dow - dow), 7 - Math.abs(e.dow - dow));
+      const dist = dh + 0.5 * (dd / 3) + (isWe(e.dow) === isWe(dow) ? 0 : 0.25) + Math.abs(e.wave - wave) / 4 +
+        (e.queueBefore === qb ? 0 : 0.7) + (e.brand && st.brand && e.brand === st.brand ? 0 : 0.3);
+      scored.push({ dist: dist, e: e });
+    }
+    scored.sort((a, b) => a.dist - b.dist);
+    return scored.slice(0, 12);
+  }
   console.log('   Эпизодов дефицита для k-NN: ' + episodes.length);
 
   // Существующие прогнозы на сегодня
@@ -312,18 +319,18 @@ return scored.slice(0, 12);
   const mskMinutesNow = mskNow.getUTCHours() * 60 + mskNow.getUTCMinutes();
   const todayStr = mskNow.toISOString().slice(0, 10);
   const tomorrowStr = new Date(mskNow.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10);
-const existing = [];
-for (let offset = 0; ; offset += 1000) {
-  const page = await sbGet(
-    '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
-    '&select=id,station_id,fuel_type&order=id.asc&limit=1000&offset=' + offset
-  );
-  for (const p of page) existing.push(p);
-  if (page.length < 1000) break;
-}
-const existingByKey = {};
-for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
-console.log('   Существующих PENDING-прогнозов (цель >= сегодня): ' + existing.length);
+  const existing = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await sbGet(
+      '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
+      '&select=id,station_id,fuel_type&order=id.asc&limit=1000&offset=' + offset
+    );
+    for (const p of page) existing.push(p);
+    if (page.length < 1000) break;
+  }
+  const existingByKey = {};
+  for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
+  console.log('   Существующих PENDING-прогнозов (цель >= сегодня): ' + existing.length);
 
   console.log('4.9) Читаю таблицу калибровки уверенности...');
   await loadCalibration();
@@ -334,7 +341,7 @@ console.log('   Существующих PENDING-прогнозов (цель >=
 
   for (const st of stations) {
     if (!isOwn(st)) continue;
-    
+
     const fm = lastObs[st.id] ? lastObs[st.id].data_freshness_minutes : null;
     const fmStale = (fm === null || fm === undefined)
       ? !lastNonNullTs[st.id]
@@ -344,68 +351,81 @@ console.log('   Существующих PENDING-прогнозов (цель >=
     for (const fuel of fuels) {
       const pairKey = st.id + '|' + fuel;
       const label = (st.name || '?') + ' / ' + fuel;
-      const ownTimes = (restoredByPair[pairKey] || []).map(moscowMinutes).sort((a, b) => a - b);
-      const ownCount = ownTimes.length;
-      
-      let useTimes = null, source = null, basedOnStations = 1, usedCount = 0;
-      
+      const toItem = iso => ({ min: moscowMinutes(iso), we: isWeIso(iso) });
+      const ownItems = (restoredByPair[pairKey] || []).map(toItem).sort((a, b) => a.min - b.min);
+      const ownCount = ownItems.length;
+
+      let useItems = null, source = null, basedOnStations = 1, usedCount = 0;
+
       // Попытка 1: свои события
       if (ownCount >= MIN_EVENTS_PRELIM) {
-        useTimes = ownTimes;
+        useItems = ownItems;
         source = 'own';
         usedCount = ownCount;
       }
       // Попытка 2: по бренду
-      if (!useTimes && st.brand) {
-        const brandTimes = [];
+      if (!useItems && st.brand) {
+        const brandItems = [];
         const brandStations = new Set();
         for (const s of stations) {
           if (s.brand === st.brand) {
-            const ts = (restoredByPair[s.id + '|' + fuel] || []).map(moscowMinutes);
-            if (ts.length) { brandTimes.push(...ts); brandStations.add(s.id); }
+            const its = (restoredByPair[s.id + '|' + fuel] || []).map(toItem);
+            if (its.length) { brandItems.push(...its); brandStations.add(s.id); }
           }
         }
-        if (brandTimes.length >= MIN_EVENTS_FULL) {
-          useTimes = brandTimes.sort((a, b) => a - b);
+        if (brandItems.length >= MIN_EVENTS_FULL) {
+          useItems = brandItems.sort((a, b) => a.min - b.min);
           source = 'brand';
           basedOnStations = brandStations.size;
-          usedCount = brandTimes.length;
+          usedCount = brandItems.length;
         }
       }
       // Попытка 3: по городу
-      if (!useTimes) {
-        const cityTimes = [];
+      if (!useItems) {
+        const cityItems = [];
         const cityStations = new Set();
         for (const s of stations) {
           if (isOwn(s)) {
-            const ts = (restoredByPair[s.id + '|' + fuel] || []).map(moscowMinutes);
-            if (ts.length) { cityTimes.push(...ts); cityStations.add(s.id); }
+            const its = (restoredByPair[s.id + '|' + fuel] || []).map(toItem);
+            if (its.length) { cityItems.push(...its); cityStations.add(s.id); }
           }
         }
-        if (cityTimes.length >= MIN_EVENTS_FULL) {
-          useTimes = cityTimes.sort((a, b) => a - b);
+        if (cityItems.length >= MIN_EVENTS_FULL) {
+          useItems = cityItems.sort((a, b) => a.min - b.min);
           source = 'city';
           basedOnStations = cityStations.size;
-          usedCount = cityTimes.length;
+          usedCount = cityItems.length;
         }
       }
-      if (!useTimes) { skipped++; continue; }
+      if (!useItems) { skipped++; continue; }
 
-      // Окно времени
-      const med = medianOf(useTimes);
-      const mean = useTimes.reduce((a, b) => a + b, 0) / useTimes.length;
-      const variance = useTimes.reduce((s, t) => s + (t - mean) * (t - mean), 0) / useTimes.length;
-      let sd = Math.sqrt(variance);
-      if (sd < MIN_WINDOW_MIN) sd = MIN_WINDOW_MIN;
-      const from = minutesToTime(med - sd);
-      const to = minutesToTime(med + sd);
-      const tightness = 1 / (1 + sd / 60);
-      
+      // v1.10: фильтр по классу дня (будни/выходные): субботний ритм привозов
+      // отличается от будничного. Фильтруем только когда событий достаточно,
+      // иначе остаёмся на смешанном наборе (как раньше).
+      const isNowWe = mskNow.getUTCDay() === 0 || mskNow.getUTCDay() === 6;
+      if (useItems.length >= MIN_EVENTS_FULL) {
+        const sameClass = useItems.filter(x => x.we === isNowWe);
+        if (sameClass.length >= MIN_EVENTS_PRELIM) { useItems = sameClass; usedCount = sameClass.length; }
+      }
+      const useTimes = useItems.map(x => x.min);
+
+      // Окно времени — v1.10: квантили 20–80% вместо «медиана ± σ».
+      // При размазанном распределении привозов σ давала окно 10–11 часов,
+      // квантили дают 4–6 часов — такое окно уже полезно водителю.
+      const q = (arr, p) => arr[Math.min(arr.length - 1, Math.floor(p * (arr.length - 1)))];
+      const fromMin = q(useTimes, 0.20);
+      let toMinWin = q(useTimes, 0.80);
+      const minWin = 2 * MIN_WINDOW_MIN; // окно уже 30 минут — не окно
+      if (toMinWin < fromMin + minWin) toMinWin = fromMin + minWin;
+      const from = minutesToTime(fromMin);
+      const to = minutesToTime(toMinWin);
+      const tightness = 1 / (1 + (toMinWin - fromMin) / 120);
+
       let confidence = 0.35 + 0.30 * tightness + Math.min(0.15, usedCount * 0.01);
       if (source === 'brand') confidence *= 0.85;
       if (source === 'city') confidence *= 0.70;
       if (usedCount >= MIN_EVENTS_FULL && source === 'own') confidence += 0.10;
-      
+
       // v1.6 Adjustment: Penalize confidence slightly if state is unstable or suspect
       const curObs = lastObs[st.id];
       if (curObs && curObs.fuel_state === 'SUSPECTED_LOSS') {
@@ -421,7 +441,7 @@ console.log('   Существующих PENDING-прогнозов (цель >=
       let baselineRestoreAt = null;
       let knnInfo = null;
       const currentStatus = curObs ? curObs[fuelCol[fuel]] : null;
-      
+
       if (currentStatus === false) {
         const pairDurations = pairsByPair[pairKey] ||
           (source === 'brand' && st.brand
@@ -432,27 +452,27 @@ console.log('   Существующих PENDING-прогнозов (цель >=
             ? [].concat(...stations.filter(s => isOwn(s))
                 .map(s => pairsByPair[s.id + '|' + fuel] || []))
             : []);
-            
+
         if (pairDurations.length >= MIN_EVENTS_PRELIM) {
           const disappearedAt = lastDisByPair[pairKey] || null;
           if (disappearedAt) {
             const elapsed = (Date.now() - disappearedAt) / 60000;
-            
+
             const knnScored = similarEpisodes(st, fuel, disappearedAt);
             const knn = knnScored.map(x => x.e);
             let knnMedian = null, knnSupport = 0, p2h = null, knnDist = null;
-            
+
             if (knn.length >= 8) {
               knnSupport = knn.length;
               knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
               p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
               knnDist = Math.round(1000 * knnScored.reduce((s, x) => s + x.dist, 0) / knnScored.length) / 1000;
             }
-            
+
             const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
             const remaining = Math.max(5, useDur - elapsed);
             expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
-            
+
             const baseDur = medianOf(pairDurations);
             baselineRestoreAt = new Date(Date.now() + Math.max(5, baseDur - elapsed) * 60000).toISOString();
             knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h, mean_dist: knnDist };
@@ -460,8 +480,22 @@ console.log('   Существующих PENDING-прогнозов (цель >=
         }
       }
 
-      const toMin = Number(to.slice(0, 2)) * 60 + Number(to.slice(3, 5));
-      
+      // v1.10: синхронизация окна с ETA. Если дефицит глубокий и ETA далеко
+      // (больше 8 часов впереди), окно «сегодня днём» противоречило бы ETA
+      // «завтра утром» — переставляем окно вокруг часа ETA (±2 часа,
+      // в рамках 06:00–23:00). target_date ниже посчитается от нового окна.
+      let winFrom = from, winTo = to;
+      if (expectedRestoreAt) {
+        const hoursUntilEta = (new Date(expectedRestoreAt).getTime() - Date.now()) / 3600000;
+        if (hoursUntilEta > 8) {
+          const etaMsk = new Date(new Date(expectedRestoreAt).getTime() + 3 * 3600 * 1000);
+          const etaMin = etaMsk.getUTCHours() * 60 + etaMsk.getUTCMinutes();
+          winFrom = minutesToTime(Math.max(6 * 60, etaMin - 120));
+          winTo = minutesToTime(Math.min(23 * 60, etaMin + 120));
+        }
+      }
+      const toMin = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+
       // Features Snapshot v1.6
       const nb = nearbyMissing95(st);
       const features = {
@@ -490,23 +524,23 @@ console.log('   Существующих PENDING-прогнозов (цель >=
       const row = {
         station_id: st.id,
         fuel_type: fuel,
-        from_time: from,
-        to_time: to,
+        from_time: winFrom,
+        to_time: winTo,
         confidence: confidence.toFixed(2),
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.8|' + source,
+        algorithm_version: 'v1.10|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
         model_version: 'v1.2'
       };
-// v1.9: ETA пишем всегда (включая null): иначе при молчании источника
-   // (статус null) или возврате топлива в строке остаётся вчерашний
-   // expected_restore_at и карточка часами показывает «ожидалось только что»
-   row.expected_restore_at = expectedRestoreAt;
-   row.baseline_restore_at = baselineRestoreAt;
+      // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
+      // (статус null) или возврате топлива в строке остаётся вчерашний
+      // expected_restore_at и карточка часами показывает «ожидалось только что»
+      row.expected_restore_at = expectedRestoreAt;
+      row.baseline_restore_at = baselineRestoreAt;
 
       const existId = existingByKey[pairKey];
       if (existId) {
@@ -521,25 +555,25 @@ console.log('   Существующих PENDING-прогнозов (цель >=
         await sbPost('predictions', [row]);
         created++;
       }
-      
+
       const prelim = source === 'own' && usedCount < MIN_EVENTS_FULL ? ' [предв.]' : '';
       const eta = expectedRestoreAt ? ', ждём ~' + new Date(expectedRestoreAt).toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', minute: '2-digit' }) + (knnInfo && knnInfo.support ? ' (k-NN ' + knnInfo.support + ', P<2ч ' + knnInfo.p_restore_2h + '%)' : '') : '';
       console.log('   ' + label + ' (' + source + ', станций ' + basedOnStations + '): ' +
-        from.slice(0, 5) + '–' + to.slice(0, 5) + ', ' + row.confidence +
+        winFrom.slice(0, 5) + '–' + winTo.slice(0, 5) + ', ' + row.confidence +
         ' (' + usedCount + ' соб.)' + prelim + eta);
     }
   }
   console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped + ', молчащих станций (>72ч): ' + stale);
-  
+
   if (created > 0 && process.env.TELEGRAM_BOT_TOKEN) {
     try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.8: появились новые прогнозы (' + created + ' шт)! Уверенность калибруется по факту попаданий.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.10: появились новые прогнозы (' + created + ' шт)! Окна компактнее: квантили + фильтр дня + синхронизация с ETA.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.8 завершил работу');
+  console.log('✅ Предиктор v1.10 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
