@@ -3,40 +3,70 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>КогдаБенз · MAU-дашборд</title>
+<title>КогдаБенз · статистика сайта</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f3f7ff; color: #14213d; padding: 20px; max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .sub { color: #71809c; font-size: 12px; margin-bottom: 20px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 24px; }
-  .card { background: #fff; border: 1px solid #e6ebf4; border-radius: 14px; padding: 14px; box-shadow: 0 8px 20px rgba(38,69,120,.07); }
-  .card b { display: block; font-size: 26px; margin-top: 4px; }
-  .card span { font-size: 10px; color: #93a1b8; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
-  .section { background: #fff; border: 1px solid #e6ebf4; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 10px 26px rgba(38,69,120,.07); }
-  .section h2 { font-size: 14px; margin-bottom: 10px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f3f7ff; color: #14213d; padding: 16px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 2px; }
+  .sub { color: #71809c; font-size: 11px; margin-bottom: 14px; }
+  .section { background: #fff; border: 1px solid #e6ebf4; border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: 0 10px 26px rgba(38,69,120,.07); }
+  .section h2 { font-size: 13px; margin-bottom: 10px; }
+  /* итог одним блоком вместо плиток */
+  .hero { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, #ffffff, #eef4ff); }
+  .hero-num { flex: 0 0 auto; font-size: 46px; font-weight: 900; letter-spacing: -2px; line-height: 1; background: linear-gradient(90deg, #2465ee, #2ea3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero-right { min-width: 0; }
+  .hero-cap { font-size: 10px; font-weight: 800; color: #5b7ba6; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .hero-lines { color: #33445f; font-size: 12px; line-height: 1.55; }
+  .hero-lines b { color: #14213d; }
   .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
-  .bar-row span { width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-row span { flex: 0 0 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 16px; min-width: 0; }
   .bar { height: 16px; border-radius: 8px; background: linear-gradient(90deg, #4385ff, #2465ee); min-width: 2px; }
   .bar.green { background: linear-gradient(90deg, #21b986, #19b77a); }
   .bar.orange { background: linear-gradient(90deg, #f5d565, #f5a05a); }
-  .bar.red { background: linear-gradient(90deg, #ff9f9a, #ef5350); }
-  .chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; margin-top: 10px; }
+  .bar-row b { flex: 0 0 auto; }
+  .note { margin-top: 8px; color: #93a1b8; font-size: 10px; line-height: 1.4; }
+  .chart { display: flex; align-items: flex-end; gap: 2px; height: 110px; margin-top: 10px; }
   .chart div { flex: 1; background: linear-gradient(180deg, #78a4ff, #d6e3ff); border-radius: 4px 4px 0 0; min-width: 4px; }
-  .chart div.now { background: linear-gradient(180deg, #397cff, #8eb4ff); }
   .axis { display: flex; justify-content: space-between; font-size: 9px; color: #9aa7bd; margin-top: 4px; }
   .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
 </style>
 </head>
 <body>
-  <h1>⛽ КогдаБенз · MAU-дашборд</h1>
-  <div class="sub">Анонимная статистика сайта. Только для владельца.</div>
+  <h1>⛽ КогдаБенз · статистика сайта</h1>
+  <div class="sub">Анонимно: без имён и адресов. Страница только ваша — ссылкой не делитесь.</div>
   <div id="app"><div class="err">Загружаю данные…</div></div>
 
 <script>
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
-const DASH_SECRET = 'kb-dash-2026-x9f3k';
+const DASH_SECRET = 'kb-dash-2026-x9f3k'; // тот же, что в SQL-функции
+
+// человеческие названия действий на сайте
+const EVENT_RU = {
+  pageview: ['👀', 'Открыли сайт'],
+  panel_view: ['📖', 'Листали панели'],
+  open_station_card: ['⛽', 'Открывали карточку АЗС'],
+  click_where_to_go: ['🧭', 'Жали «Куда ехать»'],
+  feedback_submit: ['🙏', 'Оставляли отметку']
+};
+// человеческие названия городов
+const CITY_RU = { novorossiysk: 'Новороссийск', gelendzhik: 'Геленджик', anapa: 'Анапа', krymsk: 'Крымск', krasnodar: 'Краснодар', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавир', maykop: 'Майкоп' };
+function cityRu(c) { return CITY_RU[c] || (c === 'unknown' ? 'город не определился' : c); }
+// «откуда пришли» по-человечески
+function sourceRu(s) {
+  if (s === 'direct') return 'Напрямую: ссылка, закладка или иконка';
+  if (s.indexOf('ref: ') === 0) {
+    const m = s.slice(5).match(/\/\/([^\/]+)/);
+    const host = (m ? m[1] : s.slice(5)).replace(/^www\./, '');
+    const known = [['vk.com','ВКонтакте'],['vk.ru','ВКонтакте'],['t.me','Телеграм'],['telegram.org','Телеграм'],['yandex','Яндекс'],['google','Гугл'],['ok.ru','Одноклассники'],['wa.me','Ватсап'],['whatsapp','Ватсап'],['avito','Авито']];
+    for (const k of known) if (host.indexOf(k[0]) >= 0) return 'Перешли из: ' + k[1];
+    return 'Перешли с сайта: ' + host;
+  }
+  if (s.indexOf('utm: ') === 0) return 'Реклама: ' + s.slice(5).split(' / ').join(' · ');
+  return s;
+}
+function num(v) { return (v === null || v === undefined) ? 0 : v; }
 
 async function load() {
   const app = document.getElementById('app');
@@ -52,10 +82,10 @@ async function load() {
     });
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
-    if (d.error) throw new Error('Токен неверный');
+    if (d.error) throw new Error('токен не подошёл');
     render(d);
   } catch (e) {
-    app.innerHTML = '<div class="err">Не удалось загрузить: ' + e.message + '</div>';
+    app.innerHTML = '<div class="err">Не удалось загрузить данные: ' + e.message + '</div>';
   }
 }
 
@@ -66,62 +96,57 @@ function render(d) {
   const daily = d.daily || [];
   const sources = d.sources || [];
   const cities = d.cities || [];
-
   let html = '';
 
-  // Карточки
-  html += '<div class="grid">';
-  html += card('MAU (30 дн)', d.mau_30d);
-  html += card('DAU сегодня', d.dau_today);
-  html += card('DAU вчера', d.dau_yesterday);
-  html += card('Сессий всего', d.total_sessions);
-  html += card('Хитов всего', d.total_hits);
-  html += card('Офлайн %', d.offline_share !== null ? d.offline_share + '%' : '—');
-  html += card('Новые за 7 дн', ret.new_7d ?? '—');
-  html += card('Вернулись за 7 дн', ret.returning_7d ?? '—');
-  html += '</div>';
+  // итог одним блоком: большое число + четыре строки текста
+  html += '<div class="section hero"><div class="hero-num">' + num(d.mau_30d) + '</div><div class="hero-right">' +
+    '<div class="hero-cap">человек за последние 30 дней</div>' +
+    '<div class="hero-lines">' +
+    '<div>Вчера было <b>' + num(d.dau_yesterday) + '</b>, сегодня — <b>' + num(d.dau_today) + '</b>.</div>' +
+    '<div>За неделю: <b>' + num(ret.new_7d) + '</b> новых, <b>' + num(ret.returning_7d) + '</b> вернулись.</div>' +
+    '<div>Всего визитов <b>' + num(d.total_sessions) + '</b>, действий в них — <b>' + num(d.total_hits) + '</b>.</div>' +
+    '<div>Без интернета сайт открывали в <b>' + (d.offline_share === null || d.offline_share === undefined ? '0' : d.offline_share) + '%</b> обращений.</div>' +
+    '</div></div></div>';
 
-  // Динамика по дням
-  html += '<div class="section"><h2>Сессии по дням (30 дней)</h2><div class="chart">';
+  // когда приходили
+  html += '<div class="section"><h2>📅 Когда приходили</h2><div class="chart">';
   const maxSessions = Math.max(1, ...daily.map(x => x.sessions));
-  daily.forEach((day, i) => {
-    const h = Math.round(day.sessions / maxSessions * 100);
-    html += '<div style="height:' + h + '%" title="' + day.day + ': ' + day.sessions + '"></div>';
+  daily.forEach(day => {
+    const h = Math.max(4, Math.round(day.sessions / maxSessions * 100));
+    html += '<div style="height:' + h + '%" title="' + day.day + ': человек ' + day.sessions + '"></div>';
   });
-  html += '</div><div class="axis"><span>' + (daily[0]?.day || '') + '</span><span>' + (daily[daily.length-1]?.day || '') + '</span></div></div>';
+  html += '</div><div class="axis"><span>' + (daily[0] ? daily[0].day : '') + '</span><span>' + (daily.length ? daily[daily.length - 1].day : '') + '</span></div>' +
+    '<div class="note">Столбик — сколько человек заходило в этот день. Нажми на столбик — покажет число.</div></div>';
 
-  // Воронка
-  html += '<div class="section"><h2>Воронка действий</h2>';
+  // что делали
+  html += '<div class="section"><h2>👣 Что делали на сайте</h2>';
   const maxFunnel = Math.max(1, ...fun.map(x => x.sessions));
   fun.forEach(f => {
+    const e = EVENT_RU[f.event] || ['•', f.event];
     const w = Math.round(f.sessions / maxFunnel * 100);
-    html += '<div class="bar-row"><span>' + f.event + '</span><div class="bar" style="width:' + w + '%"></div><b>' + f.sessions + '</b></div>';
+    html += '<div class="bar-row"><span>' + e[0] + ' ' + e[1] + '</span><div class="bar-track"><div class="bar" style="width:' + w + '%"></div></div><b>' + f.sessions + '</b></div>';
   });
-  html += '</div>';
+  html += '<div class="note">Число — сколько человек сделали это хотя бы раз за всё время.</div></div>';
 
-  // Источники
-  html += '<div class="section"><h2>Источники прихода</h2>';
+  // откуда пришли
+  html += '<div class="section"><h2>🚪 Откуда пришли</h2>';
   const maxSrc = Math.max(1, ...sources.map(x => x.sessions));
   sources.forEach(s => {
     const w = Math.round(s.sessions / maxSrc * 100);
-    html += '<div class="bar-row"><span>' + s.source + '</span><div class="bar green" style="width:' + w + '%"></div><b>' + s.sessions + '</b></div>';
+    html += '<div class="bar-row"><span>' + sourceRu(s.source) + '</span><div class="bar-track"><div class="bar green" style="width:' + w + '%"></div></div><b>' + s.sessions + '</b></div>';
   });
-  html += '</div>';
+  html += '<div class="note">«Напрямую» — когда открыли ссылку, закладку или иконку на экране, без перехода с другого сайта.</div></div>';
 
-  // Города
-  html += '<div class="section"><h2>Города</h2>';
+  // города
+  html += '<div class="section"><h2>🏙 Из каких городов смотрели</h2>';
   const maxCity = Math.max(1, ...cities.map(x => x.sessions));
   cities.forEach(c => {
     const w = Math.round(c.sessions / maxCity * 100);
-    html += '<div class="bar-row"><span>' + c.city + '</span><div class="bar orange" style="width:' + w + '%"></div><b>' + c.sessions + '</b></div>';
+    html += '<div class="bar-row"><span>' + cityRu(c.city) + '</span><div class="bar-track"><div class="bar orange" style="width:' + w + '%"></div></div><b>' + c.sessions + '</b></div>';
   });
-  html += '</div>';
+  html += '<div class="note">Город определяется примерно, по координатам телефона — тот же город, что сайт показывает в списке АЗС.</div></div>';
 
   app.innerHTML = html;
-}
-
-function card(label, value) {
-  return '<div class="card"><span>' + label + '</span><b>' + value + '</b></div>';
 }
 
 load();
