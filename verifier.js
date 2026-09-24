@@ -1,7 +1,12 @@
-// ===== Верификатор Новороссийска v1 =====
+// ===== Верификатор Новороссийска v1.2 =====
 // Ночью оценивает вчерашние прогнозы по факту.
 // SUCCESS — возврат топлива пойман в окне [from-30мин, to+60мин], иначе MISS.
 // Допуски: -30мин (привезли чуть раньше окна) и +60мин (отметка/детектор запоздали).
+// v1.2: величина ошибки (error_minutes) + baseline_error_minutes;
+//       actual_restore_at берём как событие внутри окна (если есть hit),
+//       иначе первое после окна (показывает «на сколько опоздали»),
+//       а не любое первое — иначе «ранний возврат до окна» давал выброс;
+//       пагинация: циклом по 1000, не теряем прогнозы при накоплении >1000.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -42,11 +47,6 @@ async function tg(text) {
   } catch (e) { console.log('   ! Телеграм: ' + e.message); }
 }
 
-function mskDayStartUtc(iso) {
-  const d = new Date(new Date(iso).getTime() + 3 * 3600 * 1000);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - 3 * 3600 * 1000;
-}
-
 function timeToMin(t) {
   const p = String(t).split(':');
   return Number(p[0]) * 60 + Number(p[1] || 0);
@@ -54,7 +54,15 @@ function timeToMin(t) {
 
 async function logTrainingData() {
   try {
-    const all = await sbGet('/rest/v1/predictions?is_verified=eq.true&select=error_minutes,baseline_error_minutes,prediction_source,features&limit=5000');
+    const all = [];
+    for (let offset = 0; ; offset += 1000) {
+      const page = await sbGet(
+        '/rest/v1/predictions?is_verified=eq.true&select=error_minutes,baseline_error_minutes,prediction_source,features' +
+        '&order=id.asc&limit=1000&offset=' + offset
+      );
+      for (const t of page) all.push(t);
+      if (page.length < 1000) break;
+    }
     const censored = all.filter(t => t.error_minutes === null || t.error_minutes === undefined).length;
     const train = all.filter(t => t.error_minutes !== null && t.error_minutes !== undefined);
     if (!train.length) { console.log('   TRAINING DATA: верифицированных с ошибкой пока нет (цензурировано без факта: ' + censored + ')'); return; }
@@ -96,13 +104,22 @@ async function logTrainingData() {
 }
 
 async function main() {
-  console.log('=== ВЕРИФИКАТОР v1 ===');
+  console.log('=== ВЕРИФИКАТОР v1.2 ===');
   const mskNow = new Date(Date.now() + 3 * 3600 * 1000);
   const todayStr = mskNow.toISOString().slice(0, 10);
-  const preds = await sbGet(
-    '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=lt.' + todayStr +
-    '&select=id,station_id,fuel_type,from_time,to_time,target_date,expected_restore_at,baseline_restore_at,created_at&limit=1000'
-  );
+  // v1.2: пагинация по 1000 — иначе при накоплении >1000 PENDING-прогнозов
+  // (глубокий дефицит, редкие возвраты) часть прогнозоров остаётся навсегда
+  // непроверенной и засоряет базу + панель точности.
+  const preds = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await sbGet(
+      '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=lt.' + todayStr +
+      '&select=id,station_id,fuel_type,from_time,to_time,target_date,expected_restore_at,baseline_restore_at,created_at' +
+      '&order=id.asc&limit=1000&offset=' + offset
+    );
+    for (const p of page) preds.push(p);
+    if (page.length < 1000) break;
+  }
   console.log('   Ожидают проверки: ' + preds.length);
 
   const now = Date.now();
@@ -123,10 +140,15 @@ async function main() {
   }
 
   const minDay = Math.min(...queue.map(x => x.dayStart));
-  const events = await sbGet(
-    '/rest/v1/events?event_type=eq.fuel_restored&detected_at=gte.' + new Date(minDay - 24 * 3600 * 1000).toISOString() +
-    '&select=station_id,fuel_type,detected_at&limit=5000'
-  );
+  const events = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await sbGet(
+      '/rest/v1/events?event_type=eq.fuel_restored&detected_at=gte.' + new Date(minDay - 24 * 3600 * 1000).toISOString() +
+      '&select=station_id,fuel_type,detected_at&order=id.asc&limit=1000&offset=' + offset
+    );
+    for (const e of page) events.push(e);
+    if (page.length < 1000) break;
+  }
 
   let checked = 0, success = 0;
   for (const { p, winStart, winEnd, dayStart } of queue) {
@@ -137,8 +159,12 @@ async function main() {
       .filter(x => x.t >= createdMs)
       .sort((a, b) => a.t - b.t);
     const hit = pairEvents.find(x => x.t >= winStart && x.t <= winEnd);
-    // v1.2: величина ошибки, а не только SUCCESS/MISS
-    const actual = pairEvents.length ? pairEvents[0] : null;
+    // v1.2: actual_restore_at = событие внутри окна (если есть),
+    // иначе первое событие ПОСЛЕ окна (показывает «на сколько опоздали»).
+    // Раньше брали просто первое — при раннем возврате до окна это давало
+    // гигантский отрицательный error_minutes и портило медиану.
+    const afterWindow = pairEvents.find(x => x.t > winEnd);
+    const actual = hit || afterWindow || null;
     let expectedMs;
     if (p.expected_restore_at) expectedMs = new Date(p.expected_restore_at).getTime();
     else expectedMs = dayStart + ((timeToMin(p.from_time) + timeToMin(p.to_time)) / 2) * 60000;
