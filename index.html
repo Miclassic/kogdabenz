@@ -293,6 +293,8 @@ body { overflow:hidden; }
 .map-wrap { position:relative; flex:1; min-height:360px; }
 .map-box { position:absolute; inset:0; border-radius:18px; overflow:hidden; border:1px solid #e8edf7; background:#eef2f8; z-index:0; }
 .map-box > .status { position:absolute; inset:0; margin:0; display:grid; place-items:center; border:0; box-shadow:none; background:transparent; }
+.map-box .maplibregl-canvas { transition:opacity .3s, filter .3s; }
+.map-box.heat .maplibregl-canvas { opacity:1; filter:contrast(1.15) saturate(.85); }
 .map-plate { position:absolute; left:10px; right:10px; top:10px; display:flex; gap:6px; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; pointer-events:auto; z-index:5; scrollbar-width:none; -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; padding:3px 2px; -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%); mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%); }
 .map-plate::-webkit-scrollbar { display:none; }
 .map-plate .gp { flex:0 0 auto; white-space:nowrap; }
@@ -314,8 +316,8 @@ body { overflow:hidden; }
 .cov-row small { display:block; font-size:9px; color:#71809c; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cov-fuels { margin-left:auto; display:flex; gap:3px; flex:0 0 auto; }
 .cov-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
-.mcluster { width:46px; height:46px; border-radius:15px; background:#fff; border:1px solid #e3ecf5; box-shadow:0 8px 20px rgba(15,27,51,.16); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
-.mcluster span { font-size:14px; font-weight:900; color:#14213d; line-height:1; }
+.mcluster { width:46px; height:46px; border-radius:15px; background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.8); box-shadow:0 8px 20px rgba(15,27,51,.12); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; }
+.mcluster span { font-size:14px; font-weight:900; color:#14213d; line-height:1; text-shadow:0 1px 0 rgba(255,255,255,.85); }
 .mcluster i { width:26px; height:4px; border-radius:99px; display:block; }
 .mpin-wrap { width:34px; height:42px; }
 /* Маркеры позиционирует MapLibre: наши стили не должны перебивать
@@ -614,7 +616,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       </div>
     </section>
     <section class="panel">
-      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title">Карта спроса</div><div class="nowcard-sub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а лужа вокруг — где очередь. Нажми на каплю — появятся кнопки.</div></div></div>
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title" id="mapTitle">Карта спроса</div><div class="nowcard-sub" id="mapSub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а лужа вокруг — где очередь. Цветное поле под ними — где дефицит топлива. Нажми на каплю — появятся кнопки.</div></div><span class="mg-tabs" id="heatTabs"><button class="mg-tab active" onclick="setHeatMode(false,this)">Карта</button><button class="mg-tab" onclick="setHeatMode(true,this)">Тепло</button></span></div>
       <div class="map-wrap" id="mapWrap">
         <div id="mapBox" class="map-box"><div class="status">Карта загрузится при открытии панели</div></div>
         <div class="map-plate" id="mapPlate"></div>
@@ -625,21 +627,34 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <div class="loc-plate" id="locPlate" onclick="locPlateDismissed=true;try{localStorage.setItem('kbLocPlateDismissed',''+Date.now())}catch(e){}this.classList.remove('open')"><span>GPS пришёл с большой ошибкой (глушилки): новая точка далеко от вашей обычной. Обычную точку сохранили — точка на карте ваша. Если вы действительно в новой точке —</span><button onclick="acceptPendingFix()">я в новой точке</button><button onclick="toggleManualLoc()">указать вручную</button><button class="lp-keep" id="locPlateKeep">всё верно, оставить обычную точку</button></div>
         <button class="loc-chip" id="locChip" onclick="toggleManualLoc()"></button>
       </div>
-      <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
-      <div class="hm-legend map-legend" style="margin-top:0">
-        <span><i style="background:#2fd39a"></i>спокойно</span>
-        <span><i style="background:#f5d565"></i>очередь малая</span>
-        <span><i style="background:#f5a05a"></i>очередь терпимая</span>
-        <span><i style="background:#ef5350"></i>очередь огромная</span>
+      <div id="legQueue">
+        <div class="legend-cap"><svg class="ic ic-s"><use href="#i-queue"/></svg>зоны на карте — сила очередей</div>
+        <div class="hm-legend map-legend" style="margin-top:0">
+          <span><i style="background:#2fd39a"></i>спокойно</span>
+          <span><i style="background:#f5d565"></i>очередь малая</span>
+          <span><i style="background:#f5a05a"></i>очередь терпимая</span>
+          <span><i style="background:#ef5350"></i>очередь огромная</span>
+        </div>
       </div>
-      <div class="legend-cap"><svg class="ic ic-s"><use href="#i-pump"/></svg>цвет пина — топливо по отметкам</div>
-      <div class="hm-legend map-legend" style="margin-top:0">
-        <span><i style="background:#1bb978"></i>АИ-95 есть</span>
-        <span><i style="background:#f5a05a"></i>есть 92</span>
-        <span><i style="background:#6ea8ff"></i>только дизель</span>
-        <span><i style="background:#ef5350"></i>ничего нет</span>
-        <span><i style="background:#a7b1c1"></i>нет данных</span>
-        <span><i style="background:#f5a05a"></i>разные мнения (народ)</span>
+      <div id="legFuel">
+        <div class="legend-cap"><svg class="ic ic-s"><use href="#i-pump"/></svg>цвет пина — топливо по отметкам</div>
+        <div class="hm-legend map-legend" style="margin-top:0">
+          <span><i style="background:#1bb978"></i>АИ-95 есть</span>
+          <span><i style="background:#f5a05a"></i>есть 92</span>
+          <span><i style="background:#6ea8ff"></i>только дизель</span>
+          <span><i style="background:#ef5350"></i>ничего нет</span>
+          <span><i style="background:#a7b1c1"></i>нет данных</span>
+          <span><i style="background:#f5a05a"></i>разные мнения (народ)</span>
+        </div>
+      </div>
+      <div id="legHeat">
+        <div class="legend-cap"><svg class="ic ic-s"><use href="#i-spark"/></svg>тепловая карта спроса — где сосредоточен дефицит топлива</div>
+        <div class="hm-legend map-legend" style="margin-top:0">
+          <span><i style="background:#2fd39a"></i>спокойно</span>
+          <span><i style="background:#f5d565"></i>напряжённо</span>
+          <span><i style="background:#f5a05a"></i>дефицит</span>
+          <span><i style="background:#ef5350"></i>ядро дефицита</span>
+        </div>
       </div>
     </section>
     <section class="panel">
@@ -2176,6 +2191,8 @@ function renderStations(stations, keepOrder) {
    надписи и слои спроса — только наши. Станет медленно из РФ — скажи,
    поменяем URL стиля одной строкой. */
 let mapObj = null, allQueue = [];
+let heatMode = false;
+let heatStrength = 0.55; // в обычном режиме карты тепло тише, чтобы не спорить с пинами и кластерами
 let routeFeature = null; // линия маршрута как фича рабочего источника zones
 let zoneReady = false;
 let objMarkers = [];
@@ -2343,27 +2360,43 @@ function zoneRamp(stops, z) {
   }
   return stops[stops.length - 1][1];
 }
+// уличный зум: лужи тают, чтобы не укрывать улицы и дома —
+// яркость 1 на z15 и плавно до 0 к z16.5, тот же дух, что вуаль маршрута
+function zoneStreetFade(z) { return Math.max(0, Math.min(1, (16.5 - z) / 1.5)); }
+// топливное тепло: радиус и прозрачность по зуму — простыми числами из JS
+// (правило проекта: никаких составных interpolate(zoom) выражений), той же zoneRamp
+const FH_RADIUS = [[9, 42], [11, 90], [13, 115], [15, 75], [16.5, 18]];
+const FH_OPACITY = [[9, 1], [12, 1], [15, 1], [16.5, 0]];
+const FH_LAYERS = ['fuelheat-calm', 'fuelheat-hot'];
 let zonePulseTimer = null;
 function startZonePulse() {
   if (zonePulseTimer) return;
   const t0 = Date.now();
   zonePulseTimer = setInterval(() => {
-    if (!mapObj || !zoneReady || mapObj.getZoom() < 12) return;
-    // не пульсируем картой позади шторки и на других панелях: непрерывная
-    // перерисовка WebGL под blur-подложкой даёт «мерцание» по краям экрана
+    if (!mapObj || !zoneReady) return;
     if (currentPanel !== 2) return;
     const shEl = document.getElementById('sheet');
     if (shEl && shEl.classList.contains('open')) return;
     const hbEl = document.getElementById('helloBack');
     if (hbEl && hbEl.classList.contains('open')) return;
-    const p = 0.85 + 0.15 * Math.sin((Date.now() - t0) / 500);
     const z = mapObj.getZoom();
-    mapObj.setPaintProperty('zones-halo', 'fill-opacity', zoneRamp(ZONE_STOPS.halo, z) * p);
-    mapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, z) * p);
-    mapObj.setPaintProperty('zones-core', 'fill-opacity', zoneRamp(ZONE_STOPS.core, z) * p);
-    mapObj.setPaintProperty('zones-line', 'line-opacity', zoneRamp(ZONE_STOPS.line, z) * p);
+    // топливное тепло живёт на всех зумах: радиус и прозрачность ставим из JS
+    // простыми числами + медленное «дыхание» света (pf) — поле кажется живым
+    const pf = 0.92 + 0.08 * Math.sin((Date.now() - t0) / 900);
+    const ff = zoneStreetFade(z);
+    for (const L of FH_LAYERS) {
+      mapObj.setPaintProperty(L, 'heatmap-radius', zoneRamp(FH_RADIUS, z));
+      mapObj.setPaintProperty(L, 'heatmap-opacity', zoneRamp(FH_OPACITY, z) * ff * pf * heatStrength);
+    }
+    if (z < 12) return;
+    const p = 0.85 + 0.15 * Math.sin((Date.now() - t0) / 500);
+    const f = zoneStreetFade(z);
+    mapObj.setPaintProperty('zones-halo', 'fill-opacity', zoneRamp(ZONE_STOPS.halo, z) * p * f);
+    mapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, z) * p * f);
+    mapObj.setPaintProperty('zones-core', 'fill-opacity', zoneRamp(ZONE_STOPS.core, z) * p * f);
+    mapObj.setPaintProperty('zones-line', 'line-opacity', zoneRamp(ZONE_STOPS.line, z) * p * f);
     mapObj.setPaintProperty('zones-line', 'line-width', zoneRamp(ZONE_STOPS.width, z));
-  }, 66);
+  }, 130);
 }
 function applyLabelZoom() {
   if (!mapObj) return;
@@ -2397,6 +2430,36 @@ mapObj = new maplibregl.Map({
       labelCtrls.push({ el: el, minZoom: l.minZoom || 0 });
     }
     applyLabelZoom();
+    // Тепловая карта наличия топлива (бензин): сливающиеся мягкие пятна
+    // вокруг станций. Зелёный — АИ-95 есть, оранжевый — только АИ-92 или мнения
+    // разошлись, красный — бензина нет. Рисуется ПОД зонами спроса и пинами,
+    // чтобы очереди и капли оставались читаемыми поверх.
+    mapObj.addSource('fuelheat', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    // Топливное тепло как непрерывное поле плотности: соседние станции физически
+    // сливаются в одно поле (KDE heatmap-слоя). Два слоя: спокойное зелёное поле
+    // (топливо есть) и поле дефицита (жёлтый → оранжевый → красное ядро).
+    // Вес точки = сила сигнала дефицита: нет топлива > частичный состав > конфликт,
+    // плюс надбавка за очередь сейчас (очередь = спрос здесь и сейчас).
+    const FH_DEFS = [
+      { id: 'fuelheat-calm', cls: 'calm', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.35)', 'rgba(27,185,120,0.55)', 'rgba(27,185,120,0.70)', 'rgba(18,168,106,0.80)'] },
+      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.40)', 'rgba(245,160,90,0.62)', 'rgba(239,83,80,0.78)', 'rgba(216,42,38,0.88)'] }
+    ];
+    for (const d of FH_DEFS) {
+      mapObj.addLayer({
+        id: d.id,
+        type: 'heatmap',
+        source: 'fuelheat',
+        filter: ['==', ['get', 'cls'], d.cls],
+        paint: {
+          'heatmap-weight': ['get', 'w'],
+          'heatmap-intensity': 1.8,
+          'heatmap-radius': 90,
+          'heatmap-opacity': 1,
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'],
+            0, d.ramp[0], 0.25, d.ramp[1], 0.5, d.ramp[2], 0.75, d.ramp[3], 1, d.ramp[4]]
+        }
+      });
+    }
     mapObj.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     mapObj.addLayer({ id: 'zones-halo', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'halo'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.08 } });
     mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
@@ -2475,6 +2538,32 @@ mapObj = new maplibregl.Map({
 function toggleMapAttrib() {
   const pop = document.getElementById('mapAttribPop');
   if (pop) pop.classList.toggle('open');
+}
+/* два режима карты: «Карта» (кластеры, пины, лужи очередей) и «Тепло»
+   (тепловая карта спроса — главный герой: поле + точки АЗС + минимальная легенда) */
+function setHeatMode(on, btn) {
+  heatMode = !!on;
+  heatStrength = heatMode ? 1 : 0.55;
+  const tabs = document.getElementById('heatTabs');
+  if (tabs) tabs.querySelectorAll('.mg-tab').forEach(t => t.classList.toggle('active', t === btn));
+  const tEl = document.getElementById('mapTitle');
+  if (tEl) tEl.textContent = heatMode ? 'Тепловая карта спроса' : 'Карта спроса';
+  const sEl = document.getElementById('mapSub');
+  if (sEl) sEl.textContent = heatMode
+    ? 'Тепловая карта показывает, где сейчас сосредоточен дефицит топлива.'
+    : 'Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а лужа вокруг — где очередь. Цветное поле под ними — где дефицит топлива. Нажми на каплю — появятся кнопки.';
+  const plate = document.getElementById('mapPlate');
+  if (plate) plate.style.display = heatMode ? 'none' : '';
+  const lq = document.getElementById('legQueue'); if (lq) lq.style.display = heatMode ? 'none' : '';
+  const lf = document.getElementById('legFuel'); if (lf) lf.style.display = heatMode ? 'none' : '';
+  const lh = document.getElementById('legHeat'); if (lh) lh.style.display = '';
+  const box = document.getElementById('mapBox');
+  if (box) box.classList.toggle('heat', heatMode);
+  if (mapObj && zoneReady) {
+    for (const L of FH_LAYERS) mapObj.setLayoutProperty(L, 'visibility', 'visible');
+    for (const L of ['zones-halo', 'zones-fill', 'zones-core', 'zones-line']) mapObj.setLayoutProperty(L, 'visibility', heatMode ? 'none' : 'visible');
+    renderMap();
+  }
 }
 function demandOf(id) {
   const q = queueById[id];
@@ -2697,7 +2786,7 @@ function renderMap() {
     const sc = demandOf(id);
     // зона спроса видна с z >= 12: вдали — мягкое дышащее кольцо-подсказка
     // вокруг кластера, с z >= 13 (пины) — ярче и чётче вокруг каждой капли
-    if (sc >= 12 && zoom >= 12) {
+    if (!heatMode && sc >= 12 && zoom >= 12) {
       const seed = seedOf(id);
       const R = 100 + sc * 6;
       const col = 'rgb(' + demandRgb(sc) + ')';
@@ -2707,7 +2796,7 @@ function renderMap() {
     }
     // иконка очереди живёт на всех зумах зоны: вдали — в центре круга,
     // с приближением плавно уменьшается и уезжает в левый нижний угол под пин
-    if (sc >= 12 && zoom >= 12) {
+    if (!heatMode && sc >= 12 && zoom >= 12) {
       const elZ = document.createElement('div');
       elZ.className = 'mzone-ico';
       elZ.style.zIndex = '1';
@@ -2718,10 +2807,40 @@ function renderMap() {
       objMarkers.push(mkZ);
     }
   }
-  if (routeFeature) feats.push(routeFeature);
+  // точки для тепловой карты наличия топлива: берём статус АИ-95 каждой станции
+  // (источник приоритетнее, при молчании — народный консенсус) и кладём в отдельный слой
+  const fuelFeats = [];
+  for (const st of allStations) {
+    if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
+    const o = last[st.id];
+    let state = pinKey(o);
+    if (state === 'unknown') {
+      const fp = folkPinState(st.id, o);
+      if (fp) state = fp;
+    }
+    if (state === 'unknown') continue;
+    // спокойное поле: станция с АИ-95
+    if (state === 'yes') {
+      fuelFeats.push({ type: 'Feature', properties: { cls: 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+    }
+    // поле дефицита: вес = сила сигнала (нет топлива > частичный состав > конфликт)
+    // плюс надбавка за очередь сейчас — очередь и есть спрос здесь и сейчас
+    let hotW = 0;
+    if (state === 'no') hotW = 1;
+    else if (state === 'part' || state === 'diesel') hotW = 0.65;
+    else if (state === 'conflict') hotW = 0.5;
+    if (o && o.queue_level === 'high') hotW += 0.35;
+    if (hotW > 0) {
+      fuelFeats.push({ type: 'Feature', properties: { cls: 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+    }
+  }
+  const fhSrc = mapObj.getSource('fuelheat');
+  if (fhSrc) fhSrc.setData({ type: 'FeatureCollection', features: fuelFeats });
   if (routeFeature) feats.push(routeFeature);
   mapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
-  if (zoom < 13) {
+  if (heatMode) {
+    // режим «Тепло»: кластеры и пины не рисуем — тепловой слой главный герой
+  } else if (zoom < 13) {
     // свои кластеры: сетка ~70px текущего зума
     // сетка на мировых координатах (не экранных): кластеры не
     // перегруппировываются от панов, только от смены зума
