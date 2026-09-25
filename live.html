@@ -157,54 +157,65 @@ function render(d) {
     html += '<div class="note">Пока нет данных для сравнения — верификатор не проверил ни одного прогноза.</div>';
   } else {
     html += '<div class="subcap">Метрики по верифицированным прогнозам</div>';
-    html += '<table style="width:100%;border-collapse:collapse;font-size:11px">';
-    html += '<tr style="background:#eef4ff"><th style="padding:8px;text-align:left;border-bottom:2px solid #dfe8f6">Версия</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">Проверено</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">Медиана</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">MAE</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">P90</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">Попаданий</th></tr>';
-    
     // сортируем по дате версии (новые сверху)
     const sorted = versionMetrics.slice().sort((a, b) => b.model_version.localeCompare(a.model_version, undefined, { numeric: true }));
     const latest = sorted[0];
-    
+    // карточки вместо таблицы: 6 колонок не влезают в телефон,
+    // а карточка держит метрики в 2 колонки — ничего не обрезается
     sorted.forEach(vm => {
       const isLatest = vm.model_version === latest.model_version;
-      const bg = isLatest ? '#f0f9ff' : '#fff';
-      const verified = vm.verified || 0;
-      const success = vm.success || 0;
-      const mae = vm.mae_min;
-      const median = vm.median_min;
-      const p90 = vm.p90_min;
-      const successPct = vm.success_pct;
-      
-      html += '<tr style="background:' + bg + '">';
-      html += '<td style="padding:8px;border-bottom:1px solid #e6ebf4;font-weight:' + (isLatest ? '900' : '700') + '">' + vm.model_version + '</td>';
-      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + verified + '</td>';
-      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + fmtMin(median) + '</td>';
-      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + fmtMin(mae) + '</td>';
-      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + fmtMin(p90) + '</td>';
-      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + (successPct !== null ? successPct + '%' : '—') + '</td>';
-      html += '</tr>';
+      html += '<div style="margin-bottom:8px;padding:10px 12px;border-radius:14px;background:' + (isLatest ? '#f0f9ff' : '#f7f9fc') + ';border:1px solid ' + (isLatest ? '#bcd4ff' : '#e6ebf4') + '">';
+      html += '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">' +
+        '<b style="font-size:13px">' + vm.model_version + (isLatest ? ' · текущая' : '') + '</b>' +
+        '<span style="color:#71809c;font-size:10px;font-weight:700">проверено ' + (vm.verified || 0) + ' из ' + (vm.total || 0) + '</span></div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:6px;font-size:11px;color:#5b6b86;font-weight:700">';
+      html += '<div>Медиана: <b style="color:#14213d">' + fmtMin(vm.median_min) + '</b></div>';
+      html += '<div>Попаданий: <b style="color:#14213d">' + (vm.success_pct === null || vm.success_pct === undefined ? '—' : vm.success_pct + '%') + '</b></div>';
+      html += '<div>MAE: <b style="color:#14213d">' + fmtMin(vm.mae_min) + '</b></div>';
+      html += '<div>P90: <b style="color:#14213d">' + fmtMin(vm.p90_min) + '</b></div>';
+      html += '</div></div>';
     });
-    html += '</table>';
     
-    // сравнение с предыдущей версией
+    // сравнение с предыдущей версией — честно по всем 4 метрикам:
+    // каждая голосует сама (порог: 30 мин для времени, 2 п.п. для попаданий),
+    // вердикт — по счёту голосов, а не по одной медиане
     if (sorted.length >= 2) {
       const prev = sorted[1];
       if (prev.verified >= 10 && latest.verified >= 10) {
-        const medianDiff = prev.median_min - latest.median_min;
-        const maeDiff = prev.mae_min - latest.mae_min;
-        const p90Diff = prev.p90_min - latest.p90_min;
-        const successDiff = (latest.success_pct || 0) - (prev.success_pct || 0);
-        
-        let verdict = '';
-        if (medianDiff > 30) verdict = '✅ <b>' + latest.model_version + ' лучше</b>: медиана ошибки на ' + fmtMin(medianDiff) + ' меньше';
-        else if (medianDiff < -30) verdict = '⚠️ <b>' + latest.model_version + ' хуже</b>: медиана ошибки на ' + fmtMin(Math.abs(medianDiff)) + ' больше';
-        else verdict = '➡️ <b>Разница незначительная</b> (±' + fmtMin(Math.abs(medianDiff)) + ')';
-        
-        html += '<div style="margin-top:12px;padding:10px;background:#eef4ff;border-radius:10px;font-size:11px;line-height:1.5">';
-        html += '<div style="font-weight:900;margin-bottom:4px">Сравнение: ' + latest.model_version + ' vs ' + prev.model_version + '</div>';
-        html += verdict + '<br>';
-        html += 'MAE: ' + (maeDiff > 0 ? '−' : '+') + fmtMin(Math.abs(maeDiff)) + ', ';
-        html += 'P90: ' + (p90Diff > 0 ? '−' : '+') + fmtMin(Math.abs(p90Diff)) + ', ';
-        html += 'попаданий: ' + (successDiff > 0 ? '+' : '') + successDiff + ' п.п.';
+        const pct = v => (v === null || v === undefined ? '—' : v + '%');
+        const metrics = [
+          { name: 'Медиана', prev: prev.median_min, last: latest.median_min, show: fmtMin, lessIsBetter: true, thr: 30 },
+          { name: 'MAE', prev: prev.mae_min, last: latest.mae_min, show: fmtMin, lessIsBetter: true, thr: 30 },
+          { name: 'P90', prev: prev.p90_min, last: latest.p90_min, show: fmtMin, lessIsBetter: true, thr: 30 },
+          { name: 'Попаданий', prev: prev.success_pct, last: latest.success_pct, show: pct, lessIsBetter: false, thr: 2 }
+        ];
+        let wins = 0, losses = 0, rowsHtml = '';
+        for (const m of metrics) {
+          if (m.prev === null || m.prev === undefined || m.last === null || m.last === undefined) {
+            rowsHtml += '<div>' + m.name + ': данных мало</div>';
+            continue;
+          }
+          const diff = m.last - m.prev;
+          const improved = m.lessIsBetter ? diff < -m.thr : diff > m.thr;
+          const worsened = m.lessIsBetter ? diff > m.thr : diff < -m.thr;
+          if (improved) wins++;
+          if (worsened) losses++;
+          let delta;
+          if (!improved && !worsened) delta = '➖ в пределах погрешности';
+          else if (m.lessIsBetter) delta = improved ? '✅ на ' + fmtMin(-diff) + ' меньше' : '⚠️ на ' + fmtMin(diff) + ' больше';
+          else delta = improved ? '✅ на ' + diff + ' п.п. больше' : '⚠️ на ' + (-diff) + ' п.п. меньше';
+          rowsHtml += '<div>' + m.name + ': ' + m.show(m.prev) + ' → ' + m.show(m.last) + ' · ' + delta + '</div>';
+        }
+        let verdict;
+        if (wins > losses && losses === 0) verdict = '✅ <b>' + latest.model_version + '</b>: лучше по ' + wins + ' метрикам из 4, ни по одной не хуже';
+        else if (wins > losses) verdict = '➕ <b>' + latest.model_version + '</b>: лучше по ' + wins + ' метрикам из 4, хуже по ' + losses;
+        else if (wins === losses) verdict = '➡️ <b>Метрики спорят</b>: ' + latest.model_version + ' лучше по ' + wins + ', хуже по ' + losses;
+        else verdict = '⚠️ <b>' + latest.model_version + '</b>: хуже по ' + losses + ' метрикам из 4, лучше по ' + wins;
+        html += '<div style="margin-top:12px;padding:10px;background:#eef4ff;border-radius:10px;font-size:11px;line-height:1.6">';
+        html += '<div style="font-weight:900;margin-bottom:4px">Сравнение: ' + latest.model_version + ' vs ' + prev.model_version + ' (проверено ' + latest.verified + ' vs ' + prev.verified + ')</div>';
+        html += rowsHtml;
+        html += '<div style="margin-top:6px;font-weight:800">' + verdict + '</div>';
+        html += '<div class="note" style="margin-top:6px">Версии работали в разное время и на разных станциях: часть разницы — от рынка, а не от алгоритма. Полностью чистое сравнение — одновременные прогнозы (shadow-режим, в планах).</div>';
         html += '</div>';
       } else {
         html += '<div class="note" style="margin-top:8px">Для сравнения нужно ≥10 проверенных прогнозов в каждой версии. Сейчас: ' + latest.model_version + ' — ' + latest.verified + ', ' + prev.model_version + ' — ' + prev.verified + '.</div>';
