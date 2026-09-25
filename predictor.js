@@ -1,4 +1,4 @@
-// ===== Предиктор Новороссийска v1.6 (+ State Machine Awareness) =====
+// ===== Предиктор Новороссийска v1.11 (+ отказ от city-пула) =====
 // Умное объединение: свои события → по бренду → по городу.
 // Модель длительности дефицита: если топливо сейчас исчезло,
 // считаем, когда его обычно возвращают.
@@ -15,7 +15,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MIN_EVENTS_PRELIM = 3;
-const MIN_EVENTS_FULL = 5;
+const MIN_EVENTS_FULL = 8;
 const HISTORY_DAYS = 30;
 const MIN_WINDOW_MIN = 15;
 // Рамка всего юга (дом + донор Кубань+Адыгея): прогнозы и очереди по всем станциям
@@ -335,7 +335,7 @@ async function main() {
   console.log('4.9) Читаю таблицу калибровки уверенности...');
   await loadCalibration();
   console.log('5) Строю прогнозы для всех станций региона...');
-  let created = 0, updated = 0, skipped = 0, stale = 0;
+  let created = 0, updated = 0, skipped = 0, stale = 0, lost_no_city = 0;
   const fuels = ['92', '95', 'diesel'];
   const fuelCol = { '92': 'fuel_92_status', '95': 'fuel_95_status', 'diesel': 'diesel_status' };
 
@@ -380,7 +380,12 @@ async function main() {
           usedCount = brandItems.length;
         }
       }
-      // Попытка 3: по городу
+      // Попытка 3: по городу — ОТКЛЮЧЕНА v1.11
+      // Городской ритм даёт ошибку 8-20 часов (см. анализ 26.09.2026):
+      // у разных АЗС привозы в совершенно разное время, "среднее по городу"
+      // не подходит никому. Лучше честно сказать "данных мало", чем гадать.
+      // Код сохранён в комментарии для отката при необходимости.
+      /*
       if (!useItems) {
         const cityItems = [];
         const cityStations = new Set();
@@ -397,7 +402,24 @@ async function main() {
           usedCount = cityItems.length;
         }
       }
-      if (!useItems) { skipped++; continue; }
+      */
+      if (!useItems) {
+        // Считаем отдельно: сколько прогнозов потеряли из-за отключения city
+        // (если бы city был включён, прогноз бы создался)
+        let wouldHaveCity = false;
+        if (st.brand) {
+          // brand не сработал — значит brandItems.length < MIN_EVENTS_FULL
+          // проверяем, хватило бы city
+          let cityCount = 0;
+          for (const s of stations) {
+            if (isOwn(s) && (restoredByPair[s.id + '|' + fuel] || []).length > 0) cityCount++;
+          }
+          if (cityCount >= 8) wouldHaveCity = true;
+        }
+        if (wouldHaveCity) lost_no_city++;
+        skipped++;
+        continue;
+      }
 
       // v1.10: фильтр по классу дня (будни/выходные): субботний ритм привозов
       // отличается от будничного. Фильтруем только когда событий достаточно,
@@ -540,7 +562,7 @@ async function main() {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.10|' + source,
+        algorithm_version: 'v1.11|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
@@ -573,7 +595,7 @@ async function main() {
         ' (' + usedCount + ' соб.)' + prelim + eta);
     }
   }
-  console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped + ', молчащих станций (>72ч): ' + stale);
+  console.log('   Создано: ' + created + ', обновлено: ' + updated + ', пропущено: ' + skipped + ' (из них потеряно из-за отключения city: ' + lost_no_city + '), молчащих станций (>72ч): ' + stale);
 
   if (created > 0 && process.env.TELEGRAM_BOT_TOKEN) {
     try {
@@ -584,6 +606,6 @@ async function main() {
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.10 завершил работу');
+  console.log('✅ Предиктор v1.11 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
