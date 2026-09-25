@@ -111,14 +111,13 @@ body { overflow:hidden; }
 .nowcard-title { font-size:16px; font-weight:900; letter-spacing:-.5px; }
 .nowcard-sub { margin-top:1px; color:#71809c; font-size:9.5px; font-weight:600; }
 .p1-clock { display:flex; align-items:center; gap:5px; padding:6px 9px; border-radius:11px; background:#f2f4f9; color:#33445f; font-size:11px; font-weight:800; }
-.hero-line { display:flex; align-items:center; gap:9px; padding:7px 10px; border-radius:16px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; margin-bottom:6px; }
+.hero-line { display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:16px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; margin-bottom:6px; }
 .hero-line > .ic { color:#6a4fd8; }
 .hl-main { flex:1; min-width:0; }
 .hl-fuel { color:#627593; font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
-.hl-window { font-size:20px; font-weight:900; letter-spacing:-1px; }
-.hl-conf { width:70px; }
-.hl-conf .confidence-bar { margin-top:0; height:5px; background:#dce6f2; }
-.hl-conf b { font-size:10px; }
+.hl-window { font-size:11px; font-weight:800; letter-spacing:-.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hero-line { transition:opacity .18s ease; }
+.hero-line.swap { opacity:0; }
 .confidence-bar { height:5px; margin-top:5px; overflow:hidden; border-radius:99px; background:#d7e8e4; }
 .confidence-bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#21b986,#4284ff); }
 /* тепловая матрица */
@@ -285,7 +284,8 @@ body { overflow:hidden; }
 .sheet.open { transform:translateY(0); }
 .sheet-grab { width:44px; height:5px; border-radius:99px; background:#d7dde8; margin:4px auto 10px; }
 .sheet-close { position:sticky; top:0; float:right; margin:2px 2px 6px auto; width:32px; height:32px; border:0; border-radius:12px; background:#e9edf5; color:#5b6b86; cursor:pointer; z-index:5; display:grid; place-items:center; }
-@media(max-width:520px){ .hl-window { font-size:18px; } .station { padding:12px; } .forecast-time { font-size:24px; } }
+@media(max-width:520px){ .hl-window { font-size:10.5px; } .station { padding:12px; } .forecast-time { font-size:24px; } }
+@media(max-width:380px){ .hl-window { font-size:10px; } }
 .fb-group { margin-top:8px; }
 .fb-gl { color:#8291a9; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; margin-bottom:4px; }
 .feedback-grid.g3 { grid-template-columns:repeat(3,1fr); }
@@ -563,10 +563,10 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <div class="hero-line">
         <svg class="ic"><use href="#i-spark"/></svg>
         <div class="hl-main">
-          <div class="hl-fuel" id="hfFuel">АИ-95 · вероятнее всего будет</div>
+          <div class="hl-fuel" id="hfFuel">Самый уверенный прогноз</div>
           <div class="hl-window" id="hfWindow">—</div>
+          <div class="confidence-bar" style="margin-top:4px;height:4px"><span id="hfBar" style="width:8%"></span></div>
         </div>
-        <div class="hl-conf" id="hfConf"><div class="confidence-bar"><span style="width:8%"></span></div><b>—</b></div>
       </div>
       <div class="hm-wrap">
         <div class="hm-body" id="heatGrid"></div>
@@ -1712,39 +1712,66 @@ function renderPulse() {
   };
 }
 /* герой, чипы, дайджест, шапка */
-function renderHero() {
+// плашка-герой: слайды и автосмена. Город — топ-1 самый уверенный прогноз
+// (название • улица • окно • %); весь юг — лучший и худший топ-1, листаются сами.
+let heroSlides = [], heroIdx = 0;
+function stationCityName(st) {
+  if (!st) return null;
+  for (const c of CITY_BOXES) if (st.lat >= c.lat1 && st.lat <= c.lat2 && st.lon >= c.lon1 && st.lon <= c.lon2) return c.name;
+  return null;
+}
+function heroSlide(p, cap, withCity) {
+  const st = stationById(p.station_id);
+  const pct = Math.round((Number(p.confidence) || 0) * 100);
+  const mid = withCity ? (stationCityName(st) || 'юг') : ((st && st.address) ? st.address : '—');
+  return {
+    cap: cap + ' · ' + fuelLabel(p.fuel_type),
+    line: (st ? (st.name || 'АЗС') : 'АЗС') + ' • ' + mid + ' • ' + time5(p.from_time) + '–' + time5(p.to_time) + ' • ' + pct + '%',
+    conf: pct
+  };
+}
+function applyHeroSlide(i) {
+  const s = heroSlides[i];
+  if (!s) return;
   const fuelEl = document.getElementById('hfFuel');
   const winEl = document.getElementById('hfWindow');
-  const confEl = document.getElementById('hfConf');
+  const barEl = document.getElementById('hfBar');
+  if (fuelEl) fuelEl.textContent = s.cap;
+  if (winEl) winEl.textContent = s.line;
+  if (barEl) barEl.style.width = s.conf + '%';
+}
+function renderHero() {
+  const fuelEl = document.getElementById('hfFuel');
   if (!fuelEl) return;
   const last = getLastObservations();
-  const nowM = new Date().getHours() * 60 + new Date().getMinutes();
-  const citySet = new Set(cityStationList().map(s => s.id));
-  let best = null;
-  for (const id of citySet) {
-    const p = pickPrediction(id, last[id]);
-    if (!p) continue;
-    const f = Number(p.from_time.split(':')[0]) * 60 + Number(p.from_time.split(':')[1]);
-    const score = (p.confidence || 0) + (f >= nowM ? .5 : 0);
-    if (!best || score > best.score) best = { p, id, score };
-  }
-  const pc = peakAndCalm();
-  if (best) {
-    const conf = Math.round((best.p.confidence || 0) * 100);
-    fuelEl.textContent = fuelLabel(best.p.fuel_type) + ' · вероятнее всего будет';
-    winEl.textContent = time5(best.p.from_time) + ' — ' + time5(best.p.to_time);
-    confEl.innerHTML = '<div class="confidence-bar"><span style="width:' + conf + '%"></span></div><b>' + conf + '%</b>';
+  const pend = allPredictions.filter(p => p.result === 'PENDING' && isFinite(Number(p.confidence)));
+  const slides = [];
+  if (pulseScope === 'south') {
+    if (pend.length) {
+      const sorted = pend.slice().sort((a, b) => Number(b.confidence) - Number(a.confidence));
+      slides.push(heroSlide(sorted[0], 'Лучший по югу', true));
+      if (sorted.length > 1) slides.push(heroSlide(sorted[sorted.length - 1], 'Худший по югу', true));
+    }
   } else {
-    fuelEl.textContent = 'АИ-95 · спокойное окно';
-    winEl.textContent = pc.calm;
-    confEl.innerHTML = '<div class="confidence-bar"><span style="width:8%"></span></div><b>созр.</b>';
+    const cSet = new Set(cityStationList().map(s => s.id));
+    const cityPend = pend.filter(p => cSet.has(p.station_id));
+    if (cityPend.length) {
+      const best = cityPend.slice().sort((a, b) => Number(b.confidence) - Number(a.confidence))[0];
+      slides.push(heroSlide(best, 'Самый уверенный прогноз · ' + userCityName(), false));
+    }
   }
+  if (!slides.length) slides.push({ cap: 'АИ-95 · спокойное окно', line: peakAndCalm().calm, conf: 8 });
+  heroSlides = slides;
+  if (heroIdx >= heroSlides.length) heroIdx = 0;
+  applyHeroSlide(heroIdx);
+  const citySet = new Set(cityStationList().map(s => s.id));
   const tn = document.getElementById('triNow');
   if (tn) {
     let known = 0, avail = 0;
     for (const id of citySet) { const o = last[id]; if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { known++; if (o.fuel_95_status) avail++; } }
     tn.textContent = known ? avail + ' из ' + known + ' АЗС' : 'нет данных';
   }
+  const pc = peakAndCalm();
   const tu = document.getElementById('triUsually');
   if (tu) tu.textContent = pc.peak === '—' ? '—' : pc.peak.replace(/:00/g, '');
   const tf = document.getElementById('triFc');
@@ -3629,11 +3656,17 @@ function helpHtml() {
     '<div class="help-lead">КогдаБенз — помощник водителя юга: Краснодарский край и Адыгея. Мы не просто показываем, где бензин: каждые 10 минут собираем отметки заправок и сообщения водителей, а потом подсказываем, когда топливо вернётся на заправку и когда лучше поехать.</div>' +
     '<div class="help-item"><div class="help-q">Зачем создан этот сайт?</div><div class="help-a">В дефицит бензин пропадает с заправок, а очереди появляются внезапно. Чтобы не ездить по городу вслепую, мы собрали все отметки в одном месте и заранее подсказываем, когда и куда лучше заправиться.</div></div>' +
     '<div class="help-item"><div class="help-q">Откуда берутся данные?</div><div class="help-a">Из двух источников: народная карта заправок (обновляется каждые 10 минут) и отметки таких же водителей, как вы: «топливо есть», «очередь», «привезли». Чем больше людей отмечают, тем точнее подсказки.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что за плашка с прогнозом вверху главной панели?</div><div class="help-a">Это самый уверенный прогноз по вашему городу: на какой заправке, на какой улице, в какое окно вероятнее всего вернётся топливо и насколько мы в этом уверены в процентах. На тумблере «весь юг» плашка по очереди показывает лучший и худший прогноз юга — они сменяются сами каждые несколько секунд.</div></div>' +
     '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов. Когда источник станцию не видит, каплю красят отметки людей: 2 голоса — ранний сигнал, 3 голоса — подтверждено; оранжевая капля со знаком вопроса — мнения людей разошлись.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за лужи вокруг капель?</div><div class="help-a">Это очереди. Чем краснее и заметнее лужа, тем больше людей стоят в очереди прямо сейчас. Значок с человечками внутри зоны — отметка очереди.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что за кнопка «Тепло» на карте?</div><div class="help-a">Это тепловая карта спроса: одно сплошное поле показывает, где сейчас сосредоточен дефицит топлива. Зелёный — спокойно, жёлтый — напряжённо, оранжевый — дефицит, красный — ядро дефицита. В этом режиме капли и очереди скрыты, чтобы не мешать читать поле.</div></div>' +
     '<div class="help-item"><div class="help-q">Что такое «окно возврата»?</div><div class="help-a">Часы, когда топливо с большей вероятностью вернётся на заправку. Мы считаем их по истории заправки: когда и как обычно туда привозят бензин. Рядом с окном всегда показана уверенность в процентах.</div></div>' +
+    '<div class="help-item"><div class="help-q">Как построить маршрут до заправки?</div><div class="help-a">Нажмите на каплю на карте и выберите «Построить маршрут»: сайт проведёт линию по дорогам от вашей точки, а внизу покажет примерное время в пути и расстояние в километрах. Если маршрут построить не удалось (например, нет связи) — карта просто подлетит к заправке.</div></div>' +
+    '<div class="help-item"><div class="help-q">GPS показывает не туда, что делать?</div><div class="help-a">Иногда навигацию глушат, и точка прыгает или улетает далеко. Тогда сайт покажет красную плашку и чип «указать своё местоположение»: тапните по карте или перетащите синюю точку пальцем — и всё будет считаться от неё. Кнопка «Рядом» в шапке возвращает автоопределение.</div></div>' +
     '<div class="help-item"><div class="help-q">Можно ли доверять сайту?</div><div class="help-a">Каждую ночь мы сверяем свои подсказки с тем, что случилось на самом деле, и честно показываем ошибку на панели «Наша точность прогнозов». Если данных мало — говорим об этом прямо и не выдумываем цифры.</div></div>' +
     '<div class="help-item"><div class="help-q">Что делает кнопка «Куда ехать»?</div><div class="help-a">Подбирает ближайшую к вам заправку с топливом по свежим отметкам и показывает расстояние. Если топлива сейчас нигде нет — подскажет ближайшее окно возврата.</div></div>' +
+    '<div class="help-item"><div class="help-q">Работает ли без интернета?</div><div class="help-a">Да, частично: если связь пропала, сайт покажет последние загруженные данные с плашкой «Нет связи — показываем данные на ЧЧ:ММ». Ваши отметки в это время не теряются: они уйдут автоматически, когда связь вернётся.</div></div>' +
+    '<div class="help-item"><div class="help-q">Как установить на домашний экран?</div><div class="help-a">На Android в Chrome сайт сам предложит «Установить приложение» в отдельном окошке. На iPhone в Safari: кнопка «Поделиться» → «На экран “Домой”» → «Добавить». Тогда КогдаБенз будет открываться как обычное приложение, без строки браузера.</div></div>' +
     '<div class="help-item"><div class="help-q">Как я могу помочь?</div><div class="help-a">Нажмите на каплю на карте и выберите «Отметка»: пара нажатий — и ваша отметка о топливе или очереди улучшит подсказки для всего города.</div></div>';
 }
 function openHelp() {
@@ -3738,6 +3771,18 @@ if (cityBtnTxt) cityBtnTxt.textContent = userCityName();
 tickClock();
 refreshLocChip();
 setInterval(tickClock, 30000);
+// автосмена плашки-героя: каждые 6 сек следующий слайд (когда их больше одного)
+setInterval(() => {
+  if (heroSlides.length < 2) return;
+  const hl = document.querySelector('.hero-line');
+  if (!hl) return;
+  hl.classList.add('swap');
+  setTimeout(() => {
+    heroIdx = (heroIdx + 1) % heroSlides.length;
+    applyHeroSlide(heroIdx);
+    hl.classList.remove('swap');
+  }, 180);
+}, 6000);
 // Плашка карты: мягкие края карусели — фейд только с той стороны,
 // куда есть куда скроллить; в упоре край чистый, ничего не «обрезано»
 (function plateScrollFx() {
