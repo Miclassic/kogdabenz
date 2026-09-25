@@ -31,7 +31,7 @@
   .row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #e6ebf4; font-size: 12px; }
   .row:last-child { border-bottom: 0; }
   .row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .row .nm small { display: block; color: #93a1b8; font-size: 10px; }
+  .row .nm small { display: block; color: #93a1b8; font-size: 10px; white-space: normal; }
   .row .vl { flex: 0 0 auto; font-weight: 800; }
   .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
 </style>
@@ -67,6 +67,7 @@ function fmtPct(v) {
   return Math.round(Number(v) * 100) + '%';
 }
 function t5(v) { return String(v || '').slice(0, 5); }
+function addrPart(x) { return x && x.station_address ? ' · ' + x.station_address : ''; }
 
 async function load() {
   const app = document.getElementById('app');
@@ -114,21 +115,23 @@ function render(d) {
     '<div>Окно обычно: <b>' + fmtMin(ws.avg_width_min) + '</b> (самое узкое ' + fmtMin(ws.min_width_min) + ', самое широкое ' + fmtMin(ws.max_width_min) + ').</div>' +
     '<div>Уверенность в среднем: <b>' + fmtPct(cs.avg) + '</b> (от ' + fmtPct(cs.min) + ' до ' + fmtPct(cs.max) + ').</div>' +
     '</div></div></div>';
-    // твой город
+
+  // твой город
   html += '<div class="section"><h2>🏠 Твой город (Новороссийск)</h2>';
   html += '<div class="subcap">Самые уверенные прогнозы</div>';
   if (!topHome.length) html += '<div class="note">По городу сегодня нет непроверенных прогнозов.</div>';
   topHome.forEach(t => {
-    html += '<div class="row"><span class="nm">' + (t.station_name || 'АЗС') + '<small>' + fuelRu(t.fuel_type) + ' · ' + sourceRu(t.prediction_source) + '</small></span>' +
+    html += '<div class="row"><span class="nm">' + (t.station_name || 'АЗС') + '<small>' + fuelRu(t.fuel_type) + ' · ' + sourceRu(t.prediction_source) + addrPart(t) + '</small></span>' +
       '<span class="vl">' + t5(t.from_time) + '–' + t5(t.to_time) + ' · ' + fmtPct(t.confidence) + '</span></div>';
   });
   html += '<div class="subcap">Самые узкие окна</div>';
   if (!narrowHome.length) html += '<div class="note">По городу сегодня нет непроверенных прогнозов.</div>';
   narrowHome.forEach(n => {
-    html += '<div class="row"><span class="nm">' + (n.station_name || 'АЗС') + '<small>' + fuelRu(n.fuel_type) + ' · ' + sourceRu(n.prediction_source) + '</small></span>' +
+    html += '<div class="row"><span class="nm">' + (n.station_name || 'АЗС') + '<small>' + fuelRu(n.fuel_type) + ' · ' + sourceRu(n.prediction_source) + addrPart(n) + '</small></span>' +
       '<span class="vl">' + t5(n.from_time) + '–' + t5(n.to_time) + ' · ' + fmtMin(n.width_min) + '</span></div>';
   });
   html += '</div>';
+
   // кто предсказывает
   html += '<div class="section"><h2>🧠 Чьим ритмом предсказываем</h2>';
   const maxSrc = Math.max(1, ...bySource.map(x => x.count));
@@ -158,7 +161,7 @@ function render(d) {
   html += '<div class="section"><h2>💪 Самые уверенные прогнозы</h2>';
   if (!topConf.length) html += '<div class="note">Пока пусто.</div>';
   topConf.forEach(t => {
-    html += '<div class="row"><span class="nm">' + (t.station_name || 'АЗС') + '<small>' + fuelRu(t.fuel_type) + ' · ' + sourceRu(t.prediction_source) + '</small></span>' +
+    html += '<div class="row"><span class="nm">' + (t.station_name || 'АЗС') + '<small>' + fuelRu(t.fuel_type) + ' · ' + sourceRu(t.prediction_source) + addrPart(t) + '</small></span>' +
       '<span class="vl">' + t5(t.from_time) + '–' + t5(t.to_time) + ' · ' + fmtPct(t.confidence) + '</span></div>';
   });
   html += '</div>';
@@ -167,7 +170,7 @@ function render(d) {
   html += '<div class="section"><h2>🎯 Самые узкие окна (где алгоритм увереннее всего во времени)</h2>';
   if (!narrow.length) html += '<div class="note">Пока пусто.</div>';
   narrow.forEach(n => {
-    html += '<div class="row"><span class="nm">' + (n.station_name || 'АЗС') + '<small>' + fuelRu(n.fuel_type) + ' · ' + sourceRu(n.prediction_source) + '</small></span>' +
+    html += '<div class="row"><span class="nm">' + (n.station_name || 'АЗС') + '<small>' + fuelRu(n.fuel_type) + ' · ' + sourceRu(n.prediction_source) + addrPart(n) + '</small></span>' +
       '<span class="vl">' + t5(n.from_time) + '–' + t5(n.to_time) + ' · ' + fmtMin(n.width_min) + '</span></div>';
   });
   html += '<div class="note">После v1.10 узкие окна (4–6 часов) — норма для станций с ровным ритмом привозов.</div></div>';
