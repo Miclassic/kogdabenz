@@ -98,7 +98,7 @@ function calibrate(c) {
 }
 
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.10 (State Machine Aware) ===');
+  console.log('=== ПРЕДИКТОР v1.11 (State Machine Aware) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
