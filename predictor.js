@@ -490,8 +490,18 @@ async function main() {
         if (hoursUntilEta > 8) {
           const etaMsk = new Date(new Date(expectedRestoreAt).getTime() + 3 * 3600 * 1000);
           const etaMin = etaMsk.getUTCHours() * 60 + etaMsk.getUTCMinutes();
-          winFrom = minutesToTime(Math.max(6 * 60, etaMin - 120));
-          winTo = minutesToTime(Math.min(23 * 60, etaMin + 120));
+          let wf = Math.max(6 * 60, etaMin - 120);
+          let wt = Math.min(23 * 60, etaMin + 120);
+          // хотфикс v1.10.1: ночная ETA (раньше ~08:00) выворачивала окно —
+          // конец раньше начала (кейс -55 мин на live-странице).
+          // Тогда снимаем нижнюю рамку и строим окно вокруг ETA как обычно.
+          if (wt < wf + 2 * MIN_WINDOW_MIN) {
+            wf = Math.max(0, etaMin - 120);
+            wt = Math.min(1439, etaMin + 120);
+            if (wt < wf + 2 * MIN_WINDOW_MIN) wt = Math.min(1439, wf + 2 * MIN_WINDOW_MIN);
+          }
+          winFrom = minutesToTime(wf);
+          winTo = minutesToTime(wt);
         }
       }
       const toMin = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
