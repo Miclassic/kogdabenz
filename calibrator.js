@@ -58,7 +58,10 @@ function toData(rows, days) {
   const since = Date.now() - days * 24 * 3600 * 1000;
   return rows.map(p => {
     const f = p.features || {};
-    const raw = (f.conf_raw === null || f.conf_raw === undefined) ? Number(p.confidence) : Number(f.conf_raw);
+const v = (f.v === null || f.v === undefined) ? 0 : Number(f.v);
+const raw = (v < 1 || f.conf_raw === null || f.conf_raw === undefined) 
+  ? Number(p.confidence)   // старый прогноз — берём что есть
+  : Number(f.conf_raw);
     return { raw: raw, hit: p.result === 'SUCCESS', at: p.verified_at ? new Date(p.verified_at).getTime() : 0 };
   }).filter(x => isFinite(x.raw) && x.raw > 0 && x.at >= since);
 }
