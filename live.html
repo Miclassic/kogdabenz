@@ -150,12 +150,71 @@ function render(d) {
   });
   html += '</div>';
 
-  // версии алгоритма
-  html += '<div class="section"><h2>🔬 Версии алгоритма в работе</h2>';
-  byVersion.forEach(v => {
-    html += '<div class="row"><span class="nm">' + versionRu(v.algorithm_version) + '</span><span class="vl">' + v.count + '</span></div>';
-  });
-  html += '<div class="note">Если здесь только v1.10 — обновление предиктора применилось ко всем строкам.</div></div>';
+  // версии алгоритма — сравнение качества
+  html += '<div class="section"><h2>🔬 Версии алгоритма · сравнение качества</h2>';
+  const versionMetrics = d.version_metrics || [];
+  if (!versionMetrics.length) {
+    html += '<div class="note">Пока нет данных для сравнения — верификатор не проверил ни одного прогноза.</div>';
+  } else {
+    html += '<div class="subcap">Метрики по верифицированным прогнозам</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px">';
+    html += '<tr style="background:#eef4ff"><th style="padding:8px;text-align:left;border-bottom:2px solid #dfe8f6">Версия</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">Проверено</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">Медиана</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">MAE</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">P90</th><th style="padding:8px;text-align:right;border-bottom:2px solid #dfe8f6">Попаданий</th></tr>';
+    
+    // сортируем по дате версии (новые сверху)
+    const sorted = versionMetrics.slice().sort((a, b) => b.model_version.localeCompare(a.model_version, undefined, { numeric: true }));
+    const latest = sorted[0];
+    
+    sorted.forEach(vm => {
+      const isLatest = vm.model_version === latest.model_version;
+      const bg = isLatest ? '#f0f9ff' : '#fff';
+      const verified = vm.verified || 0;
+      const success = vm.success || 0;
+      const mae = vm.mae_min;
+      const median = vm.median_min;
+      const p90 = vm.p90_min;
+      const successPct = vm.success_pct;
+      
+      html += '<tr style="background:' + bg + '">';
+      html += '<td style="padding:8px;border-bottom:1px solid #e6ebf4;font-weight:' + (isLatest ? '900' : '700') + '">' + vm.model_version + '</td>';
+      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + verified + '</td>';
+      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + fmtMin(median) + '</td>';
+      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + fmtMin(mae) + '</td>';
+      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + fmtMin(p90) + '</td>';
+      html += '<td style="padding:8px;text-align:right;border-bottom:1px solid #e6ebf4">' + (successPct !== null ? successPct + '%' : '—') + '</td>';
+      html += '</tr>';
+    });
+    html += '</table>';
+    
+    // сравнение с предыдущей версией
+    if (sorted.length >= 2) {
+      const prev = sorted[1];
+      if (prev.verified >= 10 && latest.verified >= 10) {
+        const medianDiff = prev.median_min - latest.median_min;
+        const maeDiff = prev.mae_min - latest.mae_min;
+        const p90Diff = prev.p90_min - latest.p90_min;
+        const successDiff = (latest.success_pct || 0) - (prev.success_pct || 0);
+        
+        let verdict = '';
+        if (medianDiff > 30) verdict = '✅ <b>' + latest.model_version + ' лучше</b>: медиана ошибки на ' + fmtMin(medianDiff) + ' меньше';
+        else if (medianDiff < -30) verdict = '⚠️ <b>' + latest.model_version + ' хуже</b>: медиана ошибки на ' + fmtMin(Math.abs(medianDiff)) + ' больше';
+        else verdict = '➡️ <b>Разница незначительная</b> (±' + fmtMin(Math.abs(medianDiff)) + ')';
+        
+        html += '<div style="margin-top:12px;padding:10px;background:#eef4ff;border-radius:10px;font-size:11px;line-height:1.5">';
+        html += '<div style="font-weight:900;margin-bottom:4px">Сравнение: ' + latest.model_version + ' vs ' + prev.model_version + '</div>';
+        html += verdict + '<br>';
+        html += 'MAE: ' + (maeDiff > 0 ? '−' : '+') + fmtMin(Math.abs(maeDiff)) + ', ';
+        html += 'P90: ' + (p90Diff > 0 ? '−' : '+') + fmtMin(Math.abs(p90Diff)) + ', ';
+        html += 'попаданий: ' + (successDiff > 0 ? '+' : '') + successDiff + ' п.п.';
+        html += '</div>';
+      } else {
+        html += '<div class="note" style="margin-top:8px">Для сравнения нужно ≥10 проверенных прогнозов в каждой версии. Сейчас: ' + latest.model_version + ' — ' + latest.verified + ', ' + prev.model_version + ' — ' + prev.verified + '.</div>';
+      }
+    } else {
+      html += '<div class="note" style="margin-top:8px">Пока только одна версия — сравнение появится, когда накопятся данные для двух версий.</div>';
+    }
+  }
+  html += '<div class="note" style="margin-top:8px"><b>Медиана</b> — половина прогнозов ошибается меньше, половина больше. <b>MAE</b> — средняя ошибка. <b>P90</b> — худшие 10% прогнозов. <b>Попадания</b> — доля прогнозов, попавших в окно возврата.</div>';
+  html += '</div>';
 
   // самые уверенные
   html += '<div class="section"><h2>💪 Самые уверенные прогнозы</h2>';

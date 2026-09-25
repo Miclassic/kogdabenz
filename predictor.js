@@ -566,7 +566,7 @@ async function main() {
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.2'
+        model_version: 'v1.11'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
