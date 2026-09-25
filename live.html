@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>КогдаБенз · живой мониторинг прогнозов</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f3f7ff; color: #14213d; padding: 16px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 20px; margin-bottom: 2px; }
+  .sub { color: #71809c; font-size: 11px; margin-bottom: 6px; }
+  .refresh { color: #93a1b8; font-size: 10px; margin-bottom: 14px; }
+  .refresh button { border: 1px solid #e6ebf4; background: #fff; color: #2465ee; border-radius: 10px; padding: 4px 10px; font-size: 10px; font-weight: 800; cursor: pointer; margin-left: 8px; }
+  .section { background: #fff; border: 1px solid #e6ebf4; border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: 0 10px 26px rgba(38,69,120,.07); }
+  .section h2 { font-size: 13px; margin-bottom: 10px; }
+  .hero { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, #ffffff, #eef4ff); }
+  .hero-num { flex: 0 0 auto; font-size: 46px; font-weight: 900; letter-spacing: -2px; line-height: 1; background: linear-gradient(90deg, #2465ee, #2ea3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero-right { min-width: 0; }
+  .hero-cap { font-size: 10px; font-weight: 800; color: #5b7ba6; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+  .hero-lines { color: #33445f; font-size: 12px; line-height: 1.55; }
+  .hero-lines b { color: #14213d; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+  .bar-row span { flex: 0 0 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 16px; min-width: 0; }
+  .bar { height: 16px; border-radius: 8px; background: linear-gradient(90deg, #4385ff, #2465ee); min-width: 2px; }
+  .bar.green { background: linear-gradient(90deg, #21b986, #19b77a); }
+  .bar.orange { background: linear-gradient(90deg, #f5d565, #f5a05a); }
+  .bar-row b { flex: 0 0 auto; }
+  .note { margin-top: 8px; color: #93a1b8; font-size: 10px; line-height: 1.4; }
+  .row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px dashed #e6ebf4; font-size: 12px; }
+  .row:last-child { border-bottom: 0; }
+  .row .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .nm small { display: block; color: #93a1b8; font-size: 10px; }
+  .row .vl { flex: 0 0 auto; font-weight: 800; }
+  .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
+</style>
+</head>
+<body>
+  <h1>⚡ КогдаБенз · живой мониторинг</h1>
+  <div class="sub">Прогнозы на сегодня, которые ещё не проверены ночью. Только для владельца.</div>
+  <div class="refresh" id="refreshLine">обновляюсь сам каждую минуту<button onclick="load()">обновить сейчас</button></div>
+  <div id="app"><div class="err">Загружаю данные…</div></div>
+
+<script>
+const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
+const DASH_SECRET = 'kb-dash-2026-x9f3k'; // тот же, что в dash.html и в SQL
+
+// человеческие названия
+const SOURCE_RU = { own: 'ритм самой станции', brand: 'ритм бренда', city: 'ритм города' };
+function sourceRu(s) { return SOURCE_RU[s] || s; }
+function fuelRu(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : f; }
+function versionRu(v) {
+  const p = String(v).split('|');
+  return p[0] + ' · ' + sourceRu(p[1]);
+}
+function fmtMin(m) {
+  if (m === null || m === undefined || !isFinite(m)) return '—';
+  m = Math.round(m);
+  if (m < 60) return m + ' мин';
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h + ' ч' + (mm ? ' ' + mm + ' мин' : '');
+}
+function fmtPct(v) {
+  if (v === null || v === undefined) return '—';
+  return Math.round(Number(v) * 100) + '%';
+}
+function t5(v) { return String(v || '').slice(0, 5); }
+
+async function load() {
+  const app = document.getElementById('app');
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/live_stats', {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ secret: DASH_SECRET })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.error) throw new Error('токен не подошёл');
+    render(d);
+    const now = new Date();
+    document.getElementById('refreshLine').innerHTML =
+      'обновлено в ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0') +
+      ' · сам обновлюсь через минуту<button onclick="load()">обновить сейчас</button>';
+  } catch (e) {
+    app.innerHTML = '<div class="err">Не удалось загрузить данные: ' + e.message + '</div>';
+  }
+}
+
+function render(d) {
+  const app = document.getElementById('app');
+  const ws = d.window_stats || {};
+  const cs = d.confidence_stats || {};
+  const bySource = d.by_source || [];
+  const byFuel = d.by_fuel || [];
+  const byVersion = d.by_version || [];
+  const topConf = d.top_confidence || [];
+  const narrow = d.narrowest_windows || [];
+  let html = '';
+
+  // итог одним блоком
+  html += '<div class="section hero"><div class="hero-num">' + (d.total || 0) + '</div><div class="hero-right">' +
+    '<div class="hero-cap">прогнозов на сегодня ещё не проверены</div>' +
+    '<div class="hero-lines">' +
+    '<div>Создано сегодня: <b>' + (d.created_today || 0) + '</b>, остальные перенесены с прошлых прогонов.</div>' +
+    '<div>Окно обычно: <b>' + fmtMin(ws.avg_width_min) + '</b> (самое узкое ' + fmtMin(ws.min_width_min) + ', самое широкое ' + fmtMin(ws.max_width_min) + ').</div>' +
+    '<div>Уверенность в среднем: <b>' + fmtPct(cs.avg) + '</b> (от ' + fmtPct(cs.min) + ' до ' + fmtPct(cs.max) + ').</div>' +
+    '</div></div></div>';
+
+  // кто предсказывает
+  html += '<div class="section"><h2>🧠 Чьим ритмом предсказываем</h2>';
+  const maxSrc = Math.max(1, ...bySource.map(x => x.count));
+  bySource.forEach(s => {
+    const w = Math.round(s.count / maxSrc * 100);
+    html += '<div class="bar-row"><span>' + sourceRu(s.source) + '</span><div class="bar-track"><div class="bar" style="width:' + w + '%"></div></div><b>' + s.count + '</b></div>';
+  });
+  html += '<div class="note">«Ритм самой станции» — по её собственным возвратам; «бренда» и «города» — когда своих событий мало.</div></div>';
+
+  // по топливам
+  html += '<div class="section"><h2>⛽ По топливам</h2>';
+  const maxFuel = Math.max(1, ...byFuel.map(x => x.count));
+  byFuel.forEach(f => {
+    const w = Math.round(f.count / maxFuel * 100);
+    html += '<div class="bar-row"><span>' + fuelRu(f.fuel_type) + '</span><div class="bar-track"><div class="bar green" style="width:' + w + '%"></div></div><b>' + f.count + '</b></div>';
+  });
+  html += '</div>';
+
+  // версии алгоритма
+  html += '<div class="section"><h2>🔬 Версии алгоритма в работе</h2>';
+  byVersion.forEach(v => {
+    html += '<div class="row"><span class="nm">' + versionRu(v.algorithm_version) + '</span><span class="vl">' + v.count + '</span></div>';
+  });
+  html += '<div class="note">Если здесь только v1.10 — обновление предиктора применилось ко всем строкам.</div></div>';
+
+  // самые уверенные
+  html += '<div class="section"><h2>💪 Самые уверенные прогнозы</h2>';
+  if (!topConf.length) html += '<div class="note">Пока пусто.</div>';
+  topConf.forEach(t => {
+    html += '<div class="row"><span class="nm">' + (t.station_name || 'АЗС') + '<small>' + fuelRu(t.fuel_type) + ' · ' + sourceRu(t.prediction_source) + '</small></span>' +
+      '<span class="vl">' + t5(t.from_time) + '–' + t5(t.to_time) + ' · ' + fmtPct(t.confidence) + '</span></div>';
+  });
+  html += '</div>';
+
+  // самые узкие окна
+  html += '<div class="section"><h2>🎯 Самые узкие окна (где алгоритм увереннее всего во времени)</h2>';
+  if (!narrow.length) html += '<div class="note">Пока пусто.</div>';
+  narrow.forEach(n => {
+    html += '<div class="row"><span class="nm">' + (n.station_name || 'АЗС') + '<small>' + fuelRu(n.fuel_type) + ' · ' + sourceRu(n.prediction_source) + '</small></span>' +
+      '<span class="vl">' + t5(n.from_time) + '–' + t5(n.to_time) + ' · ' + fmtMin(n.width_min) + '</span></div>';
+  });
+  html += '<div class="note">После v1.10 узкие окна (4–6 часов) — норма для станций с ровным ритмом привозов.</div></div>';
+
+  app.innerHTML = html;
+}
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
