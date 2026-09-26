@@ -76,6 +76,29 @@ body { overflow:hidden; }
 .install-step b { flex:0 0 auto; width:18px; height:18px; border-radius:50%; background:#2465ee; color:#fff; display:grid; place-items:center; font-size:10px; font-weight:900; }
 .install-pop .cta-btn { width:100%; }
 .install-pop .cta-btn.ghost { margin-top:6px; }
+.poll-back { position:fixed; inset:0; background:rgba(15,27,51,.45); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:84; }
+.poll-back.open { opacity:1; pointer-events:auto; }
+.poll-pop { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.95); width:min(330px, calc(100vw - 32px)); max-height:84dvh; overflow-y:auto; background:#fff; border-radius:22px; padding:16px; box-shadow:0 24px 60px rgba(15,27,51,.35); z-index:85; opacity:0; pointer-events:none; transition:.25s; }
+.poll-pop.open { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+.poll-head { display:flex; align-items:center; gap:10px; }
+.poll-head .logo { width:40px; height:40px; border-radius:13px; flex:0 0 auto; }
+.poll-title { font-size:14px; font-weight:900; letter-spacing:-.4px; }
+.poll-sub { margin-top:2px; color:#5b6b86; font-size:10px; line-height:1.4; font-weight:600; }
+.poll-q { margin:12px 2px 8px; font-size:13px; font-weight:850; line-height:1.4; }
+.poll-opts { display:flex; flex-direction:column; gap:6px; }
+.poll-opt { display:flex; align-items:center; gap:8px; padding:11px 12px; border:1px solid #e0e6ef; border-radius:14px; background:#f8fafc; color:#33445f; font-size:12px; font-weight:700; cursor:pointer; text-align:left; }
+.poll-opt:active, .poll-opt.selected { background:#e7f0ff; border-color:#bcd4ff; color:#2465ee; }
+.poll-stars { display:flex; justify-content:center; gap:8px; margin:6px 0 4px; }
+.poll-stars button { border:0; background:transparent; padding:4px; cursor:pointer; color:#c9d3e3; }
+.poll-stars button.on { color:#f5b82e; }
+.poll-stars .ic { width:30px; height:30px; }
+.poll-follow { margin-top:8px; }
+.poll-actions { display:flex; gap:8px; margin-top:12px; }
+.poll-actions .cta-btn { flex:1; }
+.poll-thanks { text-align:center; padding:8px 2px 4px; }
+.poll-thanks .big { font-size:15px; font-weight:900; letter-spacing:-.4px; }
+.poll-thanks .pct { margin-top:8px; padding:10px 12px; border-radius:14px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; color:#33445f; font-size:11.5px; font-weight:700; line-height:1.5; }
+.poll-thanks .me { margin-top:8px; color:#7485a0; font-size:10px; font-weight:600; line-height:1.45; }
 .tagline { margin:0 2px 6px; min-height:46px; }
 .tagline-slogan { font-size:14px; font-weight:900; letter-spacing:-.3px; }
 .tagline-slogan span { color:var(--blue); }
@@ -523,6 +546,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 <symbol id="i-minus" viewBox="0 0 24 24"><path d="M6 12h12"/></symbol>
 <symbol id="i-truck" viewBox="0 0 24 24"><path d="M2 6h11v10H2z"/><path d="M13 10h4l3 3v3h-7"/><circle cx="6" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/></symbol>
 <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.9.4c0 1.6-2.4 2.1-2.4 3.6"/><path d="M12 16.8h.01"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.7l5.9-.9z"/></symbol>
 </svg>
 <div class="page">
   <div class="offline-bar" id="offlineBar"></div>
@@ -724,6 +748,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
     <button class="cta-btn" id="installBtn" onclick="installRun()"></button>
     <button class="cta-btn ghost" onclick="closeInstallPop(true)">Позже</button>
   </div>
+  <div class="poll-back" id="pollBack" onclick="pollBackClick()"></div>
+  <div class="poll-pop" id="pollPop"></div>
 </div>
 <script>
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
@@ -1056,6 +1082,7 @@ let ok = true;
     history.push(now);
     localStorage.setItem(key, JSON.stringify(history));
     rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+    bumpContrib();
     const stEl = sendBtn.closest('.station');
     const rcEl = stEl && stEl.querySelector('.recent');
     if (rcEl) rcEl.textContent = 'Нет связи: отметка сохранена, уйдёт автоматически.';
@@ -1068,6 +1095,8 @@ let ok = true;
   localStorage.setItem(key, JSON.stringify(history));
   rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
   track('feedback_submit');
+  bumpContrib();
+  maybePollSoon();
   // народный консенсус мог перекрасить пин — обновляем карту после «спасибо»
   setTimeout(() => { if (mapObj) renderMap(); }, 1400);
   const station = sendBtn.closest('.station');
@@ -1204,6 +1233,7 @@ function closeSheet() {
   // карточку открыли с карты — возвращаемся на панель карты;
   // центр и зум не тронуты (карта не пересоздавалась), место то же
   if (sheetFromMap) { sheetFromMap = false; pagerGo(2); }
+  if (pollWarm) { pollWarm = false; maybePollSoon(900); }
 }
 /* Линия маршрута на отдельном 2D-канвасе поверх карты: GL-слои на этом
    устройстве линию не отрисовали дважды (отдельный источник, затем источник
@@ -2147,7 +2177,7 @@ function renderNow() {
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
         (bestKm !== null ? ' · ' + (bestKm < 1 ? Math.round(bestKm * 1000) + ' м' : bestKm.toFixed(1) + ' км') : '') +
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
-      cta.onclick = () => { track('click_where_to_go'); openSheet(best.id); };
+      cta.onclick = () => { track('click_where_to_go'); pollWarm = true; openSheet(best.id); };
     }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(3); }
   }
@@ -3110,6 +3140,7 @@ let qok = true;
     history.push(now);
     localStorage.setItem(key, JSON.stringify(history));
     rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
+    bumpContrib();
     const saved = document.getElementById('quick-' + stationId);
     if (saved) saved.innerHTML = '<div class="q-thanks">Нет связи — отметка сохранена<small>уйдёт автоматически, когда связь вернётся</small></div>';
     setTimeout(closeQuick, 1600);
@@ -3119,6 +3150,8 @@ let qok = true;
   localStorage.setItem(key, JSON.stringify(history));
   rows.forEach(r => allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)));
   track('feedback_submit');
+  bumpContrib();
+  maybePollSoon(2000);
   // подтверждение прямо в пузыре: спасибо + счётчик фактов, затем автозакрытие
   const done = document.getElementById('quick-' + stationId);
   if (done) done.innerHTML = '<div class="q-thanks">Спасибо за вашу отметку 🙏<small>' + rows.length + ' факт(ов) учтено</small></div>';
@@ -3371,6 +3404,7 @@ async function start() {
     queueEpisodes = queueEps || [];
     allQueueEvents = queueEvAll || [];
     flushFeedbackQueue();
+    flushPollQueue();
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
@@ -3803,6 +3837,168 @@ async function installRun() {
     return;
   }
   closeInstallPop(true);
+}
+// === Опрос водителей: один вопрос за появление, мягкий режим ===
+// Показываем только в «тёплый момент» (после отправленной отметки или совета
+// «Куда ехать»), не чаще раза за открытие сайта; после ответа — тишина 7 дней,
+// после «Позже» — 3 дня. Ответ анонимный: device_id + вопрос + ответ.
+// После отправки — спасибо с долей таких же ответов («вы не одни») и личным
+// счётчиком вклада: уважение к человеку — главный принцип опроса.
+const POLL_ITEMS = [
+  { key: 'arrive_truth', q: 'Вы подъехали к заправке — наша информация про топливо совпала?', opts: [['match', 'Всё совпало'], ['almost', 'Почти, одно топливо ошиблось'], ['wrong', 'Нет, было по-другому'], ['notyet', 'Ещё не подъезжал']] },
+  { key: 'advisor_help', q: 'Наш прогноз или кнопка «Куда ехать» помогли?', opts: [['yes', 'Да, заправился'], ['part', 'Помогло частично'], ['no', 'Нет, зря поехал'], ['notyet', 'Ещё не пользовался']] },
+  { key: 'usability', q: 'Сайтом удобно пользоваться?', opts: [['great', 'Да, всё понятно и быстро'], ['ok', 'В целом удобно'], ['confuse', 'Иногда путаюсь'], ['bad', 'Не очень']] },
+  { key: 'map_clear', q: 'Карта понятна: капли, круги, цвета?', opts: [['glance', 'Да, читаю с первого взгляда'], ['ok', 'В целом да'], ['legend', 'Подсматриваю в подсказку цветов'], ['no', 'Не понимаю карту']] },
+  { key: 'forecast_true', q: 'Мы пишем «топливо вернётся с 14 до 16». По вашему опыту это сбывается?', opts: [['always', 'Да, почти всегда'], ['half', 'Примерно через раз'], ['rare', 'Редко'], ['notyet', 'Ещё не проверял']] },
+  { key: 'marks_why', q: 'Вы отмечаете (топливо, очереди)? Почему?', opts: [['help', 'Да, хочу помочь городу'], ['sometimes', 'Иногда'], ['whynot', 'Нет, не понимаю зачем'], ['hard', 'Нет, неудобно или долго']] },
+  { key: 'stars', q: 'Оцените сайт в целом.', stars: true, follow: [['acc', 'Точности'], ['speed', 'Скорости'], ['clear', 'Понятности'], ['city', 'Моего города']] }
+];
+let pollShownThisSession = false, pollWarm = false, pollTimer = null, pollSel = null, pollStars = 0, pollMiss = null;
+function bumpContrib() {
+  let n = 0;
+  try { n = Number(localStorage.getItem('kbContrib') || 0); } catch (e) {}
+  n++;
+  try { localStorage.setItem('kbContrib', String(n)); } catch (e) {}
+  return n;
+}
+function maybePollSoon(delay) {
+  if (pollTimer) return;
+  pollTimer = setTimeout(() => { pollTimer = null; maybePoll(); }, delay || 1600);
+}
+function maybePoll() {
+  if (offlineMode || pollShownThisSession) return;
+  const now = Date.now();
+  let a = 0, l = 0;
+  try { a = Number(localStorage.getItem('kbPollAnswerAt') || 0); l = Number(localStorage.getItem('kbPollLaterAt') || 0); } catch (e) {}
+  if (now - a < 7 * 86400000 || now - l < 3 * 86400000) return;
+  for (const id of ['sheet', 'helloPop', 'installPop', 'pollPop', 'covPop', 'whyPop']) {
+    const el = document.getElementById(id);
+    if (el && el.classList.contains('open')) return;
+  }
+  showPoll();
+}
+function showPoll() {
+  const pop = document.getElementById('pollPop');
+  const back = document.getElementById('pollBack');
+  if (!pop || !back) return;
+  let idx = 0;
+  try { idx = Number(localStorage.getItem('kbPollIdx') || 0); } catch (e) {}
+  const item = POLL_ITEMS[idx % POLL_ITEMS.length];
+  try { localStorage.setItem('kbPollIdx', String(idx + 1)); } catch (e) {}
+  pollSel = null; pollStars = 0; pollMiss = null;
+  let body = '';
+  if (item.stars) {
+    body += '<div class="poll-stars" id="pollStars">' + [1, 2, 3, 4, 5].map(n => '<button onclick="pollPickStar(' + n + ')" aria-label="' + n + '">' + icon('i-star') + '</button>').join('') + '</div>' +
+      '<div class="poll-follow" id="pollFollow" style="display:none"><div class="fb-gl">Чего не хватает?</div><div class="feedback-grid">' +
+      item.follow.map(f => '<button class="feedback-option" data-f="' + f[0] + '" onclick="pollPickFollow(this)">' + f[1] + '</button>').join('') + '</div></div>';
+  } else {
+    body += '<div class="poll-opts">' + item.opts.map(o => '<button class="poll-opt" data-a="' + o[0] + '" onclick="pollPick(this)">' + o[1] + '</button>').join('') + '</div>';
+  }
+  pop.innerHTML = '<div class="poll-head"><div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>' +
+    '<div><div class="poll-title">Минута вашего времени — для общей точности</div><div class="poll-sub">Один вопрос. Ответ делает сайт лучше для всего города.</div></div></div>' +
+    '<div class="poll-q">' + item.q + '</div>' + body +
+    '<div class="poll-actions"><button class="cta-btn" id="pollSend" onclick="sendPoll()" disabled>Отправить</button>' +
+    '<button class="cta-btn ghost" onclick="pollLater()">Позже</button></div>';
+  pop.dataset.key = item.key;
+  pop.classList.add('open');
+  back.classList.add('open');
+  pollShownThisSession = true;
+}
+function pollPick(btn) {
+  btn.parentNode.querySelectorAll('.poll-opt').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  pollSel = btn.dataset.a;
+  const s = document.getElementById('pollSend');
+  if (s) s.disabled = false;
+}
+function pollPickStar(n) {
+  pollStars = n;
+  const box = document.getElementById('pollStars');
+  if (box) box.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', i < n));
+  const f = document.getElementById('pollFollow');
+  if (f) f.style.display = n <= 3 ? '' : 'none';
+  const s = document.getElementById('pollSend');
+  if (s) s.disabled = false;
+}
+function pollPickFollow(btn) {
+  btn.parentNode.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  pollMiss = btn.dataset.f;
+}
+function pollLater() {
+  const pop = document.getElementById('pollPop');
+  const back = document.getElementById('pollBack');
+  if (pop) pop.classList.remove('open');
+  if (back) back.classList.remove('open');
+  try { localStorage.setItem('kbPollLaterAt', String(Date.now())); } catch (e) {}
+}
+function closePollThanks() {
+  const pop = document.getElementById('pollPop');
+  const back = document.getElementById('pollBack');
+  if (pop) pop.classList.remove('open');
+  if (back) back.classList.remove('open');
+}
+function pollBackClick() {
+  const pop = document.getElementById('pollPop');
+  if (pop && pop.querySelector('.poll-thanks')) { closePollThanks(); return; }
+  pollLater();
+}
+async function sendPoll() {
+  const pop = document.getElementById('pollPop');
+  if (!pop || !pop.dataset.key) return;
+  const key = pop.dataset.key;
+  const item = POLL_ITEMS.find(x => x.key === key);
+  const sendBtn = document.getElementById('pollSend');
+  if (sendBtn && sendBtn.disabled) return;
+  if (sendBtn) sendBtn.disabled = true;
+  const answerKey = item && item.stars ? 'star' + pollStars + (pollMiss ? '_' + pollMiss : '') : pollSel;
+  if (!answerKey) return;
+  const row = { device_id: deviceId, question_key: key, answer_key: answerKey, stars: pollStars || null, city_key: userCityKey || null };
+  let ok = true;
+  try { await dbInsert('poll_answers', [row]); } catch (e) { ok = false; }
+  if (!ok) {
+    // нет связи: ответ ждёт в локальной очереди и уйдёт автоматически
+    try {
+      const q = JSON.parse(localStorage.getItem('pollQueue') || '[]');
+      q.push(row);
+      localStorage.setItem('pollQueue', JSON.stringify(q));
+    } catch (e) {}
+  }
+  const n = bumpContrib();
+  try { localStorage.setItem('kbPollAnswerAt', String(Date.now())); } catch (e) {}
+  let pctHtml = '';
+  try {
+    const rows = await dbQuery('/rest/v1/poll_totals?question_key=eq.' + encodeURIComponent(key));
+    const total = rows.reduce((s, r) => s + Number(r.cnt), 0);
+    if (total >= 5) {
+      if (item && item.stars) {
+        const same = rows.filter(r => String(r.answer_key).indexOf('star' + pollStars) === 0).reduce((s, r) => s + Number(r.cnt), 0);
+        let sum = 0;
+        for (const r of rows) { const m = String(r.answer_key).match(/star(\d)/); if (m) sum += Number(m[1]) * Number(r.cnt); }
+        pctHtml = 'Вы не одни: такую же оценку поставили ' + Math.round(100 * same / total) + '% водителей, средняя по сайту — ' + (sum / total).toFixed(1).replace('.', ',') + '. Всего оценок: ' + total + '.';
+      } else {
+        const same = rows.filter(r => r.answer_key === answerKey).reduce((s, r) => s + Number(r.cnt), 0);
+        const optTxt = item ? ((item.opts || []).find(o => o[0] === answerKey) || [])[1] || '' : '';
+        pctHtml = 'Вы не одни: «' + optTxt.toLowerCase() + '» ответили ' + Math.round(100 * same / total) + '% водителей. Всего ответов на этот вопрос: ' + total + '.';
+      }
+    } else {
+      pctHtml = 'Вы первый, кто отвечает на этот вопрос, — спасибо, что прокладываете дорогу! Как только наберутся ответы, покажем, как совпадают мнения всех водителей.';
+    }
+  } catch (e) { pctHtml = 'Ответ записан и поможет делать сайт и прогнозы точнее.'; }
+  pop.innerHTML = '<div class="poll-thanks"><div class="big">Спасибо! 🙏</div>' +
+    '<div class="pct">' + pctHtml + '</div>' +
+    '<div class="me">Это ваш ' + n + '-й вклад в общее дело (отметки и ответы). Спасибо, что вы с нами!</div>' +
+    '<div class="poll-actions"><button class="cta-btn" onclick="closePollThanks()">Отлично</button></div></div>';
+  setTimeout(closePollThanks, 4500);
+}
+async function flushPollQueue() {
+  try {
+    const q = JSON.parse(localStorage.getItem('pollQueue') || '[]');
+    if (!q.length) return;
+    await dbInsert('poll_answers', q);
+    localStorage.setItem('pollQueue', '[]');
+    console.log('Ответы опроса из очереди отправлены: ' + q.length);
+  } catch (e) { console.log('Очередь ответов опроса не ушла, попробуем в следующий раз'); }
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
