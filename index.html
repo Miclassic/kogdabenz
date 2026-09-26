@@ -490,6 +490,10 @@ body { overflow:hidden; }
 .user-dot { width:18px; height:18px; border-radius:50%; background:#397cff; border:3px solid #fff; box-shadow:0 2px 10px rgba(57,124,255,.45); position:relative; }
 .user-dot::after { content:''; position:absolute; inset:-8px; border-radius:50%; background:rgba(57,124,255,.18); animation:userPulse 2s ease-out infinite; }
 @keyframes userPulse { 0% { transform:scale(.6); opacity:1; } 100% { transform:scale(1.8); opacity:0; } }
+/* тусклые отметки старше 6 часов: глаз сразу видит «это не сегодня»,
+   кнопка «Куда ехать» больше не спорит с зелёной картой */
+.mpin-wrap.stale { opacity:.55; filter:saturate(.6); }
+.mcluster.stale { opacity:.6; }
 .mpin.conflict { background:#fff2e8; border-color:#f5a05a; color:#c26a2a; }
 .mpin .qmark { transform:rotate(45deg); font-size:15px; font-weight:900; line-height:1; }
 .fchip-no { background:rgba(253,236,236,.95); border-color:rgba(239,83,80,.7); color:#c2403f; }
@@ -645,6 +649,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           <span><i style="background:#ef5350"></i>ничего нет</span>
           <span><i style="background:#a7b1c1"></i>нет данных</span>
           <span><i style="background:#f5a05a"></i>разные мнения (народ)</span>
+          <span><i style="background:#1bb978;opacity:.45"></i>тусклые капля, квадрат и поле — отметка старше 6 ч</span>
         </div>
       </div>
       <div id="legHeat">
@@ -2397,7 +2402,7 @@ function zoneStreetFade(z) { return Math.max(0, Math.min(1, (16.5 - z) / 1.5)); 
 // (правило проекта: никаких составных interpolate(zoom) выражений), той же zoneRamp
 const FH_RADIUS = [[9, 42], [11, 90], [13, 115], [15, 75], [16.5, 18]];
 const FH_OPACITY = [[9, 1], [12, 1], [15, 1], [16.5, 0]];
-const FH_LAYERS = ['fuelheat-calm', 'fuelheat-hot'];
+const FH_LAYERS = ['fuelheat-calm', 'fuelheat-hot', 'fuelheat-calm-old', 'fuelheat-hot-old'];
 let zonePulseTimer = null;
 function startZonePulse() {
   if (zonePulseTimer) return;
@@ -2472,7 +2477,10 @@ mapObj = new maplibregl.Map({
     // плюс надбавка за очередь сейчас (очередь = спрос здесь и сейчас).
     const FH_DEFS = [
       { id: 'fuelheat-calm', cls: 'calm', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.35)', 'rgba(27,185,120,0.55)', 'rgba(27,185,120,0.70)', 'rgba(18,168,106,0.80)'] },
-      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.40)', 'rgba(245,160,90,0.62)', 'rgba(239,83,80,0.78)', 'rgba(216,42,38,0.88)'] }
+      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.40)', 'rgba(245,160,90,0.62)', 'rgba(239,83,80,0.78)', 'rgba(216,42,38,0.88)'] },
+      // тусклые двойники для отметок старше 6 часов: те же цвета, прозрачность ~45%
+      { id: 'fuelheat-calm-old', cls: 'calm-old', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.16)', 'rgba(27,185,120,0.25)', 'rgba(27,185,120,0.32)', 'rgba(18,168,106,0.36)'] },
+      { id: 'fuelheat-hot-old', cls: 'hot-old', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.18)', 'rgba(245,160,90,0.28)', 'rgba(239,83,80,0.35)', 'rgba(216,42,38,0.40)'] }
     ];
     for (const d of FH_DEFS) {
       mapObj.addLayer({
@@ -2760,6 +2768,12 @@ function pinKey(o) {
   if (o.fuel_92_status === true) return 'part';
   return 'no';
 }
+// порог свежести един по продукту: 6 часов (тот же, что у советника
+// «Куда ехать» и индикатора свежести). Отметка старше — рисуется тускло,
+// чтобы глаз не принимал вчерашнее топливо за сегодняшнее
+function obsFresh(o) {
+  return !!o && o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+}
 function fuelChip(label, status) {
   if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
   if (status === false) return '<span class="rc-chip no">' + icon('i-cross', 'ic-s') + label + ' нет</span>';
@@ -2843,15 +2857,19 @@ function renderMap() {
   for (const st of allStations) {
     if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
     const o = last[st.id];
-    let state = pinKey(o);
+    const srcState = pinKey(o);
+    let state = srcState;
     if (state === 'unknown') {
       const fp = folkPinState(st.id, o);
       if (fp) state = fp;
     }
     if (state === 'unknown') continue;
+    // отметка источника старше 6 часов уходит в тусклый слой поля;
+    // народные отметки не тускним — они свежие по построению (окно 60 минут)
+    const stale = srcState !== 'unknown' && !obsFresh(o);
     // спокойное поле: станция с АИ-95
     if (state === 'yes') {
-      fuelFeats.push({ type: 'Feature', properties: { cls: 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
     }
     // поле дефицита: вес = сила сигнала (нет топлива > частичный состав > конфликт)
     // плюс надбавка за очередь сейчас — очередь и есть спрос здесь и сейчас
@@ -2861,7 +2879,7 @@ function renderMap() {
     else if (state === 'conflict') hotW = 0.5;
     if (o && o.queue_level === 'high') hotW += 0.35;
     if (hotW > 0) {
-      fuelFeats.push({ type: 'Feature', properties: { cls: 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'hot-old' : 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
     }
   }
   const fhSrc = mapObj.getSource('fuelheat');
@@ -2906,6 +2924,14 @@ function renderMap() {
       // красный = ничего, серый = нет данных
       const cnt = { yes: 0, part: 0, diesel: 0, no: 0, conflict: 0, unknown: 0 };
       for (const it of group) cnt[effPinKey(it.st, it.o)]++;
+      // кластер тусклый, если половина и больше станций с топливным сигналом
+      // держатся на старых отметках источника
+      let sig = 0, staleSig = 0;
+      for (const it of group) {
+        if (effPinKey(it.st, it.o) !== 'unknown') sig++;
+        if (pinKey(it.o) !== 'unknown' && !obsFresh(it.o)) staleSig++;
+      }
+      const clStale = sig > 0 && staleSig * 2 >= sig;
       const n = group.length;
       const CLUSTER_COLS = { yes: '#1bb978', part: '#f5a05a', diesel: '#6ea8ff', no: '#ef5350', conflict: '#f5a05a', unknown: '#a7b1c1' };
       const stops = [];
@@ -2922,7 +2948,7 @@ function renderMap() {
       const wrapC = document.createElement('div');
       wrapC.style.zIndex = '2';
       const el = document.createElement('div');
-      el.className = 'mcluster';
+      el.className = 'mcluster' + (clStale ? ' stale' : '');
       el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,' + stops.join(', ') + ')"></i>';
       if (zoomChanged) el.style.animation = 'mPopBox .3s ease';
       wrapC.appendChild(el);
@@ -3114,7 +3140,8 @@ function addPin(it, fromCenter, zoomChanged, chipsBlocked) {
   }
   const sc = demandOf(st.id);
   const wrap = document.createElement('div');
-  wrap.className = 'mpin-wrap';
+  // пин тусклый (вместе с табличкой и чипами), если его цвет — отметка источника старше 6 часов
+  wrap.className = 'mpin-wrap' + (!srcSilent && !obsFresh(o) ? ' stale' : '');
   // приоритет наложения: пин с топливом выше пустого, пустой выше серого
   wrap.style.zIndex = String({ unknown: 3, no: 4, conflict: 5, diesel: 5, part: 6, yes: 7 }[stKey] || 3);
   // пин двух/трёх цветов: градиент от кончика капли вверх в порядке
