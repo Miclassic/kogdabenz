@@ -500,6 +500,7 @@ body { overflow:hidden; }
 .fchip-conflict { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
 .offline-bar { position:fixed; left:0; right:0; top:0; z-index:90; display:none; padding:calc(8px + env(safe-area-inset-top)) 12px 8px; background:#fff2e8; color:#c26a2a; font-size:11px; font-weight:800; text-align:center; box-shadow:0 6px 18px rgba(194,106,42,.25); }
 .offline-bar.on { display:block; }
+.offline-bar .ob-btn { display:inline-block; margin-left:8px; padding:6px 12px; border:0; border-radius:10px; background:#c26a2a; color:#fff; font-size:10px; font-weight:850; cursor:pointer; vertical-align:middle; }
 body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 </style>
 </head>
@@ -3332,9 +3333,11 @@ function flyToStation(id) {
 async function start() {
   const app = document.getElementById('app');
   offlineMode = false;
-  document.body.classList.remove('offline');
-  const ob = document.getElementById('offlineBar');
-  if (ob) ob.classList.remove('on');
+  if (!refreshing) {
+    document.body.classList.remove('offline');
+    const ob = document.getElementById('offlineBar');
+    if (ob) ob.classList.remove('on');
+  }
   try {
     const stations = await dbQuery('/rest/v1/stations?select=*');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
@@ -3426,6 +3429,26 @@ function retryStart() {
   if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
   start();
 }
+// кнопка «Обновить» на плашке «Нет связи»: повторяем загрузку без перезагрузки
+// страницы. На время загрузки плашка остаётся с текстом «Обновляю данные…»,
+// а по итогу либо прячется (связь вернулась), либо возвращается со свежим временем.
+let refreshing = false;
+function manualRefresh() {
+  if (refreshing) return;
+  refreshing = true;
+  const ob = document.getElementById('offlineBar');
+  if (ob) { ob.textContent = 'Обновляю данные…'; ob.classList.add('on'); }
+  document.body.classList.add('offline');
+  const app = document.getElementById('app');
+  if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
+  start().finally(() => {
+    refreshing = false;
+    if (!offlineMode) {
+      if (ob) ob.classList.remove('on');
+      document.body.classList.remove('offline');
+    }
+  });
+}
 // === Спасательный круг: снимок данных в памяти телефона ===
 // После каждой удачной загрузки пишем свежий снимок в localStorage.
 // Если следующая загрузка упала (сеть/503) — показываем снимок с честной
@@ -3482,7 +3505,7 @@ function showOfflineBar(cacheTime) {
   const el = document.getElementById('offlineBar');
   if (!el) return;
   const d = new Date(cacheTime);
-  el.textContent = 'Нет связи — показываем данные на ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '. Отметки принимаются и уйдут, когда связь вернётся.';
+  el.innerHTML = 'Нет связи — показываем данные на ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '. Отметки принимаются и уйдут, когда связь вернётся. <button class="ob-btn" onclick="manualRefresh()">Обновить</button>';
   el.classList.add('on');
   document.body.classList.add('offline');
 }
