@@ -1417,21 +1417,24 @@ function renderHeat() {
   // что чипы и шапка), а не из незакрытого текущего часа тепловой истории:
   // в начале часа в бакет успевают попасть не все станции и доля проседает.
   const lastObs = getLastObservations();
-  let k92 = 0, a92 = 0, k95 = 0, a95 = 0, kdt = 0, adt = 0, tot = 0, qh = 0;
+  let k92 = 0, a92 = 0, k95 = 0, a95 = 0, kdt = 0, adt = 0, qh = 0, selling = 0;
   for (const id of scopeIds()) {
     const o = lastObs[id];
     if (!o) continue;
-    tot++;
     if (o.fuel_92_status !== null && o.fuel_92_status !== undefined) { k92++; if (o.fuel_92_status) a92++; }
     if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { k95++; if (o.fuel_95_status) a95++; }
     if (o.diesel_status !== null && o.diesel_status !== undefined) { kdt++; if (o.diesel_status) adt++; }
+    // selling — станция продаёт прямо сейчас (хоть одно топливо есть):
+    // тот же знаменатель, что у клеток тепла (вьюха region_fuel_hourly),
+    // чтобы надпись «низкая/средняя/высокая» не спорила с цветом ряда
+    if (o.fuel_92_status === true || o.fuel_95_status === true || o.diesel_status === true) selling++;
     if (o.queue_level === 'high') qh++;
   }
   const nowStat = {
     'АИ-92': k92 ? a92 / k92 : null,
     'АИ-95': k95 ? a95 / k95 : null,
     'Дизель': kdt ? adt / kdt : null,
-    'Очереди': tot ? qh / tot : null
+    'Очереди': selling ? qh / selling : null
   };
   // окна прогноза справа от «сейчас»: топлива — по PENDING-прогнозам города
   // за сегодня, очереди — по медианному окну городских очередных событий
