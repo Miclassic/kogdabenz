@@ -34,6 +34,15 @@
   .row .nm small { display: block; color: #93a1b8; font-size: 10px; white-space: normal; }
   .row .vl { flex: 0 0 auto; font-weight: 800; }
   .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
+  .chart { width: 100%; height: 280px; background: #fff; border: 1px solid #e6ebf4; border-radius: 14px; overflow: hidden; }
+  .chart-tabs { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+  .chart-tabs button { border: 1px solid #e6ebf4; background: #f7f9fc; color: #5b6b86; border-radius: 10px; padding: 5px 11px; font-size: 11px; font-weight: 800; cursor: pointer; }
+  .chart-tabs button.on { background: linear-gradient(135deg, #4385ff, #2465ee); color: #fff; border-color: transparent; }
+  .chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; font-size: 10px; font-weight: 800; color: #5b6b86; }
+  .chart-legend span { display: flex; align-items: center; gap: 5px; }
+  .chart-legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+  .chart-empty { padding: 60px 10px; text-align: center; color: #93a1b8; font-size: 11px; }
+  .chart-tip { position: absolute; pointer-events: none; background: #14213d; color: #fff; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -46,6 +55,128 @@
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
 const DASH_SECRET = 'kb-dash-2026-x9f3k'; // тот же, что в dash.html и в SQL
+// цвета линий: старая версия — серая, прошлая — оранжевая, текущая — синяя,
+// aggregate (общая) — чёрная толстая
+const VERSION_COLORS = {
+  'v1.1': '#93a1b8',
+  'v1.2': '#f5a05a',
+  'v1.11': '#2465ee',
+  'aggregate': '#14213d'
+};
+function versionColor(v) {
+  if (VERSION_COLORS[v]) return VERSION_COLORS[v];
+  // неизвестная версия — по хешу имени, чтобы не ломалось
+  let h = 0; for (const c of String(v)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return 'hsl(' + (h % 360) + ', 60%, 45%)';
+}
+let chartData = null;
+let chartMetric = 'median_min'; // median_min / mae_min / p90_min / success_pct
+
+function drawChart() {
+  const box = document.getElementById('chartBox');
+  if (!box || !chartData) return;
+  const ts = chartData.version_timeseries || [];
+  const agg = chartData.aggregate_timeseries || [];
+  if (!ts.length && !agg.length) { box.innerHTML = '<div class="chart-empty">Пока нет данных для графика — верификатор не проверил ни одной недели.</div>'; return; }
+
+  // собираем все недели из обоих массивов, сортируем по ISO-формату (строки сами сортируются)
+  const weeksSet = new Set();
+  for (const p of ts) weeksSet.add(p.week);
+  for (const p of agg) weeksSet.add(p.week);
+  const weeks = Array.from(weeksSet).sort();
+  if (!weeks.length) { box.innerHTML = '<div class="chart-empty">Нет недель с данными.</div>'; return; }
+
+  // собираем линии: для каждой версии — массив значений по неделям (null если данных < 3)
+  const versions = Array.from(new Set(ts.map(p => p.version))).sort();
+  const lines = {};
+  for (const v of versions) {
+    lines[v] = weeks.map(w => {
+      const row = ts.find(p => p.version === v && p.week === w);
+      if (!row || row.n < 3) return null; // ворота честности
+      return row[chartMetric];
+    });
+  }
+  // aggregate
+  const aggLine = weeks.map(w => {
+    const row = agg.find(p => p.week === w);
+    if (!row || row.n < 3) return null;
+    return row[chartMetric];
+  });
+
+  // масштаб Y: берём все ненулевые значения + 10% запаса
+  const allVals = [];
+  for (const arr of Object.values(lines)) for (const v of arr) if (v !== null) allVals.push(v);
+  for (const v of aggLine) if (v !== null) allVals.push(v);
+  if (!allVals.length) { box.innerHTML = '<div class="chart-empty">Нет точек с данными (≥3 измерения в неделе).</div>'; return; }
+  const yMin = 0;
+  const yMax = Math.max(...allVals) * 1.1;
+  const isPct = chartMetric === 'success_pct';
+
+  // размеры SVG
+  const W = box.clientWidth || 560, H = 280;
+  const padL = 44, padR = 12, padT = 18, padB = 32;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xAt = i => padL + plotW * (i / Math.max(1, weeks.length - 1));
+  const yAt = v => padT + plotH * (1 - (v - yMin) / (yMax - yMin));
+
+  let svg = '<svg width="' + W + '" height="' + H + '" style="display:block">';
+  // сетка
+  const yTicks = 4;
+  for (let i = 0; i <= yTicks; i++) {
+    const y = padT + plotH * (i / yTicks);
+    const v = yMax - (yMax - yMin) * (i / yTicks);
+    svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" stroke="#e6ebf4" stroke-dasharray="3 3"/>';
+    const label = isPct ? Math.round(v) + '%' : fmtMin(Math.round(v));
+    svg += '<text x="' + (padL - 6) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" font-weight="700" fill="#93a1b8">' + label + '</text>';
+  }
+  // подписи X (недели) — не чаще чем каждая 3-я, иначе каша
+  const step = weeks.length <= 6 ? 1 : weeks.length <= 12 ? 2 : 3;
+  for (let i = 0; i < weeks.length; i += step) {
+    const x = xAt(i);
+    svg += '<text x="' + x + '" y="' + (H - padB + 14) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#93a1b8">' + weeks[i] + '</text>';
+    svg += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - padB) + '" y2="' + (H - padB + 4) + '" stroke="#93a1b8"/>';
+  }
+
+  function pathD(arr) {
+    let d = '', first = true;
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] === null) { first = true; continue; }
+      d += (first ? 'M' : 'L') + xAt(i).toFixed(1) + ',' + yAt(arr[i]).toFixed(1);
+      first = false;
+    }
+    return d;
+  }
+
+  // aggregate — толстая, рисуем первой
+  const aggPath = pathD(aggLine);
+  if (aggPath) svg += '<path d="' + aggPath + '" fill="none" stroke="' + versionColor('aggregate') + '" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  // версии — сверху aggregate
+  for (const v of versions) {
+    const d = pathD(lines[v]);
+    if (d) svg += '<path d="' + d + '" fill="none" stroke="' + versionColor(v) + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+    // точки на линиях
+    for (let i = 0; i < lines[v].length; i++) {
+      if (lines[v][i] !== null) svg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(lines[v][i]).toFixed(1) + '" r="3" fill="' + versionColor(v) + '"/>';
+    }
+  }
+  svg += '</svg>';
+  box.innerHTML = svg;
+
+  // легенда
+  let leg = '<div class="chart-legend">';
+  for (const v of versions) {
+    leg += '<span><i style="background:' + versionColor(v) + '"></i>' + v + '</span>';
+  }
+  leg += '<span><i style="background:' + versionColor('aggregate') + ';height:4px"></i>всё вместе</span>';
+  leg += '</div>';
+  document.getElementById('chartLegend').innerHTML = leg;
+}
+
+function setMetric(m) {
+  chartMetric = m;
+  document.querySelectorAll('.chart-tabs button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  drawChart();
+}
 
 // человеческие названия
 const SOURCE_RU = { own: 'ритм самой станции', brand: 'ритм бренда', city: 'ритм города' };
@@ -244,8 +375,23 @@ function render(d) {
       '<span class="vl">' + t5(n.from_time) + '–' + t5(n.to_time) + ' · ' + fmtMin(n.width_min) + '</span></div>';
   });
   html += '<div class="note">После v1.10 узкие окна (4–6 часов) — норма для станций с ровным ритмом привозов.</div></div>';
+  
+  // график качества моделей
+  html += '<div class="section"><h2>📈 Качество моделей по неделям</h2>';
+  html += '<div class="chart-tabs">';
+  html += '<button data-m="median_min" class="' + (chartMetric === 'median_min' ? 'on' : '') + '" onclick="setMetric(\'median_min\')">Медиана ошибки</button>';
+  html += '<button data-m="mae_min" class="' + (chartMetric === 'mae_min' ? 'on' : '') + '" onclick="setMetric(\'mae_min\')">MAE</button>';
+  html += '<button data-m="p90_min" class="' + (chartMetric === 'p90_min' ? 'on' : '') + '" onclick="setMetric(\'p90_min\')">P90 (худшие 10%)</button>';
+  html += '<button data-m="success_pct" class="' + (chartMetric === 'success_pct' ? 'on' : '') + '" onclick="setMetric(\'success_pct\')">Попадания, %</button>';
+  html += '</div>';
+  html += '<div id="chartBox" class="chart"></div>';
+  html += '<div id="chartLegend"></div>';
+  html += '<div class="note"><b>Ось Y</b> — величина метрики (для ошибок меньше = лучше, для попаданий больше = лучше). <b>Ось X</b> — ISO-недели по дате проверки. <b>Толстая линия</b> — все версии вместе (общая). Точки рисуются только там, где в неделе ≥3 измеренных прогнозов — иначе это шум, а не тренд. Одна версия может пропадать с графика в неделях, где её прогнозов мало.</div>';
+  html += '</div>';
 
   app.innerHTML = html;
+  chartData = d;
+  drawChart();
 }
 
 load();
