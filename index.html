@@ -769,7 +769,8 @@ const utmParams = (() => {
 })();
 let hitQueue = [];
 let hitTimer = null;
-function track(event, panel) {
+let sessionStartMs = Date.now();
+function track(event, panel, stationId, durationSec) {
   hitQueue.push({
     session_id: sessionId,
     event: event,
@@ -777,7 +778,9 @@ function track(event, panel) {
     utm_source: utmParams.s, utm_medium: utmParams.m, utm_campaign: utmParams.c,
     city_key: userCityKey || null,
     offline: offlineMode === true,
-    panel: panel === undefined ? null : panel
+    panel: panel === undefined ? null : panel,
+    station_id: stationId || null,
+    duration_sec: durationSec || null
   });
   if (hitQueue.length >= 5) { flushHits(false); return; }
   if (!hitTimer) hitTimer = setTimeout(() => flushHits(false), 4000);
@@ -794,7 +797,14 @@ function flushHits(keepalive) {
   }).catch(() => {});
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') { flushHits(true); return; }
+  if (document.visibilityState === 'hidden') {
+    const durationSec = Math.round((Date.now() - sessionStartMs) / 1000);
+    if (durationSec > 5 && durationSec < 3600) {
+      track('session_end', null, null, durationSec);
+    }
+    flushHits(true);
+    return;
+  }
   checkAdvicePoll();
 });
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
@@ -1231,7 +1241,7 @@ function toggleRow(id, btn) { openSheet(id); }
 function openSheet(id) {
   const st = allStations.find(s => s.id === id);
   if (!st) return;
-  track('open_station_card');
+  track('open_station_card', null, id);
   const obs = getLastObservations()[id];
   document.getElementById('sheetBody').innerHTML = stationCard(st, obs, pickPrediction(id, obs));
   document.getElementById('sheet').classList.add('open');
@@ -1378,8 +1388,9 @@ async function drawRouteTo(st) {
   // линия живёт в источнике зон (kind 'route'): этот конвейер на телефоне
   // доказанно работает (лужи рисуются), в отличие от отдельного geojson-источника
   routeFeature = { type: 'Feature', properties: { color: '#2465ee', kind: 'route' }, geometry: rt.geometry };
-  renderMap();
-  routeCanvasEl();
+track('route_built', null, st.id);
+renderMap();
+routeCanvasEl();
   drawRouteCanvas();
   // маркер финиша на АЗС — даже если линия не видна (очень редкий случай),
   // цель поездки очевидна: синий флаг на пине АЗС
@@ -2186,7 +2197,7 @@ function renderNow() {
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
         (bestKm !== null ? ' · ' + (bestKm < 1 ? Math.round(bestKm * 1000) + ' м' : bestKm.toFixed(1) + ' км') : '') +
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
-      cta.onclick = () => { track('click_where_to_go'); rememberAdvice(); openSheet(best.id); };
+      cta.onclick = () => { track('click_where_to_go', null, best.id); rememberAdvice(); openSheet(best.id); };
     }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(3); }
   }
