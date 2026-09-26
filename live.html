@@ -114,7 +114,9 @@ function drawChart() {
 
   // размеры SVG
   const W = box.clientWidth || 560, H = 280;
-  const padL = 44, padR = 12, padT = 18, padB = 32;
+  // левое поле шире, чтобы «N ч MM мин» влезало целиком,
+  // правое шире, чтобы последняя неделя не обрезалась
+  const padL = 74, padR = 40, padT = 18, padB = 32;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const xAt = i => padL + plotW * (i / Math.max(1, weeks.length - 1));
   const yAt = v => padT + plotH * (1 - (v - yMin) / (yMax - yMin));
@@ -133,7 +135,17 @@ function drawChart() {
   const step = weeks.length <= 6 ? 1 : weeks.length <= 12 ? 2 : 3;
   for (let i = 0; i < weeks.length; i += step) {
     const x = xAt(i);
-    svg += '<text x="' + x + '" y="' + (H - padB + 14) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#93a1b8">' + weeks[i] + '</text>';
+    // крайние подписи прижимаем к краям, чтобы не резались:
+    // первая неделя — от левого края, последняя — к правому
+    const anchor = i === 0 ? 'start' : (i === weeks.length - 1 ? 'end' : 'middle');
+    svg += '<text x="' + x + '" y="' + (H - padB + 14) + '" text-anchor="' + anchor + '" font-size="9" font-weight="700" fill="#93a1b8">' + weeks[i] + '</text>';
+    svg += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - padB) + '" y2="' + (H - padB + 4) + '" stroke="#93a1b8"/>';
+  }
+  // если шаг перескочил последнюю неделю — всё равно подписываем её
+  const lastI = weeks.length - 1;
+  if (lastI % step !== 0) {
+    const x = xAt(lastI);
+    svg += '<text x="' + x + '" y="' + (H - padB + 14) + '" text-anchor="end" font-size="9" font-weight="700" fill="#93a1b8">' + weeks[lastI] + '</text>';
     svg += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - padB) + '" y2="' + (H - padB + 4) + '" stroke="#93a1b8"/>';
   }
 
