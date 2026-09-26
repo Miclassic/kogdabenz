@@ -42,6 +42,30 @@ const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
 const DASH_SECRET = 'kb-dash-2026-x9f3k'; // тот же, что в SQL-функции
 
+// расшифровка вопросов и ответов опросов
+const POLL_Q = {
+  arrive_truth: 'Подъехали к заправке — наша информация про топливо совпала?',
+  usability: 'Сайтом удобно пользоваться?',
+  map_clear: 'Карта понятна: капли, круги, цвета?',
+  forecast_true: 'Мы пишем «топливо вернётся с 14 до 16». По вашему опыту это сбывается?',
+  marks_why: 'Вы отмечаете (топливо, очереди)? Почему?',
+  stars: 'Оцените сайт в целом.',
+  advice_outcome: 'Недавно вы строили маршрут до заправки через «Куда ехать». Чем закончилось?'
+};
+const POLL_A = {
+  // arrive_truth
+  match: 'Всё совпало', almost: 'Почти, одно топливо ошиблось', wrong: 'Нет, было по-другому', notyet: 'Ещё не подъезжал',
+  // usability
+  great: 'Да, всё понятно и быстро', ok: 'В целом удобно', confuse: 'Иногда путаюсь', bad: 'Не очень',
+  // map_clear
+  glance: 'Да, читаю с первого взгляда', legend: 'Подсматриваю в подсказку цветов', no: 'Не понимаю карту',
+  // forecast_true
+  always: 'Да, почти всегда', half: 'Примерно через раз', rare: 'Редко',
+  // marks_why
+  help: 'Да, хочу помочь городу', sometimes: 'Иногда', whynot: 'Нет, не понимаю зачем', hard: 'Нет, неудобно или долго',
+  // advice_outcome
+  fuel: 'Доехал и заправился', miss: 'Поехал, но топливо или очередь — не как ожидал', notwent: 'Ещё не доехал', noadv: 'Не воспользовался советом'
+};
 // человеческие названия действий на сайте
 const EVENT_RU = {
   pageview: ['👀', 'Открыли сайт'],
@@ -83,13 +107,26 @@ async function load() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if (d.error) throw new Error('токен не подошёл');
-    render(d);
+    
+    // загружаем статистику опросов
+    const rp = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ secret: DASH_SECRET })
+    });
+    const poll = await rp.json();
+    
+    render(d, poll);
   } catch (e) {
     app.innerHTML = '<div class="err">Не удалось загрузить данные: ' + e.message + '</div>';
   }
 }
 
-function render(d) {
+function render(d, poll) {
   const app = document.getElementById('app');
   const ret = d.retention || {};
   const fun = d.funnel || [];
@@ -145,6 +182,52 @@ function render(d) {
     html += '<div class="bar-row"><span>' + cityRu(c.city) + '</span><div class="bar-track"><div class="bar orange" style="width:' + w + '%"></div></div><b>' + c.sessions + '</b></div>';
   });
   html += '<div class="note">Город определяется примерно, по координатам телефона — тот же город, что сайт показывает в списке АЗС.</div></div>';
+
+  // === Блок опросов водителей ===
+  if (poll && !poll.error && poll.total_answers > 0) {
+    html += '<div class="section"><h2>💬 Что водители думают о сайте</h2>';
+    
+    // Большая цифра: всего ответов
+    html += '<div style="margin-bottom:12px"><div style="font-size:32px;font-weight:900;letter-spacing:-1px;background:linear-gradient(90deg,#2465ee,#2ea3ff);-webkit-background-clip:text;background-clip:text;color:transparent">' + 
+      num(poll.total_answers) + '</div>' +
+      '<div style="font-size:11px;color:#71809c;margin-top:4px">Уникальных людей ответило: <b>' + num(poll.unique_respondents) + '</b>';
+    if (poll.avg_stars !== null && poll.avg_stars !== undefined) {
+      html += ' · Средняя оценка: <b>' + poll.avg_stars.toFixed(1).replace('.', ',') + '</b> из 5';
+    }
+    html += '</div></div>';
+    
+    // По каждому вопросу: бары с долями ответов
+    if (poll.answers_by_question) {
+      poll.answers_by_question.forEach(q => {
+        const qText = POLL_Q[q.question_key] || q.question_key;
+        html += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #e6ebf4"><div style="font-size:12px;font-weight:800;margin-bottom:8px">' + qText + '</div>';
+        
+        const total = q.answers.reduce((s, a) => s + a.cnt, 0);
+        const maxCnt = Math.max(...q.answers.map(a => a.cnt));
+        
+        q.answers.forEach(a => {
+          let aText = '';
+          if (q.question_key === 'stars') {
+            // звёзды: показываем распределение
+            const starNum = parseInt(a.answer_key.replace('star', '').split('_')[0]);
+            aText = starNum + ' ★';
+          } else {
+            aText = POLL_A[a.answer_key] || a.answer_key;
+          }
+          
+          const pct = total > 0 ? Math.round(a.cnt / total * 100) : 0;
+          const w = Math.round(a.cnt / maxCnt * 100);
+          const barClass = pct >= 50 ? 'green' : pct >= 25 ? 'orange' : '';
+          
+          html += '<div class="bar-row"><span>' + aText + '</span><div class="bar-track"><div class="bar ' + barClass + '" style="width:' + w + '%"></div></div><b>' + a.cnt + ' (' + pct + '%)</b></div>';
+        });
+        
+        html += '</div>';
+      });
+    }
+    
+    html += '<div class="note">Ответы анонимные: только device_id, вопрос и ответ. Звёзды (1–5) показывают отдельно с распределением и средней оценкой.</div></div>';
+  }
 
   app.innerHTML = html;
 }
