@@ -793,7 +793,10 @@ function flushHits(keepalive) {
     body: JSON.stringify(rows)
   }).catch(() => {});
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushHits(true); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { flushHits(true); return; }
+  checkAdvicePoll();
+});
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let allQueueEvents = [];
 let allLastPrice = {}, priceHourly = [];
@@ -1233,7 +1236,6 @@ function closeSheet() {
   // карточку открыли с карты — возвращаемся на панель карты;
   // центр и зум не тронуты (карта не пересоздавалась), место то же
   if (sheetFromMap) { sheetFromMap = false; pagerGo(2); }
-  if (pollWarm) { pollWarm = false; maybePollSoon(900); }
 }
 /* Линия маршрута на отдельном 2D-канвасе поверх карты: GL-слои на этом
    устройстве линию не отрисовали дважды (отдельный источник, затем источник
@@ -2177,7 +2179,7 @@ function renderNow() {
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
         (bestKm !== null ? ' · ' + (bestKm < 1 ? Math.round(bestKm * 1000) + ' м' : bestKm.toFixed(1) + ' км') : '') +
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
-      cta.onclick = () => { track('click_where_to_go'); pollWarm = true; openSheet(best.id); };
+      cta.onclick = () => { track('click_where_to_go'); rememberAdvice(); openSheet(best.id); };
     }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(3); }
   }
@@ -3413,6 +3415,9 @@ async function start() {
     renderHeat();
     // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
     ensureMap();
+    // отложенный опрос про «Куда ехать»: если с совета прошло 45 минут — 3 суток,
+    // спрашиваем, чем закончилась поездка (сразу в момент клика человек ещё не доехал)
+    checkAdvicePoll();
   } catch (e) {
     // Связь отвалилась: если в памяти есть снимок — показываем его с честной
     // плашкой; человек видит прежние данные и может ставить отметки.
@@ -3846,14 +3851,31 @@ async function installRun() {
 // счётчиком вклада: уважение к человеку — главный принцип опроса.
 const POLL_ITEMS = [
   { key: 'arrive_truth', q: 'Вы подъехали к заправке — наша информация про топливо совпала?', opts: [['match', 'Всё совпало'], ['almost', 'Почти, одно топливо ошиблось'], ['wrong', 'Нет, было по-другому'], ['notyet', 'Ещё не подъезжал']] },
-  { key: 'advisor_help', q: 'Наш прогноз или кнопка «Куда ехать» помогли?', opts: [['yes', 'Да, заправился'], ['part', 'Помогло частично'], ['no', 'Нет, зря поехал'], ['notyet', 'Ещё не пользовался']] },
   { key: 'usability', q: 'Сайтом удобно пользоваться?', opts: [['great', 'Да, всё понятно и быстро'], ['ok', 'В целом удобно'], ['confuse', 'Иногда путаюсь'], ['bad', 'Не очень']] },
   { key: 'map_clear', q: 'Карта понятна: капли, круги, цвета?', opts: [['glance', 'Да, читаю с первого взгляда'], ['ok', 'В целом да'], ['legend', 'Подсматриваю в подсказку цветов'], ['no', 'Не понимаю карту']] },
   { key: 'forecast_true', q: 'Мы пишем «топливо вернётся с 14 до 16». По вашему опыту это сбывается?', opts: [['always', 'Да, почти всегда'], ['half', 'Примерно через раз'], ['rare', 'Редко'], ['notyet', 'Ещё не проверял']] },
   { key: 'marks_why', q: 'Вы отмечаете (топливо, очереди)? Почему?', opts: [['help', 'Да, хочу помочь городу'], ['sometimes', 'Иногда'], ['whynot', 'Нет, не понимаю зачем'], ['hard', 'Нет, неудобно или долго']] },
   { key: 'stars', q: 'Оцените сайт в целом.', stars: true, follow: [['acc', 'Точности'], ['speed', 'Скорости'], ['clear', 'Понятности'], ['city', 'Моего города']] }
 ];
-let pollShownThisSession = false, pollWarm = false, pollTimer = null, pollSel = null, pollStars = 0, pollMiss = null;
+// Отдельный вопрос отложенного триггера «Куда ехать». Сразу в момент клика
+// человек ещё не доехал до АЗС — любой вопрос «совпало?» дал бы пустой ответ.
+// Поэтому спрашиваем через 45 минут — 3 суток, когда поездка уже состоялась
+// (или не состоялась — это тоже честный и полезный для нас ответ).
+const POLL_ADVICE = { key: 'advice_outcome', q: 'Недавно вы строили маршрут до заправки через «Куда ехать». Чем закончилось?', opts: [['fuel', 'Доехал и заправился'], ['miss', 'Поехал, но топливо или очередь — не как ожидал'], ['notwent', 'Ещё не доехал'], ['noadv', 'Не воспользовался советом']] };
+function rememberAdvice() {
+  try { localStorage.setItem('kbAdviceAt', String(Date.now())); } catch (e) {}
+}
+function checkAdvicePoll() {
+  let at = 0;
+  try { at = Number(localStorage.getItem('kbAdviceAt') || 0); } catch (e) {}
+  if (!at) return;
+  const age = Date.now() - at;
+  if (age > 72 * 3600000) { try { localStorage.removeItem('kbAdviceAt'); } catch (e) {} return; }
+  if (age < 45 * 60000) return;
+  try { localStorage.removeItem('kbAdviceAt'); } catch (e) {}
+  maybePollSoon(1200, 'advice_outcome');
+}
+let pollShownThisSession = false, pollTimer = null, pollSel = null, pollStars = 0, pollMiss = null;
 function bumpContrib() {
   let n = 0;
   try { n = Number(localStorage.getItem('kbContrib') || 0); } catch (e) {}
@@ -3861,11 +3883,11 @@ function bumpContrib() {
   try { localStorage.setItem('kbContrib', String(n)); } catch (e) {}
   return n;
 }
-function maybePollSoon(delay) {
+function maybePollSoon(delay, overrideKey) {
   if (pollTimer) return;
-  pollTimer = setTimeout(() => { pollTimer = null; maybePoll(); }, delay || 1600);
+  pollTimer = setTimeout(() => { pollTimer = null; maybePoll(overrideKey); }, delay || 1600);
 }
-function maybePoll() {
+function maybePoll(overrideKey) {
   if (offlineMode || pollShownThisSession) return;
   const now = Date.now();
   let a = 0, l = 0;
@@ -3875,16 +3897,20 @@ function maybePoll() {
     const el = document.getElementById(id);
     if (el && el.classList.contains('open')) return;
   }
-  showPoll();
+  showPoll(overrideKey);
 }
-function showPoll() {
+function showPoll(overrideKey) {
   const pop = document.getElementById('pollPop');
   const back = document.getElementById('pollBack');
   if (!pop || !back) return;
-  let idx = 0;
-  try { idx = Number(localStorage.getItem('kbPollIdx') || 0); } catch (e) {}
-  const item = POLL_ITEMS[idx % POLL_ITEMS.length];
-  try { localStorage.setItem('kbPollIdx', String(idx + 1)); } catch (e) {}
+  let item = null;
+  if (overrideKey && POLL_ADVICE.key === overrideKey) item = POLL_ADVICE;
+  if (!item) {
+    let idx = 0;
+    try { idx = Number(localStorage.getItem('kbPollIdx') || 0); } catch (e) {}
+    item = POLL_ITEMS[idx % POLL_ITEMS.length];
+    try { localStorage.setItem('kbPollIdx', String(idx + 1)); } catch (e) {}
+  }
   pollSel = null; pollStars = 0; pollMiss = null;
   let body = '';
   if (item.stars) {
@@ -3947,7 +3973,7 @@ async function sendPoll() {
   const pop = document.getElementById('pollPop');
   if (!pop || !pop.dataset.key) return;
   const key = pop.dataset.key;
-  const item = POLL_ITEMS.find(x => x.key === key);
+  const item = POLL_ITEMS.find(x => x.key === key) || (POLL_ADVICE.key === key ? POLL_ADVICE : null);
   const sendBtn = document.getElementById('pollSend');
   if (sendBtn && sendBtn.disabled) return;
   if (sendBtn) sendBtn.disabled = true;
