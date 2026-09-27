@@ -99,12 +99,18 @@ async function main() {
     .map(e => (nameById[e.station_id] || 'АЗС') + ' (' + hhmm(e.detected_at) + ')');
 
   // --- сейчас по городу (последние автометки) ---
+  // known = станции с любыми данными по топливу (источник не молчит)
+  // avail = из них те, где АИ-95 есть прямо сейчас
   let known = 0, avail = 0, qNow = 0;
   for (const o of lastObs) {
     if (!ownIds.has(o.station_id)) continue;
-    if (o.fuel_92_status !== null && o.fuel_92_status !== undefined) { known++; if (o.fuel_95_status === true) avail++; }
-    else if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { known++; if (o.fuel_95_status === true) avail++; }
-    else if (o.diesel_status !== null && o.diesel_status !== undefined) known++;
+    const hasAnyFuel = (o.fuel_92_status !== null && o.fuel_92_status !== undefined) ||
+                       (o.fuel_95_status !== null && o.fuel_95_status !== undefined) ||
+                       (o.diesel_status !== null && o.diesel_status !== undefined);
+    if (hasAnyFuel) {
+      known++;
+      if (o.fuel_95_status === true) avail++;
+    }
     if (o.queue_level === 'high') qNow++;
   }
 
@@ -188,7 +194,7 @@ async function main() {
   }
   L.push('');
   L.push(fb.length
-    ? '🙋 Народ отметилcя ' + fb.length + ' раз за сутки — спасибо!'
+    ? '🙋 Народ отметился ' + fb.length + ' раз за сутки — спасибо!'
     : '🙋 Народ за сутки молчал: всё данные автоматических отметок');
   if (verified.length >= 10) {
     const ok = verified.filter(v => v.result === 'SUCCESS').length;

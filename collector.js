@@ -57,6 +57,17 @@ async function sbGet(path) {
   if (!r.ok) throw new Error('GET ' + path + ' → ' + r.status + ' ' + await r.text());
   return r.json();
 }
+// пагинация: циклом по 1000 до конца (таблицы переросли лимит Supabase в 1000 строк)
+async function sbGetAll(path) {
+  const sep = path.indexOf('?') >= 0 ? '&' : '?';
+  const out = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await sbGet(path + sep + 'limit=1000&offset=' + offset);
+    for (const r of page) out.push(r);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
 
 async function sbPost(path, rows, prefer) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
@@ -320,17 +331,17 @@ function stationLabel(id) {
   const homeIds = [...homeIdSet];
   if (homeIds.length) {
     // домой полный лукбэк (~24ч): gap-детектор видит сквозь ночные null
-    const last = await sbGet(
+    const last = await sbGetAll(
       '/rest/v1/observations?station_id=in.(' + homeIds.map(i => '"' + i + '"').join(',') +
-      ')&order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+      ')&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
     );
     for (const o of last) pushObs(o);
   }
   // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч без списка id
   const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
-  const donorLast = await sbGet(
+  const donorLast = await sbGetAll(
     '/rest/v1/observations?timestamp=gte.' + sinceDonor +
-    '&order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+    '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
   );
   for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
 
@@ -433,8 +444,8 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   for (const e of events) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
   // === ШАГ 6: превращаем народные отметки user_feedback в события ===
   console.log('6) Обрабатываю народные отметки...');
-  const unprocessed = await sbGet(
-    '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,fuel_type,queue_size,created_at&limit=500'
+  const unprocessed = await sbGetAll(
+    '/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,fuel_type,queue_size,created_at'
   );
   if (unprocessed.length) {
     const fbEvents = unprocessed.map(f => ({

@@ -57,7 +57,7 @@ async function logTrainingData() {
     const all = [];
     for (let offset = 0; ; offset += 1000) {
       const page = await sbGet(
-        '/rest/v1/predictions?is_verified=eq.true&select=error_minutes,baseline_error_minutes,prediction_source,features' +
+        '/rest/v1/predictions?is_verified=eq.true&select=fuel_type,error_minutes,baseline_error_minutes,prediction_source,features' +
         '&order=id.asc&limit=1000&offset=' + offset
       );
       for (const t of page) all.push(t);
@@ -88,6 +88,7 @@ async function logTrainingData() {
       (groups['source:' + src] = groups['source:' + src] || []).push(t);
       (groups['eta:' + eta] = groups['eta:' + eta] || []).push(t);
       (groups['час:' + hb] = groups['час:' + hb] || []).push(t);
+      (groups['fuel:' + (t.fuel_type || '?')] = groups['fuel:' + (t.fuel_type || '?')] || []).push(t);
     }
     for (const key of Object.keys(groups).sort()) {
       const rows = groups[key];

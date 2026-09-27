@@ -469,10 +469,6 @@ async function main() {
           (source === 'brand' && st.brand
             ? [].concat(...stations.filter(s => s.brand === st.brand)
                 .map(s => pairsByPair[s.id + '|' + fuel] || []))
-            : []) ||
-          (source === 'city'
-            ? [].concat(...stations.filter(s => isOwn(s))
-                .map(s => pairsByPair[s.id + '|' + fuel] || []))
             : []);
 
         if (pairDurations.length >= MIN_EVENTS_PRELIM) {
@@ -602,7 +598,7 @@ async function main() {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.10: появились новые прогнозы (' + created + ' шт)! Окна компактнее: квантили + фильтр дня + синхронизация с ETA.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.11: появились новые прогнозы (' + created + ' шт)! Окна компактнее: квантили + фильтр дня + синхронизация с ETA.' })
       });
     } catch (e) {}
   }
