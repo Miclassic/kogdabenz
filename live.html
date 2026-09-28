@@ -149,20 +149,36 @@ function drawChart() {
     svg += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - padB) + '" y2="' + (H - padB + 4) + '" stroke="#93a1b8"/>';
   }
 
-  // плавный кусок линии (сплайн Catmull-Rom -> кривые Безье), как в кардиограмме
+  // плавный кусок линии БЕЗ провисания (монотонный сплайн):
+  // линия проходит точно через точки, а в минимумах/максимумах
+  // закругляется горизонтально, как на кардиограмме
   function smoothSeg(pts) {
-    if (pts.length < 2) return '';
+    const n = pts.length;
+    if (n < 2) return '';
     let d = 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] || pts[i];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2] || p2;
-      const c1x = p1[0] + (p2[0] - p0[0]) / 6;
-      const c1y = p1[1] + (p2[1] - p0[1]) / 6;
-      const c2x = p2[0] - (p3[0] - p1[0]) / 6;
-      const c2y = p2[1] - (p3[1] - p1[1]) / 6;
-      d += 'C' + c1x.toFixed(1) + ',' + c1y.toFixed(1) + ' ' + c2x.toFixed(1) + ',' + c2y.toFixed(1) + ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+    if (n === 2) {
+      d += 'L' + pts[1][0].toFixed(1) + ',' + pts[1][1].toFixed(1);
+      return d;
+    }
+    // уклоны отрезков и касательные в точках
+    const dl = [];
+    for (let i = 0; i < n - 1; i++) dl.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]));
+    const m = [dl[0]];
+    for (let i = 1; i < n - 1; i++) m.push(dl[i - 1] * dl[i] <= 0 ? 0 : (dl[i - 1] + dl[i]) / 2);
+    m.push(dl[n - 2]);
+    for (let i = 0; i < n - 1; i++) {
+      if (dl[i] === 0) { m[i] = 0; m[i + 1] = 0; }
+      else {
+        const a = m[i] / dl[i], b = m[i + 1] / dl[i];
+        const s = a * a + b * b;
+        if (s > 9) { const t = 3 / Math.sqrt(s); m[i] = t * a * dl[i]; m[i + 1] = t * b * dl[i]; }
+      }
+    }
+    for (let i = 0; i < n - 1; i++) {
+      const h = pts[i + 1][0] - pts[i][0];
+      d += 'C' + (pts[i][0] + h / 3).toFixed(1) + ',' + (pts[i][1] + m[i] * h / 3).toFixed(1) +
+        ' ' + (pts[i + 1][0] - h / 3).toFixed(1) + ',' + (pts[i + 1][1] - m[i + 1] * h / 3).toFixed(1) +
+        ' ' + pts[i + 1][0].toFixed(1) + ',' + pts[i + 1][1].toFixed(1);
     }
     return d;
   }
@@ -179,13 +195,16 @@ function drawChart() {
   // aggregate — толстая, рисуем первой
   const aggPath = pathD(aggLine);
   if (aggPath) svg += '<path d="' + aggPath + '" fill="none" stroke="' + versionColor('aggregate') + '" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
+  for (let i = 0; i < aggLine.length; i++) {
+    if (aggLine[i] !== null) svg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(aggLine[i]).toFixed(1) + '" r="3.5" fill="' + versionColor('aggregate') + '" stroke="#fff" stroke-width="1.5"/>';
+  }
   // версии — сверху aggregate
   for (const v of versions) {
     const d = pathD(lines[v]);
     if (d) svg += '<path d="' + d + '" fill="none" stroke="' + versionColor(v) + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
     // точки на линиях
     for (let i = 0; i < lines[v].length; i++) {
-      if (lines[v][i] !== null) svg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(lines[v][i]).toFixed(1) + '" r="3" fill="' + versionColor(v) + '"/>';
+      if (lines[v][i] !== null) svg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(lines[v][i]).toFixed(1) + '" r="3.2" fill="' + versionColor(v) + '" stroke="#fff" stroke-width="1.5"/>';
     }
   }
   svg += '</svg>';
