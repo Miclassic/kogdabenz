@@ -1,4 +1,4 @@
-// ===== Калибратор уверенности v3 =====
+// ===== Калибратор уверенности v4 =====
 // Ночью после верификатора (02:25 MSK).
 // Отличия v2 от v1:
 //   1) Свежесть: только верифицированные строки за 14 дней (если их мало — 30).
@@ -16,6 +16,10 @@ const FRESH_DAYS_WIDE = 30;
 const MIN_PER_BIN = 5;
 const MAX_BINS = 8;
 const MIN_SPREAD = 0.15; // минимальный разброс бинов, иначе таблица не отличает станцию от станции
+// v4: самообучение на промахах — сдвиги окна/ETA по топливам
+const MIN_N_PER_FUEL = 30;   // меньше измерений — не учим, шум
+const MIN_BIAS_MIN = 60;     // |медианный bias| меньше часа — не трогаем
+const MAX_SHIFT_MIN = 360;   // сдвиг зажат ±6 ч: учимся, но не угадываем сутки
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -46,8 +50,7 @@ async function fetchVerified() {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
     const page = await sbGet(
-      '/rest/v1/predictions?is_verified=eq.true' +
-      '&select=confidence,result,features,verified_at&order=id.asc&limit=1000&offset=' + offset
+'&select=confidence,result,features,verified_at,fuel_type,error_minutes,window_error_minutes,expected_restore_at&order=id.asc&limit=1000&offset=' + offset
     );
     for (const p of page) rows.push(p);
     if (page.length < 1000) break;
@@ -73,6 +76,38 @@ async function main() {
   let data = toData(rows, FRESH_DAYS);
   let windowDays = FRESH_DAYS;
   if (data.length < MIN_ROWS) { data = toData(rows, FRESH_DAYS_WIDE); windowDays = FRESH_DAYS_WIDE; }
+  // === v4: самообучение на промахах: сдвиги окна и ETA по топливам ===
+  // Окно меряем к его центру (window_error_minutes), ETA — к expected_restore_at
+  // (error_minutes строк, где ETA был). Ворота: n >= 30 и |медианный bias| >= 60 мин,
+  // сдвиг зажат ±6 ч. Не накопилось — таблица удаляется, предиктор как раньше.
+  const sinceMs = Date.now() - windowDays * 24 * 3600 * 1000;
+  const medOf = a => { const s = a.slice().sort((x, y) => x - y); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
+  const shiftEntries = {};
+  for (const fuel of ['92', '95', 'diesel']) {
+    const fresh = rows.filter(p => p.fuel_type === fuel && p.verified_at && new Date(p.verified_at).getTime() >= sinceMs);
+    const wErr = fresh.map(p => p.window_error_minutes).filter(v => v !== null && v !== undefined && isFinite(v));
+    const eErr = fresh.filter(p => p.expected_restore_at).map(p => p.error_minutes).filter(v => v !== null && v !== undefined && isFinite(v));
+    const entry = {};
+    if (wErr.length >= MIN_N_PER_FUEL) {
+      const bw = Math.round(medOf(wErr));
+      entry.n_window = wErr.length; entry.bias_window_min = bw;
+      if (Math.abs(bw) >= MIN_BIAS_MIN) entry.shift_window_min = Math.max(-MAX_SHIFT_MIN, Math.min(MAX_SHIFT_MIN, bw));
+    }
+    if (eErr.length >= MIN_N_PER_FUEL) {
+      const be = Math.round(medOf(eErr));
+      entry.n_eta = eErr.length; entry.bias_eta_min = be;
+      if (Math.abs(be) >= MIN_BIAS_MIN) entry.shift_eta_min = Math.max(-MAX_SHIFT_MIN, Math.min(MAX_SHIFT_MIN, be));
+    }
+    if (Object.keys(entry).length) shiftEntries[fuel] = entry;
+    console.log('   топливо ' + fuel + ': окно n ' + wErr.length + (wErr.length ? ', bias ' + Math.round(medOf(wErr)) + ' мин' : '') + '; ETA n ' + eErr.length + (eErr.length ? ', bias ' + Math.round(medOf(eErr)) + ' мин' : ''));
+  }
+  if (Object.keys(shiftEntries).length) {
+    await sbUpsertMeta('fuel_shift_table', JSON.stringify({ v: 1, built_at: new Date().toISOString(), window_days: windowDays, entries: shiftEntries }));
+    console.log('✅ Таблица сдвигов промахов записана: ' + JSON.stringify(shiftEntries));
+  } else {
+    await sbDeleteMeta('fuel_shift_table');
+    console.log('Сдвиги промахов: не накопились (n < ' + MIN_N_PER_FUEL + ' или |bias| < ' + MIN_BIAS_MIN + ' мин) — таблица удалена (если была), предиктор без сдвига.');
+  }
   const successes = data.filter(x => x.hit).length;
   console.log('Окно ' + windowDays + ' дн: строк ' + data.length + ', попаданий ' + successes);
   if (data.length < MIN_ROWS) {

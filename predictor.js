@@ -97,8 +97,36 @@ function calibrate(c) {
   return pts[pts.length - 1][1];
 }
 
+// --- v1.12: самообучение на промахах: сдвиги окна/ETA по топливам из bot_meta ---
+// Ночью калибратор меряет знакованный bias факта (окно — к центру окна, ETA — к
+// expected_restore_at) и пишет fuel_shift_table; утром сдвигаем окно и ETA.
+// Нет таблицы / старше 21 дня / битая — работаем как раньше (фолбэк).
+let fuelShifts = null;
+async function loadFuelShifts() {
+  try {
+    const cur = await sbGet('/rest/v1/bot_meta?key=eq.fuel_shift_table&select=value');
+    if (!cur.length) { console.log('   Таблицы сдвигов промахов нет — окно и ETA как раньше'); return; }
+    const t = typeof cur[0].value === 'string' ? JSON.parse(cur[0].value) : cur[0].value;
+    if (!t || !t.entries) { console.log('   Таблица сдвигов промахов битая — без сдвига'); return; }
+    if (Date.now() - Date.parse(t.built_at) > 21 * 24 * 3600 * 1000) { console.log('   Таблица сдвигов промахов старше 21 дня — без сдвига'); return; }
+    fuelShifts = t.entries;
+    console.log('   Сдвиги промахов применятся: ' + Object.keys(fuelShifts).map(f => f + ': окно ' + (fuelShifts[f].shift_window_min || 0) + ' мин, ETA ' + (fuelShifts[f].shift_eta_min || 0) + ' мин').join('; '));
+  } catch (e) { console.log('   Сдвиги промахов: ' + e.message + ' — без сдвига'); }
+}
+function shiftWindowTimes(winFrom, winTo, shiftMin) {
+  if (!shiftMin) return [winFrom, winTo];
+  const f = Number(winFrom.slice(0, 2)) * 60 + Number(winFrom.slice(3, 5));
+  const t = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+  const width = t - f;
+  let nf = f + shiftMin, nt = t + shiftMin;
+  // через полночь окно не переезжает: верификатор считает окно внутри суток
+  // target_date, конец раньше начала сломал бы проверку
+  if (nt > 1439) { nt = 1439; nf = nt - width; }
+  if (nf < 0) { nf = 0; nt = Math.min(1439, width); }
+  return [minutesToTime(nf), minutesToTime(nt)];
+}
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.11 (State Machine Aware) ===');
+  console.log('=== ПРЕДИКТОР v1.12 (State Machine Aware + самообучение промахов) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
@@ -334,6 +362,8 @@ async function main() {
 
   console.log('4.9) Читаю таблицу калибровки уверенности...');
   await loadCalibration();
+  console.log('4.10) Читаю таблицу сдвигов промахов по топливам...');
+  await loadFuelShifts();
   console.log('5) Строю прогнозы для всех станций региона...');
   let created = 0, updated = 0, skipped = 0, stale = 0, lost_no_city = 0;
   const fuels = ['92', '95', 'diesel'];
@@ -490,6 +520,10 @@ async function main() {
             const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
             const remaining = Math.max(5, useDur - elapsed);
             expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
+            // v1.12: сдвиг ETA на измеренный bias топлива; baseline сознательно
+         // НЕ трогаем — он обязан остаться «голым» для честного сравнения
+         const fsh0 = fuelShifts ? fuelShifts[fuel] : null;
+         if (fsh0 && fsh0.shift_eta_min) expectedRestoreAt = new Date(new Date(expectedRestoreAt).getTime() + fsh0.shift_eta_min * 60000).toISOString();
 
             const baseDur = medianOf(pairDurations);
             baselineRestoreAt = new Date(Date.now() + Math.max(5, baseDur - elapsed) * 60000).toISOString();
@@ -519,10 +553,16 @@ async function main() {
             if (wt < wf + 2 * MIN_WINDOW_MIN) wt = Math.min(1439, wf + 2 * MIN_WINDOW_MIN);
           }
           winFrom = minutesToTime(wf);
-          winTo = minutesToTime(wt);
-        }
-      }
-      const toMin = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+      winTo = minutesToTime(wt);
+    }
+  }
+  // v1.12: самообучение на промахах — сдвиг окна на измеренный bias топлива
+  const fshift = fuelShifts ? fuelShifts[fuel] : null;
+  if (fshift && fshift.shift_window_min) {
+    const sw = shiftWindowTimes(winFrom, winTo, fshift.shift_window_min);
+    winFrom = sw[0]; winTo = sw[1];
+  }
+  const toMin = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
 
       // Features Snapshot v1.6
       const nb = nearbyMissing95(st);
@@ -558,11 +598,11 @@ async function main() {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.11|' + source,
+        algorithm_version: 'v1.12|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.11'
+        model_version: 'v1.12'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
@@ -598,7 +638,7 @@ async function main() {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.11: появились новые прогнозы (' + created + ' шт)! Окна компактнее: квантили + фильтр дня + синхронизация с ETA.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.12: появились новые прогнозы (' + created + ' шт)! Окна компактнее: квантили + фильтр дня + синхронизация с ETA.' })
       });
     } catch (e) {}
   }

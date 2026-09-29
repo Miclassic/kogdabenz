@@ -1,4 +1,4 @@
-// ===== Верификатор Новороссийска v1.2 =====
+// ===== Верификатор Новороссийска v1.3 =====
 // Ночью оценивает вчерашние прогнозы по факту.
 // SUCCESS — возврат топлива пойман в окне [from-30мин, to+60мин], иначе MISS.
 // Допуски: -30мин (привезли чуть раньше окна) и +60мин (отметка/детектор запоздали).
@@ -166,6 +166,9 @@ async function main() {
     // гигантский отрицательный error_minutes и портило медиану.
     const afterWindow = pairEvents.find(x => x.t > winEnd);
     const actual = hit || afterWindow || null;
+    // v1.3: ошибка относительно центра окна пишется всегда (даже при наличии ETA) —
+    // по ней учится сдвиг окна топлива (контур самообучения промахов)
+    const windowCenterMs = dayStart + ((timeToMin(p.from_time) + timeToMin(p.to_time)) / 2) * 60000;
     let expectedMs;
     if (p.expected_restore_at) expectedMs = new Date(p.expected_restore_at).getTime();
     else expectedMs = dayStart + ((timeToMin(p.from_time) + timeToMin(p.to_time)) / 2) * 60000;
@@ -177,6 +180,7 @@ async function main() {
     if (actual) {
       patch.actual_restore_at = actual.e.detected_at;
       patch.error_minutes = Math.round((actual.t - expectedMs) / 60000);
+      patch.window_error_minutes = Math.round((actual.t - windowCenterMs) / 60000);
       if (p.baseline_restore_at) patch.baseline_error_minutes = Math.round((actual.t - new Date(p.baseline_restore_at).getTime()) / 60000);
     }
     await sbPatch('predictions?id=eq.' + p.id, patch);
