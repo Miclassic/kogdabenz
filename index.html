@@ -181,6 +181,16 @@ body { overflow:hidden; }
 .chip3 b { font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
 .chip3 b.qadv { font-size:8px; }
 .pulse-tip.under { transform:translate(-50%, 14px); }
+/* мини-карта на главной панели */
+.mini-map-wrap { position:relative; height:170px; margin-bottom:6px; border-radius:18px; border:1px solid #e8edf7; overflow:hidden; background:#eef2f8; cursor:pointer; box-shadow:0 10px 28px rgba(38,69,120,.07); }
+.mini-map-box { position:absolute; inset:0; }
+.mini-map-box .maplibregl-marker { pointer-events:none; }
+.mini-map-box .mpin-wrap { width:18px; height:22px; }
+.mini-map-box .mpin { width:18px; height:18px; border-width:2px; box-shadow:0 3px 8px rgba(15,27,51,.25); }
+.mini-map-box .mpin .ic, .mini-map-box .mpin .qmark, .mini-map-box .mpin .qdot { display:none; }
+.mini-map-box .user-dot { width:12px; height:12px; border-width:2px; }
+.mini-map-cap { position:absolute; left:8px; bottom:8px; z-index:5; pointer-events:none; display:inline-flex; align-items:center; gap:5px; padding:5px 9px; border-radius:12px; background:rgba(255,255,255,.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
+.mini-map-cap .ic { width:11px; height:11px; color:#2465ee; }
 /* кардиограмма */
 .mini-graph { flex:1; min-height:64px; display:flex; flex-direction:column; padding:6px 7px 4px; border-radius:18px; background:linear-gradient(165deg,#ffffff,#f8fafd); border:1px solid #e8edf7; position:relative; overflow:hidden; }
 .mini-cap { display:flex; align-items:center; gap:5px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
@@ -614,30 +624,9 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <div class="chip3 tap why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3 tap why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
-      <div class="mini-graph">
-        <div class="mini-cap">
-          <span style="display:flex;align-items:center;gap:5px;min-width:0"><svg class="ic ic-s"><use href="#i-chart"/></svg><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">кардиограмма · <span id="mgCityLbl">города</span></span></span>
-        </div>
-        <div class="mini-cap" style="justify-content:space-between;margin-top:4px;flex-wrap:wrap;gap:4px">
-          <span class="mg-tabs" id="mgScopeTabs">
-            <button class="mg-tab active" onclick="mgScope('city',this)" id="mgScopeCity"><span id="mgScopeCityTxt">город</span></button>
-            <button class="mg-tab" onclick="mgScope('south',this)">весь юг</button>
-          </span>
-          <span class="mg-tabs">
-            <button class="mg-tab active" onclick="mgRange('day',this)">День</button>
-            <button class="mg-tab" onclick="mgRange('week',this)">Неделя</button>
-            <button class="mg-tab" onclick="mgRange('month',this)">Месяц</button>
-          </span>
-        </div>
-        <svg class="pulse-svg" id="pulseSvg"></svg>
-        <div class="pulse-tip" id="pulseTip"></div>
-        <div class="mg-legend">
-          <span><i class="ln" style="background:#7c6dff"></i>спрос (очереди)</span>
-          <span><i class="ln" style="background:#19b77a"></i>предложение (АИ-95)</span>
-          <span><i class="bd" style="background:linear-gradient(90deg,rgba(239,83,80,.45),rgba(25,183,122,.45))"></i>часы событий</span>
-        </div>
-        <div id="pulseKpis" style="display:none"></div>
-        <div id="pulseInsight" style="display:none"></div>
+      <div class="mini-map-wrap" onclick="miniMapGo()">
+        <div id="miniMapBox" class="mini-map-box"><div class="status">Мини-карта загрузится вместе с данными</div></div>
+        <div class="mini-map-cap"><svg class="ic"><use href="#i-pin"/></svg>мини-карта · тап — полная карта</div>
       </div>
       <div class="nowcard-cta">
         <button class="cta-btn" id="ctaBest"><svg class="ic"><use href="#i-spark"/></svg>Куда ехать сейчас</button>
@@ -1770,6 +1759,232 @@ function renderPulse() {
     tip.style.left = cx + 'px';
   };
 }
+/* мини-карта на главной панели: живая «Карта спроса» с дальней камеры.
+   Тот же MapLibre, тот же стиль и те же слои (поле тепла, лужи очередей,
+   стеклянные кластеры, капли-одиночки, подписи городов), но камера вмещает
+   весь город пользователя, а карта не реагирует на палец: тап открывает
+   полную карту. Радиус тепла умножаем на долю высоты канваса от полной
+   карты — картинка та же, просто окно меньше. */
+const PIN_COL = { yes: '#1bb978', part: '#f5a05a', diesel: '#6ea8ff', no: '#ef5350', conflict: '#f5a05a', unknown: '#a7b1c1' };
+let miniMapObj = null, miniMarkers = [], miniReady = false, miniFittedCity = null, miniUserMarker = null, miniLabelCtrls = [];
+function ensureMiniMap() {
+  const box = document.getElementById('miniMapBox');
+  if (!box || miniMapObj) return;
+  if (typeof maplibregl === 'undefined') return;
+  box.innerHTML = '';
+  miniMapObj = new maplibregl.Map({
+    container: 'miniMapBox',
+    style: 'https://tiles.openfreemap.org/styles/positron',
+    center: [37.77, 44.72],
+    zoom: 9,
+    attributionControl: false,
+    interactive: false
+  });
+  miniMapObj.on('load', () => {
+    for (const layer of miniMapObj.getStyle().layers || []) {
+      if (layer.type === 'symbol') miniMapObj.setLayoutProperty(layer.id, 'visibility', 'none');
+      else if (layer.id.indexOf('building') >= 0) miniMapObj.setLayoutProperty(layer.id, 'visibility', 'none');
+    }
+    for (const l of OUR_LABELS) {
+      const el = document.createElement('div');
+      el.className = 'mlabel' + (l.city ? ' city' : '');
+      el.textContent = l.name;
+      new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([l.lon, l.lat]).addTo(miniMapObj);
+      miniLabelCtrls.push({ el: el, minZoom: l.minZoom || 0 });
+    }
+    miniMapObj.addSource('fuelheat', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    const FH_DEFS = [
+      { id: 'fuelheat-calm', cls: 'calm', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.35)', 'rgba(27,185,120,0.55)', 'rgba(27,185,120,0.70)', 'rgba(18,168,106,0.80)'] },
+      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.40)', 'rgba(245,160,90,0.62)', 'rgba(239,83,80,0.78)', 'rgba(216,42,38,0.88)'] },
+      { id: 'fuelheat-calm-old', cls: 'calm-old', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.16)', 'rgba(27,185,120,0.25)', 'rgba(27,185,120,0.32)', 'rgba(18,168,106,0.36)'] },
+      { id: 'fuelheat-hot-old', cls: 'hot-old', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.18)', 'rgba(245,160,90,0.28)', 'rgba(239,83,80,0.35)', 'rgba(216,42,38,0.40)'] }
+    ];
+    for (const d of FH_DEFS) {
+      miniMapObj.addLayer({
+        id: d.id, type: 'heatmap', source: 'fuelheat',
+        filter: ['==', ['get', 'cls'], d.cls],
+        paint: {
+          'heatmap-weight': ['get', 'w'],
+          'heatmap-intensity': 1.8,
+          'heatmap-radius': 60,
+          'heatmap-opacity': 0.55,
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, d.ramp[0], 0.25, d.ramp[1], 0.5, d.ramp[2], 0.75, d.ramp[3], 1, d.ramp[4]]
+        }
+      });
+    }
+    miniMapObj.addSource('zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    miniMapObj.addLayer({ id: 'zones-halo', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'halo'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.08 } });
+    miniMapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
+    miniMapObj.addLayer({ id: 'zones-core', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'core'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.24 } });
+    miniMapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.24, 'line-width': 1.2, 'line-dasharray': [1, 1.8] } });
+    miniReady = true;
+    renderMiniMap();
+  });
+}
+function renderMiniMap() {
+  if (!miniMapObj || !miniReady) return;
+  const city = cityStationList().filter(s => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lon)));
+  if (!city.length) return;
+  // камера: весь город пользователя с полями, но не ближе z12.4 —
+  // это и есть «вид с далека»: кластеры и лужи, а не капли по улицам
+  if (miniFittedCity !== userCityKey) {
+    let minLon = 1e9, maxLon = -1e9, minLat = 1e9, maxLat = -1e9;
+    for (const s of city) {
+      const lon = Number(s.lon), lat = Number(s.lat);
+      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+    }
+    miniMapObj.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 12, maxZoom: 12.4, duration: 0 });
+    // кадр ближе, чем «весь город от края до края»: фиксированный шаг зума
+    // поверх подгонки. Центр кадра остаётся центром города, дальние одинокие
+    // АЗС уходят за кадр — это норма для вида «поближе».
+    // Хочешь ещё ближе — увеличь 0.8 (например 1.0–1.2), дальше — уменьши.
+    miniMapObj.setZoom(Math.min(13.2, miniMapObj.getZoom() + 0.8));
+    miniFittedCity = userCityKey;
+  }
+  // камера по вашей точке: мини-карта всегда показывает, где вы сейчас,
+  // а заправки города — вокруг. Нет точки (GPS не разрешён) — кадр
+  // остаётся на центре города, как раньше.
+  const locCenter = loadUserLocation();
+  if (locCenter) miniMapObj.setCenter([locCenter.lon, locCenter.lat]);
+  const zoom = miniMapObj.getZoom();
+  // поле тепла: рампы те же, радиус масштабируем высотой канваса к полной
+  // карте (170px против ~360px) — иначе поле съело бы весь маленький кадр
+  const kScale = Math.max(0.35, Math.min(1, (document.getElementById('miniMapBox').clientHeight || 170) / 360));
+  const ff = zoneStreetFade(zoom);
+  for (const L of FH_LAYERS) {
+    miniMapObj.setPaintProperty(L, 'heatmap-radius', zoneRamp(FH_RADIUS, zoom) * kScale);
+    miniMapObj.setPaintProperty(L, 'heatmap-opacity', zoneRamp(FH_OPACITY, zoom) * ff * 0.55);
+  }
+  miniMapObj.setPaintProperty('zones-halo', 'fill-opacity', zoneRamp(ZONE_STOPS.halo, zoom) * 0.93);
+  miniMapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, zoom) * 0.93);
+  miniMapObj.setPaintProperty('zones-core', 'fill-opacity', zoneRamp(ZONE_STOPS.core, zoom) * 0.93);
+  miniMapObj.setPaintProperty('zones-line', 'line-opacity', zoneRamp(ZONE_STOPS.line, zoom) * 0.93);
+  miniMapObj.setPaintProperty('zones-line', 'line-width', zoneRamp(ZONE_STOPS.width, zoom));
+  for (const lc of miniLabelCtrls) lc.el.style.display = zoom >= lc.minZoom ? '' : 'none';
+  for (const m of miniMarkers) m.remove();
+  miniMarkers = [];
+  const last = getLastObservations();
+  const feats = [];
+  const fuelFeats = [];
+  const vb = miniMapObj.getBounds();
+  const pad = 0.05;
+  const inView = st => Number(st.lat) >= vb.getSouth() - pad && Number(st.lat) <= vb.getNorth() + pad && Number(st.lon) >= vb.getWest() - pad && Number(st.lon) <= vb.getEast() + pad;
+  for (const st of allStations) {
+    if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
+    const o = last[st.id];
+    const srcState = pinKey(o);
+    let state = srcState;
+    if (state === 'unknown') state = folkPinState(st.id, o) || 'unknown';
+    if (state !== 'unknown') {
+      const stale = srcState !== 'unknown' && !obsFresh(o);
+      if (state === 'yes') fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      let hotW = 0;
+      if (state === 'no') hotW = 1;
+      else if (state === 'part' || state === 'diesel') hotW = 0.65;
+      else if (state === 'conflict') hotW = 0.5;
+      if (o && o.queue_level === 'high') hotW += 0.35;
+      if (hotW > 0) fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'hot-old' : 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+    }
+    // лужи очередей: в мини-карте видны всегда — её зум и есть тот «далёкий»
+    // вид, где на полной карте лужи уже показаны
+    if (inView(st)) {
+      const sc = demandOf(st.id);
+      if (sc >= 12) {
+        const seed = seedOf(st.id);
+        const R = 100 + sc * 6;
+        const col = 'rgb(' + demandRgb(sc) + ')';
+        feats.push(blobFeature(Number(st.lat), Number(st.lon), R, col, seed, 'halo', 1.25));
+        feats.push(blobFeature(Number(st.lat), Number(st.lon), R, col, seed, 'main', 1));
+        feats.push(blobFeature(Number(st.lat), Number(st.lon), R, col, seed, 'core', 0.55));
+        const elZ = document.createElement('div');
+        elZ.className = 'mzone-ico';
+        elZ.innerHTML = '<div class="mzone-badge" style="color:rgb(' + demandRgb(sc) + ')"><svg class="ic"><use href="#i-queue"/></svg></div>';
+        miniMarkers.push(new maplibregl.Marker({ element: elZ, anchor: 'center' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(miniMapObj));
+      }
+    }
+  }
+  const fhSrc = miniMapObj.getSource('fuelheat');
+  if (fhSrc) fhSrc.setData({ type: 'FeatureCollection', features: fuelFeats });
+  miniMapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
+  // кластеры по мировой сетке 70px — те же правила, что на полной карте;
+  // одинокие станции — капли (таблички и чипы в мини не рисуем: мелко)
+  const zc = Math.round(zoom);
+  const size = 256 * Math.pow(2, zc);
+  const worldPx = (lon, lat) => {
+    const latRad = lat * Math.PI / 180;
+    return { x: (lon + 180) / 360 * size, y: (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * size };
+  };
+  const cells = {};
+  for (const st of allStations) {
+    if (!Number.isFinite(Number(st.lat))) continue;
+    const p = worldPx(Number(st.lon), Number(st.lat));
+    const key = Math.floor(p.x / 70) + ':' + Math.floor(p.y / 70);
+    (cells[key] = cells[key] || []).push({ st: st, o: last[st.id] });
+  }
+  for (const key of Object.keys(cells)) {
+    const group = cells[key];
+    const n = group.length;
+    const clon = group.reduce((s, it) => s + Number(it.st.lon), 0) / n;
+    const clat = group.reduce((s, it) => s + Number(it.st.lat), 0) / n;
+    if (clon < vb.getWest() - pad || clon > vb.getEast() + pad || clat < vb.getSouth() - pad || clat > vb.getNorth() + pad) continue;
+    if (n === 1) {
+      const it = group[0];
+      const kk = effPinKey(it.st, it.o);
+      const wrap = document.createElement('div');
+      wrap.className = 'mpin-wrap' + (pinKey(it.o) !== 'unknown' && !obsFresh(it.o) ? ' stale' : '');
+      const availCols = [];
+      if (it.o && (it.o.fuel_92_status != null || it.o.fuel_95_status != null || it.o.diesel_status != null)) {
+        if (it.o.diesel_status === true) availCols.push('#6ea8ff');
+        if (it.o.fuel_92_status === true) availCols.push('#f5a05a');
+        if (it.o.fuel_95_status === true) availCols.push('#1bb978');
+      } else {
+        const fcons = { '92': folkConsensus(it.st.id, '92'), '95': folkConsensus(it.st.id, '95'), 'diesel': folkConsensus(it.st.id, 'diesel') };
+        if (fcons.diesel && fcons.diesel.verdict === 'yes') availCols.push('#6ea8ff');
+        if (fcons['92'] && fcons['92'].verdict === 'yes') availCols.push('#f5a05a');
+        if (fcons['95'] && fcons['95'].verdict === 'yes') availCols.push('#1bb978');
+      }
+      let pinStyle = '';
+      if (availCols.length >= 2) {
+        const stops = availCols.length === 2 ? availCols[0] + ', ' + availCols[1] : availCols[0] + ', ' + availCols[1] + ' 50%, ' + availCols[2];
+        pinStyle = 'background:linear-gradient(to top right,' + stops + ');border-color:#fff;color:#fff;';
+      }
+      wrap.innerHTML = '<div class="mpin ' + kk + '" style="' + pinStyle + '"><svg class="ic"><use href="#i-pump"/></svg></div>';
+      miniMarkers.push(new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(it.st.lon), Number(it.st.lat)]).addTo(miniMapObj));
+      continue;
+    }
+    const cnt = { yes: 0, part: 0, diesel: 0, no: 0, conflict: 0, unknown: 0 };
+    for (const it of group) cnt[effPinKey(it.st, it.o)]++;
+    let sig = 0, staleSig = 0;
+    for (const it of group) {
+      if (effPinKey(it.st, it.o) !== 'unknown') sig++;
+      if (pinKey(it.o) !== 'unknown' && !obsFresh(it.o)) staleSig++;
+    }
+    const clStale = sig > 0 && staleSig * 2 >= sig;
+    const stops = [];
+    let acc = 0;
+    for (const k of ['yes', 'part', 'diesel', 'no', 'conflict', 'unknown']) {
+      if (!cnt[k]) continue;
+      const from = acc;
+      acc += 100 * cnt[k] / n;
+      stops.push(PIN_COL[k] + ' ' + from.toFixed(1) + '% ' + acc.toFixed(1) + '%');
+    }
+    const el = document.createElement('div');
+    el.className = 'mcluster' + (clStale ? ' stale' : '');
+    el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,' + stops.join(', ') + ')"></i>';
+    miniMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([clon, clat]).addTo(miniMapObj));
+  }
+  // точка пользователя — как на полной карте, размер уменьшен CSS-ом
+  const loc = loadUserLocation();
+  if (loc) {
+    if (!miniUserMarker) {
+      const el = document.createElement('div');
+      el.className = 'user-dot';
+      miniUserMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([loc.lon, loc.lat]).addTo(miniMapObj);
+    } else miniUserMarker.setLngLat([loc.lon, loc.lat]);
+  }
+}
+function miniMapGo() { pagerGo(2); ensureMap(); }
 /* герой, чипы, дайджест, шапка */
 // плашка-герой: слайды и автосмена. Город — топ-1 самый уверенный прогноз
 // (название • улица • окно • %); весь юг — лучший и худший топ-1, листаются сами.
@@ -2073,7 +2288,7 @@ const WHY_MAP = {
   accChecked: { t: 'Как проверяем прогнозы', x: 'Каждую ночь сервис сравнивает вчерашние прогнозы с тем, что реально случилось на заправках. Прогнозы, по которым факт ещё не случился (топливо пока не вернули), считаем отдельно — они ошибку не портят.', e: () => { const v = allPredictions.filter(p => p.is_verified).length; const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).length; return 'Проверено: ' + v + ', из них ждут факта: ' + (v - m) + '.'; } },
   accErr: { t: 'Что значит «обычно»', x: 'Все ошибки прогнозов выстраиваем от меньшей к большей и берём серединную: половина прогнозов точнее неё, половина — нет. Это честная типичная ошибка по времени.', e: () => { const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).map(p => Math.abs(p.error_minutes)).sort((a, b) => a - b); if (!m.length) return 'Измерений пока нет.'; const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))]; return 'Половина прогнозов ошибается меньше чем на ' + fmtErrMin(q(m, 0.5)) + ', худшие 10% — больше чем на ' + fmtErrMin(q(m, 0.9)) + '.'; } },
   accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } },
-  qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории: очередь может прийти раньше или позже, либо не прийти вовсе.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null }
+  qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории, не гарантия.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null }
 };
 let whyOpenKey = null;
 function closeWhy() {
@@ -2219,6 +2434,8 @@ function renderNow() {
   }
   updateMapPlate();
   renderHero();
+  ensureMiniMap();
+  renderMiniMap();
   renderDigestPanel();
   renderAccuracy();
   setTagline(currentPanel);
