@@ -333,7 +333,7 @@ function stationLabel(id) {
     // домой полный лукбэк (~24ч): gap-детектор видит сквозь ночные null
     const last = await sbGetAll(
       '/rest/v1/observations?station_id=in.(' + homeIds.map(i => '"' + i + '"').join(',') +
-      ')&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+      ')&timestamp=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
     );
     for (const o of last) pushObs(o);
   }
