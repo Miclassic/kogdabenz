@@ -351,7 +351,7 @@ async function main() {
   for (let offset = 0; ; offset += 1000) {
     const page = await sbGet(
       '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
-      '&select=id,station_id,fuel_type&order=id.asc&limit=1000&offset=' + offset
+      '&model_version=like.*%7Cshadow*&select=id,station_id,fuel_type&order=id.asc&limit=1000&offset=' + offset
     );
     for (const p of page) existing.push(p);
     if (page.length < 1000) break;

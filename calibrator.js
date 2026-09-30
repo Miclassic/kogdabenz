@@ -50,7 +50,9 @@ async function fetchVerified() {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
     const page = await sbGet(
-'&select=confidence,result,features,verified_at,fuel_type,error_minutes,window_error_minutes,expected_restore_at&order=id.asc&limit=1000&offset=' + offset
+      '/rest/v1/predictions?is_verified=eq.true&model_version=not.like.*%7Cshadow*' +
+      '&select=confidence,result,features,verified_at,fuel_type,error_minutes,window_error_minutes,expected_restore_at' +
+      '&order=id.asc&limit=1000&offset=' + offset
     );
     for (const p of page) rows.push(p);
     if (page.length < 1000) break;
