@@ -234,6 +234,39 @@ body { overflow:hidden; }
 .spark { width:64px; height:22px; }
 /* карточка (шторка) — полная информация */
 .station { margin-top:0; padding:14px; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:26px; box-shadow:var(--shadow); }
+/* «потёртое стекло» поверх фишая: выпуклый блик сверху, виньетка по краям,
+   редкие царапины и мелкая пыль через noise; тапы не перехватывает */
+/* аврора вместо потёртого стекла: три мягких световых пятна в фирменных
+   цветах медленно дрейфуют за панелями — живость без грязи и царапин.
+   Без filter:blur (дорого на телефоне): мягкость даёт сам radial-gradient */
+/* пульсирующая градиентная кромка вокруг активной панели: три фирменных
+   цвета (синий/мятный/фиолетовый) плавно дышат по периметру. Без filter:blur
+   (дорого на телефоне) — мягкость через толстый полупрозрачный контур.
+   Видна только текущая панель, поэтому пульс не конфликтует между свайпами */
+.panel { position:relative; }
+/* синий блик по верху карточки: один фирменный цвет, затухает к левому и
+   правому краям (radial-gradient), в центре чуть толще; дышит прозрачностью
+   и толщиной (scaleY), слегка растягиваясь по ширине (scaleX) */
+.panel::before {
+  content:''; position:absolute; left:8%; right:8%; top:-3px; height:4px;
+  border-radius:99px; pointer-events:none;
+  background:radial-gradient(50% 50% at 50% 50%,
+    rgba(57,124,255,.95) 0%, rgba(57,124,255,.40) 55%, rgba(57,124,255,0) 100%);
+  transform-origin:50% 0;
+  animation:topGlow 6s ease-in-out infinite;
+}
+@keyframes topGlow {
+  0%, 100% { opacity:.16; transform:scaleX(.85) scaleY(.9); }
+  50%      { opacity:.50; transform:scaleX(1) scaleY(1.4); }
+}
+@media (prefers-reduced-motion: reduce) { .panel::before { animation:none; opacity:.32; } }
+/* лёгкий «fisheye»: карточка оседает как линза при открытии, а при скролле
+   внутренние блоки у центра экрана растут до +2.5%, у краёв — 100% */
+@keyframes cardSettle { 0% { transform:scale(.985); } 55% { transform:scale(1.012); } 100% { transform:scale(1); } }
+.station { animation:cardSettle .38s cubic-bezier(.2,.8,.2,1); }
+.station > * { transition:transform .12s ease-out; will-change:transform; transform-origin:center; }
+#app > *, #accBody > *, #digestBody > *, .panel > * { transition:transform .12s ease-out; will-change:transform; transform-origin:center; }
+@media (prefers-reduced-motion: reduce) { .station { animation:none; } .station > * { transition:none; } }
 .station-header { display:flex; align-items:center; gap:11px; margin-bottom:12px; }
 .station-logo { width:47px; height:47px; flex:0 0 auto; display:grid; place-items:center; border-radius:16px; background:#fff; border:1px solid #eef2f8; overflow:hidden; padding:6px; color:#5b6b86; }
 .station-logo img { width:100%; height:100%; object-fit:contain; }
@@ -525,7 +558,7 @@ body { overflow:hidden; }
 @keyframes userPulse { 0% { transform:scale(.6); opacity:1; } 100% { transform:scale(1.8); opacity:0; } }
 /* тусклые отметки старше 6 часов: глаз сразу видит «это не сегодня»,
    кнопка «Куда ехать» больше не спорит с зелёной картой */
-.mpin-wrap.stale { opacity:.55; filter:saturate(.6); }
+.mpin-wrap.stale { opacity:.78; filter:saturate(.6); }
 .mcluster.stale { opacity:.6; }
 .mpin.conflict { background:#fff2e8; border-color:#f5a05a; color:#c26a2a; }
 .mpin .qmark { transform:rotate(45deg); font-size:15px; font-weight:900; line-height:1; }
@@ -535,6 +568,27 @@ body { overflow:hidden; }
 .offline-bar.on { display:block; }
 .offline-bar .ob-btn { display:inline-block; margin-left:8px; padding:6px 12px; border:0; border-radius:10px; background:#c26a2a; color:#fff; font-size:10px; font-weight:850; cursor:pointer; vertical-align:middle; }
 body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
+/* стрелки панелей: по умолчанию скрыты (мобильные не видят вовсе) */
+.pager-arrow { display:none; }
+/* ==== ПК (>=900px): аккуратная адаптация, мобильная версия не тронута ==== */
+@media (min-width: 900px) {
+  body { overflow:auto; } /* низкое окно браузера — пусть страница скроллится, а не режется */
+  .page { max-width:880px; height:auto; min-height:100dvh; padding-bottom:16px; }
+  /* пейджер фиксированной удобной высоты: панели не растягиваются
+     на весь высокий монитор (пустота под контентом и бесконечная карта) */
+  .pager { height:min(780px, calc(100dvh - 240px)); min-height:560px; }
+  .panel { height:100%; overflow-y:auto; } /* внутренняя прокрутка вместо обрезки */
+  .p1 { overflow-y:auto; }
+  .map-wrap { min-height:420px; }
+  .mini-map-wrap { height:220px; }
+  /* шторка карточки — центрированное «окно», а не полоса на весь монитор */
+  .sheet { left:50%; right:auto; width:min(600px, calc(100vw - 32px)); transform:translate(-50%,100%); }
+  .sheet.open { transform:translate(-50%,0); }
+  /* стрелки переключения панелей по бокам колонки */
+  .pager-arrow { display:grid; place-items:center; position:fixed; top:50%; transform:translateY(-50%); width:46px; height:46px; border:1px solid var(--border); border-radius:50%; background:rgba(255,255,255,.92); color:#2465ee; font-size:24px; font-weight:900; cursor:pointer; box-shadow:0 10px 26px rgba(15,27,51,.12); z-index:20; }
+  .pager-arrow.left { left:calc(50% - 520px); }
+  .pager-arrow.right { right:calc(50% - 520px); }
+}
 </style>
 </head>
 <body>
@@ -696,6 +750,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <div class="panel-scroll" id="digestBody"></div>
     </section>
     </div>
+    <button class="pager-arrow left" onclick="pagerGo(currentPanel-1)" aria-label="Предыдущая панель">‹</button>
+  <button class="pager-arrow right" onclick="pagerGo(currentPanel+1)" aria-label="Следующая панель">›</button>
   <div class="pager-dots" id="pagerDots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
   <div class="why-pop" id="whyPop"></div>
@@ -825,9 +881,20 @@ async function dbQueryAll(path) {
   return out;
 }
 async function dbInsert(table, rows) {
-  const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify(rows) });
-  if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
-  return true;
+  // таймаут 20 сек: без него fetch зависает на 2-5 минут при плохой связи
+  // или глушилках, и окошко отметки «обрабатывается» вечно
+  const ctrl = new AbortController();
+  const tm = setTimeout(() => ctrl.abort(), 20000);
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(rows),
+      signal: ctrl.signal
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
+    return true;
+  } finally { clearTimeout(tm); }
 }
 function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 function time5(v) { if (!v) return '—'; const s = String(v); return s.length >= 5 ? s.substring(0,5) : s; }
@@ -1077,12 +1144,13 @@ async function fbSend(stationId) {
   const key = 'fb_' + stationId;
   const history = JSON.parse(localStorage.getItem(key) || '[]');
   const now = Date.now();
-  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); return; }
+  if (history.filter(t => now - t < 30 * 60 * 1000).length >= 3) { alert('Слишком много отметок. Попробуйте через полчаса.'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = sendBtnOrigText; } return; }
   const comment = (document.getElementById('fb-text-' + stationId).value || '').trim();
   const onSite = await onSiteFields(allStations.find(s => s.id === stationId));
   rows.forEach((r, i) => { r.station_id = stationId; r.device_id = deviceId; Object.assign(r, onSite); if (i === 0 && comment) r.comment_text = comment; });
   const sendBtn = document.getElementById('fb-send-' + stationId);
-  sendBtn.disabled = true;
+  const sendBtnOrigText = sendBtn ? sendBtn.textContent : '';
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Отправляю...'; }
 let ok = true;
   try { await dbInsert('user_feedback', rows); } catch (e) { ok = false; }
   if (!ok) {
@@ -1097,6 +1165,7 @@ let ok = true;
     if (rcEl) rcEl.textContent = 'Нет связи: отметка сохранена, уйдёт автоматически.';
     panel.classList.remove('open');
     sendBtn.disabled = false;
+    sendBtn.textContent = sendBtnOrigText;
     panel.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
     return;
   }
@@ -1113,6 +1182,7 @@ let ok = true;
   if (recentElement) recentElement.textContent = 'Спасибо! Учёт ' + rows.length + ' фактов.';
   panel.classList.remove('open');
   sendBtn.disabled = false;
+  sendBtn.textContent = sendBtnOrigText;
   panel.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
 }
 function whyHtml(pred) {
@@ -1235,6 +1305,7 @@ function openSheet(id) {
   document.getElementById('sheetBody').innerHTML = stationCard(st, obs, pickPrediction(id, obs));
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheetBack').classList.add('open');
+  setTimeout(sheetFisheye, 380); // после завершения анимации шторки — разложить линзу
 }
 function closeSheet() {
   document.getElementById('sheet').classList.remove('open');
@@ -1243,6 +1314,64 @@ function closeSheet() {
   // центр и зум не тронуты (карта не пересоздавалась), место то же
   if (sheetFromMap) { sheetFromMap = false; pagerGo(2); }
 }
+/* fisheye всего продукта: блоки карточки в шторке и блоки ТЕКУЩЕЙ панели
+   растут у центра видимой области (максимум +FISHEYE_K), у краёв — 100%.
+   Панели со скроллом (точность, список, дайджест) — центр скролл-области;
+   без скролла (главная, карта) — центр панели. Одна ручка — FISHEYE_K. */
+const FISHEYE_K = 0.04; // вкус владельца: было 0.025, поднято до 0.04
+function fisheyeApply(scope, centerY, radius) {
+  if (!scope) return;
+  const reset = el => { el.style.transform = ''; el.style.width = ''; el.style.marginLeft = ''; el.style.marginRight = ''; };
+  for (const el of scope.children) {
+    // карты (canvas) не трогаем: масштабирование WebGL = мыло и нагрев
+    if (el.classList && (el.classList.contains('map-wrap') || el.classList.contains('mini-map-wrap'))) { reset(el); continue; }
+    if (el.querySelector && el.querySelector('canvas')) { reset(el); continue; }
+    const r = el.getBoundingClientRect();
+    if (!r.height) { reset(el); continue; }
+    const d = Math.abs((r.top + r.height / 2) - centerY);
+    const k = Math.max(0, 1 - d / radius);
+    const s = 1 + FISHEYE_K * k * k;
+    if (s <= 1.004) { reset(el); continue; }
+    // линза без обрезки: scale(s) + ширина (100/s)% — края блока остаются
+    // на месте, контент внутри растёт; скролл-контейнер больше ничего
+    // не срезает слева/справа (кейс дайджеста 01.10)
+    el.style.transform = 'scale(' + s.toFixed(4) + ')';
+    el.style.width = (100 / s).toFixed(2) + '%';
+    el.style.marginLeft = 'auto';
+    el.style.marginRight = 'auto';
+  }
+}
+function sheetFisheye() {
+  const sh = document.getElementById('sheet');
+  const sc = sh ? sh.querySelector('.sheet-scroll') : null;
+  const body = document.getElementById('sheetBody');
+  const card = body ? body.querySelector('.station') : null;
+  if (!sh || !sc || !card || !sh.classList.contains('open')) return;
+  const rect = sc.getBoundingClientRect();
+  fisheyeApply(card, rect.top + rect.height / 2, rect.height * 0.55);
+}
+function pageFisheye() {
+  const pager = document.getElementById('pager');
+  if (!pager) return;
+  const panel = pager.children[currentPanel];
+  if (!panel) return;
+  const sc = panel.querySelector('.panel-scroll');
+  const scope = currentPanel === 0 ? document.getElementById('accBody')
+    : currentPanel === 3 ? document.getElementById('app')
+    : currentPanel === 4 ? document.getElementById('digestBody')
+    : panel;
+  const box = (sc || panel).getBoundingClientRect();
+  fisheyeApply(scope, box.top + box.height / 2, box.height * 0.55);
+}
+(function fisheyeInit() {
+  let tick = false;
+  const run = () => { tick = false; sheetFisheye(); };
+  document.addEventListener('scroll', e => {
+    const t = e.target;
+    if (!(t && t.classList && t.classList.contains('sheet-scroll'))) return;
+    if (!tick) { tick = true; requestAnimationFrame(run); }
+  }, true);
+})();
 /* Линия маршрута на отдельном 2D-канвасе поверх карты: GL-слои на этом
    устройстве линию не отрисовали дважды (отдельный источник, затем источник
    зон), а обычный канвас рисуется гарантированно. Перерисовка на каждом
@@ -1407,7 +1536,16 @@ function toggleFeedback(stationId) {
   if (panel) panel.classList.toggle('open');
 }
 function ctaDigest() { pagerGo(4); }
-function pagerGo(i) { const p = document.getElementById('pager'); if (p) p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
+function pagerGo(i) { const p = document.getElementById('pager'); if (!p) return; i = Math.max(0, Math.min(4, i)); p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
+// ПК: переключение панелей стрелками клавиатуры ← → (мобильные не задеты:
+// проверка ширины + игнор ввода в полях)
+document.addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+  if (window.innerWidth < 900) return;
+  pagerGo(currentPanel + (e.key === 'ArrowRight' ? 1 : -1));
+});
 /* тепло */
 function badColor(v) {
   const stops = [[47,211,154],[245,213,101],[245,160,90],[239,83,80]];
@@ -1835,18 +1973,18 @@ function renderMiniMap() {
       if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
     }
     miniMapObj.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 12, maxZoom: 12.4, duration: 0 });
-    // кадр ближе, чем «весь город от края до края»: фиксированный шаг зума
-    // поверх подгонки. Центр кадра остаётся центром города, дальние одинокие
-    // АЗС уходят за кадр — это норма для вида «поближе».
-    // Хочешь ещё ближе — увеличь 0.8 (например 1.0–1.2), дальше — уменьши.
-    miniMapObj.setZoom(Math.min(13.2, miniMapObj.getZoom() + 0.8));
     miniFittedCity = userCityKey;
   }
-  // камера по вашей точке: мини-карта всегда показывает, где вы сейчас,
-  // а заправки города — вокруг. Нет точки (GPS не разрешён) — кадр
-  // остаётся на центре города, как раньше.
+  // камера по вашей точке: крупный план с фиксированным зумом — улицы и
+  // капли вокруг тебя, а не весь город с далёка. MINI_ZOOM: хочешь ближе —
+  // подними (14.0–14.5), дальше — опусти (13.0–13.4). Нет точки (GPS не
+  // разрешён) — кадр остаётся на городе, как раньше.
+  const MINI_ZOOM = 10.0;
   const locCenter = loadUserLocation();
-  if (locCenter) miniMapObj.setCenter([locCenter.lon, locCenter.lat]);
+  if (locCenter) {
+    miniMapObj.setCenter([locCenter.lon, locCenter.lat]);
+    miniMapObj.setZoom(MINI_ZOOM);
+  }
   const zoom = miniMapObj.getZoom();
   // поле тепла: рампы те же, радиус масштабируем высотой канваса к полной
   // карте (170px против ~360px) — иначе поле съело бы весь маленький кадр
@@ -1907,72 +2045,37 @@ function renderMiniMap() {
   const fhSrc = miniMapObj.getSource('fuelheat');
   if (fhSrc) fhSrc.setData({ type: 'FeatureCollection', features: fuelFeats });
   miniMapObj.getSource('zones').setData({ type: 'FeatureCollection', features: feats });
-  // кластеры по мировой сетке 70px — те же правила, что на полной карте;
-  // одинокие станции — капли (таблички и чипы в мини не рисуем: мелко)
-  const zc = Math.round(zoom);
-  const size = 256 * Math.pow(2, zc);
-  const worldPx = (lon, lat) => {
-    const latRad = lat * Math.PI / 180;
-    return { x: (lon + 180) / 360 * size, y: (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * size };
-  };
-  const cells = {};
+  // мини-карта без квадратов: всегда капли (как полная карта вблизи),
+  // даже на дальнем зуме — кластеры в маленьком окне = каша из цифр.
+  // Тепло и лужи очередей — те же слои, что на полной карте.
   for (const st of allStations) {
-    if (!Number.isFinite(Number(st.lat))) continue;
-    const p = worldPx(Number(st.lon), Number(st.lat));
-    const key = Math.floor(p.x / 70) + ':' + Math.floor(p.y / 70);
-    (cells[key] = cells[key] || []).push({ st: st, o: last[st.id] });
-  }
-  for (const key of Object.keys(cells)) {
-    const group = cells[key];
-    const n = group.length;
-    const clon = group.reduce((s, it) => s + Number(it.st.lon), 0) / n;
-    const clat = group.reduce((s, it) => s + Number(it.st.lat), 0) / n;
-    if (clon < vb.getWest() - pad || clon > vb.getEast() + pad || clat < vb.getSouth() - pad || clat > vb.getNorth() + pad) continue;
-    if (n === 1) {
-      const it = group[0];
-      const kk = effPinKey(it.st, it.o);
-      const wrap = document.createElement('div');
-      wrap.className = 'mpin-wrap' + (pinKey(it.o) !== 'unknown' && !obsFresh(it.o) ? ' stale' : '');
-      const availCols = [];
-      if (it.o && (it.o.fuel_92_status != null || it.o.fuel_95_status != null || it.o.diesel_status != null)) {
-        if (it.o.diesel_status === true) availCols.push('#6ea8ff');
-        if (it.o.fuel_92_status === true) availCols.push('#f5a05a');
-        if (it.o.fuel_95_status === true) availCols.push('#1bb978');
-      } else {
-        const fcons = { '92': folkConsensus(it.st.id, '92'), '95': folkConsensus(it.st.id, '95'), 'diesel': folkConsensus(it.st.id, 'diesel') };
-        if (fcons.diesel && fcons.diesel.verdict === 'yes') availCols.push('#6ea8ff');
-        if (fcons['92'] && fcons['92'].verdict === 'yes') availCols.push('#f5a05a');
-        if (fcons['95'] && fcons['95'].verdict === 'yes') availCols.push('#1bb978');
-      }
-      let pinStyle = '';
-      if (availCols.length >= 2) {
-        const stops = availCols.length === 2 ? availCols[0] + ', ' + availCols[1] : availCols[0] + ', ' + availCols[1] + ' 50%, ' + availCols[2];
-        pinStyle = 'background:linear-gradient(to top right,' + stops + ');border-color:#fff;color:#fff;';
-      }
-      wrap.innerHTML = '<div class="mpin ' + kk + '" style="' + pinStyle + '"><svg class="ic"><use href="#i-pump"/></svg></div>';
-      miniMarkers.push(new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(it.st.lon), Number(it.st.lat)]).addTo(miniMapObj));
-      continue;
+    if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon)) || !inView(st)) continue;
+    const it = { st: st, o: last[st.id] };
+    const kk = effPinKey(it.st, it.o);
+    // мини-карта — быстрый ответ «где заправиться»: капли только с топливом
+    // (95 / 92 / дизель, включая народный консенсус). Серые «нет данных»,
+    // красные «ничего нет» и конфликтные не рисуем; на полной карте они остаются.
+    if (kk !== 'yes' && kk !== 'part' && kk !== 'diesel') continue;
+    const wrap = document.createElement('div');
+    wrap.className = 'mpin-wrap' + (pinKey(it.o) !== 'unknown' && !obsFresh(it.o) ? ' stale' : '');
+    const availCols = [];
+    if (it.o && (it.o.fuel_92_status != null || it.o.fuel_95_status != null || it.o.diesel_status != null)) {
+      if (it.o.diesel_status === true) availCols.push('#6ea8ff');
+      if (it.o.fuel_92_status === true) availCols.push('#f5a05a');
+      if (it.o.fuel_95_status === true) availCols.push('#1bb978');
+    } else {
+      const fcons = { '92': folkConsensus(it.st.id, '92'), '95': folkConsensus(it.st.id, '95'), 'diesel': folkConsensus(it.st.id, 'diesel') };
+      if (fcons.diesel && fcons.diesel.verdict === 'yes') availCols.push('#6ea8ff');
+      if (fcons['92'] && fcons['92'].verdict === 'yes') availCols.push('#f5a05a');
+      if (fcons['95'] && fcons['95'].verdict === 'yes') availCols.push('#1bb978');
     }
-    const cnt = { yes: 0, part: 0, diesel: 0, no: 0, conflict: 0, unknown: 0 };
-    for (const it of group) cnt[effPinKey(it.st, it.o)]++;
-    let sig = 0, staleSig = 0;
-    for (const it of group) {
-      if (effPinKey(it.st, it.o) !== 'unknown') sig++;
-      if (pinKey(it.o) !== 'unknown' && !obsFresh(it.o)) staleSig++;
+    let pinStyle = '';
+    if (availCols.length >= 2) {
+      const stops = availCols.length === 2 ? availCols[0] + ', ' + availCols[1] : availCols[0] + ', ' + availCols[1] + ' 50%, ' + availCols[2];
+      pinStyle = 'background:linear-gradient(to top right,' + stops + ');border-color:#fff;color:#fff;';
     }
-    const clStale = sig > 0 && staleSig * 2 >= sig;
-    const stops = [];
-    let acc = 0;
-    for (const k of ['yes', 'part', 'diesel', 'no', 'conflict', 'unknown']) {
-      if (!cnt[k]) continue;
-      const from = acc;
-      acc += 100 * cnt[k] / n;
-      stops.push(PIN_COL[k] + ' ' + from.toFixed(1) + '% ' + acc.toFixed(1) + '%');
-    }
-    const el = document.createElement('div');
-    el.className = 'mcluster' + (clStale ? ' stale' : '');
-    el.innerHTML = '<span>' + n + '</span><i style="background:linear-gradient(90deg,' + stops.join(', ') + ')"></i>';
-    miniMarkers.push(new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([clon, clat]).addTo(miniMapObj));
+    wrap.innerHTML = '<div class="mpin ' + kk + '" style="' + pinStyle + '"><svg class="ic"><use href="#i-pump"/></svg></div>';
+    miniMarkers.push(new maplibregl.Marker({ element: wrap, anchor: 'bottom' }).setLngLat([Number(st.lon), Number(st.lat)]).addTo(miniMapObj));
   }
   // точка пользователя — как на полной карте, размер уменьшен CSS-ом
   const loc = loadUserLocation();
@@ -3363,7 +3466,7 @@ async function quickSend(stationId) {
     else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
     rows.push(base);
   });
-  if (!rows.length) { alert('Выберите хотя бы один факт.'); if (sendBtn) sendBtn.disabled = false; return; }
+  if (!rows.length) { alert('Выберите хотя бы один факт.'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = sendBtnOrigText; } return; }
   const key = 'fb_' + stationId;
   const history = JSON.parse(localStorage.getItem(key) || '[]');
   const now = Date.now();
@@ -4211,7 +4314,8 @@ async function sendPoll() {
   const item = POLL_ITEMS.find(x => x.key === key) || (POLL_ADVICE.key === key ? POLL_ADVICE : null);
   const sendBtn = document.getElementById('pollSend');
   if (sendBtn && sendBtn.disabled) return;
-  if (sendBtn) sendBtn.disabled = true;
+  const sendBtnOrigText = sendBtn ? sendBtn.textContent : '';
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Отправляю...'; }
   const answerKey = item && item.stars ? 'star' + pollStars + (pollMiss ? '_' + pollMiss : '') : pollSel;
   if (!answerKey) return;
   const row = { device_id: deviceId, question_key: key, answer_key: answerKey, stars: pollStars || null, city_key: userCityKey || null };
