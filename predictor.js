@@ -15,7 +15,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MIN_EVENTS_PRELIM = 3;
-const MIN_EVENTS_FULL = 8;
+const MIN_EVENTS_FULL = 12;
 const HISTORY_DAYS = 30;
 const MIN_WINDOW_MIN = 15;
 // Рамка всего юга (дом + донор Кубань+Адыгея): прогнозы и очереди по всем станциям
@@ -602,7 +602,7 @@ async function main() {
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.12'
+        model_version: 'v1.13'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
@@ -638,10 +638,10 @@ async function main() {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.12: появились новые прогнозы (' + created + ' шт)! Окна компактнее: квантили + фильтр дня + синхронизация с ETA.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.13: появились новые прогнозы (' + created + ' шт)! Порог brand ≥12, окна компактнее.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.11 завершил работу');
+  console.log('✅ Предиктор v1.13 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
