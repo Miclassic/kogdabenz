@@ -4467,6 +4467,34 @@ function maybeWhatsNew() {
   try { localStorage.setItem('kbWnDay', today); } catch (e) {}
   showWhatsNew(WHATS_NEW[0]);
 }
+// === Лайтбокс картинки нововведений ===
+// Тап ловим делегированием по любому img.wn-img — работает, даже если
+// onclick-атрибут не встал в разметку карточки. Оверлей создаётся сам.
+document.addEventListener('click', function (e) {
+  const t = e.target;
+  if (t && t.tagName === 'IMG' && t.classList.contains('wn-img')) openWnZoom(t.src);
+});
+function openWnZoom(src) {
+  let z = document.getElementById('wnZoom');
+  if (!z) {
+    z = document.createElement('div');
+    z.className = 'wn-zoom';
+    z.id = 'wnZoom';
+    z.innerHTML = '<img id="wnZoomImg" alt="">';
+    z.addEventListener('click', closeWnZoom);
+    document.body.appendChild(z);
+  }
+  const img = document.getElementById('wnZoomImg');
+  if (img) img.src = src;
+  z.classList.add('open');
+  requestAnimationFrame(() => requestAnimationFrame(() => z.classList.add('shown')));
+}
+function closeWnZoom() {
+  const z = document.getElementById('wnZoom');
+  if (!z || !z.classList.contains('open')) return;
+  z.classList.remove('shown');
+  setTimeout(() => { z.classList.remove('open'); }, 320);
+}
 function tickClock() {
   const el = document.getElementById('p1Time');
   if (el) { const d = new Date(); el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
