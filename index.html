@@ -899,7 +899,7 @@ let allQueueEvents = [];
 let allEvents7 = [];
 let allLastPrice = {}, priceHourly = [];
 let queueEpisodes = [];
-async function dbQuery(path) {
+async function dbQueryOnce(path) {
   // таймаут 20 сек: «тихое» зависание сети (глушилки) раньше не отклоняло fetch
   // вовсе — catch не срабатывал и сайт стоял в «Считаем город...» без кэша.
   // Теперь зависание = ошибка, и включается спасательный круг со снимком данных.
@@ -910,6 +910,17 @@ async function dbQuery(path) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   } finally { clearTimeout(tm); }
+}
+// мобильная сеть допускает единичные обрывы пакетов: раньше ЛЮБОЙ из 13
+// параллельных запросов ронял всю загрузку в «Нет связи» при живом интернете.
+// Теперь у каждого запроса есть вторая попытка после паузы 1.5 сек.
+async function dbQuery(path) {
+  try {
+    return await dbQueryOnce(path);
+  } catch (e) {
+    await new Promise(res => setTimeout(res, 1500));
+    return await dbQueryOnce(path);
+  }
 }
 // постраничное чтение таблиц, переросших лимит Supabase в 1000 строк:
 // страницы по 1000 со стабильным порядком, пока страница не придёт неполной
@@ -3711,13 +3722,14 @@ async function start() {
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll, events7] = await Promise.all([
+    const [observations, counts, predictions, verifiedThin, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll, events7] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status'),
-      dbQuery('/rest/v1/station_counts?select=station_id,total'),
-      dbQueryAll('/rest/v1/predictions?select=*&model_version=not.like.*%7Cshadow*'),
-      dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at'),
-      dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300'),
-      dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')'),
+      dbQuery('/rest/v1/station_counts?select=station_id,total').catch(() => []),
+      dbQueryAll('/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*'),
+      dbQueryAll('/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*'),
+      dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at').catch(() => []),
+      dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300').catch(() => []),
+      dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
       dbQuery('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7').catch(() => []),
       dbQuery('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status').catch(() => []),
       dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
@@ -3731,7 +3743,7 @@ async function start() {
     for (const x of allQueue) queueById[x.station_id] = x;
     allLastObs = {};
     for (const o of (lastRows || [])) allLastObs[o.station_id] = o;
-    allPredictions = predictions; allEvents = events; allFeedback = feedback; allHourly = hourly;
+    allPredictions = predictions.concat(verifiedThin || []); allEvents = events; allFeedback = feedback; allHourly = hourly;
     allLastPrice = {};
     for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x;
     priceHourly = priceRows || [];
