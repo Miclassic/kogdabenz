@@ -336,16 +336,30 @@ function render(d) {
     html += '<div class="note">Пока нет данных для сравнения — верификатор не проверил ни одного прогноза.</div>';
   } else {
     html += '<div class="subcap">Метрики по верифицированным прогнозам</div>';
-    // сортируем по дате версии (новые сверху)
-    const sorted = versionMetrics.slice().sort((a, b) => b.model_version.localeCompare(a.model_version, undefined, { numeric: true }));
+    // сортируем по номеру версии (новые сверху); внутри одного номера прод
+    // выше shadow — тогда «текущая» всегда прод, а не архивный эксперимент
+    // (кейс 05.10: localeCompare ставил «v1.13|shadow» выше «v1.13»)
+    const verKey = v => {
+      const m = String(v.model_version).match(/v(\d+)\.(\d+)/);
+      return [m ? Number(m[1]) : 0, m ? Number(m[2]) : 0, String(v.model_version).includes('|shadow') ? 0 : 1];
+    };
+    const sorted = versionMetrics.slice().sort((a, b) => {
+      const ka = verKey(a), kb = verKey(b);
+      if (kb[0] !== ka[0]) return kb[0] - ka[0];
+      if (kb[1] !== ka[1]) return kb[1] - ka[1];
+      return kb[2] - ka[2];
+    });
     const latest = sorted[0];
     // карточки вместо таблицы: 6 колонок не влезают в телефон,
     // а карточка держит метрики в 2 колонки — ничего не обрезается
     sorted.forEach(vm => {
       const isLatest = vm.model_version === latest.model_version;
+      const isShadow = String(vm.model_version).includes('|shadow');
+      const shadowDone = vm.total > 0 && vm.verified >= vm.total;
+      const tag = isLatest ? ' · текущая' : (isShadow ? (shadowDone ? ' · shadow, эксперимент завершён' : ' · shadow, эксперимент идёт') : '');
       html += '<div style="margin-bottom:8px;padding:10px 12px;border-radius:14px;background:' + (isLatest ? '#f0f9ff' : '#f7f9fc') + ';border:1px solid ' + (isLatest ? '#bcd4ff' : '#e6ebf4') + '">';
       html += '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">' +
-        '<b style="font-size:13px">' + vm.model_version + (isLatest ? ' · текущая' : '') + '</b>' +
+        '<b style="font-size:13px">' + vm.model_version + tag + '</b>' +
         '<span style="color:#71809c;font-size:10px;font-weight:700">проверено ' + (vm.verified || 0) + ' из ' + (vm.total || 0) + '</span></div>';
       html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:6px;font-size:11px;color:#5b6b86;font-weight:700">';
       html += '<div>Медиана: <b style="color:#14213d">' + fmtMin(vm.median_min) + '</b></div>';
@@ -358,15 +372,19 @@ function render(d) {
     // сравнение с предыдущей версией — честно по всем 4 метрикам:
     // каждая голосует сама (порог: 30 мин для времени, 2 п.п. для попаданий),
     // вердикт — по счёту голосов, а не по одной медиане
-    if (sorted.length >= 2) {
-      const prev = sorted[1];
-      if (prev.verified >= 10 && latest.verified >= 10) {
+    // сравниваем только прод-версии между собой: shadow-когорты — архивные
+    // эксперименты (закрыты 03.10), их сравнение с продом сейчас смешало бы
+    // периоды, а не алгоритмы
+    const prod = sorted.filter(v => !String(v.model_version).includes('|shadow'));
+    if (prod.length >= 2) {
+      const latestP = prod[0], prev = prod[1];
+      if (prev.verified >= 10 && latestP.verified >= 10) {
         const pct = v => (v === null || v === undefined ? '—' : v + '%');
         const metrics = [
-          { name: 'Медиана', prev: prev.median_min, last: latest.median_min, show: fmtMin, lessIsBetter: true, thr: 30 },
-          { name: 'MAE', prev: prev.mae_min, last: latest.mae_min, show: fmtMin, lessIsBetter: true, thr: 30 },
-          { name: 'P90', prev: prev.p90_min, last: latest.p90_min, show: fmtMin, lessIsBetter: true, thr: 30 },
-          { name: 'Попаданий', prev: prev.success_pct, last: latest.success_pct, show: pct, lessIsBetter: false, thr: 2 }
+          { name: 'Медиана', prev: prev.median_min, last: latestP.median_min, show: fmtMin, lessIsBetter: true, thr: 30 },
+          { name: 'MAE', prev: prev.mae_min, last: latestP.mae_min, show: fmtMin, lessIsBetter: true, thr: 30 },
+          { name: 'P90', prev: prev.p90_min, last: latestP.p90_min, show: fmtMin, lessIsBetter: true, thr: 30 },
+          { name: 'Попаданий', prev: prev.success_pct, last: latestP.success_pct, show: pct, lessIsBetter: false, thr: 2 }
         ];
         let wins = 0, losses = 0, rowsHtml = '';
         for (const m of metrics) {
@@ -386,21 +404,21 @@ function render(d) {
           rowsHtml += '<div>' + m.name + ': ' + m.show(m.prev) + ' → ' + m.show(m.last) + ' · ' + delta + '</div>';
         }
         let verdict;
-        if (wins > losses && losses === 0) verdict = '✅ <b>' + latest.model_version + '</b>: лучше по ' + wins + ' метрикам из 4, ни по одной не хуже';
-        else if (wins > losses) verdict = '➕ <b>' + latest.model_version + '</b>: лучше по ' + wins + ' метрикам из 4, хуже по ' + losses;
-        else if (wins === losses) verdict = '➡️ <b>Метрики спорят</b>: ' + latest.model_version + ' лучше по ' + wins + ', хуже по ' + losses;
-        else verdict = '⚠️ <b>' + latest.model_version + '</b>: хуже по ' + losses + ' метрикам из 4, лучше по ' + wins;
+        if (wins > losses && losses === 0) verdict = '✅ <b>' + latestP.model_version + '</b>: лучше по ' + wins + ' метрикам из 4, ни по одной не хуже';
+        else if (wins > losses) verdict = '➕ <b>' + latestP.model_version + '</b>: лучше по ' + wins + ' метрикам из 4, хуже по ' + losses;
+        else if (wins === losses) verdict = '➡️ <b>Метрики спорят</b>: ' + latestP.model_version + ' лучше по ' + wins + ', хуже по ' + losses;
+        else verdict = '⚠️ <b>' + latestP.model_version + '</b>: хуже по ' + losses + ' метрикам из 4, лучше по ' + wins;
         html += '<div style="margin-top:12px;padding:10px;background:#eef4ff;border-radius:10px;font-size:11px;line-height:1.6">';
-        html += '<div style="font-weight:900;margin-bottom:4px">Сравнение: ' + latest.model_version + ' vs ' + prev.model_version + ' (проверено ' + latest.verified + ' vs ' + prev.verified + ')</div>';
+        html += '<div style="font-weight:900;margin-bottom:4px">Сравнение: ' + latestP.model_version + ' vs ' + prev.model_version + ' (проверено ' + latestP.verified + ' vs ' + prev.verified + ')</div>';
         html += rowsHtml;
         html += '<div style="margin-top:6px;font-weight:800">' + verdict + '</div>';
-        html += '<div class="note" style="margin-top:6px">Версии работали в разное время и на разных станциях: часть разницы — от рынка, а не от алгоритма. Полностью чистое сравнение — одновременные прогнозы (shadow-режим, в планах).</div>';
+        html += '<div class="note" style="margin-top:6px">Версии работали в разное время и на разных станциях: часть разницы — от рынка, а не от алгоритма. Shadow-когорты (одновременные прогнозы) показаны отдельными карточками и в это сравнение не входят.</div>';
         html += '</div>';
       } else {
-        html += '<div class="note" style="margin-top:8px">Для сравнения нужно ≥10 проверенных прогнозов в каждой версии. Сейчас: ' + latest.model_version + ' — ' + latest.verified + ', ' + prev.model_version + ' — ' + prev.verified + '.</div>';
+        html += '<div class="note" style="margin-top:8px">Для сравнения нужно ≥10 проверенных прогнозов в каждой версии. Сейчас: ' + latestP.model_version + ' — ' + latestP.verified + ', ' + prev.model_version + ' — ' + prev.verified + '.</div>';
       }
     } else {
-      html += '<div class="note" style="margin-top:8px">Пока только одна версия — сравнение появится, когда накопятся данные для двух версий.</div>';
+      html += '<div class="note" style="margin-top:8px">Пока только одна прод-версия — сравнение появится, когда накопятся данные для двух версий.</div>';
     }
   }
   html += '<div class="note" style="margin-top:8px"><b>Медиана</b> — половина прогнозов ошибается меньше, половина больше. <b>MAE</b> — средняя ошибка. <b>P90</b> — худшие 10% прогнозов. <b>Попадания</b> — доля прогнозов, попавших в окно возврата.</div>';
