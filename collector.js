@@ -561,7 +561,7 @@ try {
       }
       console.log('   Персональных уведомлений отправлено: ' + sent);
     }
-    await sbPost('/rest/v1/bot_meta', [{ key: 'personal_notify_at', value: evs[evs.length - 1].detected_at }], 'return=minimal,resolution=merge-duplicates');
+    await sbPost('bot_meta?on_conflict=key', [{ key: 'personal_notify_at', value: evs[evs.length - 1].detected_at, updated_at: new Date().toISOString() }], 'return=minimal,resolution=merge-duplicates');
   }
 } catch (e) { console.log('   ! Персональные уведомления: ' + e.message); }
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===

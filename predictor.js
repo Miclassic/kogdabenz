@@ -158,7 +158,16 @@ async function main() {
   console.log('4) Достаю последние наблюдения (с состояниями)...');
   // ВАЖНОЕ ИЗМЕНЕНИЕ v1.6: Выбираем поле fuel_state
   const lastObs = {};
-  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score');
+  let obs;
+try {
+  obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score');
+} catch (e1) {
+  // 57014 statement timeout: таблица выросла — пауза и повтор с меньшим лимитом
+  // (8000 строк хватает с запасом: 862 станции × последние 4 + последние статусы)
+  console.log('   observations таймаут, повтор через 5 сек: ' + e1.message);
+  await new Promise(res => setTimeout(res, 5000));
+  obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=8000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score');
+}
   for (const o of obs) if (!lastObs[o.station_id]) lastObs[o.station_id] = o;
 
   // v1.4: станция "жива на источнике" = недавно был ненулевой статус топлива.
