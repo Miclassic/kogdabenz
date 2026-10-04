@@ -157,6 +157,15 @@ body { overflow:hidden; }
 .life-sec { margin:10px 2px 6px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
 .life-big { font-size:24px; font-weight:900; letter-spacing:-1px; color:#14213d; }
 .life-big small { font-size:10px; font-weight:700; color:#71809c; letter-spacing:0; }
+/* карточки «что нового»: ежедневное окошко и панель обновлений */
+.wn-pop { width:min(340px, calc(100vw - 32px)); max-height:86dvh; }
+.wn-card { margin-top:10px; padding:10px; border-radius:20px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); }
+.wn-img { width:100%; border-radius:14px; display:block; }
+.wn-title { margin-top:8px; font-size:15px; font-weight:900; letter-spacing:-.4px; }
+.wn-lead { margin-top:4px; color:#5b6b86; font-size:11px; line-height:1.5; font-weight:600; }
+.wn-step { min-width:0; color:#5b6b86; font-weight:600; }
+.wn-step { display:block; font-style:normal; font-weight:850; color:#33445f; }
+.wn-why { margin-top:8px; padding:8px 10px; border-radius:12px; background:#f4f7fc; border:1px solid #e6ebf4; color:#5b6b86; font-size:10px; line-height:1.5; font-weight:600; }
 /* панель 1 */
 .p1 { overflow:hidden; }
 .p1-head { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
@@ -763,10 +772,14 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <main id="app"><div class="status">Подключаюсь к данным...</div></main>
       </div>
     </section>
+    <section class="panel">
+      <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-spark"/></svg></div><div class="p1-t"><div class="nowcard-title">Обновления сайта</div><div class="nowcard-sub">что добавили и зачем — по-человечески, с картинками и инструкциями</div></div></div>
+      <div class="panel-scroll" id="wnBody"></div>
+    </section>
     </div>
     <button class="pager-arrow left" onclick="pagerGo(currentPanel-1)" aria-label="Предыдущая панель">‹</button>
   <button class="pager-arrow right" onclick="pagerGo(currentPanel+1)" aria-label="Следующая панель">›</button>
-  <div class="pager-dots" id="pagerDots"><i></i><i class="on"></i><i></i><i></i></div>
+  <div class="pager-dots" id="pagerDots"><i></i><i class="on"></i><i></i><i></i><i></i></div>
   <div class="sheet-backdrop" id="sheetBack" onclick="closeSheet()"></div>
   <div class="why-pop" id="whyPop"></div>
   <div class="sheet" id="sheet">
@@ -809,6 +822,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   </div>
   <div class="hello-back" id="lifeBack" onclick="closeLife()"></div>
   <div class="hello-pop life-pop" id="lifePop"></div>
+  <div class="hello-back" id="wnBack" onclick="closeWhatsNew()"></div>
+  <div class="hello-pop wn-pop" id="wnPop"></div>
   <div class="poll-back" id="pollBack" onclick="pollBackClick()"></div>
   <div class="poll-pop" id="pollPop"></div>
 </div>
@@ -1237,7 +1252,7 @@ function maybeLifePop() {
   // ждём загруженные данные, иначе карточка была бы вся из нулей
   if (!allStations.length) { if (lifeTries++ < 10) setTimeout(maybeLifePop, 3000); return; }
   // не лезем поверх приветствия, установки, опроса и карточки АЗС
-  const openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack'].some(id => {
+  const openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack'].some(id => {
     const el = document.getElementById(id);
     return el && el.classList.contains('open');
   });
@@ -1738,7 +1753,7 @@ function toggleFeedback(stationId) {
   const panel = document.getElementById('feedback-' + stationId);
   if (panel) panel.classList.toggle('open');
 }
-function pagerGo(i) { const p = document.getElementById('pager'); if (!p) return; i = Math.max(0, Math.min(3, i)); p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
+function pagerGo(i) { const p = document.getElementById('pager'); if (!p) return; i = Math.max(0, Math.min(4, i)); p.scrollTo({ left: p.clientWidth * i, behavior: 'smooth' }); }
 // ПК: переключение панелей стрелками клавиатуры ← → (мобильные не задеты:
 // проверка ширины + игнор ввода в полях)
 document.addEventListener('keydown', e => {
@@ -2409,6 +2424,9 @@ function setTagline(i) {
     const c = cityBox();
     sHtml = 'АЗС города. <span>Тап — и всё видно.</span>';
     sTxt = 'В ' + (c.nameIn || c.name) + ' ' + city.length + ' АЗС: АИ-95 есть на ' + withFuel + ', окна у ' + withPred + '. Остальной юг — на карте. Тап по строке — полная карточка.';
+  } else if (i === 4) {
+    sHtml = 'Обновления. <span>По-человечески.</span>';
+    sTxt = 'Что мы добавили и зачем это нужно. Свежее нововведение показываем карточкой с картинкой и инструкцией раз в сутки.';
   } else {
     const marks = pulseRaw.reduce((s, r) => s + r.marks, 0);
     const ev24 = pulseEv.filter(e => Date.now() - e.t.getTime() < 24 * 3600 * 1000).length;
@@ -3730,6 +3748,8 @@ async function start() {
     // спрашиваем, чем закончилась поездка (сразу в момент клика человек ещё не доехал)
     checkAdvicePoll();
     setTimeout(maybeLifePop, 1500);
+setTimeout(maybeWhatsNew, 2600);
+renderWhatsNewPanel();
   } catch (e) {
     // Связь отвалилась: если в памяти есть снимок — показываем его с честной
     // плашкой; человек видит прежние данные и может ставить отметки.
@@ -4348,6 +4368,81 @@ async function flushPollQueue() {
     localStorage.setItem('pollQueue', '[]');
     console.log('Ответы опроса из очереди отправлены: ' + q.length);
   } catch (e) { console.log('Очередь ответов опроса не ушла, попробуем в следующий раз'); }
+}
+// === «Что нового»: карточки нововведений ===
+// Новое нововведение = добавить объект В НАЧАЛО массива (дата дд.мм.гг, чип).
+// Карточка дня всплывает раз в сутки и только 14 дней с даты нововведения;
+// полная история всегда живёт на панели «Обновления» (пятая).
+const WHATS_NEW = [
+  {
+    id: 'tg-fav-notify',
+    date: '04.10.26',
+    tag: 'уведомления',
+    title: 'Уведомления в Телеграм по выбранным АЗС',
+    img: 'whatsnew-tg.png',
+    lead: 'Добавьте любимые АЗС в избранное — и не пропустите, когда на них появится бензин. Бот следит сам и пишет лично вам.',
+    steps: [
+      ['Откройте детальную карточку АЗС', 'В списке «АЗС города» или на карте тапните строку или каплю и нажмите сердечко.'],
+      ['Подключите Телеграм', 'В карточке нажмите голубую плашку «Подключить»: откроется бот, нажмите «Старт» — готово.'],
+      ['Получайте сообщения', 'Топливо вернулось, кончилось или выросла очередь на выбранной АЗС — сообщение придёт в течение нескольких минут после события.']
+    ],
+    why: 'Зачем: в дефицит топливо появляется на заправках непредсказуемо, а проверять сайт каждый час — утомительно. Теперь уведомление приходит само: только по вашим АЗС и только когда что-то реально случилось. Пауза — команда /quiet в боте, отключить совсем — /stop.'
+  }
+];
+function wnAgeDays(w) {
+  const p = w.date.split('.');
+  const d = new Date(2000 + Number(p[2]), Number(p[1]) - 1, Number(p[0]));
+  return (Date.now() - d.getTime()) / 86400000;
+}
+function wnCardHtml(w) {
+  return '<div class="wn-card">' +
+    (w.img ? '<img class="wn-img" src="' + w.img + '" alt="" onerror="this.style.display=\'none\'">' : '') +
+    '<div class="rc-chips" style="margin-top:8px"><span class="rc-chip info">' + icon('i-spark', 'ic-s') + w.date + '</span>' +
+    (w.tag ? '<span class="rc-chip yes">' + icon('i-check', 'ic-s') + w.tag + '</span>' : '') + '</div>' +
+    '<div class="wn-title">' + w.title + '</div>' +
+    '<div class="wn-lead">' + w.lead + '</div>' +
+    '<div class="install-steps">' + w.steps.map((s, i) =>
+      '<div class="install-step"><b>' + (i + 1) + '</b><span class="wn-step"><i>' + s[0] + '</i>' + s[1] + '</span></div>').join('') + '</div>' +
+    '<div class="wn-why">' + w.why + '</div></div>';
+}
+function renderWhatsNewPanel() {
+  const el = document.getElementById('wnBody');
+  if (!el) return;
+  el.innerHTML = WHATS_NEW.length ? WHATS_NEW.map(wnCardHtml).join('') : '<div class="status">Обновлений пока нет.</div>';
+}
+function showWhatsNew(w) {
+  const pop = document.getElementById('wnPop');
+  if (!pop) return;
+  pop.innerHTML = '<div class="hello-title">Что нового на сайте</div>' + wnCardHtml(w) +
+    '<div class="nowcard-cta" style="margin-top:10px"><button class="cta-btn" onclick="closeWhatsNew()">Понятно</button>' +
+    '<button class="cta-btn ghost" onclick="closeWhatsNew();pagerGo(4)">Все обновления</button></div>';
+  pop.classList.add('open');
+  const back = document.getElementById('wnBack');
+  if (back) back.classList.add('open');
+}
+function closeWhatsNew() {
+  const pop = document.getElementById('wnPop');
+  const back = document.getElementById('wnBack');
+  if (pop) pop.classList.remove('open');
+  if (back) back.classList.remove('open');
+}
+let wnTries = 0;
+function maybeWhatsNew() {
+  const pop = document.getElementById('wnPop');
+  if (!pop || pop.classList.contains('open')) return;
+  if (!WHATS_NEW.length || wnAgeDays(WHATS_NEW[0]) > 14) return;
+  let last = '';
+  try { last = localStorage.getItem('kbWnDay') || ''; } catch (e) {}
+  const d = new Date();
+  const today = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+  if (last === today) return; // раз в сутки
+  const openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'lifeBack'].some(id => {
+    const el = document.getElementById(id);
+    return el && el.classList.contains('open');
+  });
+  if (openNow) { if (wnTries++ < 15) setTimeout(maybeWhatsNew, 4000); return; }
+  try { localStorage.setItem('kbWnDay', today); } catch (e) {}
+  showWhatsNew(WHATS_NEW[0]);
 }
 function tickClock() {
   const el = document.getElementById('p1Time');
