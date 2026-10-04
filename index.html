@@ -4402,7 +4402,7 @@ function wnCardHtml(w) {
     '<div class="wn-title">' + w.title + '</div>' +
     '<div class="wn-lead">' + w.lead + '</div>' +
     '<div class="install-steps">' + w.steps.map((s, i) =>
-      '<div class="install-step"><b>' + (i + 1) + '</b><span class="wn-step"><i>' + s[0] + '</i>' + s[1] + '</span></div>').join('') + '</div>' +
+      '<div class="install-step"><b>' + (i + 1) + '</b><span style="min-width:0;color:#71809c;font-weight:400;line-height:1.45"><i style="display:block;font-style:italic;font-weight:850;color:#14213d;margin-bottom:3px">' + s[0] + '</i>' + s[1] + '</span></div>').join('') + '</div>' +
     '<div class="wn-why">' + w.why + '</div></div>';
 }
 function renderWhatsNewPanel() {
