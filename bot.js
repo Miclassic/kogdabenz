@@ -1,7 +1,8 @@
-// ===== Бот КогдаБенз v2: кнопки и отчёты =====
+// ===== Бот КогдаБенз v3: кнопки владельца + личные подписки водителей =====
 // Сервера нет: читаем обновления Telegram по расписанию (cron-job.org -> workflow).
 // Кнопки — клавиатурные (нажатие = текст), поэтому колбэки и сервер не нужны.
-// Отвечает ТОЛЬКО хозяйскому чату (TELEGRAM_CHAT_ID).
+// Отчёты и тихий режим владельца — ТОЛЬКО хозяйскому чату (TELEGRAM_CHAT_ID).
+// Личные команды подписчиков (/start КОД, /quiet, /loud, /stop, /help) — любому чату.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -9,6 +10,7 @@ const TG = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT = process.env.TELEGRAM_CHAT_ID;
 
 const OWN_BOX = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
+const CODE_TTL = 15 * 60 * 1000; // код связки живёт 15 минут
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -16,6 +18,26 @@ async function sbGet(path) {
   });
   if (!r.ok) throw new Error('GET ' + path + ' → ' + r.status);
   return r.json();
+}
+
+async function sbWrite(path, row, prefer) {
+  const r = await fetch(SUPABASE_URL + path, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: prefer || 'return=minimal'
+    },
+    body: JSON.stringify(row)
+  });
+  if (!r.ok) throw new Error('POST ' + path + ' → ' + r.status + ' ' + await r.text());
+}
+
+async function sbDel(path) {
+  const r = await fetch(SUPABASE_URL + path, {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, Prefer: 'return=minimal' }
+  });
+  if (!r.ok) throw new Error('DELETE ' + path + ' → ' + r.status);
 }
 
 async function metaGet(key, def) {
@@ -35,15 +57,20 @@ async function metaSet(key, value) {
   if (!r.ok) throw new Error('metaSet → ' + r.status);
 }
 
-async function tg(text, markup) {
-  if (!TG || !CHAT) return;
-  const body = { chat_id: CHAT, text: text, disable_web_page_preview: true };
+async function tgChat(chatId, text, markup) {
+  if (!TG) return;
+  const body = { chat_id: chatId, text: text, disable_web_page_preview: true };
   if (markup) body.reply_markup = markup;
   await fetch('https://api.telegram.org/bot' + TG + '/sendMessage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
+}
+
+async function tg(text, markup) {
+  if (!CHAT) return;
+  await tgChat(CHAT, text, markup);
 }
 
 async function getUpdates(offset) {
@@ -119,19 +146,85 @@ async function reportDigest() {
     (peak ? '\nПик очередей: ' + String(peak[0]).padStart(2, '0') + ':00' : '');
 }
 
+// === подписчики: связка кода из сайта с чатом ===
+async function linkCode(code, chatId) {
+  const rows = await sbGet('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code) + '&select=device_id,created_at');
+  if (!rows.length) return null;
+  if (Date.now() - new Date(rows[0].created_at).getTime() > CODE_TTL) {
+    await sbDel('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code)).catch(() => {});
+    return 'expired';
+  }
+  await sbWrite('/rest/v1/tg_subscriptions',
+    { device_id: rows[0].device_id, chat_id: Number(chatId), enabled: true },
+    'return=minimal,resolution=merge-duplicates');
+  await sbDel('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code)).catch(() => {});
+  return rows[0].device_id;
+}
+
+async function subSetEnabled(chatId, enabled) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/tg_subscriptions?chat_id=eq.' + chatId, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: 'return=minimal'
+    },
+    body: JSON.stringify({ enabled: enabled })
+  });
+  if (!r.ok) throw new Error('PATCH subs → ' + r.status);
+}
+
+const SUB_HELP = 'Личные команды:\n/quiet — пауза уведомлений по избранным АЗС\n/loud — снова уведомлять\n/stop — отключить подписку совсем\nИзбранное отмечается сердечком на сайте.';
+
 async function main() {
-  console.log('=== БОТ v2: читаю обновления ===');
+  console.log('=== БОТ v3: читаю обновления ===');
   const offset = Number(await metaGet('update_offset', '0'));
   const updates = await getUpdates(offset);
   let next = offset;
 
   for (const u of updates) {
     next = Math.max(next, u.update_id + 1);
-    const text = (u.message && u.message.text) || '';
-    const chatId = u.message && u.message.chat ? String(u.message.chat.id) : '';
-    if (!text || chatId !== CHAT) continue; // отвечаем только хозяйскому чату
-
+    const msg = u.message;
+    const text = (msg && msg.text) || '';
+    const chatId = msg && msg.chat ? String(msg.chat.id) : '';
+    if (!text || !chatId) continue;
     const t = text.trim();
+
+    // 1) связка сайт→бот: /start kb… (приходит по ссылке из окна сайта)
+    const m = t.match(/^\/start\s+(kb[0-9a-z]+)$/i);
+    if (m) {
+      let res = null;
+      try { res = await linkCode(m[1], chatId); } catch (e) { console.log('   ! связка: ' + e.message); }
+      if (res && res !== 'expired') {
+        await tgChat(chatId, '✅ Готово! Теперь я лично пишу вам, когда на избранных АЗС (сердечко на сайте) вернётся или кончится топливо, либо появится очередь.\nПауза: /quiet, отключить: /stop.');
+      } else if (res === 'expired') {
+        await tgChat(chatId, 'Код устарел (живёт 15 минут). Вернитесь на сайт и нажмите «Подключить Телеграм» ещё раз.');
+      } else {
+        await tgChat(chatId, 'Код не найден. Откройте карточку избранной АЗС на сайте и нажмите полоску «Подключить Телеграм» — получится новый код.');
+      }
+      if (chatId === CHAT) await tgChat(CHAT, 'Этот чат связан с сайтом как устройство-подписчик. Кнопки владельца ниже.', KEYBOARD);
+      continue;
+    }
+
+    // 2) личные команды подписчиков (любой чат, кроме хозяйского)
+    if (chatId !== CHAT) {
+      if (t === '/quiet') {
+        try { await subSetEnabled(chatId, false); await tgChat(chatId, '🔕 Пауза: по избранным АЗС писать не буду. Вернуть: /loud'); }
+        catch (e) { await tgChat(chatId, 'Не получилось поставить паузу, попробуйте ещё раз.'); }
+      } else if (t === '/loud') {
+        try { await subSetEnabled(chatId, true); await tgChat(chatId, '🔔 Уведомления по избранным АЗС снова включены!'); }
+        catch (e) { await tgChat(chatId, 'Не получилось включить, попробуйте ещё раз.'); }
+      } else if (t === '/stop') {
+        try { await subSetEnabled(chatId, false); await tgChat(chatId, 'Подписка отключена. Чтобы вернуть — нажмите «Подключить Телеграм» на сайте ещё раз.'); }
+        catch (e) {}
+      } else if (t === '/help' || t === '❓ Помощь') {
+        await tgChat(chatId, SUB_HELP);
+      } else if (t === '/start') {
+        await tgChat(chatId, 'Привет! Я КогдаБенз. Личные уведомления включаются с сайта: откройте карточку избранной АЗС и нажмите «Подключить Телеграм».\n' + SUB_HELP);
+      }
+      continue;
+    }
+
+    // 3) хозяйский чат: кнопки и команды владельца (как раньше)
     if (t === '/start') {
       await tg('Привет! Я КогдаБенз, суточный диспетчер.\nДержу кнопки ниже, а ещё понимаю команды:\n/status /predict /digest /quiet /loud /help\nОтвечаю в пределах пары минут: живу не на сервере, а по расписанию.', KEYBOARD);
     } else if (t === '📊 Сводка города' || t === '/status') {
@@ -147,7 +240,7 @@ async function main() {
       await metaSet('notify', '1');
       await tg('Уведомления снова включены!');
     } else if (t === '❓ Помощь' || t === '/help') {
-      await tg('Что я умею:\n📊 Сводка города — дефициты и очереди сейчас\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — сводка за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\nКнопки внизу чата делают то же самое.');
+      await tg('Что я умею:\n📊 Сводка города — дефициты и очереди сейчас\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — сводка за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\nЛичные подписки водителей: /start КОД с сайта связывает устройство с чатом; подписчики управляют собой командами /quiet /loud /stop.');
     }
   }
 

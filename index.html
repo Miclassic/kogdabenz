@@ -811,6 +811,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 <script>
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
+const TG_BOT_USERNAME = 'kogdabenz_alert_bot'; // без @, например KogdaBenzAlertBot
 const LOGO_FALLBACK = "<svg class='ic ic-l'><use href='#i-pump'/></svg>";
 let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
@@ -865,6 +866,7 @@ document.addEventListener('visibilitychange', () => {
   checkAdvicePoll();
   // вернулись во вкладку без связи — пробуем обновиться сразу, не ждать 30 секунд
   if (offlineMode && !refreshing) manualRefresh(true);
+  refreshTgLink(); // вдруг водитель только что связал аккаунт через бота
 });
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let allQueueEvents = [];
@@ -1108,7 +1110,7 @@ function repTap(btn) {
   btn.classList.add('done');
   btn.innerHTML = icon('i-check', 'ic-s');
   const ids = (btn.dataset.ids || '').split(',').filter(Boolean);
-  const rows = ids.map(id => ({ feedback_id: Number(id), device_id: deviceId }));
+  const rows = ids.map(id => ({ feedback_id: String(id), device_id: deviceId }));
   if (!rows.length) return;
   dbInsert('feedback_reports', rows).catch(() => {
     try {
@@ -1250,6 +1252,48 @@ function closeLife() {
   const back = document.getElementById('lifeBack');
   if (pop) pop.classList.remove('open');
   if (back) back.classList.remove('open');
+}
+// === Избранное на сервере + подписка на Телеграм ===
+// Сердечко раньше жило только в localStorage — бот о нём не знал. Теперь
+// каждый чих избранного синхронизируется rpc fav_sync (debounce 0.8 сек).
+let tgLinked = false;
+let favSyncTimer = null;
+function syncFavorites() {
+  if (favSyncTimer) clearTimeout(favSyncTimer);
+  favSyncTimer = setTimeout(() => {
+    fetch(SUPABASE_URL + '/rest/v1/rpc/fav_sync', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_device: deviceId, p_ids: getFavorites() })
+    }).catch(() => {});
+  }, 800);
+}
+async function refreshTgLink() {
+  try {
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/tg_link_status', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_device: deviceId })
+    });
+    if (r.ok) tgLinked = !!(await r.json());
+  } catch (e) {}
+}
+async function tgConnect() {
+  const code = 'kb' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+  let ok = true;
+  try { await dbInsert('tg_link_codes', [{ code: code, device_id: deviceId }]); } catch (e) { ok = false; }
+  if (!ok) { alert('Не удалось создать код связки, попробуйте ещё раз.'); return; }
+  window.open('https://t.me/' + TG_BOT_USERNAME + '?start=' + code, '_blank');
+  // вернётся из телеграма — обновим статус и плашка станет «уведомления включены»
+  setTimeout(refreshTgLink, 5000);
+  setTimeout(refreshTgLink, 20000);
+}
+function tgOpen() { window.open('https://t.me/' + TG_BOT_USERNAME, '_blank'); }
+// полоска в карточке: подключиться / уже включено (только для избранных АЗС)
+function tgStrip(station) {
+  if (!isFavorite(station.id)) return '';
+  if (tgLinked) return '<div class="dg-strip tap" style="margin-top:8px" onclick="tgOpen()">' + icon('i-spark', 'ic-s') + '<span>Уведомления по этой АЗС включены в Телеграме</span></div>';
+  return '<div class="dg-strip tap why-tap" style="margin-top:8px" onclick="tgConnect()">' + icon('i-spark', 'ic-s') + '<span>Хотите мгновенные уведомления в Телеграм по этой АЗС? Подключить</span></div>';
 }
 function feedbackPanel(stationId) {
   return '<div id="feedback-' + stationId + '" class="feedback-panel">' +
@@ -1432,6 +1476,7 @@ function stationCard(station, obs, pred) {
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
     '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
     workStrip(obs) +
+    tgStrip(station) +
     '<div class="fuels">' +
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
@@ -3279,6 +3324,7 @@ function toggleFavoriteById(id) {
   if (favs.includes(id)) favs = favs.filter(x => x !== id);
   else favs.push(id);
   localStorage.setItem('favorites', JSON.stringify(favs));
+  syncFavorites();
 }
 // меню действий вокруг капли (стиль The Sims): три синих чипа
 // слева / справа / снизу на равных расстояниях от капли
@@ -3660,6 +3706,8 @@ async function start() {
     flushFeedbackQueue();
     flushPollQueue();
     flushReportQueue();
+    syncFavorites();   // довезти избранное до сервера (вдруг сердечки ставили до фичи)
+    refreshTgLink();   // узнаём, подключён ли телеграм у этого устройства
     if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
@@ -3859,6 +3907,7 @@ function toggleFavorite(button) {
   if (favs.includes(id)) { favs = favs.filter(x => x !== id); button.classList.remove('on'); }
   else { favs.push(id); button.classList.add('on'); }
   localStorage.setItem('favorites', JSON.stringify(favs));
+  syncFavorites();
 }
 function searchStations() {
   const query = document.getElementById('searchInput').value.trim().toLowerCase();
@@ -4019,7 +4068,8 @@ function helpHtml() {
     '<div class="help-item"><div class="help-q">Что делает кнопка «Куда ехать»?</div><div class="help-a">Подбирает ближайшую к вам заправку с топливом по свежим отметкам и показывает расстояние. Если топлива сейчас нигде нет — подскажет ближайшее окно возврата.</div></div>' +
     '<div class="help-item"><div class="help-q">Работает ли без интернета?</div><div class="help-a">Да, частично: если связь пропала, сайт покажет последние загруженные данные с плашкой «Нет связи — показываем данные на ЧЧ:ММ». Ваши отметки в это время не теряются: они уйдут автоматически, когда связь вернётся.</div></div>' +
     '<div class="help-item"><div class="help-q">Как установить на домашний экран?</div><div class="help-a">На Android в Chrome сайт сам предложит «Установить приложение» в отдельном окошке. На iPhone в Safari: кнопка «Поделиться» → «На экран “Домой”» → «Добавить». Тогда КогдаБенз будет открываться как обычное приложение, без строки браузера.</div></div>' +
-    '<div class="help-item"><div class="help-q">Как я могу помочь?</div><div class="help-a">Нажмите на каплю на карте и выберите «Отметка»: пара нажатий — и ваша отметка о топливе или очереди улучшит подсказки для всего города.</div></div>';
+    '<div class="help-item"><div class="help-q">Как я могу помочь?</div><div class="help-a">Нажмите на каплю на карте и выберите «Отметка»: пара нажатий — и ваша отметка о топливе или очереди улучшит подсказки для всего города.</div></div>' +
+    '<div class="help-item"><div class="help-q">Как получать уведомления по любимым АЗС?</div><div class="help-a">Нажмите сердечко в карточке АЗС — станция попадёт в избранное. Затем нажмите полоску «Подключить Телеграм», откроется бот — нажмите «Старт». После этого бот будет лично вам писать, когда на избранных заправках вернулось или кончилось топливо, либо появилась очередь (в пределах 10 минут от события).</div></div>';
 }
 function openHelp() {
   document.getElementById('sheetBody').innerHTML = helpHtml();
