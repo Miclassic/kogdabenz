@@ -346,6 +346,10 @@ body { overflow:hidden; }
 .rc-extra { margin-top:6px; padding-top:6px; border-top:1px dashed #dfe8f2; }
 .dg-strip { display:flex; align-items:center; gap:7px; margin-top:8px; padding:9px 11px; border-radius:14px; background:linear-gradient(135deg,#eef4ff,#eafaf4); border:1px solid #dfe8f6; color:#33445f; font-size:10px; font-weight:700; }
 .dg-strip .ic { color:#2465ee; }
+.dg-strip.tg-ask { background:linear-gradient(135deg,#e3f0fd,#dcecff); border-color:#a9cdf4; color:#1d6fd6; }
+.dg-strip.tg-ask .ic { color:#1d6fd6; }
+.dg-strip.tg-on { background:linear-gradient(135deg,#e5f8ef,#dff5e9); border-color:#9fd8ba; color:#12855c; }
+.dg-strip.tg-on .ic { color:#15976d; }
 .dg-strip b { font-weight:900; }
 .ps-wrap { display:flex; flex-wrap:wrap; gap:2px 5px; min-width:0; }
 .ps-wrap i { font-style:normal; white-space:nowrap; }
@@ -1277,6 +1281,11 @@ async function refreshTgLink() {
     });
     if (r.ok) tgLinked = !!(await r.json());
   } catch (e) {}
+  // перекрашиваем открытую карточку сразу: подключено → зелёная плашка без перезагрузки
+  document.querySelectorAll('[data-tgstrip]').forEach(el => {
+    const st = allStations.find(s => s.id === el.getAttribute('data-tgstrip'));
+    if (st) el.outerHTML = tgStrip(st);
+  });
 }
 async function tgConnect() {
   const code = 'kb' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
@@ -1292,8 +1301,9 @@ function tgOpen() { window.open('https://t.me/' + TG_BOT_USERNAME, '_blank'); }
 // полоска в карточке: подключиться / уже включено (только для избранных АЗС)
 function tgStrip(station) {
   if (!isFavorite(station.id)) return '';
-  if (tgLinked) return '<div class="dg-strip tap" style="margin-top:8px" onclick="tgOpen()">' + icon('i-spark', 'ic-s') + '<span>Уведомления по этой АЗС включены в Телеграме</span></div>';
-  return '<div class="dg-strip tap why-tap" style="margin-top:8px" onclick="tgConnect()">' + icon('i-spark', 'ic-s') + '<span>Хотите мгновенные уведомления в Телеграм по этой АЗС? Подключить</span></div>';
+  // бот подключён — зелёное автоподтверждение с галочкой сразу
+  if (tgLinked) return '<div class="dg-strip tap tg-on" data-tgstrip="' + station.id + '" style="margin:0 0 8px" onclick="tgOpen()">' + icon('i-check', 'ic-s') + '<span>Уведомления по этой АЗС включены в Телеграме</span></div>';
+  return '<div class="dg-strip tap why-tap tg-ask" data-tgstrip="' + station.id + '" style="margin:0 0 8px" onclick="tgConnect()">' + icon('i-spark', 'ic-s') + '<span>Хотите мгновенные уведомления в Телеграм по этой АЗС? Подключить</span></div>';
 }
 function feedbackPanel(stationId) {
   return '<div id="feedback-' + stationId + '" class="feedback-panel">' +
@@ -1475,8 +1485,8 @@ function stationCard(station, obs, pred) {
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + ' · ' : '') + escapeHtml(station.address || '') + '</div></div>' +
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
     '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
-    workStrip(obs) +
     tgStrip(station) +
+    workStrip(obs) +
     '<div class="fuels">' +
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
