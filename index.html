@@ -574,6 +574,11 @@ body { overflow:hidden; }
 .offline-bar { position:fixed; left:0; right:0; top:0; z-index:90; display:none; padding:calc(8px + env(safe-area-inset-top)) 12px 8px; background:#fff2e8; color:#c26a2a; font-size:11px; font-weight:800; text-align:center; box-shadow:0 6px 18px rgba(194,106,42,.25); }
 .offline-bar.on { display:block; }
 .offline-bar .ob-btn { display:inline-block; margin-left:8px; padding:6px 12px; border:0; border-radius:10px; background:#c26a2a; color:#fff; font-size:10px; font-weight:850; cursor:pointer; vertical-align:middle; }
+.offline-bar .ob-spin { display:inline-block; width:12px; height:12px; border-radius:50%; border:2px solid rgba(194,106,42,.30); border-top-color:#c26a2a; vertical-align:-2px; margin-right:7px; animation:obSpin .9s linear infinite; }
+@keyframes obSpin { to { transform:rotate(360deg); } }
+.offline-bar.catch { background:#e5f8ef; color:#12855c; box-shadow:0 6px 18px rgba(18,133,94,.25); animation:obCatch .45s ease; }
+.offline-bar.catch .ob-spin { border-color:rgba(18,133,94,.30); border-top-color:#12855c; }
+@keyframes obCatch { 0% { transform:translateY(-100%); opacity:0; } 100% { transform:translateY(0); opacity:1; } }
 body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 /* стрелки панелей: по умолчанию скрыты (мобильные не видят вовсе) */
 .pager-arrow { display:none; }
@@ -858,6 +863,8 @@ document.addEventListener('visibilitychange', () => {
     return;
   }
   checkAdvicePoll();
+  // вернулись во вкладку без связи — пробуем обновиться сразу, не ждать 30 секунд
+  if (offlineMode && !refreshing) manualRefresh(true);
 });
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let allQueueEvents = [];
@@ -1172,7 +1179,8 @@ function renderLifePop() {
   const pop = document.getElementById('lifePop');
   if (!pop) return;
   const since24 = Date.now() - 24 * 3600 * 1000;
-  const ev24 = allEvents7.filter(e => new Date(e.detected_at).getTime() >= since24);
+  const ev7 = (typeof allEvents7 !== 'undefined' && allEvents7) ? allEvents7 : [];
+  const ev24 = ev7.filter(e => new Date(e.detected_at).getTime() >= since24);
   const src24 = ev24.filter(e => e.source !== 'user_feedback');
   const folk24 = ev24.filter(e => e.source === 'user_feedback').length;
   const rest = src24.filter(e => e.event_type === 'fuel_restored').length;
@@ -1185,8 +1193,8 @@ function renderLifePop() {
     const d0 = new Date(Date.now() - i * 86400000);
     const same = t => new Date(t).toDateString() === d0.toDateString();
     days.push(String(d0.getDate()).padStart(2, '0'));
-    srcS.push(allEvents7.filter(e => e.source !== 'user_feedback' && same(e.detected_at)).length);
-    folkS.push(allEvents7.filter(e => e.source === 'user_feedback' && same(e.detected_at)).length);
+    srcS.push(ev7.filter(e => e.source !== 'user_feedback' && same(e.detected_at)).length);
+    folkS.push(ev7.filter(e => e.source === 'user_feedback' && same(e.detected_at)).length);
     myS.push(allFeedback.filter(f => f.device_id === deviceId && same(f.created_at)).length);
   }
   const imp = myImpact();
@@ -1220,18 +1228,20 @@ function maybeLifePop() {
   const back = document.getElementById('lifeBack');
   if (!pop || !back || pop.classList.contains('open')) return;
   if (offlineMode) return;
+  // ждём загруженные данные, иначе карточка была бы вся из нулей
+  if (!allStations.length) { if (lifeTries++ < 10) setTimeout(maybeLifePop, 3000); return; }
+  // не лезем поверх приветствия, установки, опроса и карточки АЗС
   const openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack'].some(id => {
     const el = document.getElementById(id);
     return el && el.classList.contains('open');
   });
-  let helloPending = true, installPending = false;
-  try { helloPending = !localStorage.getItem('seenHello'); } catch (e) {}
-  try { installPending = !localStorage.getItem('seenInstall') && !isStandalone(); } catch (e) {}
-  if (openNow || helloPending || installPending) {
-    if (lifeTries++ < 6) setTimeout(maybeLifePop, 5000);
+  if (openNow) { if (lifeTries++ < 10) setTimeout(maybeLifePop, 4000); return; }
+  try {
+    renderLifePop();
+  } catch (e) {
+    console.log('Карточка «город живёт» не собралась: ' + e.message);
     return;
   }
-  renderLifePop();
   pop.classList.add('open');
   back.classList.add('open');
 }
@@ -3661,6 +3671,7 @@ async function start() {
     // отложенный опрос про «Куда ехать»: если с совета прошло 45 минут — 3 суток,
     // спрашиваем, чем закончилась поездка (сразу в момент клика человек ещё не доехал)
     checkAdvicePoll();
+    setTimeout(maybeLifePop, 1500);
   } catch (e) {
     // Связь отвалилась: если в памяти есть снимок — показываем его с честной
     // плашкой; человек видит прежние данные и может ставить отметки.
@@ -3706,21 +3717,41 @@ function retryStart() {
 // страницы. На время загрузки плашка остаётся с текстом «Обновляю данные…»,
 // а по итогу либо прячется (связь вернулась), либо возвращается со свежим временем.
 let refreshing = false;
-function manualRefresh() {
+function manualRefresh(silent) {
   if (refreshing) return;
   refreshing = true;
   const ob = document.getElementById('offlineBar');
-  if (ob) { ob.textContent = 'Обновляю данные…'; ob.classList.add('on'); }
+  if (silent) offlineBarTrying();
+  else if (ob) { ob.classList.remove('catch'); ob.innerHTML = '<span class="ob-spin"></span>Обновляю данные…'; ob.classList.add('on'); }
   document.body.classList.add('offline');
-  const app = document.getElementById('app');
-  if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
+  // тихое автообновление не стирает кэшированные данные с экрана
+  if (!silent) {
+    const app = document.getElementById('app');
+    if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
+  }
   start().finally(() => {
     refreshing = false;
     if (!offlineMode) {
-      if (ob) ob.classList.remove('on');
-      document.body.classList.remove('offline');
+      // сеть поймали: зелёная плашка «Связь восстановлена», потом прячем
+      offlineBarCatch();
+      setTimeout(() => {
+        const el = document.getElementById('offlineBar');
+        if (el) { el.classList.remove('on'); el.classList.remove('catch'); }
+        document.body.classList.remove('offline');
+      }, 1400);
     }
   });
+}
+// автообновление, пока висит плашка «Нет связи»: каждые 5 секунд сами
+// пробуем поймать сеть, пока start() не загрузит данные. Кнопка на плашке
+// осталась для мгновенной попытки, если не хочется ждать.
+let offlineRetryTimer = null;
+function scheduleOfflineRetry() {
+  if (offlineRetryTimer) return;
+  offlineRetryTimer = setInterval(() => {
+    if (!offlineMode || refreshing) return;
+    manualRefresh(true);
+  }, 5000);
 }
 // === Спасательный круг: снимок данных в памяти телефона ===
 // После каждой удачной загрузки пишем свежий снимок в localStorage.
@@ -3772,13 +3803,36 @@ function applyCache(c) {
   pulseEv = (c.pulseEv || []).map(e => Object.assign({}, e, { t: new Date(e.t) }));
   queueById = {};
 }
+let offlineCacheT = 0;
+function offlineStamp(t) {
+  const d = new Date(t);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0');
+}
 function showOfflineBar(cacheTime) {
   const el = document.getElementById('offlineBar');
   if (!el) return;
-  const d = new Date(cacheTime);
-  el.innerHTML = 'Нет связи — показываем данные на ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + d.getDate() + '.' + String(d.getMonth() + 1).padStart(2, '0') + '. Отметки принимаются и уйдут, когда связь вернётся. <button class="ob-btn" onclick="manualRefresh()">Обновить</button>';
+  offlineCacheT = cacheTime;
+  el.classList.remove('catch');
+  el.innerHTML = 'Нет связи — показываем данные на ' + offlineStamp(cacheTime) + '. Пробую каждые 5 секунд, отметки сохраняются. <button class="ob-btn" onclick="manualRefresh()">Обновить сейчас</button>';
   el.classList.add('on');
   document.body.classList.add('offline');
+  scheduleOfflineRetry();
+}
+/* анимация обновления: пока попытка идёт — плашка крутит спиннер «Ищу сеть…»,
+   при успехе на пару секунд зеленеет «Связь восстановлена» — человек видит,
+   что связь восстанавливается, а не что сайт молча стоит */
+function offlineBarTrying() {
+  const el = document.getElementById('offlineBar');
+  if (!el) return;
+  el.classList.remove('catch');
+  el.innerHTML = '<span class="ob-spin"></span>Ищу сеть… данные на ' + offlineStamp(offlineCacheT || Date.now()) + ', пробую обновиться';
+  el.classList.add('on');
+}
+function offlineBarCatch() {
+  const el = document.getElementById('offlineBar');
+  if (!el) return;
+  el.classList.add('catch');
+  el.innerHTML = '<span class="ob-spin"></span>Связь восстановлена, обновляю данные';
 }
 function queueFeedbackLocally(rows) {
   try {
@@ -3977,6 +4031,7 @@ function closeHello(more) {
   document.getElementById('helloBack').classList.remove('open');
   try { localStorage.setItem('seenHello', '1'); } catch (e) {}
   if (more) openHelp(); else setTimeout(maybeInstallPop, 500);
+  setTimeout(maybeLifePop, 800);
 }
 function maybeHello() {
   let seen = false;
