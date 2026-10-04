@@ -96,6 +96,14 @@ async function sbPatch(path, row) {
   if (!r.ok) throw new Error('PATCH ' + path + ' → ' + r.status + ' ' + await r.text());
 }
 
+async function sbDelete(path) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, Prefer: 'return=minimal' }
+  });
+  if (!r.ok) throw new Error('DELETE ' + path + ' → ' + r.status + ' ' + await r.text());
+}
+
 function eventNameRu(t) {
   return {
     fuel_restored: '🟢 бензин вернулся',
@@ -472,6 +480,25 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   } else {
     console.log('   Новых народных отметок нет');
   }
+
+// === ШАГ 6.5: жалобы на народные отметки: 2 разных водителя → удаляем отметку ===
+console.log('6.5) Проверяю жалобы на отметки...');
+try {
+  const reports = await sbGetAll('/rest/v1/feedback_reports?select=feedback_id,device_id');
+  const byFb = {};
+  for (const r of reports) (byFb[r.feedback_id] = byFb[r.feedback_id] || new Set()).add(r.device_id);
+  const badIds = Object.keys(byFb).filter(id => byFb[id].size >= 2);
+  if (!badIds.length) {
+    console.log('   Жалоб нет или недостаточно (нужно 2 разных водителя)');
+  } else {
+    const fbs = await sbGetAll('/rest/v1/user_feedback?id=in.(' + badIds.join(',') + ')&select=id,station_id,created_at');
+    for (const f of fbs) {
+      await sbDelete('events?source=eq.user_feedback&station_id=eq.' + f.station_id + '&detected_at=eq.' + encodeURIComponent(f.created_at));
+    }
+    if (fbs.length) await sbDelete('user_feedback?id=in.(' + fbs.map(f => f.id).join(',') + ')');
+    console.log('   Удалено отметок по жалобам: ' + fbs.length);
+  }
+} catch (e) { console.log('   ! Жалобы: ' + e.message); }
 
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
   console.log('7) Убираю старые наблюдения (старше 30 дней)...');
