@@ -598,7 +598,7 @@ async function main() {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.12|' + source,
+        algorithm_version: 'v1.13|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
