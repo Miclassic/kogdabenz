@@ -518,29 +518,53 @@ try {
 // Сердечко на сайте → user_favorites (rpc fav_sync), бот связал device_id с
 // chat_id (tg_subscriptions). Берём события с момента прошлой рассылки
 // (bot_meta.personal_notify_at) и шлём лично подписчикам их станций.
+// Строка подробная: какое топливо / какого размера очередь, имя и адрес АЗС,
+// время события по Москве; народные строки помечены «водители сообщают».
 console.log('6.5) Персональные уведомления по избранным...');
 try {
   const metaRows = await sbGet('/rest/v1/bot_meta?key=eq.personal_notify_at&select=value');
   const prev = metaRows.length ? metaRows[0].value : new Date(Date.now() - 10 * 60000).toISOString();
-  const evs = await sbGetAll('/rest/v1/events?detected_at=gt.' + encodeURIComponent(prev) + '&select=station_id,event_type,detected_at&order=detected_at.asc');
+  const evs = await sbGetAll('/rest/v1/events?detected_at=gt.' + encodeURIComponent(prev) + '&select=station_id,event_type,fuel_type,detected_at&order=detected_at.asc');
   if (!evs.length) {
     console.log('   Новых событий нет — уведомлять не о чем');
   } else {
-    const PHRASE = {
-      fuel_restored: '🟢 топливо вернулось',
-      fuel_disappeared: '🔴 топливо кончилось',
-      queue_appeared: '🚗 появилась очередь',
-      queue_high: '🚗 большая очередь',
-      queue_gone: '✅ очередь разошлась'
-    };
+    const FUEL_RU = { '92': 'АИ-92', '95': 'АИ-95', 'diesel': 'дизель' };
+    const QUEUE_SHORT = { small: '2–3', medium: '4–6', large: '7+', huge: '100+' };
     const stIds = [...new Set(evs.map(e => e.station_id))];
     const favs = await sbGetAll('/rest/v1/user_favorites?station_id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')&select=device_id,station_id');
     if (!favs.length) {
       console.log('   Избранного по этим станциям нет');
     } else {
-      const names = await sbGetAll('/rest/v1/stations?select=id,name&id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')');
-      const NAME = {};
-      for (const s of names) NAME[s.id] = s.name;
+      // имя И адрес станции — чтобы водитель понял, о какой заправке речь
+      const names = await sbGetAll('/rest/v1/stations?select=id,name,address&id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')');
+      const LABEL = {};
+      for (const s of names) LABEL[s.id] = escTg((s.name || 'АЗС') + (s.address ? ' · ' + s.address : ''));
+      // размер народной очереди живёт в user_feedback.queue_size, а не в событии:
+      // стыкуем отметку и событие по станции и минуте (detected_at = created_at)
+      const fbByKey = {};
+      if (evs.some(e => e.event_type === 'queue_high')) {
+        const qfb = await sbGetAll('/rest/v1/user_feedback?feedback_type=eq.queue&station_id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')&select=station_id,created_at,queue_size');
+        for (const f of qfb) fbByKey[f.station_id + '|' + f.created_at] = f;
+      }
+      const hhmm = iso => { const d = new Date(new Date(iso).getTime() + 3 * 3600 * 1000); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
+      const lineOf = e => {
+        const f = e.fuel_type ? (FUEL_RU[e.fuel_type] || 'топливо') : null;
+        let phrase = null;
+        if (e.event_type === 'fuel_restored') phrase = '🟢 ' + (f || 'топливо') + ' вернулся';
+        else if (e.event_type === 'fuel_disappeared') phrase = '🔴 ' + (f || 'топливо') + ' кончился';
+        else if (e.event_type === 'queue_appeared') phrase = '🚗 очередь появилась';
+        else if (e.event_type === 'queue_gone') phrase = '✅ очередь рассосалась';
+        else if (e.event_type === 'fuel_available') phrase = '⛽ водители сообщают: ' + (f || 'топливо') + ' есть';
+        else if (e.event_type === 'fuel_unavailable') phrase = '🔴 водители сообщают: ' + (f || 'топливо') + ' нет';
+        else if (e.event_type === 'queue_high') {
+          const fb = fbByKey[e.station_id + '|' + e.detected_at];
+          phrase = '🚗 водители сообщают: очередь' + (fb && fb.queue_size ? ' ' + (QUEUE_SHORT[fb.queue_size] || '') + ' машин' : '');
+        }
+        else if (e.event_type === 'queue_low') phrase = '🟢 водители сообщают: свободно';
+        else if (e.event_type === 'possible_delivery') phrase = '🚛 водители сообщают: похоже, привезли';
+        if (!phrase) return null;
+        return phrase + ' — ' + (LABEL[e.station_id] || 'АЗС') + ' · ' + hhmm(e.detected_at);
+      };
       const devIds = [...new Set(favs.map(f => f.device_id))];
       const subs = await sbGetAll('/rest/v1/tg_subscriptions?device_id=in.(' + devIds.map(d => '"' + d + '"').join(',') + ')&enabled=eq.true&select=device_id,chat_id');
       const chatByDev = {};
@@ -550,8 +574,9 @@ try {
         const chat = chatByDev[f.device_id];
         if (!chat) continue;
         for (const e of evs) {
-          if (e.station_id !== f.station_id || !PHRASE[e.event_type]) continue;
-          (linesByChat[chat] = linesByChat[chat] || []).push(PHRASE[e.event_type] + ' — ' + (NAME[f.station_id] || 'АЗС'));
+          if (e.station_id !== f.station_id) continue;
+          const line = lineOf(e);
+          if (line) (linesByChat[chat] = linesByChat[chat] || []).push(line);
         }
       }
       let sent = 0;
