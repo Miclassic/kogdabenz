@@ -152,11 +152,28 @@ body { overflow:hidden; }
 .acc-rep .ic { width:13px; height:13px; }
 .acc-rep.armed { color:#c2403f; background:#fdecec; }
 .acc-rep.done { color:#93a1b8; cursor:default; }
-/* карточка «город живёт» при входе — окно чуть шире приветственного */
-.life-pop { width:min(360px, calc(100vw - 32px)); max-height:86dvh; }
-.life-sec { margin:10px 2px 6px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
-.life-big { font-size:24px; font-weight:900; letter-spacing:-1px; color:#14213d; }
-.life-big small { font-size:10px; font-weight:700; color:#71809c; letter-spacing:0; }
+/* карточка «город живёт» при входе — оформление как у загрузочного экрана:
+   тёмный блюр, белый текст и стеклянные плашки вместо белой карточки,
+   чтобы дизайн не выбивался из общей картинки */
+.life-back { background:rgba(13,24,46,.62); backdrop-filter:blur(16px) saturate(.75); -webkit-backdrop-filter:blur(16px) saturate(.75); }
+.life-pop { width:min(360px, calc(100vw - 40px)); max-height:86dvh; background:transparent; box-shadow:none; padding:10px 6px; color:#fff; text-shadow:0 2px 12px rgba(8,18,40,.45); }
+.life-pop .hello-title { color:#fff; }
+.life-sec { margin:10px 2px 6px; color:rgba(235,243,255,.7); font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
+.life-big { font-size:24px; font-weight:900; letter-spacing:-1px; color:#fff; }
+.life-big small { font-size:10px; font-weight:700; color:rgba(235,243,255,.75); letter-spacing:0; }
+/* стеклянные пилюли: оттенок сохраняет смысл (зелёный/красный/оранжевый/синий) */
+.life-pop .rc-chip { background:rgba(255,255,255,.12); border:1px solid rgba(160,200,255,.28); color:#eaf2ff; }
+.life-pop .rc-chip.yes { background:rgba(27,185,120,.16); border-color:rgba(27,185,120,.45); color:#b8f0d8; }
+.life-pop .rc-chip.no { background:rgba(239,83,80,.16); border-color:rgba(239,83,80,.45); color:#ffc9c6; }
+.life-pop .rc-chip.queue { background:rgba(245,160,90,.16); border-color:rgba(245,160,90,.45); color:#ffd9bc; }
+.life-pop .rc-chip.info { background:rgba(57,124,255,.18); border-color:rgba(110,168,255,.45); color:#cfe0ff; }
+/* рамки графиков и легенды — полупрозрачное стекло вместо белого */
+.life-pop .hm-wrap { background:rgba(255,255,255,.08); border-color:rgba(160,200,255,.22); box-shadow:none; }
+.life-pop .mini-cap { color:rgba(235,243,255,.7); }
+.life-pop .hm-legend { background:rgba(255,255,255,.08); }
+.life-pop .hm-legend span { color:rgba(235,243,255,.75); }
+.life-pop .recent { color:rgba(235,243,255,.66); }
+.life-pop .cta-btn { box-shadow:0 8px 22px rgba(23,70,200,.45); }
 /* карточки «что нового»: ежедневное окошко и панель обновлений */
 .wn-pop { width:min(340px, calc(100vw - 32px)); max-height:86dvh; }
 .wn-card { margin-top:10px; padding:10px; border-radius:20px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); }
@@ -875,7 +892,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
     <button class="cta-btn" id="installBtn" onclick="installRun()"></button>
     <button class="cta-btn ghost" onclick="closeInstallPop(true)">Позже</button>
   </div>
-  <div class="hello-back" id="lifeBack" onclick="closeLife()"></div>
+  <div class="hello-back life-back" id="lifeBack" onclick="closeLife()"></div>
   <div class="hello-pop life-pop" id="lifePop"></div>
   <div class="hello-back" id="wnBack" onclick="closeWhatsNew()"></div>
   <div class="hello-pop wn-pop" id="wnPop"></div>
@@ -1275,7 +1292,7 @@ function lifeBars(days, series, colors) {
       const h = v ? Math.max(3, Math.round(v / max * 44)) : 2;
       out += '<rect x="' + (x + k * w).toFixed(1) + '" y="' + (H - 14 - h) + '" width="' + (w - 1).toFixed(1) + '" height="' + h + '" rx="2" fill="' + colors[k] + '" opacity=".85"/>';
     });
-    out += '<text x="' + (x + bw / 2) + '" y="' + (H - 3) + '" font-size="7.5" fill="#93a1b8" text-anchor="middle">' + lbl + '</text>';
+    out += '<text x="' + (x + bw / 2) + '" y="' + (H - 3) + '" font-size="7.5" fill="rgba(235,243,255,.65)" text-anchor="middle">' + lbl + '</text>';
   });
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:' + H + 'px;display:block">' + out + '</svg>';
 }
