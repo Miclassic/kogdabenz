@@ -172,6 +172,38 @@ body { overflow:hidden; }
 .wn-zoom.open { display:flex; }
 .wn-zoom img { max-width:100%; max-height:90dvh; border-radius:18px; box-shadow:0 30px 80px rgba(0,0,0,.55); transform:scale(.72); opacity:0; transition:transform .32s cubic-bezier(.2,.8,.2,1), opacity .26s ease; }
 .wn-zoom.shown img { transform:scale(1); opacity:1; }
+/* === загрузочный оверлей: фирменная загрузка с этапами поверх заблюренной страницы === */
+.boot-back { position:fixed; inset:0; z-index:96; display:flex; align-items:center; justify-content:center; background:rgba(28,52,92,.38); backdrop-filter:blur(10px) saturate(.9); -webkit-backdrop-filter:blur(10px) saturate(.9); opacity:1; transition:opacity .45s ease; }
+.boot-back.off { opacity:0; pointer-events:none; }
+.boot-col { display:flex; flex-direction:column; align-items:center; gap:14px; width:min(360px, calc(100vw - 40px)); text-align:center; color:#fff; text-shadow:0 2px 12px rgba(16,38,84,.35); }
+.boot-swap { display:flex; flex-direction:column; align-items:center; gap:10px; transition:opacity .18s ease, transform .18s ease; }
+.boot-swap.fade { opacity:0; transform:translateY(6px) scale(.98); }
+.boot-img { width:min(230px, 58vw); display:block; filter:drop-shadow(0 18px 40px rgba(16,38,84,.35)); animation:bootFloat 3.2s ease-in-out infinite; }
+@keyframes bootFloat { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-9px); } }
+.boot-orb { width:104px; height:104px; border-radius:50%; display:none; place-items:center; position:relative; background: radial-gradient(120% 90% at 18% 8%, rgba(255,255,255,.42), rgba(255,255,255,0) 46%), linear-gradient(140deg,#4b93ff 0%,#2465ee 52%,#1746c8 100%); box-shadow:0 16px 40px rgba(23,70,200,.45), inset 0 1px 0 rgba(255,255,255,.5); animation:bootFloat 3.2s ease-in-out infinite; }
+.boot-orb::after { content:''; position:absolute; inset:-14px; border-radius:50%; border:2px solid rgba(140,196,255,.55); animation:bootRing 1.6s ease-out infinite; }
+@keyframes bootRing { 0% { transform:scale(.7); opacity:1; } 100% { transform:scale(1.25); opacity:0; } }
+.boot-orb .logo-mark { width:56px; height:56px; filter:drop-shadow(0 3px 6px rgba(10,40,120,.4)); }
+.boot-title { font-size:22px; font-weight:900; letter-spacing:-.6px; }
+.boot-sub { color:rgba(235,243,255,.88); font-size:12.5px; line-height:1.5; font-weight:600; max-width:300px; }
+.boot-bar-row { display:flex; align-items:center; gap:10px; width:100%; margin-top:4px; }
+.boot-bar { flex:1; height:12px; border-radius:99px; background:rgba(255,255,255,.22); overflow:hidden; box-shadow:inset 0 1px 3px rgba(16,38,84,.25); }
+.boot-bar span { display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,#9ed1ff,#397cff); transition:width .25s ease; box-shadow:0 0 12px rgba(90,160,255,.8); }
+.boot-pct { flex:0 0 44px; text-align:right; font-size:13px; font-weight:900; }
+.boot-check { display:flex; flex-direction:column; gap:9px; width:100%; margin-top:2px; text-align:left; }
+.boot-ci-row { display:flex; align-items:flex-start; gap:9px; }
+.boot-ci { flex:0 0 auto; width:20px; height:20px; margin-top:1px; border-radius:50%; border:2px solid rgba(255,255,255,.35); display:grid; place-items:center; color:#fff; }
+.boot-ci .ic { width:11px; height:11px; display:none; }
+.boot-ci.cur { border-color:rgba(255,255,255,.9); border-right-color:transparent; animation:bootSpin 1s linear infinite; }
+.boot-ci.done { background:#397cff; border-color:#397cff; box-shadow:0 4px 12px rgba(23,70,200,.4); }
+.boot-ci.done .ic { display:block; }
+@keyframes bootSpin { to { transform:rotate(360deg); } }
+.boot-ct { color:#fff; font-size:12.5px; font-weight:800; line-height:1.3; }
+.boot-cs { color:rgba(235,243,255,.72); font-size:10.5px; font-weight:600; margin-top:1px; }
+.boot-ci-row.future .boot-ct { color:rgba(255,255,255,.75); }
+.boot-fun { display:flex; align-items:center; justify-content:center; gap:7px; margin-top:6px; color:#dbe9ff; font-size:12px; font-weight:800; font-style:italic; transform:rotate(-2deg); text-decoration:underline wavy rgba(156,196,255,.7) 1.5px; text-underline-offset:6px; }
+.boot-fun .ic { color:#9cc4ff; flex:0 0 auto; }
+@media (prefers-reduced-motion: reduce) { .boot-img, .boot-orb, .boot-ci.cur { animation:none; } }
 /* панель 1 */
 .p1 { overflow:hidden; }
 .p1-head { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
@@ -831,6 +863,19 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="hello-back" id="wnBack" onclick="closeWhatsNew()"></div>
   <div class="hello-pop wn-pop" id="wnPop"></div>
   <div class="wn-zoom" id="wnZoom" onclick="closeWnZoom()"><img id="wnZoomImg" alt=""></div>
+  <div class="boot-back" id="bootBack">
+    <div class="boot-col">
+      <div class="boot-swap" id="bootSwap">
+        <img class="boot-img" id="bootImg" alt="">
+        <div class="boot-orb" id="bootOrb"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
+        <div class="boot-title" id="bootTitle">Собираем данные с АЗС...</div>
+        <div class="boot-sub" id="bootSub">Проверяем цены, очереди и отзывы водителей.</div>
+      </div>
+      <div class="boot-bar-row"><div class="boot-bar"><span id="bootBar" style="width:3%"></span></div><div class="boot-pct" id="bootPct">3%</div></div>
+      <div class="boot-check" id="bootCheck"></div>
+      <div class="boot-fun" id="bootFun"></div>
+    </div>
+  </div>
   <div class="poll-back" id="pollBack" onclick="pollBackClick()"></div>
   <div class="poll-pop" id="pollPop"></div>
 </div>
@@ -4507,11 +4552,99 @@ function closeWnZoom() {
   z.classList.remove('shown');
   setTimeout(() => { z.classList.remove('open'); }, 320);
 }
+// === загрузочный оверлей: этапы поверх заблюренной страницы ===
+// Показываем только на первой загрузке: как только start() завершился
+// (успех, кэш или ошибка) — прогресс доходит до 100% и оверлей тает.
+// Этапы листаются таймером, прогресс ползёт к 95% и ждёт реальной
+// готовности — честные «100%» при пустых панелях не показываем.
+const BOOT_STAGES = [
+  { img: '01_sobiraem_dannye.png', t: 'Собираем данные с АЗС...', s: 'Проверяем цены, очереди и отзывы водителей.', fun: 'Хороший бензин не любит спешки, но мы стараемся!', fi: 'i-sun' },
+  { img: '02_analiziruem_teplovuyu_kartu.png', t: 'Анализируем тепловую карту...', s: 'Смотрим, где сейчас есть топливо, а где лучше подождать.', fun: 'Карта знает больше, чем кажется!', fi: 'i-pin' },
+  { img: '03_proveryaem_dostupnost.png', t: 'Проверяем доступность топлива...', s: 'Сверяем наличие на АЗС и актуальные данные.', fun: 'Бензин есть. Осталось найти, где лучше!', fi: 'i-pump' },
+  { img: '04_schitaem_vremya_i_ocheredi.png', t: 'Считаем время и очереди...', s: 'Находим самые спокойные часы и короткие очереди.', fun: 'Время — это тоже топливо. Залейте его с умом!', fi: 'i-clock' },
+  { img: '05_proveryaem_marshrut.png', t: 'Проверяем ваш маршрут...', s: 'Находим удобные АЗС по пути и оцениваем их.', fun: 'Бензин ближе, чем вы думаете!', fi: 'i-truck' },
+  { img: '06_finalnye_shtrihi.png', t: 'Финальные штрихи...', s: 'Собираем всё в единую картину, чтобы дать вам точный прогноз.', fun: 'Скоро всё будет!', fi: 'i-spark' }
+];
+const BOOT_TARGETS = [16, 34, 52, 70, 86, 95];
+const BOOT_DONE_MAP = [0, 1, 1, 2, 3, 3]; // сколько пунктов чек-листа готово на каждом этапе
+const BOOT_CHECKS = [
+  'Загружаем данные с источника...',
+  'Анализируем тепловую карту...',
+  'Проверяем прогнозы...',
+  'Готовим для вас лучшие варианты...'
+];
+const BOOT_TEASERS = ['Уже скоро!', 'Скоро!', 'Ещё немного!', 'Почти готово!'];
+let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTimer = null, bootOver = false, bootImgFail = false, bootT0 = 0;
+function bootStart() {
+  const back = document.getElementById('bootBack');
+  if (!back) return;
+  bootT0 = Date.now();
+  for (const s of BOOT_STAGES) { const im = new Image(); im.src = s.img; } // греем кэш картинок
+  const bim = document.getElementById('bootImg');
+  if (bim) bim.onerror = () => { if (bootImgFail) return; bootImgFail = true; applyBootStage(bootStage < 0 ? 0 : bootStage); };
+  applyBootStage(0);
+  bootTimer = setInterval(() => {
+    if (bootPct < bootTarget) { bootPct = Math.min(bootTarget, bootPct + 1); bootPaintPct(); }
+  }, 70);
+  bootStageTimer = setInterval(() => {
+    if (bootOver) return;
+    if (bootStage < BOOT_STAGES.length - 1) applyBootStage(bootStage + 1);
+  }, 1900);
+  setTimeout(bootDone, 25000); // предохранитель: не держим оверлей, если сеть наглухо висит
+}
+function applyBootStage(i) {
+  bootStage = i;
+  bootTarget = BOOT_TARGETS[i];
+  const st = BOOT_STAGES[i];
+  const swap = document.getElementById('bootSwap');
+  const paint = () => {
+    const img = document.getElementById('bootImg');
+    const orb = document.getElementById('bootOrb');
+    if (img) { img.style.display = bootImgFail ? 'none' : 'block'; img.src = st.img; }
+    if (orb) orb.style.display = bootImgFail ? 'grid' : 'none';
+    const t = document.getElementById('bootTitle'); if (t) t.textContent = st.t;
+    const s2 = document.getElementById('bootSub'); if (s2) s2.textContent = st.s;
+    const f = document.getElementById('bootFun'); if (f) f.innerHTML = icon(st.fi, 'ic-s') + '<span>' + st.fun + '</span>';
+    bootPaintChecks(BOOT_DONE_MAP[i]);
+    if (swap) swap.classList.remove('fade');
+  };
+  if (swap && i > 0) { swap.classList.add('fade'); setTimeout(paint, 180); } else paint();
+}
+function bootPaintPct() {
+  const b = document.getElementById('bootBar'); if (b) b.style.width = bootPct + '%';
+  const p = document.getElementById('bootPct'); if (p) p.textContent = bootPct + '%';
+}
+function bootPaintChecks(done) {
+  const box = document.getElementById('bootCheck'); if (!box) return;
+  box.innerHTML = BOOT_CHECKS.map((c, k) => {
+    const cls = k < done ? 'done' : k === done ? 'cur' : '';
+    const rowCls = k > done ? ' future' : '';
+    const sub = k < done ? 'Готово!' : BOOT_TEASERS[k];
+    return '<div class="boot-ci-row' + rowCls + '"><span class="boot-ci ' + cls + '">' + icon('i-check', 'ic-s') + '</span><span><span class="boot-ct">' + c + '</span><span class="boot-cs" style="display:block">' + sub + '</span></span></div>';
+  }).join('');
+}
+function bootDone() {
+  if (bootOver) return;
+  bootOver = true;
+  if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
+  if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
+  bootPct = 100; bootPaintPct();
+  bootPaintChecks(4);
+  const back = document.getElementById('bootBack');
+  if (!back) return;
+  const elapsed = Date.now() - bootT0;
+  const hold = elapsed < 1200 ? 1200 - elapsed : 450; // мгновенную загрузку не мигаем, даём досмотреть
+  setTimeout(() => {
+    back.classList.add('off');
+    setTimeout(() => { back.style.display = 'none'; }, 500);
+  }, hold);
+}
 function tickClock() {
   const el = document.getElementById('p1Time');
   if (el) { const d = new Date(); el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 }
-start();
+bootStart();
+start().finally(bootDone);
 track('pageview');
 loadPulse().catch(e => console.log('pulse: ' + e.message));
 currentPanel = 1;

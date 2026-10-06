@@ -1,6 +1,6 @@
 // Service Worker v1 для КогдаБенз
 // Стратегия: статика — cache-first (мгновенное открытие), API — network-first с фолбэком на кэш
-const CACHE_VERSION = 'kogdabenz-v74';
+const CACHE_VERSION = 'kogdabenz-v75';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,13 @@ const STATIC_ASSETS = [
   './icon-512.png',
   './maskable-192.png',
   './maskable-512.png',
-  'whatsnew-tg.png', 
+  '01_sobiraem_dannye.png', 
+  '02_analiziruem_teplovuyu_kartu.png', 
+  '03_proveryaem_dostupnost.png', 
+  '04_schitaem_vremya_i_ocheredi.png', 
+  '05_proveryaem_marshrut.png', 
+  '06_finalnye_shtrihi.png', 
+  'whatsnew-tg.png',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];
