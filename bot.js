@@ -331,12 +331,14 @@ async function main() {
 
   for (const u of updates) {
     next = Math.max(next, u.update_id + 1);
+    try {
 
     // --- 1) callback_query: владелец нажал inline-кнопку «Ответить» ---
     if (u.callback_query) {
       const cb = u.callback_query;
       const cbChatId = cb.message && cb.message.chat ? String(cb.message.chat.id) : '';
       const data = cb.data || '';
+      console.log('   update ' + u.update_id + ': callback chat=' + cbChatId + ' own=' + (cbChatId === CHAT) + ' data=' + data);
       if (cbChatId === CHAT && data.startsWith('reply:')) {
         const msgId = Number(data.slice(6));
         if (msgId) {
@@ -387,6 +389,18 @@ async function main() {
       continue;
     }
 
+// --- 3.5) ручной режим ответа, если кнопка не дошла: /reply <номер> ---
+    if (chatId === CHAT && t.startsWith('/reply ')) {
+      const id = Number(t.slice(7));
+      if (id) {
+        await setOwnerReplyPending(id);
+        replyPending = { msg_id: id, set_at: Date.now() };
+        await tg('✏️ Режим ответа включён командой. Напишите ответ одним сообщением — оно уйдёт водителю. Отмена: /cancel');
+      } else {
+        await tg('Формат: /reply <номер обращения> (число после reply: на кнопке или id строки driver_messages).');
+      }
+      continue;
+    }
     // --- 4) связка сайт→бот: /start kb… ---
     const m = t.match(/^\/start\s+(kb[0-9a-z]+)$/i);
     if (m) {
@@ -439,6 +453,11 @@ async function main() {
       await tg('Уведомления снова включены!');
     } else if (t === '❓ Помощь' || t === '/help') {
       await tg('Что я умею:\n📊 Сводка города — дефициты и очереди сейчас\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — сводка за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\n📩 Мост с водителями: обращения «Написать нам» приходят с кнопкой «Ответить» — ваше следующее сообщение уходит водителю в личку.\n\nЛичные подписки водителей: /start КОД с сайта связывает устройство с чатом; подписчики управляют собой командами /quiet /loud /stop.');
+    }
+
+    } catch (e) {
+      // одна упавшая обновка не должна ломать проход и сохранение offset
+      console.log('   ! update ' + u.update_id + ': ' + e.message);
     }
   }
 
