@@ -19,13 +19,15 @@ const REASON_LABEL = {
   idea: '💡 Идея',
   complaint: '😤 Жалоба',
   error: '🐞 Ошибка',
-  ad: '📣 Реклама'
+  ad: '📣 Реклама',
+  reply: '💬 Диалог'
 };
 const REASON_SHORT = {
   idea: 'идею',
   complaint: 'жалобу',
   error: 'ошибку',
-  ad: 'рекламу'
+  ad: 'рекламу',
+  reply: 'диалог'
 };
 
 // экранирование под HTML: имена/адреса/текст обращения приходят как есть
@@ -296,16 +298,43 @@ async function deliverOwnerReply(msgId, replyText) {
   const sub = subs[0];
   if (sub.enabled === false) return { ok: false, reason: 'muted' };
   const reasonLbl = REASON_LABEL[m.reason] || m.reason;
-  const driverText = '💬 <b>Ответ разработчика</b> на ваше обращение «' + reasonLbl + '»:\n\n' +
+  const kind = m.reason === 'reply' ? 'на ваше сообщение в диалоге' : 'на ваше обращение «' + reasonLbl + '»';
+  const driverText = '💬 <b>Ответ разработчика</b> ' + kind + ':\n\n' +
     '«<i>' + escTg(m.text) + '</i>»\n\n' +
     '— ' + escTg(replyText);
-  await tgTo(sub.chat_id, driverText);
+  await tgChat(sub.chat_id, driverText, { inline_keyboard: [[{ text: '💬 Ответить разработчику', callback_data: 'drvreply' }]] }, 'HTML');
   await sbPatch('/rest/v1/driver_messages?id=eq.' + msgId, {
     reply_text: replyText,
     reply_at: new Date().toISOString(),
     reply_sent_at: new Date().toISOString()
   });
   return { ok: true, alias: m.alias };
+}
+
+// === ответ водителя из Телеграма: продолжение диалога без сайта ===
+// Связанный чат (tg_subscriptions) + уже есть обращение в driver_messages →
+// не-командный текст становится строкой с reason 'reply', владелец в следующем
+// прогоне получает карточку «Диалог» с кнопкой «Ответить». Нет обращений —
+// подсказываем написать через сайт (первое сообщение задаёт тему диалога).
+async function handleDriverFollowup(chatId, text) {
+  try {
+    if (text.length > 350) {
+      await tgChat(chatId, 'Слишком длинно для обращения (лимит 350 символов) — сократите и отправьте ещё раз.');
+      return;
+    }
+    const subs = await sbGet('/rest/v1/tg_subscriptions?chat_id=eq.' + chatId + '&select=device_id');
+    if (!subs.length) return; // чат не связан с сайтом — собеседник не наш
+    const deviceId = subs[0].device_id;
+    const hist = await sbGet('/rest/v1/driver_messages?device_id=eq.' + encodeURIComponent(deviceId) + '&select=reason&order=created_at.desc&limit=20');
+    if (!hist.length) {
+      await tgChat(chatId, 'Мы ещё не переписывались. Чтобы написать разработчику, нажмите «Написать нам / сообщить об ошибке» на сайте — это сообщение и все следующие придут сюда диалогом.');
+      return;
+    }
+    const aliases = await sbGet('/rest/v1/driver_aliases?device_id=eq.' + encodeURIComponent(deviceId) + '&select=num');
+    const alias = aliases.length ? aliases[0].num : 0;
+    await sbWrite('/rest/v1/driver_messages', { device_id: deviceId, alias: alias, reason: 'reply', text: text });
+    await tgChat(chatId, '✅ Передал разработчику. Ответ придёт сюда же, в этот чат.');
+  } catch (e) { console.log('   ! followup: ' + e.message); }
 }
 
 async function main() {
@@ -349,6 +378,9 @@ async function main() {
         } else {
           await answerCallback(cb.id, 'Ошибка');
         }
+      } else if (data === 'drvreply') {
+        await answerCallback(cb.id, 'Напишите сообщение');
+        await tgChat(cbChatId, '✏️ Напишите ответ обычным сообщением — я передам его разработчику в ближайший момент.');
       } else {
         await answerCallback(cb.id);
       }
@@ -432,6 +464,9 @@ async function main() {
         await tgChat(chatId, SUB_HELP);
       } else if (t === '/start') {
         await tgChat(chatId, 'Привет! Я КогдаБенз. Личные уведомления включаются с сайта: откройте карточку избранной АЗС и нажмите «Подключить Телеграм».\n' + SUB_HELP);
+      } else {
+        // любое не-командное сообщение связанного чата = ответ водителя в диалоге
+        await handleDriverFollowup(chatId, t);
       }
       continue;
     }

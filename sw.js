@@ -1,6 +1,6 @@
 // Service Worker v1 для КогдаБенз
 // Стратегия: статика — cache-first (мгновенное открытие), API — network-first с фолбэком на кэш
-const CACHE_VERSION = 'kogdabenz-v90';
+const CACHE_VERSION = 'kogdabenz-v91';
 const STATIC_ASSETS = [
   './',
   './index.html',
