@@ -152,6 +152,19 @@ body { overflow:hidden; }
 .acc-rep .ic { width:13px; height:13px; }
 .acc-rep.armed { color:#c2403f; background:#fdecec; }
 .acc-rep.done { color:#93a1b8; cursor:default; }
+/* народные плашки: факты — цветные плитки с иконкой, комментарий — отдельной строкой */
+.acc-last.folk { flex-direction:column; align-items:stretch; gap:6px; }
+.folk-head { display:flex; align-items:center; gap:8px; }
+.folk-head > .ic { width:16px; height:16px; color:#5b6b86; flex:0 0 auto; }
+.folk-head .acc-last-txt { flex:1; }
+.fb-facts { display:flex; flex-wrap:wrap; gap:5px; }
+.fb-fact { display:inline-flex; align-items:center; gap:4px; padding:6px 9px; border-radius:11px; font-size:10px; font-weight:850; border:1px solid transparent; }
+.fb-fact .ic { width:12px; height:12px; }
+.fb-fact.yes { background:#e5f8ef; border-color:#bfe8d4; color:#12855c; }
+.fb-fact.no { background:#fdecec; border-color:#f3c1bf; color:#c2403f; }
+.fb-fact.queue { background:#fff2e8; border-color:#f5d3b8; color:#c26a2a; }
+.fb-fact.inf { background:#e7f0ff; border-color:#bcd4ff; color:#2465ee; }
+.fb-comment { display:block; color:#5b6b86; font-size:10px; font-weight:600; line-height:1.4; font-style:italic; padding:6px 9px; border-radius:10px; background:#f4f7fc; border:1px dashed #dfe8f2; }
 /* карточка «город живёт» при входе — оформление как у загрузочного экрана:
    тёмный блюр, белый текст и стеклянные плашки вместо белой карточки,
    чтобы дизайн не выбивался из общей картинки */
@@ -174,6 +187,22 @@ body { overflow:hidden; }
 .life-pop .hm-legend span { color:rgba(235,243,255,.75); }
 .life-pop .recent { color:rgba(235,243,255,.66); }
 .life-pop .cta-btn { box-shadow:0 8px 22px rgba(23,70,200,.45); }
+.life-lead { margin-top:6px; color:rgba(235,243,255,.72); font-size:10.5px; line-height:1.5; font-weight:600; }
+/* два смысла — две карточки с рамкой и своим заголовком, не куча стекла */
+.life-card { margin-top:10px; padding:12px; border-radius:18px; background:rgba(255,255,255,.10); border:1px solid rgba(160,200,255,.26); box-shadow:0 10px 26px rgba(8,18,40,.25); }
+.life-card-head { display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+.life-card-ico { width:32px; height:32px; border-radius:11px; display:grid; place-items:center; flex:0 0 auto; }
+.life-card-ico.city { background:rgba(57,124,255,.22); color:#9cc4ff; }
+.life-card-ico.you { background:rgba(124,109,255,.22); color:#c9c0ff; }
+.life-card-t { flex:1; min-width:0; text-align:left; }
+.life-card-t b { display:block; font-size:13px; font-weight:900; letter-spacing:-.3px; color:#fff; }
+.life-card-t span { display:block; margin-top:1px; color:rgba(235,243,255,.66); font-size:9.5px; font-weight:600; line-height:1.35; }
+.life-card .hm-wrap { background:rgba(255,255,255,.06); }
+/* маскот карточки «город живёт»: прозрачное видео плавает на карточке;
+   если прозрачного webm нет — mp4 получает тёмную рамку-«экран»,
+   и чёрный фон видео читается как дизайн, а не как дырка */
+.life-video { display:block; width:min(230px, 60vw); margin:0 auto 6px; pointer-events:none; filter:drop-shadow(0 14px 30px rgba(8,18,40,.4)); }
+.life-video.screen { background:#060a14; border-radius:20px; border:1px solid rgba(160,200,255,.22); box-shadow:0 12px 30px rgba(8,18,40,.35), inset 0 0 0 1px rgba(255,255,255,.04); }
 /* карточки «что нового»: ежедневное окошко и панель обновлений */
 .wn-pop { width:min(340px, calc(100vw - 32px)); max-height:86dvh; }
 .wn-card { margin-top:10px; padding:10px; border-radius:20px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); }
@@ -1183,20 +1212,24 @@ function recentFeedback(stationId) {
     const minutes = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
     const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
     const onSite = g.filter(f => f.verified_on_site).length;
-    const words = [];
-    for (const f of g) if (f.feedback_type === 'available') words.push('<span class="yes">' + fuelShort(f.fuel_type) + ' есть</span>');
-    for (const f of g) if (f.feedback_type === 'unavailable') words.push('<span class="no">' + fuelShort(f.fuel_type) + ' нет</span>');
-    for (const f of g) if (f.feedback_type === 'free') words.push('<span class="yes">свободно</span>');
-    let badge = '', badgeCls = '';
-    for (const f of g) if (!badge && f.feedback_type === 'queue') { badge = 'очередь ' + (queueShort[f.queue_size] || ''); badgeCls = 'mid'; }
-    for (const f of g) if (!badge && f.feedback_type === 'delivery') { badge = 'привезли'; badgeCls = 'inf'; }
+    // факты — цветные плитки с иконкой: число/пометка в своём квадратике,
+    // смысл читается по цвету и знаку, а не по голому зелёному/красному тексту
+    const tiles = [];
+    for (const f of g) if (f.feedback_type === 'available') tiles.push('<span class="fb-fact yes">' + icon('i-check', 'ic-s') + fuelShort(f.fuel_type) + '</span>');
+    for (const f of g) if (f.feedback_type === 'unavailable') tiles.push('<span class="fb-fact no">' + icon('i-cross', 'ic-s') + fuelShort(f.fuel_type) + '</span>');
+    for (const f of g) if (f.feedback_type === 'queue') tiles.push('<span class="fb-fact queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
+    for (const f of g) if (f.feedback_type === 'delivery') tiles.push('<span class="fb-fact inf">' + icon('i-truck', 'ic-s') + 'привезли</span>');
+    for (const f of g) if (f.feedback_type === 'free') tiles.push('<span class="fb-fact yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
+    const comment = (g.find(f => f.comment_text) || {}).comment_text || '';
     const hasFuel = g.some(f => f.feedback_type === 'available' || f.feedback_type === 'unavailable');
     const ids = g.map(f => f.id).join(',');
     const mine = g.some(f => f.device_id === deviceId);
     const repBtn = (!mine && !isReported(ids)) ? '<button class="acc-rep" data-ids="' + ids + '" onclick="repTap(this)" aria-label="Пожаловаться на отметку">' + icon('i-flag', 'ic-s') + '</button>' : '';
-    return '<div class="acc-last">' + icon(hasFuel ? 'i-pump' : 'i-queue') +
-      '<span class="acc-last-txt"><b>' + ago + ' назад' + (onSite ? ' · с места: ' + onSite : '') + '</b>' + words.join(' · ') + '</span>' +
-      (badge ? '<span class="acc-last-err ' + badgeCls + '">' + badge + '</span>' : '') + repBtn + '</div>';
+    return '<div class="acc-last folk">' +
+      '<span class="folk-head">' + icon(hasFuel ? 'i-pump' : 'i-queue') +
+      '<span class="acc-last-txt"><b>' + ago + ' назад' + (onSite ? ' · с места: ' + onSite : '') + '</b></span>' + repBtn + '</span>' +
+      '<span class="fb-facts">' + tiles.join('') + '</span>' +
+      (comment ? '<span class="fb-comment">«' + escapeHtml(comment) + '»</span>' : '') + '</div>';
   }).join('');
 }
 // === Жалоба на отметку: двухтаповая кнопка на народной плашке ===
@@ -1320,8 +1353,11 @@ function renderLifePop() {
   }
   const imp = myImpact();
   const mine24 = imp.mine.filter(f => new Date(f.created_at).getTime() >= since24).length;
-  pop.innerHTML = '<div class="hello-title">Город живёт · ваша польза</div>' +
-    '<div class="life-sec">что произошло за 24 часа</div>' +
+  pop.innerHTML = '<video class="life-video" autoplay muted loop playsinline poster="life-hero.png" preload="metadata"><source src="life-hero.webm" type="video/webm"><source src="life-hero.mp4" type="video/mp4"></video>' +
+    '<div class="hello-title">Город живёт · ваша польза</div>' +
+    '<div class="life-lead">Ниже два блока: первый — обстановка в городе за сутки, второй — что дали ваши отметки.</div>' +
+    '<div class="life-card"><div class="life-card-head"><span class="life-card-ico city">' + icon('i-pump') + '</span>' +
+    '<span class="life-card-t"><b>Обстановка в городе · 24 часа</b><span>что видели источник и водители за сутки</span></span></div>' +
     '<div class="rc-chips">' +
     '<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'топливо вернулось ' + rest + '</span>' +
     '<span class="rc-chip no">' + icon('i-cross', 'ic-s') + 'кончилось ' + dis + '</span>' +
@@ -1331,17 +1367,26 @@ function renderLifePop() {
     '</div>' +
     '<div class="hm-wrap" style="margin-top:8px"><div class="mini-cap" style="margin-bottom:4px">7 дней · источник и водители</div>' +
     lifeBars(days, [srcS, folkS], ['#397cff', '#19b77a']) +
-    '<div class="hm-legend" style="margin-top:4px"><span><i style="background:#397cff"></i>источник</span><span><i style="background:#19b77a"></i>водители</span></div></div>' +
-    '<div class="life-sec">чем помогли ваши отметки</div>' +
+    '<div class="hm-legend" style="margin-top:4px"><span><i style="background:#397cff"></i>источник</span><span><i style="background:#19b77a"></i>водители</span></div></div></div>' +
+    '<div class="life-card"><div class="life-card-head"><span class="life-card-ico you">' + icon('i-heart') + '</span>' +
+    '<span class="life-card-t"><b>Ваш вклад</b><span>чем ваши отметки помогли городу</span></span></div>' +
     '<div class="life-big why-tap" onclick="openWhyChip(this,\'impact\')">' + imp.coVotes + ' <small>водителей подтвердили ваши отметки</small></div>' +
     '<div class="rc-chips" style="margin-top:6px">' +
     '<span class="rc-chip info">' + icon('i-heart', 'ic-s') + 'ваших отметок ' + imp.mine.length + ' (за 24ч: ' + mine24 + ')</span>' +
     '<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'источник подтвердил ' + imp.srcMatch + '</span>' +
     '<span class="rc-chip info">' + icon('i-pin', 'ic-s') + 'с места ' + imp.onSite + '</span>' +
     '</div>' +
-    (imp.mine.length ? '<div class="hm-wrap" style="margin-top:8px"><div class="mini-cap" style="margin-bottom:4px">ваши отметки · 7 дней</div>' + lifeBars(days, [myS], ['#7c6dff']) + '</div>' : '') +
+    (imp.mine.length ? '<div class="hm-wrap" style="margin-top:8px"><div class="mini-cap" style="margin-bottom:4px">ваши отметки · 7 дней</div>' + lifeBars(days, [myS], ['#7c6dff']) + '</div>' : '') + '</div>' +
     '<div class="recent">Подтверждение водителями — когда кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС в пределах часа от вашей отметки. Подтверждение источником — когда в течение 2 часов после вашей отметки источник показал тот же статус. Это честные измеримые числа, без придуманных «просмотров».</div>' +
     '<button class="cta-btn" style="width:100%;margin-top:10px" onclick="closeLife()">Отлично</button>';
+  // если загрузился mp4 (без прозрачности) — надеваем рамку-«экран»;
+  // не загрузилось ничего — прячем элемент, карточка остаётся как раньше
+  const lv = pop.querySelector('.life-video');
+  if (lv) {
+    lv.addEventListener('loadeddata', () => { if (/\.mp4(\?|$)/.test(lv.currentSrc || '')) lv.classList.add('screen'); });
+    lv.addEventListener('error', () => { lv.style.display = 'none'; }, true);
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { lv.removeAttribute('autoplay'); lv.pause(); }
+  }
 }
 let lifeTries = 0;
 function maybeLifePop() {
