@@ -2309,45 +2309,128 @@ function renderMiniMap() {
 }
 function miniMapGo() { pagerGo(2); ensureMap(); }
 /* герой, чипы, дайджест, шапка */
-// плашка-герой: слайды и автосмена. Город — топ-1 самый уверенный прогноз
-// (название • улица • окно • %); весь юг — лучший и худший топ-1, листаются сами.
-let heroSlides = [], heroIdx = 0;
-function heroSlide(p, cap) {
-  const st = stationById(p.station_id);
-  const pct = Math.round((Number(p.confidence) || 0) * 100);
-  const mid = (st && st.address) ? st.address : '—';
-  return {
-    cap: cap + ' · ' + fuelLabel(p.fuel_type),
-    line: (st ? (st.name || 'АЗС') : 'АЗС') + ' • ' + mid + ' • ' + time5(p.from_time) + '–' + time5(p.to_time) + ' • ' + pct + '%',
-    conf: pct
-  };
+/* плашка-герой: живая лента отметок за последние 4 часа — источник
+   (возврат/пропажа топлива по смене соседних наблюдений) и народ
+   (топливо/очередь/привоз). Строка: АЗС • улица • что • время отметки.
+   Переключение циклом с «вушем», полоска = прогресс до следующего слайда. */
+const FEED_HOURS = 4;
+const FEED_MS = 4500;
+let feedItems = [], feedIdx = 0, feedTimer = null;
+function buildFeed() {
+  const since = Date.now() - FEED_HOURS * 3600 * 1000;
+  const items = [];
+  // источник: сравниваем соседние наблюдения станции — статус топлива сменился
+  const bySt = {};
+  for (const o of allObservations) (bySt[o.station_id] = bySt[o.station_id] || []).push(o);
+  for (const id of Object.keys(bySt)) {
+    const rows = bySt[id].slice().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    for (let i = 0; i < rows.length - 1; i++) {
+      const n = rows[i], p = rows[i + 1];
+      const t = new Date(n.timestamp).getTime();
+      if (t < since) break;
+      const pairs = [['92', 'fuel_92_status'], ['95', 'fuel_95_status'], ['diesel', 'diesel_status']];
+      for (const pr of pairs) {
+        if (n[pr[1]] === null || n[pr[1]] === undefined || p[pr[1]] === null || p[pr[1]] === undefined) continue;
+        if (n[pr[1]] === p[pr[1]]) continue;
+        items.push({ st: id, fuel: pr[0], kind: n[pr[1]] ? 'restored' : 'gone', t: t });
+      }
+    }
+  }
+  // народ: топливные и очередные отметки за окно
+  for (const f of allFeedback) {
+    const t = new Date(f.created_at).getTime();
+    if (t < since) continue;
+    if (f.feedback_type === 'available') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_yes', t: t });
+    else if (f.feedback_type === 'unavailable') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_no', t: t });
+    else if (f.feedback_type === 'delivery') items.push({ st: f.station_id, fuel: null, kind: 'delivery', t: t });
+    else if (f.feedback_type === 'queue') items.push({ st: f.station_id, fuel: null, kind: 'queue', q: f.queue_size, t: t });
+  }
+  items.sort((a, b) => b.t - a.t);
+  return items.slice(0, 12);
 }
-function applyHeroSlide(i) {
-  const s = heroSlides[i];
-  if (!s) return;
-  const fuelEl = document.getElementById('hfFuel');
-  const winEl = document.getElementById('hfWindow');
-  const barEl = document.getElementById('hfBar');
-  if (fuelEl) fuelEl.textContent = s.cap;
-  if (winEl) winEl.textContent = s.line;
-  if (barEl) barEl.style.width = s.conf + '%';
+function feedCaption(it) {
+  if (it.kind === 'restored') return 'Источник: топливо вернулось';
+  if (it.kind === 'gone') return 'Источник: топливо пропало';
+  if (it.kind === 'folk_yes') return 'Народ: топливо есть';
+  if (it.kind === 'folk_no') return 'Народ: топлива нет';
+  if (it.kind === 'delivery') return 'Народ: привезли';
+  return 'Народ: очередь';
+}
+function feedLine(it) {
+  const st = stationById(it.st);
+  const name = st ? (st.name || 'АЗС') : 'АЗС';
+  const street = st && st.address ? st.address : '—';
+  let what;
+  if (it.kind === 'queue') what = 'очередь ' + (QUEUE_SHORT[it.q] || '');
+  else if (it.kind === 'delivery') what = 'привезли';
+  else what = fuelLabel(it.fuel) + (it.kind === 'restored' ? ' вернулось' : it.kind === 'gone' ? ' пропало' : it.kind === 'folk_yes' ? ' есть' : ' нет');
+  const d = new Date(it.t);
+  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  return name + ' • ' + street + ' • ' + what + ' • ' + hm;
+}
+function feedIcon(it) {
+  if (it.kind === 'restored' || it.kind === 'folk_yes') return ['i-check', '#15976d'];
+  if (it.kind === 'gone' || it.kind === 'folk_no') return ['i-cross', '#d64d51'];
+  if (it.kind === 'queue') return ['i-queue', '#c26a2a'];
+  return ['i-truck', '#2465ee'];
+}
+function applyFeedSlide(i, animate) {
+  const cap = document.getElementById('hfFuel');
+  const line = document.getElementById('hfWindow');
+  const bar = document.getElementById('hfBar');
+  const ico = document.querySelector('.hero-line > .ic');
+  if (!cap || !line) return;
+  const it = feedItems[i];
+  const paint = () => {
+    if (!it) {
+      cap.textContent = 'Уведомления за ' + FEED_HOURS + ' часа';
+      line.textContent = 'Пока тихо: новых отметок за это время нет';
+      if (ico) { ico.innerHTML = '<use href="#i-clock"/>'; ico.style.color = '#6a4fd8'; }
+      if (bar) { bar.style.transition = 'none'; bar.style.width = '8%'; }
+      return;
+    }
+    const ic = feedIcon(it);
+    cap.textContent = feedCaption(it);
+    line.textContent = feedLine(it);
+    if (ico) { ico.innerHTML = '<use href="#' + ic[0] + '"/>'; ico.style.color = ic[1]; }
+    if (bar) {
+      if (feedItems.length < 2) { bar.style.transition = 'none'; bar.style.width = '100%'; }
+      else {
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+        void bar.offsetWidth;
+        bar.style.transition = 'width ' + FEED_MS + 'ms linear';
+        bar.style.width = '100%';
+      }
+    }
+  };
+  const hl = document.querySelector('.hero-line .hl-main');
+  const animEls = [hl, ico].filter(Boolean);
+  if (animate && it) {
+    animEls.forEach(el => { el.classList.remove('boot-woosh-in'); el.classList.add('boot-woosh-out'); });
+    setTimeout(() => {
+      paint();
+      animEls.forEach(el => { el.classList.remove('boot-woosh-out'); el.classList.add('boot-woosh-in'); });
+      setTimeout(() => animEls.forEach(el => el.classList.remove('boot-woosh-in')), 420);
+    }, 200);
+  } else paint();
+}
+function startFeedCycle() {
+  if (feedTimer) { clearInterval(feedTimer); feedTimer = null; }
+  if (feedItems.length < 2) return;
+  feedTimer = setInterval(() => {
+    if (document.hidden) return; // вкладка спит — не крутим ленту зря
+    feedIdx = (feedIdx + 1) % feedItems.length;
+    applyFeedSlide(feedIdx, true);
+  }, FEED_MS);
 }
 function renderHero() {
-  const fuelEl = document.getElementById('hfFuel');
-  if (!fuelEl) return;
+  feedItems = buildFeed();
+  if (feedIdx >= feedItems.length) feedIdx = 0;
+  applyFeedSlide(feedIdx, false);
+  startFeedCycle();
+  // чипы под плашкой — как раньше
   const last = getLastObservations();
-  const pend = allPredictions.filter(p => p.result === 'PENDING' && isFinite(Number(p.confidence)));
-  const slides = [];
-  const cSet = new Set(cityStationList().map(s => s.id));
-  const cityPend = pend.filter(p => cSet.has(p.station_id));
-  if (cityPend.length) {
-    const best = cityPend.slice().sort((a, b) => Number(b.confidence) - Number(a.confidence))[0];
-    slides.push(heroSlide(best, 'Самый уверенный прогноз · ' + userCityName()));
-  }
-  if (!slides.length) slides.push({ cap: 'АИ-95 · спокойное окно', line: peakAndCalm().calm, conf: 8 });
-  heroSlides = slides;
-  if (heroIdx >= heroSlides.length) heroIdx = 0;
-  applyHeroSlide(heroIdx);
   const citySet = new Set(cityStationList().map(s => s.id));
   const tn = document.getElementById('triNow');
   if (tn) {
@@ -4221,7 +4304,7 @@ function helpHtml() {
     '<div class="help-lead">КогдаБенз — помощник водителя юга: Краснодарский край и Адыгея. Мы не просто показываем, где бензин: каждые 10 минут собираем отметки заправок и сообщения водителей, а потом подсказываем, когда топливо вернётся на заправку и когда лучше поехать.</div>' +
     '<div class="help-item"><div class="help-q">Зачем создан этот сайт?</div><div class="help-a">В дефицит бензин пропадает с заправок, а очереди появляются внезапно. Чтобы не ездить по городу вслепую, мы собрали все отметки в одном месте и заранее подсказываем, когда и куда лучше заправиться.</div></div>' +
     '<div class="help-item"><div class="help-q">Откуда берутся данные?</div><div class="help-a">Из двух источников: народная карта заправок (обновляется каждые 10 минут) и отметки таких же водителей, как вы: «топливо есть», «очередь», «привезли». Чем больше людей отмечают, тем точнее подсказки.</div></div>' +
-    '<div class="help-item"><div class="help-q">Что за плашка с прогнозом вверху главной панели?</div><div class="help-a">Это самый уверенный прогноз по вашему городу: на какой заправке, на какой улице, в какое окно вероятнее всего вернётся топливо и насколько мы в этом уверены в процентах.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что за плашка вверху главной панели?</div><div class="help-a">Это живая лента отметок за последние 4 часа: источник (топливо вернулось или пропало) и водители (топливо есть/нет, очередь, привезли). Строки сменяются циклом: заправка, улица, что случилось и время отметки.</div></div>' +
     '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов. Когда источник станцию не видит, каплю красят отметки людей: 2 голоса — ранний сигнал, 3 голоса — подтверждено; оранжевая капля со знаком вопроса — мнения людей разошлись.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за лужи вокруг капель?</div><div class="help-a">Это очереди. Чем краснее и заметнее лужа, тем больше людей стоят в очереди прямо сейчас. Значок с человечками внутри зоны — отметка очереди.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за кнопка «Тепло» на карте?</div><div class="help-a">Это тепловая карта спроса: одно сплошное поле показывает, где сейчас сосредоточен дефицит топлива. Зелёный — спокойно, жёлтый — напряжённо, оранжевый — дефицит, красный — ядро дефицита. В этом режиме капли и очереди скрыты, чтобы не мешать читать поле.</div></div>' +
