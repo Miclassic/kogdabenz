@@ -2319,10 +2319,14 @@ let feedItems = [], feedIdx = 0, feedTimer = null;
 function buildFeed() {
   const since = Date.now() - FEED_HOURS * 3600 * 1000;
   const items = [];
+  // лента персональна: только события города пользователя (те же боксы,
+  // что у списка и чипов); у водителя в другом городе — его события
+  const citySet = new Set(cityStationList().map(s => s.id));
   // источник: сравниваем соседние наблюдения станции — статус топлива сменился
   const bySt = {};
   for (const o of allObservations) (bySt[o.station_id] = bySt[o.station_id] || []).push(o);
   for (const id of Object.keys(bySt)) {
+    if (!citySet.has(id)) continue;
     const rows = bySt[id].slice().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     for (let i = 0; i < rows.length - 1; i++) {
       const n = rows[i], p = rows[i + 1];
@@ -2336,10 +2340,11 @@ function buildFeed() {
       }
     }
   }
-  // народ: топливные и очередные отметки за окно
+  // народ: топливные и очередные отметки за окно (тоже только свой город)
   for (const f of allFeedback) {
     const t = new Date(f.created_at).getTime();
     if (t < since) continue;
+    if (!citySet.has(f.station_id)) continue;
     if (f.feedback_type === 'available') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_yes', t: t });
     else if (f.feedback_type === 'unavailable') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_no', t: t });
     else if (f.feedback_type === 'delivery') items.push({ st: f.station_id, fuel: null, kind: 'delivery', t: t });
@@ -2383,7 +2388,7 @@ function applyFeedSlide(i, animate) {
   const it = feedItems[i];
   const paint = () => {
     if (!it) {
-      cap.textContent = 'Уведомления за ' + FEED_HOURS + ' часа';
+      cap.textContent = 'Уведомления · ' + userCityName() + ' · ' + FEED_HOURS + ' часа';
       line.textContent = 'Пока тихо: новых отметок за это время нет';
       if (ico) { ico.innerHTML = '<use href="#i-clock"/>'; ico.style.color = '#6a4fd8'; }
       if (bar) { bar.style.transition = 'none'; bar.style.width = '8%'; }
