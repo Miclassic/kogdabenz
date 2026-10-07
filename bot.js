@@ -1,8 +1,9 @@
-// ===== Бот КогдаБенз v3: кнопки владельца + личные подписки водителей =====
+// ===== Бот КогдаБенз v4: кнопки владельца + личные подписки + мост «водитель ↔ разработчик» =====
+// v3: кнопки владельца + личные подписки водителей
+// v4: доставка обращений «Написать нам» владельцу с inline-кнопкой «Ответить»,
+//     обработка следующего текстового сообщения владельца как ответа,
+//     доставка ответа водителю в его личный чат с ботом.
 // Сервера нет: читаем обновления Telegram по расписанию (cron-job.org -> workflow).
-// Кнопки — клавиатурные (нажатие = текст), поэтому колбэки и сервер не нужны.
-// Отчёты и тихий режим владельца — ТОЛЬКО хозяйскому чату (TELEGRAM_CHAT_ID).
-// Личные команды подписчиков (/start КОД, /quiet, /loud, /stop, /help) — любому чату.
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -11,6 +12,24 @@ const CHAT = process.env.TELEGRAM_CHAT_ID;
 
 const OWN_BOX = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
 const CODE_TTL = 15 * 60 * 1000; // код связки живёт 15 минут
+const REPLY_PENDING_TTL = 10 * 60 * 1000; // режим «жду ответ» живёт 10 минут
+
+// Подписи причин в карточках владельца и ответах водителю
+const REASON_LABEL = {
+  idea: '💡 Идея',
+  complaint: '😤 Жалоба',
+  error: '🐞 Ошибка',
+  ad: '📣 Реклама'
+};
+const REASON_SHORT = {
+  idea: 'идею',
+  complaint: 'жалобу',
+  error: 'ошибку',
+  ad: 'рекламу'
+};
+
+// экранирование под HTML: имена/адреса/текст обращения приходят как есть
+function escTg(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -30,6 +49,18 @@ async function sbWrite(path, row, prefer) {
     body: JSON.stringify(row)
   });
   if (!r.ok) throw new Error('POST ' + path + ' → ' + r.status + ' ' + await r.text());
+}
+
+async function sbPatch(path, row) {
+  const r = await fetch(SUPABASE_URL + path, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(row)
+  });
+  if (!r.ok) throw new Error('PATCH ' + path + ' → ' + r.status + ' ' + await r.text());
 }
 
 async function sbDel(path) {
@@ -57,20 +88,49 @@ async function metaSet(key, value) {
   if (!r.ok) throw new Error('metaSet → ' + r.status);
 }
 
-async function tgChat(chatId, text, markup) {
+async function metaDel(key) {
+  const r = await fetch(SUPABASE_URL + '/rest/v1/bot_meta?key=eq.' + key, {
+    method: 'DELETE',
+    headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, Prefer: 'return=minimal' }
+  });
+  if (!r.ok) throw new Error('metaDel → ' + r.status);
+}
+
+async function tgChat(chatId, text, markup, parseMode) {
   if (!TG) return;
   const body = { chat_id: chatId, text: text, disable_web_page_preview: true };
   if (markup) body.reply_markup = markup;
-  await fetch('https://api.telegram.org/bot' + TG + '/sendMessage', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  if (parseMode) body.parse_mode = parseMode;
+  try {
+    await fetch('https://api.telegram.org/bot' + TG + '/sendMessage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) { console.log('   ! tgChat: ' + e.message); }
 }
 
-async function tg(text, markup) {
+async function tg(text, markup, parseMode) {
   if (!CHAT) return;
-  await tgChat(CHAT, text, markup);
+  await tgChat(CHAT, text, markup, parseMode);
+}
+
+// отправка в личный чат подписчика (для ответов владельца на обращения)
+async function tgTo(chatId, text) {
+  await tgChat(chatId, text, null, 'HTML');
+}
+
+async function answerCallback(cbId, text) {
+  if (!TG) return;
+  const body = { callback_query_id: cbId };
+  if (text) body.text = text;
+  try {
+    await fetch('https://api.telegram.org/bot' + TG + '/answerCallbackQuery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) { console.log('   ! answerCallback: ' + e.message); }
 }
 
 async function getUpdates(offset) {
@@ -92,6 +152,7 @@ function isOwn(s) {
   return s.lat >= OWN_BOX.lat1 && s.lat <= OWN_BOX.lat2 && s.lon >= OWN_BOX.lon1 && s.lon <= OWN_BOX.lon2;
 }
 
+// === отчёты владельца (как в v3) ===
 async function reportStatus() {
   const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level');
   const stations = await sbGet('/rest/v1/stations?select=id,name,lat,lon&limit=2000');
@@ -175,27 +236,164 @@ async function subSetEnabled(chatId, enabled) {
 
 const SUB_HELP = 'Личные команды:\n/quiet — пауза уведомлений по избранным АЗС\n/loud — снова уведомлять\n/stop — отключить подписку совсем\nИзбранное отмечается сердечком на сайте.';
 
+// === Мост «водитель ↔ разработчик» ===
+// Доставка обращений owner'у с inline-кнопкой «Ответить на <причину>».
+async function fetchPendingMessages() {
+  return await sbGet('/rest/v1/driver_messages?owner_notified_at=is.null&select=id,alias,reason,text,created_at&order=id.asc&limit=20');
+}
+
+async function notifyOwnerMessage(m) {
+  const reasonLbl = REASON_LABEL[m.reason] || m.reason;
+  const reasonShort = REASON_SHORT[m.reason] || 'обращение';
+  const created = new Date(new Date(m.created_at).getTime() + 3 * 3600 * 1000);
+  const hhmm = String(created.getUTCHours()).padStart(2, '0') + ':' + String(created.getUTCMinutes()).padStart(2, '0');
+  const text = '📩 <b>Водитель #' + m.alias + ' · ' + reasonLbl + '</b>\n' +
+    '<i>' + hhmm + ' МСК</i>\n\n' +
+    '«' + escTg(m.text) + '»';
+  const markup = {
+    inline_keyboard: [[{
+      text: '💬 Ответить на ' + reasonShort,
+      callback_data: 'reply:' + m.id
+    }]]
+  };
+  await tgChat(CHAT, text, markup, 'HTML');
+  await sbPatch('/rest/v1/driver_messages?id=eq.' + m.id, {
+    owner_notified_at: new Date().toISOString()
+  });
+}
+
+async function setOwnerReplyPending(msgId) {
+  await metaSet('owner_reply_pending', JSON.stringify({ msg_id: msgId, set_at: Date.now() }));
+}
+
+async function getOwnerReplyPending() {
+  const v = await metaGet('owner_reply_pending', null);
+  if (!v) return null;
+  try {
+    const obj = typeof v === 'string' ? JSON.parse(v) : v;
+    if (!obj || !obj.msg_id) return null;
+    // защита: если владелец забыл ответить и прошло больше 10 минут — сбрасываем,
+    // чтобы следующее обычное сообщение не ушло водителю как ответ
+    if (Date.now() - obj.set_at > REPLY_PENDING_TTL) {
+      await metaDel('owner_reply_pending');
+      return null;
+    }
+    return obj;
+  } catch (e) { return null; }
+}
+
+async function clearOwnerReplyPending() {
+  await metaDel('owner_reply_pending');
+}
+
+async function deliverOwnerReply(msgId, replyText) {
+  const rows = await sbGet('/rest/v1/driver_messages?id=eq.' + msgId + '&select=id,alias,device_id,reason,text');
+  if (!rows.length) return { ok: false, reason: 'not_found' };
+  const m = rows[0];
+  // ищем связанный чат подписчика по device_id
+  const subs = await sbGet('/rest/v1/tg_subscriptions?device_id=eq.' + encodeURIComponent(m.device_id) + '&select=chat_id,enabled');
+  if (!subs.length) return { ok: false, reason: 'no_link' };
+  const sub = subs[0];
+  if (sub.enabled === false) return { ok: false, reason: 'muted' };
+  const reasonLbl = REASON_LABEL[m.reason] || m.reason;
+  const driverText = '💬 <b>Ответ разработчика</b> на ваше обращение «' + reasonLbl + '»:\n\n' +
+    '«<i>' + escTg(m.text) + '</i>»\n\n' +
+    '— ' + escTg(replyText);
+  await tgTo(sub.chat_id, driverText);
+  await sbPatch('/rest/v1/driver_messages?id=eq.' + msgId, {
+    reply_text: replyText,
+    reply_at: new Date().toISOString(),
+    reply_sent_at: new Date().toISOString()
+  });
+  return { ok: true, alias: m.alias };
+}
+
 async function main() {
-  console.log('=== БОТ v3: читаю обновления ===');
+  console.log('=== БОТ v4: читаю обновления ===');
   const offset = Number(await metaGet('update_offset', '0'));
   const updates = await getUpdates(offset);
   let next = offset;
 
+  // === Шаг 0: доставка новых обращений владельцу ===
+  // Делаем до обработки updates, чтобы свежие карточки пришли сразу,
+  // а не ждали следующего прогона через 5 минут.
+  try {
+    const pending = await fetchPendingMessages();
+    for (const m of pending) {
+      try { await notifyOwnerMessage(m); }
+      catch (e) { console.log('   ! notifyOwner: ' + e.message); }
+    }
+    if (pending.length) console.log('   Новых обращений владельцу: ' + pending.length);
+  } catch (e) { console.log('   ! fetchPendingMessages: ' + e.message); }
+
+  // === предсостояние: ждёт ли владелец ответ на конкретное обращение ===
+  let replyPending = await getOwnerReplyPending();
+
   for (const u of updates) {
     next = Math.max(next, u.update_id + 1);
+
+    // --- 1) callback_query: владелец нажал inline-кнопку «Ответить» ---
+    if (u.callback_query) {
+      const cb = u.callback_query;
+      const cbChatId = cb.message && cb.message.chat ? String(cb.message.chat.id) : '';
+      const data = cb.data || '';
+      if (cbChatId === CHAT && data.startsWith('reply:')) {
+        const msgId = Number(data.slice(6));
+        if (msgId) {
+          await setOwnerReplyPending(msgId);
+          replyPending = { msg_id: msgId, set_at: Date.now() };
+          await answerCallback(cb.id, 'Жду ответ');
+          await tgChat(CHAT, '✏️ Напишите ответ одним сообщением (до 2000 символов).\nВаше следующее сообщение уйдёт водителю.\n\nОтмена: отправьте /cancel.');
+        } else {
+          await answerCallback(cb.id, 'Ошибка');
+        }
+      } else {
+        await answerCallback(cb.id);
+      }
+      continue;
+    }
+
     const msg = u.message;
     const text = (msg && msg.text) || '';
     const chatId = msg && msg.chat ? String(msg.chat.id) : '';
     if (!text || !chatId) continue;
     const t = text.trim();
 
-    // 1) связка сайт→бот: /start kb… (приходит по ссылке из окна сайта)
+    // --- 2) ОТМЕНА режима ожидания ответа ---
+    if (chatId === CHAT && replyPending && (t === '/cancel' || t === '/start')) {
+      await clearOwnerReplyPending();
+      replyPending = null;
+      if (t === '/cancel') {
+        await tg('Отменено. Ответ не отправлен.');
+        continue;
+      }
+      // если /start — просто сбросили pending и идём дальше по обычной логике
+    }
+
+    // --- 3) режим «жду ответ»: следующее текстовое сообщение от владельца = ответ ---
+    if (chatId === CHAT && replyPending) {
+      const result = await deliverOwnerReply(replyPending.msg_id, t);
+      await clearOwnerReplyPending();
+      replyPending = null;
+      if (result.ok) {
+        await tg('✅ Ответ отправлен Водителю #' + result.alias + ' в личный чат с ботом.');
+      } else if (result.reason === 'no_link') {
+        await tg('⚠️ Не удалось отправить: водитель не привязал Телеграм (возможно, ещё не нажал «Старт» в боте).');
+      } else if (result.reason === 'muted') {
+        await tg('⚠️ Водитель поставил уведомления на паузу (/quiet). Ответ сохранён в базе и будет показан, когда он снимет паузу.');
+      } else {
+        await tg('⚠️ Обращение не найдено — возможно, уже было отвечено другим проходом.');
+      }
+      continue;
+    }
+
+    // --- 4) связка сайт→бот: /start kb… ---
     const m = t.match(/^\/start\s+(kb[0-9a-z]+)$/i);
     if (m) {
       let res = null;
       try { res = await linkCode(m[1], chatId); } catch (e) { console.log('   ! связка: ' + e.message); }
       if (res && res !== 'expired') {
-        await tgChat(chatId, '✅ Готово! Теперь я лично пишу вам, когда на избранных АЗС (сердечко на сайте) вернётся или кончится топливо, либо появится очередь.\nПауза: /quiet, отключить: /stop.');
+        await tgChat(chatId, '✅ Готово! Теперь я лично пишу вам, когда на избранных АЗС (сердечко на сайте) вернётся или кончится топливо, либо появится очередь.\nПауза: /quiet, отключить: /stop.\n\nА ещё сюда придёт ответ разработчика, если вы написали через «Написать нам» на сайте.');
       } else if (res === 'expired') {
         await tgChat(chatId, 'Код устарел (живёт 15 минут). Вернитесь на сайт и нажмите «Подключить Телеграм» ещё раз.');
       } else {
@@ -205,13 +403,13 @@ async function main() {
       continue;
     }
 
-    // 2) личные команды подписчиков (любой чат, кроме хозяйского)
+    // --- 5) личные команды подписчиков (любой чат, кроме хозяйского) ---
     if (chatId !== CHAT) {
       if (t === '/quiet') {
-        try { await subSetEnabled(chatId, false); await tgChat(chatId, '🔕 Пауза: по избранным АЗС писать не буду. Вернуть: /loud'); }
+        try { await subSetEnabled(chatId, false); await tgChat(chatId, '🔕 Пауза: по избранным АЗС и ответов от разработчика писать не буду. Вернуть: /loud'); }
         catch (e) { await tgChat(chatId, 'Не получилось поставить паузу, попробуйте ещё раз.'); }
       } else if (t === '/loud') {
-        try { await subSetEnabled(chatId, true); await tgChat(chatId, '🔔 Уведомления по избранным АЗС снова включены!'); }
+        try { await subSetEnabled(chatId, true); await tgChat(chatId, '🔔 Уведомления по избранным АЗС и ответы разработчика снова включены!'); }
         catch (e) { await tgChat(chatId, 'Не получилось включить, попробуйте ещё раз.'); }
       } else if (t === '/stop') {
         try { await subSetEnabled(chatId, false); await tgChat(chatId, 'Подписка отключена. Чтобы вернуть — нажмите «Подключить Телеграм» на сайте ещё раз.'); }
@@ -224,9 +422,9 @@ async function main() {
       continue;
     }
 
-    // 3) хозяйский чат: кнопки и команды владельца (как раньше)
+    // --- 6) хозяйский чат: кнопки и команды владельца ---
     if (t === '/start') {
-      await tg('Привет! Я КогдаБенз, суточный диспетчер.\nДержу кнопки ниже, а ещё понимаю команды:\n/status /predict /digest /quiet /loud /help\nОтвечаю в пределах пары минут: живу не на сервере, а по расписанию.', KEYBOARD);
+      await tg('Привет! Я КогдаБенз, суточный диспетчер.\nДержу кнопки ниже, а ещё понимаю команды:\n/status /predict /digest /quiet /loud /help\nОтвечаю в пределах пары минут: живу не на сервере, а по расписанию.\n\n📩 Обращения водителей приходят с кнопкой «Ответить» — нажимаете, пишете ответ, он уходит водителю в личку.', KEYBOARD);
     } else if (t === '📊 Сводка города' || t === '/status') {
       await tg(await reportStatus());
     } else if (t === '🔮 Прогнозы' || t === '/predict') {
@@ -235,12 +433,12 @@ async function main() {
       await tg(await reportDigest());
     } else if (t === '🔕 Тихий режим' || t === '/quiet') {
       await metaSet('notify', '0');
-      await tg('Принял. Событийные уведомления ставлю на паузу. Отчёты по кнопкам и аварии продолжу присылать. Вернуть: «🔔 Уведомлять».');
+      await tg('Принял. Событийные уведомления ставлю на паузу. Отчёты по кнопкам, аварии и обращения водителей продолжу присылать. Вернуть: «🔔 Уведомлять».');
     } else if (t === '🔔 Уведомлять' || t === '/loud') {
       await metaSet('notify', '1');
       await tg('Уведомления снова включены!');
     } else if (t === '❓ Помощь' || t === '/help') {
-      await tg('Что я умею:\n📊 Сводка города — дефициты и очереди сейчас\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — сводка за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\nЛичные подписки водителей: /start КОД с сайта связывает устройство с чатом; подписчики управляют собой командами /quiet /loud /stop.');
+      await tg('Что я умею:\n📊 Сводка города — дефициты и очереди сейчас\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — сводка за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\n📩 Мост с водителями: обращения «Написать нам» приходят с кнопкой «Ответить» — ваше следующее сообщение уходит водителю в личку.\n\nЛичные подписки водителей: /start КОД с сайта связывает устройство с чатом; подписчики управляют собой командами /quiet /loud /stop.');
     }
   }
 
