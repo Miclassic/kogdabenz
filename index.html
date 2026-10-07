@@ -202,8 +202,8 @@ body { overflow:hidden; }
    та же «жизнь», что на загрузочном экране (классы boot-img-wrap/boot-parts).
    Высота по факту картинки + отрицательные отступы съедают прозрачные
    поля самого PNG — карточка плотная, без пустых полос над и под героем */
-.boot-img-wrap.life-hero { width:auto; height:auto; margin:0 auto 2px; }
-.life-hero .boot-img { width:min(300px, 78vw); margin:-16px 0 -22px; }
+.boot-img-wrap.life-hero { display:block; width:auto; height:auto; margin:0 auto 2px; }
+.life-hero .boot-img { display:block; width:min(300px, 78vw); margin:-16px auto -22px; }
 /* карточки «что нового»: ежедневное окошко и панель обновлений */
 .wn-pop { width:min(340px, calc(100vw - 32px)); max-height:86dvh; }
 .wn-card { margin-top:10px; padding:10px; border-radius:20px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); }
