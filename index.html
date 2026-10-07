@@ -4185,7 +4185,7 @@ async function start() {
     flushReportQueue();
     syncFavorites();   // довезти избранное до сервера (вдруг сердечки ставили до фичи)
     refreshTgLink();   // узнаём, подключён ли телеграм у этого устройства
-    if (!stations.length) { app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
+    if (!stations.length) { window.__startErr = 'Источник вернул пустой список станций'; bootDataOk = false; app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
     // подписи строк тепла зависят от снимка последних отметок: первая отрисовка
@@ -4212,11 +4212,19 @@ renderWhatsNewPanel();
       renderHeat();
       return;
     }
+    window.__startErr = e.message;
+    bootDataOk = false;
     app.innerHTML = '<div class="status">Сейчас не получилось загрузить данные.<br><small>Проверьте интернет и попробуйте ещё раз — обычно это на пару минут.</small><br><br><button class="cta-btn" style="width:auto;padding:10px 24px" onclick="retryStart()">Попробовать снова</button></div>';
     const t1 = document.getElementById('nowTitle');
     const s1 = document.getElementById('nowSub');
-    if (t1) t1.textContent = 'Нет связи';
+    if (t1) t1.textContent = 'Данные не загрузились';
     if (s1) s1.textContent = 'База данных не ответила: ' + escapeHtml(e.message);
+    const hw = document.getElementById('hfWindow');
+    if (hw) hw.textContent = 'Кнопка «Попробовать снова» — в окне загрузки или в списке АЗС';
+    const hg = document.getElementById('heatGrid');
+    if (hg) hg.innerHTML = '<div class="status" style="margin:4px 0">Тепловая матрица появится, когда данные доедут. Сейчас сеть или база не ответили.</div>';
+    const tt = document.getElementById('tagText');
+    if (tt) tt.textContent = 'Данные города не доехали — цифры появятся после удачной загрузки.';
   }
   // автоопределение местоположения пользователя
   if (navigator.geolocation) {
@@ -4980,6 +4988,10 @@ const BOOT_CHECKS = [
 ];
 const BOOT_TEASERS = ['Уже скоро!', 'Скоро!', 'Ещё немного!', 'Почти готово!'];
 let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTimer = null, bootOver = false, bootImgFail = false, bootT0 = 0;
+// загрузка не должна выглядеть муляжом: оверлей не имеет права показать
+// «всё готово», пока start() реально не привёз данные. bootDataOk — флаг
+// настоящего успеха, bootFailed — оверлей уже показал честную ошибку
+let bootDataOk = true, bootFailed = false;
 function bootStart() {
   const back = document.getElementById('bootBack');
   if (!back) return;
@@ -4995,7 +5007,7 @@ function bootStart() {
     if (bootOver) return;
     if (bootStage < BOOT_STAGES.length - 1) applyBootStage(bootStage + 1);
   }, 1900);
-  setTimeout(bootDone, 25000); // предохранитель: не держим оверлей, если сеть наглухо висит
+  setTimeout(() => { if (!bootOver) bootFail('Сеть или база не ответили за 25 секунд'); }, 25000); // предохранитель: вместо ложного «готово» — честная ошибка с кнопкой
 }
 function applyBootStage(i) {
   bootStage = i;
@@ -5036,8 +5048,16 @@ function bootPaintChecks(done) {
     return '<div class="boot-ci-row' + rowCls + '"><span class="boot-ci ' + cls + '">' + icon('i-check', 'ic-s') + '</span><span><span class="boot-ct">' + c + '</span><span class="boot-cs" style="display:block">' + sub + '</span></span></div>';
   }).join('');
 }
+function hideBoot() {
+  const back = document.getElementById('bootBack');
+  if (!back) return;
+  back.classList.add('off');
+  setTimeout(() => { back.style.display = 'none'; }, 500);
+}
 function bootDone() {
-  if (bootOver) return;
+  // данные доехали ПОСЛЕ показанной ошибки — просто убираем оверлей
+  if (bootOver) { if (bootFailed) hideBoot(); return; }
+  if (!bootDataOk && !offlineMode) { bootFail(window.__startErr); return; }
   bootOver = true;
   if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
@@ -5047,10 +5067,44 @@ function bootDone() {
   if (!back) return;
   const elapsed = Date.now() - bootT0;
   const hold = elapsed < 1200 ? 1200 - elapsed : 450; // мгновенную загрузку не мигаем, даём досмотреть
-  setTimeout(() => {
-    back.classList.add('off');
-    setTimeout(() => { back.style.display = 'none'; }, 500);
-  }, hold);
+  setTimeout(hideBoot, hold);
+}
+// честный финал при ошибке: крест на текущем пункте, причина и кнопка
+// повтора прямо в оверлее — человек не остаётся один на один с пустотой
+function bootFail(msg) {
+  if (bootOver) return;
+  bootOver = true;
+  bootFailed = true;
+  if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
+  if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
+  const t = document.getElementById('bootTitle');
+  if (t) t.textContent = 'Данные не загрузились';
+  const s2 = document.getElementById('bootSub');
+  if (s2) s2.textContent = 'Это не поломка сайта: сеть или база не ответили вовремя. Обычно помогает ещё одна попытка.';
+  const box = document.getElementById('bootCheck');
+  if (box) {
+    const cur = box.querySelector('.boot-ci.cur');
+    if (cur) {
+      cur.classList.remove('cur');
+      cur.classList.add('done');
+      cur.style.background = '#c2403f';
+      cur.style.borderColor = '#c2403f';
+      cur.innerHTML = icon('i-cross', 'ic-s');
+    }
+    const row = cur ? cur.parentNode : null;
+    if (row) {
+      const ct = row.querySelector('.boot-ct');
+      if (ct) ct.textContent = 'Не удалось загрузить данные';
+      const cs = row.querySelector('.boot-cs');
+      if (cs) cs.textContent = msg || 'Проверьте связь и попробуйте ещё раз';
+    }
+    const btn = document.createElement('button');
+    btn.className = 'cta-btn';
+    btn.style.cssText = 'width:100%;margin-top:10px';
+    btn.innerHTML = icon('i-spark', 'ic-s') + 'Попробовать снова';
+    btn.onclick = () => location.reload();
+    box.appendChild(btn);
+  }
 }
 // === мост «водитель ↔ разработчик»: обращения без регистраций ===
 // Окно: связка с ботом (канал ответа), причина, текст до 350 символов
@@ -5164,7 +5218,10 @@ function tickClock() {
   if (el) { const d = new Date(); el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 }
 bootStart();
-start().finally(bootDone);
+start().then(() => {
+  if (bootDataOk || offlineMode) bootDone();
+  else bootFail(window.__startErr || 'Данные пришли пустыми — источник молчит');
+}).catch(() => bootFail(window.__startErr || 'Неизвестная ошибка загрузки'));
 track('pageview');
 loadPulse().catch(e => console.log('pulse: ' + e.message));
 currentPanel = 1;
