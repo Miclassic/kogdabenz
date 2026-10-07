@@ -549,6 +549,7 @@ body { overflow:hidden; }
 .mpin.part { background:#fff2e8; border-color:#f5a05a; color:#c26a2a; }
 .mpin.diesel { background:#e7f0ff; border-color:#6ea8ff; color:#2465ee; }
 .mpin .qdot { position:absolute; top:-5px; right:-5px; width:12px; height:12px; border-radius:50%; background:#f5a05a; border:2px solid #fff; }
+.mpin .qdot.liveq { width:auto; min-width:16px; height:16px; padding:0 4px; border-radius:9px; background:#c26a2a; color:#fff; font-size:9px; font-weight:900; font-style:normal; display:grid; place-items:center; line-height:1; }
 .mzone-ico { width:26px; height:26px; pointer-events:none; }
 .mzone-badge { width:100%; height:100%; border-radius:50%; background:rgba(255,255,255,.85); border:1px solid rgba(226,232,244,.9); box-shadow:0 4px 12px rgba(15,27,51,.12); display:grid; place-items:center; will-change:transform; }
 .mzone-ico .ic { width:14px; height:14px; }
@@ -1231,6 +1232,7 @@ function recentFeedback(stationId) {
     for (const f of g) if (f.feedback_type === 'queue') tiles.push('<span class="fb-fact queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
     for (const f of g) if (f.feedback_type === 'delivery') tiles.push('<span class="fb-fact inf">' + icon('i-truck', 'ic-s') + 'привезли</span>');
     for (const f of g) if (f.feedback_type === 'free') tiles.push('<span class="fb-fact yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
+    for (const f of g) if (f.feedback_type === 'in_queue') tiles.push('<span class="fb-fact queue">' + icon('i-queue', 'ic-s') + 'в очереди сейчас</span>');
     const comment = (g.find(f => f.comment_text) || {}).comment_text || '';
     const hasFuel = g.some(f => f.feedback_type === 'available' || f.feedback_type === 'unavailable');
     const ids = g.map(f => f.id).join(',');
@@ -1481,6 +1483,8 @@ function feedbackPanel(stationId) {
     ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="no" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
     '<div class="fb-group"><div class="fb-gl">Очередь</div><div class="feedback-grid g4">' +
     ['small','medium','large','huge'].map(q => '<button class="feedback-option" data-fact="queue" data-queue="' + q + '" onclick="fbToggle(this)">' + (q === 'small' ? '2–3' : q === 'medium' ? '4–6' : q === 'large' ? '7+' : '100+') + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Живая очередь</div><div class="feedback-grid">' +
+    '<button class="feedback-option" data-fact="inqueue" onclick="fbToggle(this)">' + icon('i-queue','ic-s') + 'Я стою в очереди сейчас</button></div></div>' +
     '<div class="fb-group"><div class="fb-gl">Ещё</div><div class="feedback-grid g3">' +
     '<button class="feedback-option" data-fact="delivery" onclick="fbToggle(this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
     '<button class="feedback-option" data-fact="free" onclick="fbToggle(this)">' + icon('i-check','ic-s') + 'Свободно</button></div></div>' +
@@ -1542,6 +1546,25 @@ function onSiteStrip(stationId) {
   if (!n) return '';
   return '<div class="dg-strip" style="margin-top:6px">' + icon('i-pin', 'ic-s') + '<span>' + n + ' вод. отметили с места (24 ч)</span></div>';
 }
+// === Живая очередь: сколько водителей стоят в очереди ПРЯМО СЕЙЧАС ===
+// Считаем разные device_id с отметкой in_queue за последние 30 минут.
+// Это опережающий сигнал: человек физически в очереди, а не «видел проезжая».
+const LIVE_QUEUE_MIN = 30;
+function liveQueueCount(stationId) {
+  const since = Date.now() - LIVE_QUEUE_MIN * 60 * 1000;
+  const devs = new Set();
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || f.feedback_type !== 'in_queue') continue;
+    if (new Date(f.created_at).getTime() < since) continue;
+    devs.add(f.device_id || '?');
+  }
+  return devs.size;
+}
+function liveQueueStrip(stationId) {
+  const n = liveQueueCount(stationId);
+  if (!n) return '';
+  return '<div class="dg-strip" style="margin-top:6px">' + icon('i-queue', 'ic-s') + '<span>' + n + ' вод. стоят в очереди прямо сейчас</span></div>';
+}
 function fbToggle(btn) {
   const fact = btn.dataset.fact;
   const panel = btn.closest('.feedback-panel');
@@ -1566,6 +1589,7 @@ async function fbSend(stationId) {
     else if (fact === 'queue') Object.assign(base, { feedback_type: 'queue', queue_size: b.dataset.queue });
     else if (fact === 'delivery') Object.assign(base, { feedback_type: 'delivery' });
     else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
+    else if (fact === 'inqueue') Object.assign(base, { feedback_type: 'in_queue' });
     rows.push(base);
   });
   if (!rows.length) { alert('Выберите хотя бы один факт.'); return; }
@@ -1662,6 +1686,7 @@ function stationCard(station, obs, pred) {
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
     queueStrip(station.id, obs) +
+    liveQueueStrip(station.id) +
     queueForecastStrip(station.id) +
     onSiteStrip(station.id) +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
@@ -2368,6 +2393,7 @@ function buildFeed() {
     else if (f.feedback_type === 'unavailable') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_no', t: t });
     else if (f.feedback_type === 'delivery') items.push({ st: f.station_id, fuel: null, kind: 'delivery', t: t });
     else if (f.feedback_type === 'queue') items.push({ st: f.station_id, fuel: null, kind: 'queue', q: f.queue_size, t: t });
+    else if (f.feedback_type === 'in_queue') items.push({ st: f.station_id, fuel: null, kind: 'queue_live', t: t });
   }
   items.sort((a, b) => b.t - a.t);
   return items.slice(0, 12);
@@ -2378,6 +2404,7 @@ function feedCaption(it) {
   if (it.kind === 'folk_yes') return 'Народ: топливо есть';
   if (it.kind === 'folk_no') return 'Народ: топлива нет';
   if (it.kind === 'delivery') return 'Народ: привезли';
+  if (it.kind === 'queue_live') return 'Народ: стоит в очереди сейчас';
   return 'Народ: очередь';
 }
 function feedLine(it) {
@@ -2386,6 +2413,7 @@ function feedLine(it) {
   const street = st && st.address ? st.address : '—';
   let what;
   if (it.kind === 'queue') what = 'очередь ' + (QUEUE_SHORT[it.q] || '');
+  else if (it.kind === 'queue_live') what = 'стоит в очереди сейчас';
   else if (it.kind === 'delivery') what = 'привезли';
   else what = fuelLabel(it.fuel) + (it.kind === 'restored' ? ' вернулось' : it.kind === 'gone' ? ' пропало' : it.kind === 'folk_yes' ? ' есть' : ' нет');
   const d = new Date(it.t);
@@ -2395,7 +2423,7 @@ function feedLine(it) {
 function feedIcon(it) {
   if (it.kind === 'restored' || it.kind === 'folk_yes') return ['i-check', '#15976d'];
   if (it.kind === 'gone' || it.kind === 'folk_no') return ['i-cross', '#d64d51'];
-  if (it.kind === 'queue') return ['i-queue', '#c26a2a'];
+  if (it.kind === 'queue' || it.kind === 'queue_live') return ['i-queue', '#c26a2a'];
   return ['i-truck', '#2465ee'];
 }
 function applyFeedSlide(i, animate) {
@@ -3654,6 +3682,8 @@ function quickChipsHtml() {
     ['92','95','diesel'].map(f => '<button class="feedback-option" data-fact="no" data-fuel="' + f + '" onclick="fbToggle(this)">' + fuelLabel(f) + '</button>').join('') + '</div></div>' +
     '<div class="fb-group"><div class="fb-gl">Очередь</div><div class="feedback-grid g4">' +
     ['small','medium','large','huge'].map(q => '<button class="feedback-option" data-fact="queue" data-queue="' + q + '" onclick="fbToggle(this)">' + (q === 'small' ? '2–3' : q === 'medium' ? '4–6' : q === 'large' ? '7+' : '100+') + '</button>').join('') + '</div></div>' +
+    '<div class="fb-group"><div class="fb-gl">Живая очередь</div><div class="feedback-grid">' +
+    '<button class="feedback-option" data-fact="inqueue" onclick="fbToggle(this)">' + icon('i-queue','ic-s') + 'Я стою в очереди сейчас</button></div></div>' +
     '<div class="fb-group"><div class="fb-gl">Ещё</div><div class="feedback-grid g3">' +
     '<button class="feedback-option" data-fact="delivery" onclick="fbToggle(this)">' + icon('i-truck','ic-s') + 'Привезли</button>' +
     '<button class="feedback-option" data-fact="free" onclick="fbToggle(this)">' + icon('i-check','ic-s') + 'Свободно</button></div></div>';
@@ -3690,6 +3720,7 @@ async function quickSend(stationId) {
     else if (fact === 'queue') Object.assign(base, { feedback_type: 'queue', queue_size: b.dataset.queue });
     else if (fact === 'delivery') Object.assign(base, { feedback_type: 'delivery' });
     else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
+    else if (fact === 'inqueue') Object.assign(base, { feedback_type: 'in_queue' });
     rows.push(base);
   });
   if (!rows.length) { alert('Выберите хотя бы один факт.'); if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = sendBtnOrigText; } return; }
@@ -3765,7 +3796,8 @@ function addPin(it, fromCenter, zoomChanged, chipsBlocked) {
     pinStyle = 'background:linear-gradient(to top right,' + stops + ');border-color:#fff;color:#fff;';
   }
   const pinIco = stKey === 'conflict' ? '<span class="qmark">?</span>' : '<svg class="ic"><use href="#i-pump"/></svg>';
-  wrap.innerHTML = '<div class="mpin ' + stKey + '" style="' + pinStyle + '">' + pinIco + (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '') + '</div>';
+  const lqBadge = liveQueueCount(st.id);
+  wrap.innerHTML = '<div class="mpin ' + stKey + '" style="' + pinStyle + '">' + pinIco + (lqBadge ? '<i class="qdot liveq">' + lqBadge + '</i>' : (o && o.queue_level === 'high' ? '<i class="qdot"></i>' : '')) + '</div>';
   // табличка над пином: название жирным с иконкой бренда слева, улица обычным
   const nameEl = document.createElement('div');
   nameEl.className = 'mpin-name';
@@ -3813,6 +3845,9 @@ function addPin(it, fromCenter, zoomChanged, chipsBlocked) {
       const lbl = sc >= 50 ? 'очередь огромная' : sc >= 30 ? 'очередь терпимая' : 'очередь малая';
       avail.push({ t: lbl + (ageS ? ' · ' + ageS : '') + cars, q: sc >= 50 ? 3 : sc >= 30 ? 2 : 1 });
     }
+    // живая очередь: люди стоят ПРЯМО СЕЙЧАС — самый свежий сигнал
+    const lq = liveQueueCount(st.id);
+    if (lq) avail.push({ t: lq + ' вод. в очереди сейчас', q: 3 });
     // ни источника, ни народа по топливу — честно подписываем молчание
     if (!fuelInfo) avail.push({ t: 'топливо: источник молчит', q: -1 });
     if (avail.length) {

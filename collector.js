@@ -477,6 +477,7 @@ const unprocessed = await sbGetAll(
         f.feedback_type === 'available' ? 'fuel_available' :
         f.feedback_type === 'unavailable' ? 'fuel_unavailable' :
         f.feedback_type === 'queue' ? 'queue_high' :
+        f.feedback_type === 'in_queue' ? 'queue_high' :
         'queue_low',
       fuel_type: f.fuel_type === 'all' ? null : (f.fuel_type || null),
       detected_at: f.created_at,
