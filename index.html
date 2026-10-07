@@ -823,7 +823,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <div class="chip3 tap why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3 tap why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
-      <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wave')"></div>
+      <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wavePlate')"></div>
       <div class="mini-map-wrap" onclick="miniMapGo()">
         <div id="miniMapBox" class="mini-map-box"><div class="status">Мини-карта загрузится вместе с данными</div></div>
         <div class="mini-map-cap"><svg class="ic"><use href="#i-pin"/></svg>мини-карта · тап — полная карта</div>
@@ -1709,24 +1709,28 @@ function waveSummaryLine(stats) {
 }
 function waveFactExtra() {
   if (!lastWaveStats) return 'Данных о волне пока нет.';
-  return Object.values(lastWaveStats).map(a =>
-    a.name + ': исчезновений ' + a.d24 + ' (норма ' + (Math.round(a.dBase * 10) / 10) + '/сут), возвратов ' + a.r24
+  const r1 = v => Math.round(v * 10) / 10;
+  const loud = Object.values(lastWaveStats).filter(a => a.level !== 'calm');
+  if (!loud.length) return 'Все города спокойные: исчезновения и возвраты в пределах нормы.';
+  return loud.map(a =>
+    a.name + (a.key === userCityKey ? ' (твой город)' : '') + ': исчезновений ' + a.d24 + ' (норма ' + r1(a.dBase) + '/сут) — ' +
+    (a.level === 'wave' ? 'волна' : a.level === 'tense' ? 'напряжённо' : 'возвращают топливо')
   ).join('; ');
 }
 function renderWave() {
   const strip = document.getElementById('waveStrip');
   if (!strip) return;
   if (!lastWaveStats) { strip.style.display = 'none'; return; }
+  // волна в своём городе и так видна на тепловой матрице — не дублируем её
+  // полоской и не перегружаем главную панель. Полоска вспыхивает только
+  // когда волна у соседей, а твой город ещё спокоен: вот тогда это сигнал.
   const my = lastWaveStats[userCityKey];
   const others = Object.values(lastWaveStats).filter(a => a.key !== userCityKey && a.level === 'wave');
   const r1 = v => Math.round(v * 10) / 10;
-  if (my && my.level === 'wave') {
-    strip.style.display = '';
-    strip.innerHTML = icon('i-spark', 'ic-s') + '<span>Волна в твоём городе: исчезновений АИ-95 ' + my.d24 + ' за 24 ч (обычно ~' + r1(my.dBase) + ' в сутки). Топливо может пропадать внезапно — следи за обновлениями.</span>';
-  } else if (others.length) {
+  if (others.length && (!my || my.level !== 'wave')) {
     const a = others[0];
     strip.style.display = '';
-    strip.innerHTML = icon('i-spark', 'ic-s') + '<span>Волна рядом: ' + a.name + ' — исчезновений АИ-95 ' + a.d24 + ' за 24 ч (обычно ~' + r1(a.dBase) + ' в сутки). Смотрим, дойдёт ли до ' + userCityName() + '.</span>';
+    strip.innerHTML = icon('i-spark', 'ic-s') + '<span>Волна рядом: ' + a.name + ' — исчезновений ' + a.d24 + ' за 24 ч (норма ~' + r1(a.dBase) + ')</span>';
   } else strip.style.display = 'none';
 }
 function fbToggle(btn) {
@@ -2810,7 +2814,6 @@ const WHY_MAP = {
   accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } },
   qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории, не гарантия.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null },
   impact: { t: 'Как считаем «подтвердили»', x: 'Берём вашу отметку и смотрим: в пределах часа от неё кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС. Каждый такой водитель — подтверждение, что отметка попала в реальность. Выдуманные «просмотры» не показываем.', e: null },
-  wave: { t: 'Волна в соседнем городе', x: 'За последние 24 ч в этом городе АИ-95 исчезал аномально часто против обычной нормы за сутки (среднее за предыдущие 6 суток). Это факт о соседе, а не прогноз для твоего города. Долетают ли волны до нас и за сколько дней — измеряем: журнал событий хранит историю каждой волны.', e: () => waveFactExtra() },
   wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() }
 };
 let whyOpenKey = null;
