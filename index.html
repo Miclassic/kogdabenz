@@ -580,6 +580,14 @@ body { overflow:hidden; }
 .mquick .fb-send { margin-top:6px; padding:9px 12px; font-size:11px; }
 .q-thanks { padding:16px 10px; text-align:center; font-size:12px; font-weight:850; color:#13845e; }
 .q-thanks small { display:block; margin-top:4px; font-size:9px; font-weight:700; color:#7485a0; }
+/* тень заправки: неблокирующая карточка снизу, когда водитель стоит на АЗС */
+.shadow-card { position:fixed; left:12px; right:12px; bottom:calc(56px + env(safe-area-inset-bottom)); z-index:35; display:none; padding:10px; border-radius:18px; background:rgba(255,255,255,.97); border:1px solid #e3ecf5; box-shadow:0 14px 34px rgba(15,27,51,.22); }
+.shadow-card.open { display:block; animation:mPopQuick .25s ease; }
+.shadow-head { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.shadow-head > .ic { color:#2465ee; flex:0 0 auto; }
+.shadow-head b { font-size:12px; font-weight:900; letter-spacing:-.2px; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.shadow-head button { border:0; background:#eef2f9; color:#5b6b86; width:26px; height:26px; border-radius:9px; display:grid; place-items:center; cursor:pointer; flex:0 0 auto; }
+.shadow-card .feedback-panel { margin-top:0; }
 @keyframes mPopQuick { from { transform:translate(-50%,-50%) scale(.7); opacity:0; } to { transform:translate(-50%,-50%) scale(1); opacity:1; } }
 .fchip { padding:2px 7px; border-radius:9px; background:rgba(255,255,255,.92); border:1px solid rgba(139,216,186,.7); color:#12855c; font-size:8.5px; font-weight:800; box-shadow:0 4px 12px rgba(15,27,51,.14); white-space:nowrap; animation:chipFloat 2.2s ease both; animation-iteration-count:2; }
 .fchip-q { background:rgba(255,242,232,.95); border-color:rgba(245,160,90,.8); color:#c26a2a; }
@@ -815,6 +823,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         <div class="chip3 tap why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
         <div class="chip3 tap why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
       </div>
+      <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wave')"></div>
       <div class="mini-map-wrap" onclick="miniMapGo()">
         <div id="miniMapBox" class="mini-map-box"><div class="status">Мини-карта загрузится вместе с данными</div></div>
         <div class="mini-map-cap"><svg class="ic"><use href="#i-pin"/></svg>мини-карта · тап — полная карта</div>
@@ -956,6 +965,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="poll-pop" id="pollPop"></div>
   <div class="hello-back" id="mailBack" onclick="closeMailPop()"></div>
   <div class="hello-pop mail-pop" id="mailPop"></div>
+  <div class="shadow-card" id="shadowCard"></div>
 </div>
 <script>
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
@@ -1020,6 +1030,8 @@ document.addEventListener('visibilitychange', () => {
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let allQueueEvents = [];
 let allEvents7 = [];
+let allWaveEvents = [];
+let lastWaveStats = null;
 let allLastPrice = {}, priceHourly = [];
 let queueEpisodes = [];
 async function dbQueryOnce(path) {
@@ -1564,6 +1576,158 @@ function liveQueueStrip(stationId) {
   const n = liveQueueCount(stationId);
   if (!n) return '';
   return '<div class="dg-strip" style="margin-top:6px">' + icon('i-queue', 'ic-s') + '<span>' + n + ' вод. стоят в очереди прямо сейчас</span></div>';
+}
+// === Тень заправки: пассивное обнаружение визита ===
+// Пока сайт открыт, раз в 60 сек тихо сверяем геолокацию. Водитель в радиусе
+// АЗС и НЕ движется 3+ минуты (стоит, а не проезжает) — мягко предлагаем
+// отметить топливо: отметка «с места» самый ценный сигнал для города.
+// Проезд мимо отсеивается стоянием: мимо АЗС машина проходит за 1 чек,
+// нам нужно 3-4 чека подряд в радиусе. Координаты никуда не шлются.
+const SHADOW_RADIUS_M = 120;
+const SHADOW_DWELL_MIN = 3;
+const SHADOW_CHECK_MS = 60000;
+const SHADOW_MOVE_M = 40;
+let shadowState = null; // { stId, since, lat, lon }
+let shadowAskedKey = null;
+function shadowAskedToday(stId) {
+  try {
+    const v = localStorage.getItem('kbShadowAsk_' + stId);
+    if (!v) return false;
+    return new Date(Number(v)).toDateString() === new Date().toDateString();
+  } catch (e) { return false; }
+}
+function shadowMarkAsked(stId) {
+  try { localStorage.setItem('kbShadowAsk_' + stId, String(Date.now())); } catch (e) {}
+}
+function shadowNearestStation(lat, lon) {
+  let best = null, bestD = SHADOW_RADIUS_M;
+  for (const s of allStations) {
+    if (!Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lon))) continue;
+    const d = distMeters(lat, lon, Number(s.lat), Number(s.lon));
+    if (d <= bestD) { bestD = d; best = s; }
+  }
+  return best;
+}
+function shadowTick() {
+  if (document.hidden || offlineMode || !allStations.length) return;
+  if (!navigator.geolocation) return;
+  if (manualMode || manualLoc()) return; // точка под глушилками ручная — тени не верим
+  if (activeQuick || activeRing) return; // человек уже отмечает на карте — не мешаем
+  const busy = ['helloBack','installBack','pollBack','sheetBack','wnBack','mailBack','lifeBack'].some(id => {
+    const el = document.getElementById(id);
+    return el && el.classList.contains('open');
+  });
+  if (busy) return;
+  navigator.geolocation.getCurrentPosition(p => {
+    if (!p || !p.coords || p.coords.accuracy > 100) return;
+    const lat = p.coords.latitude, lon = p.coords.longitude;
+    const st = shadowNearestStation(lat, lon);
+    const card = document.getElementById('shadowCard');
+    if (!st) { shadowState = null; if (card && card.classList.contains('open')) shadowClose(); return; }
+    const now = Date.now();
+    if (!shadowState || shadowState.stId !== st.id) { shadowState = { stId: st.id, since: now, lat: lat, lon: lon }; return; }
+    if (distMeters(lat, lon, shadowState.lat, shadowState.lon) > SHADOW_MOVE_M) { shadowState.lat = lat; shadowState.lon = lon; return; }
+    const dwell = (now - shadowState.since) / 60000;
+    if (dwell >= SHADOW_DWELL_MIN && !shadowAskedToday(st.id) && !card.classList.contains('open')) shadowOpen(st);
+  }, () => {}, { timeout: 8000, maximumAge: 30000 });
+}
+function shadowOpen(st) {
+  const card = document.getElementById('shadowCard');
+  if (!card) return;
+  shadowAskedKey = st.id;
+  card.innerHTML = '<div class="shadow-head">' + icon('i-pin') + '<b>Вы на АЗС «' + escapeHtml(st.name || 'АЗС') + '»</b>' +
+    '<button onclick="shadowDismiss()" aria-label="Не сейчас">' + icon('i-close', 'ic-s') + '</button></div>' +
+    '<div class="feedback-panel open" id="quick-' + st.id + '">' + quickChipsHtml() +
+    '<button class="fb-send" onclick="shadowSend(\'' + st.id + '\')">Отправить отметку</button></div>';
+  card.classList.add('open');
+}
+function shadowClose() {
+  const card = document.getElementById('shadowCard');
+  if (card) { card.classList.remove('open'); card.innerHTML = ''; }
+}
+function shadowDismiss() {
+  if (shadowAskedKey) shadowMarkAsked(shadowAskedKey);
+  shadowAskedKey = null;
+  shadowClose();
+}
+async function shadowSend(stationId) {
+  // отметка идёт тем же путём, что быстрая: проверка «с места» и офлайн-очередь
+  await quickSend(stationId);
+  shadowMarkAsked(stationId);
+  shadowAskedKey = null;
+  setTimeout(shadowClose, 1400); // даём «спасибо» мелькнуть внутри карточки
+}
+setInterval(shadowTick, SHADOW_CHECK_MS);
+// === Волна из соседних городов: факт, а не прогноз ===
+// По каждому городу: исчезновения и возвраты АИ-95 за 24 ч против обычной
+// нормы за сутки (среднее за предыдущие 6 суток) — из журнала events.
+// Модели и обещаний нет: показываем факт о соседях; долетают ли волны до
+// нас и с каким лагом — измеряем (история событий уже копится в базе).
+function cityWaveStats() {
+  const now = Date.now();
+  const H24 = 24 * 3600 * 1000;
+  const stCity = {};
+  for (const s of allStations) {
+    let k = null;
+    for (const c of CITY_BOXES) {
+      if (s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2) { k = c.key; break; }
+    }
+    stCity[s.id] = k;
+  }
+  const acc = {};
+  for (const c of CITY_BOXES) acc[c.key] = { key: c.key, name: c.name, d24: 0, r24: 0, dPrev: 0, rPrev: 0 };
+  for (const e of allWaveEvents) {
+    const k = stCity[e.station_id];
+    if (!k) continue;
+    const age = now - new Date(e.detected_at).getTime();
+    if (age < 0 || age > 7 * H24) continue;
+    const dis = e.event_type === 'fuel_disappeared';
+    if (!dis && e.event_type !== 'fuel_restored') continue;
+    if (age <= H24) { if (dis) acc[k].d24++; else acc[k].r24++; }
+    else { if (dis) acc[k].dPrev++; else acc[k].rPrev++; }
+  }
+  for (const k of Object.keys(acc)) {
+    const a = acc[k];
+    a.dBase = a.dPrev / 6;
+    a.rBase = a.rPrev / 6;
+    const base = Math.max(0.5, a.dBase);
+    a.level = (a.d24 >= 4 && a.d24 >= 3 * base) ? 'wave'
+      : (a.d24 >= 3 && a.d24 >= 2 * base) ? 'tense' : 'calm';
+    if (a.level === 'calm' && a.r24 >= 4 && a.r24 >= 3 * Math.max(0.5, a.rBase)) a.level = 'returns';
+  }
+  return acc;
+}
+function waveSummaryLine(stats) {
+  const list = Object.values(stats);
+  const wave = list.filter(a => a.level === 'wave');
+  if (wave.length) return wave.map(a => a.name + ' — волна').join(', ');
+  const tense = list.filter(a => a.level === 'tense');
+  if (tense.length) return tense.map(a => a.name + ' — напряжённо').join(', ');
+  const ret = list.filter(a => a.level === 'returns');
+  if (ret.length) return ret.map(a => a.name + ' — возвращают топливо').join(', ');
+  return 'спокойно';
+}
+function waveFactExtra() {
+  if (!lastWaveStats) return 'Данных о волне пока нет.';
+  return Object.values(lastWaveStats).map(a =>
+    a.name + ': исчезновений ' + a.d24 + ' (норма ' + (Math.round(a.dBase * 10) / 10) + '/сут), возвратов ' + a.r24
+  ).join('; ');
+}
+function renderWave() {
+  const strip = document.getElementById('waveStrip');
+  if (!strip) return;
+  if (!lastWaveStats) { strip.style.display = 'none'; return; }
+  const my = lastWaveStats[userCityKey];
+  const others = Object.values(lastWaveStats).filter(a => a.key !== userCityKey && a.level === 'wave');
+  const r1 = v => Math.round(v * 10) / 10;
+  if (my && my.level === 'wave') {
+    strip.style.display = '';
+    strip.innerHTML = icon('i-spark', 'ic-s') + '<span>Волна в твоём городе: исчезновений АИ-95 ' + my.d24 + ' за 24 ч (обычно ~' + r1(my.dBase) + ' в сутки). Топливо может пропадать внезапно — следи за обновлениями.</span>';
+  } else if (others.length) {
+    const a = others[0];
+    strip.style.display = '';
+    strip.innerHTML = icon('i-spark', 'ic-s') + '<span>Волна рядом: ' + a.name + ' — исчезновений АИ-95 ' + a.d24 + ' за 24 ч (обычно ~' + r1(a.dBase) + ' в сутки). Смотрим, дойдёт ли до ' + userCityName() + '.</span>';
+  } else strip.style.display = 'none';
 }
 function fbToggle(btn) {
   const fact = btn.dataset.fact;
@@ -2645,7 +2809,9 @@ const WHY_MAP = {
   accErr: { t: 'Что значит «обычно»', x: 'Все ошибки прогнозов выстраиваем от меньшей к большей и берём серединную: половина прогнозов точнее неё, половина — нет. Это честная типичная ошибка по времени.', e: () => { const m = allPredictions.filter(p => p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined).map(p => Math.abs(p.error_minutes)).sort((a, b) => a - b); if (!m.length) return 'Измерений пока нет.'; const q = (a, p) => a[Math.min(a.length - 1, Math.floor(p * (a.length - 1)))]; return 'Половина прогнозов ошибается меньше чем на ' + fmtErrMin(q(m, 0.5)) + ', худшие 10% — больше чем на ' + fmtErrMin(q(m, 0.9)) + '.'; } },
   accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } },
   qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории, не гарантия.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null },
-  impact: { t: 'Как считаем «подтвердили»', x: 'Берём вашу отметку и смотрим: в пределах часа от неё кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС. Каждый такой водитель — подтверждение, что отметка попала в реальность. Выдуманные «просмотры» не показываем.', e: null }
+  impact: { t: 'Как считаем «подтвердили»', x: 'Берём вашу отметку и смотрим: в пределах часа от неё кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС. Каждый такой водитель — подтверждение, что отметка попала в реальность. Выдуманные «просмотры» не показываем.', e: null },
+  wave: { t: 'Волна в соседнем городе', x: 'За последние 24 ч в этом городе АИ-95 исчезал аномально часто против обычной нормы за сутки (среднее за предыдущие 6 суток). Это факт о соседе, а не прогноз для твоего города. Долетают ли волны до нас и за сколько дней — измеряем: журнал событий хранит историю каждой волны.', e: () => waveFactExtra() },
+  wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() }
 };
 let whyOpenKey = null;
 function closeWhy() {
@@ -3691,6 +3857,7 @@ function quickChipsHtml() {
 function openQuick(st, wrap) {
   closeQuick();
   closeRing();
+  shadowClose();
   const el = document.createElement('div');
   el.className = 'mquick';
   el.innerHTML = '<div class="feedback-panel open" id="quick-' + st.id + '">' + quickChipsHtml() +
@@ -3912,7 +4079,8 @@ function updateMapPlate() {
     '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'plate95\')"><i class="dot ' + (known && avail / known >= 0.5 ? 'green' : 'red') + '"></i>АИ-95: ' + (known ? avail + '/' + known : 'нет данных') + '</span>' +
     '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'plateQ\')"><i class="dot ' + (qn ? 'red' : 'green') + '"></i>очереди: ' + qn + '</span>' +
     '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'platePeak\')">' + icon('i-chart', 'ic-s') + 'пик ' + pc.peak + '</span>' +
-    '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + citySet.size + ' АЗС' + covSpark() + '</span>';
+    '<span class="gp gp-btn" id="covChip" onclick="toggleCovPop()">' + icon('i-pump', 'ic-s') + 'топливо видно: ' + knownAny + ' из ' + citySet.size + ' АЗС' + covSpark() + '</span>' +
+    '<span class="gp gp-btn why-tap" onclick="openWhyChip(this,\'wavePlate\')">' + icon('i-chart', 'ic-s') + 'соседи: ' + (lastWaveStats ? waveSummaryLine(lastWaveStats) : 'нет данных') + '</span>';
 }
 // мини-график покрытия за 24 ч: сколько станций источник видел в каждый час
 function covSpark() {
@@ -3979,7 +4147,7 @@ async function start() {
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, verifiedThin, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll, events7] = await Promise.all([
+    const [observations, counts, predictions, verifiedThin, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll, events7, waveEv] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status'),
       dbQuery('/rest/v1/station_counts?select=station_id,total').catch(() => []),
       dbQueryAll('/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*'),
@@ -3993,7 +4161,8 @@ async function start() {
       dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => []),
       dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => []),
       dbQueryAll('/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at').catch(() => []),
-      dbQuery('/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000').catch(() => [])
+      dbQuery('/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000').catch(() => []),
+      dbQuery('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at&limit=5000').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
     queueById = {};
@@ -4007,6 +4176,7 @@ async function start() {
     queueEpisodes = queueEps || [];
     allQueueEvents = queueEvAll || [];
     allEvents7 = events7 || [];
+    allWaveEvents = waveEv || [];
     flushFeedbackQueue();
     flushPollQueue();
     flushReportQueue();
@@ -4352,7 +4522,10 @@ async function loadPulse() {
     pulseEv = events.map(e => ({ t: new Date(e.detected_at), type: e.event_type }));
   } catch (e) { console.log('pulse main: ' + e.message); }
   dbQuery('/rest/v1/region_fuel_hourly?select=city,hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&city=eq.' + cityFilter + '&hour=gte.' + since72 + '&order=hour.asc&limit=96')
-    .then(f => { fuelHourly = f; renderHeat(); renderHero(); setTagline(currentPanel); updateMapPlate(); saveCache(); })
+    .then(f => { fuelHourly = f; renderHeat(); lastWaveStats = allWaveEvents.length ? cityWaveStats() : null;
+    renderWave();
+    updateMapPlate();
+    renderHero(); setTagline(currentPanel); saveCache(); })
     .catch(() => { if (!offlineMode) fuelHourly = []; renderHeat(); renderHero(); });
   // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
   setTimeout(() => { renderNow(); }, 400);
@@ -4377,6 +4550,7 @@ function helpHtml() {
     '<div class="help-item"><div class="help-q">Как я могу помочь?</div><div class="help-a">Нажмите на каплю на карте и выберите «Отметка»: пара нажатий — и ваша отметка о топливе или очереди улучшит подсказки для всего города.</div></div>' +
     '<div class="help-item"><div class="help-q">Как получать уведомления по любимым АЗС?</div><div class="help-a">Нажмите сердечко в карточке АЗС — станция попадёт в избранное. Затем нажмите полоску «Подключить Телеграм», откроется бот — нажмите «Старт». После этого бот будет лично вам писать, когда на избранных заправках вернулось или кончилось топливо, либо появилась очередь (в пределах 10 минут от события).</div></div>' +
     '<div class="help-item"><div class="help-q">Как написать разработчику?</div><div class="help-a">Кнопка «Написать нам / сообщить об ошибке» на главной панели: выберите причину (идея, жалоба, ошибка, реклама), напишите до 350 символов и отправьте. Сообщение придёт разработчику анонимно как «Водитель #N», а Ответ вернётся вам в Телеграм через бота — поэтому окно сначала предложит привязаться к боту. Ответить разработчику можно прямо в чате бота: кнопкой «Ответить разработчику» под его сообщением или обычным сообщением — продолжение диалога придёт ему карточкой «Диалог».</div></div>' +
+    '<div class="help-item"><div class="help-q">Что такое «волна в соседнем городе»?</div><div class="help-a">Если в соседнем городе топливо стали терять в 3–4 раза чаще обычного, на плашке карты и полоске главной панели мы показываем «волна» с названием города. Это факт за последние 24 часа, а не прогноз: дефицит иногда ходит между городами волнами, и мы пока измеряем, как часто они доходят до нас.</div></div>' +
     '<button class="cta-btn" style="width:100%;margin-top:10px" onclick="openMailPop()">' + icon('i-mail') + 'Написать нам / сообщить об ошибке</button>';
 }
 function openHelp() {
