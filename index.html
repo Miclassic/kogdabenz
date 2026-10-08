@@ -1883,7 +1883,7 @@ function stationCard(station, obs, pred) {
     '<div class="forecast-right"><div class="graph-title">История АИ-95</div>' +
     '<div class="chart">' + graph + (pred && isSoon(pred) ? '<div class="soon-badge">' + icon('i-truck','ic-s') + 'Скоро</div>' : '') + '</div>' +
     '<div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div></div></section>' +
-    '<div class="info-row"><div class="info tap why-tap" data-fact="' + hc + ' снимков источника за 30 дней." onclick="openWhyChip(this,\'based\')"><div class="info-label">На основе</div><div class="info-value">' + (hc ? hc + ' наблюдений' : 'нет наблюдений') + '</div></div>' +
+    '<div class="info-row"><div class="info tap why-tap" data-fact="' + (hc >= 10 ? hc + ' снимков источника за 30 дней.' : 'Мало данных для надёжного прогноза.') + '" onclick="openWhyChip(this,\'based\')"><div class="info-label">На основе</div><div class="info-value">' + (hc >= 10 ? hc + ' наблюдений' : 'мало данных') + '</div></div>' +
     '<div class="info tap why-tap" data-fact="' + lastRestoration(station.id) + '" onclick="openWhyChip(this,\'restore\')"><div class="info-label">Пополнение</div><div class="info-value">' + lastRestorationShort(station.id) + '</div></div>' +
     '<div class="info tap why-tap" data-fact="' + accuracyLabel(station.id) + ' по этой АЗС." onclick="openWhyChip(this,\'acc\')"><div class="info-label">Точность</div><div class="info-value">' + accuracyLabel(station.id) + '</div></div></div>' +
     '<section class="feedback"><div class="feedback-header"><div class="feedback-icon">＋</div><div>' +
