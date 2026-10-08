@@ -1651,6 +1651,7 @@ function shadowOpen(st) {
   const card = document.getElementById('shadowCard');
   if (!card) return;
   shadowAskedKey = st.id;
+  confirmAdviceOutcome(st.id);
   card.innerHTML = '<div class="shadow-head">' + icon('i-pin') + '<b>Вы на АЗС «' + escapeHtml(st.name || 'АЗС') + '»</b>' +
     '<button onclick="shadowDismiss()" aria-label="Не сейчас">' + icon('i-close', 'ic-s') + '</button></div>' +
     '<div class="feedback-panel open" id="quick-' + st.id + '">' + quickChipsHtml() +
@@ -1939,6 +1940,7 @@ function openSheet(id) {
   const st = allStations.find(s => s.id === id);
   if (!st) return;
   track('open_station_card', null, id);
+  learnFromAction(id, 'card_open');
   const obs = getLastObservations()[id];
   document.getElementById('sheetBody').innerHTML = stationCard(st, obs, pickPrediction(id, obs));
   document.getElementById('sheet').classList.add('open');
@@ -2175,6 +2177,7 @@ async function drawRouteTo(st) {
   // доказанно работает (лужи рисуются), в отличие от отдельного geojson-источника
   routeFeature = { type: 'Feature', properties: { color: '#2465ee', kind: 'route' }, geometry: rt.geometry };
 track('route_built', null, st.id);
+learnFromAction(st.id, 'route_built');
 renderMap();
 routeCanvasEl();
   drawRouteCanvas();
@@ -2972,6 +2975,123 @@ function setTagline(i) {
   setTimeout(() => { tx.textContent = sTxt; tx.classList.remove('swap'); }, 130);
 }
 let lastRendered = [];
+// === МОЙ КОГДАБЕНЗ: тихое обучение на поведении водителя ===
+// Все данные живут ТОЛЬКО на устройстве (localStorage).
+// В базу ничего не отправляем: приватно и законно (152-ФЗ).
+const KB_TRIPS_KEY = 'kbDriverTrips';
+const KB_PREFS_KEY = 'kbDriverPrefs';
+const MIN_TRIPS_FOR_ADVICE = 5; // минимум поездок для персонального совета
+
+function getDriverTrips() {
+  try { return JSON.parse(localStorage.getItem(KB_TRIPS_KEY) || '[]'); } catch (e) { return []; }
+}
+function saveDriverTrip(trip) {
+  try {
+    const trips = getDriverTrips();
+    trips.push(trip);
+    if (trips.length > 50) trips.splice(0, trips.length - 50); // максимум 50
+    localStorage.setItem(KB_TRIPS_KEY, JSON.stringify(trips));
+  } catch (e) {}
+}
+function getDriverPrefs() {
+  try { return JSON.parse(localStorage.getItem(KB_PREFS_KEY) || '{}'); } catch (e) { return {}; }
+}
+function learnFromAction(stationId, action) {
+  // action: 'advice_click' | 'route_built' | 'card_open' | 'visited'
+  const st = stationById(stationId);
+  if (!st) return;
+  const now = new Date();
+  const prefs = getDriverPrefs();
+  const brand = brandKey(st);
+  if (brand) {
+    prefs.brandCounts = prefs.brandCounts || {};
+    prefs.brandCounts[brand] = (prefs.brandCounts[brand] || 0) + 1;
+  }
+  const h = now.getHours();
+  prefs.hourCounts = prefs.hourCounts || {};
+  prefs.hourCounts[h] = (prefs.hourCounts[h] || 0) + 1;
+  const d = now.getDay();
+  prefs.dowCounts = prefs.dowCounts || {};
+  prefs.dowCounts[d] = (prefs.dowCounts[d] || 0) + 1;
+  prefs.lastAction = action;
+  prefs.lastStationId = stationId;
+  try { localStorage.setItem(KB_PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
+  if (action === 'route_built' || action === 'advice_click') {
+    saveDriverTrip({ t: Date.now(), h: h, dow: d, stationId: stationId, brand: brand, action: action });
+  }
+}
+// Замыкание контура: тень заправки подтверждает, доехал ли водитель
+function confirmAdviceOutcome(stationId) {
+  const trips = getDriverTrips();
+  const recent = trips.filter(t => Date.now() - t.t < 3 * 3600 * 1000);
+  if (!recent.length) return;
+  const lastTrip = recent[recent.length - 1];
+  const prefs = getDriverPrefs();
+  prefs.outcomes = prefs.outcomes || [];
+  prefs.outcomes.push({
+    advisedStation: lastTrip.stationId,
+    visitedStation: stationId,
+    match: lastTrip.stationId === stationId,
+    t: Date.now()
+  });
+  if (prefs.outcomes.length > 30) prefs.outcomes.splice(0, prefs.outcomes.length - 30);
+  try { localStorage.setItem(KB_PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
+}
+// Персональная функция полезности: чем выше — тем лучше для ЭТОГО водителя
+function personalScore(station, obs, distKm) {
+  const prefs = getDriverPrefs();
+  let score = 0;
+  if (obs.fuel_95_status === true) score += 90;
+  else if (obs.fuel_92_status === true) score += 80;
+  else if (obs.diesel_status === true) score += 30;
+  if (distKm !== null) score -= Math.min(25, distKm * 1.5);
+  const brand = brandKey(station);
+  if (brand && prefs.brandCounts && prefs.brandCounts[brand]) {
+    const vals = Object.values(prefs.brandCounts);
+    const maxBrand = Math.max.apply(null, vals);
+    if (prefs.brandCounts[brand] >= maxBrand * 0.5) score += 15; // любимый бренд
+  }
+  const h = new Date().getHours();
+  if (prefs.hourCounts && prefs.hourCounts[h]) score += 5;
+  if (obs.queue_level === 'high') score -= 20;
+  if (prefs.outcomes) {
+    const here = prefs.outcomes.filter(o => o.advisedStation === station.id);
+    const ok = here.filter(o => o.match).length;
+    if (here.length >= 2) score += ok * 10; // тут раньше сработало
+  }
+  return score;
+}
+// Персональный совет: что делать СЕЙЧАС (или молчать)
+function getPersonalAdvice() {
+  const trips = getDriverTrips();
+  if (trips.length < MIN_TRIPS_FOR_ADVICE) return null; // ещё учимся
+  const last = getLastObservations();
+  const loc = loadUserLocation();
+  const citySet = new Set(cityStationList().map(s => s.id));
+  let best = null, bestScore = -1, bestReason = '';
+  for (const s of allStations) {
+    if (!citySet.has(s.id)) continue;
+    const o = last[s.id];
+    if (!o) continue;
+    const fresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    if (!fresh) continue;
+    const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
+    if (!hasFuel) continue;
+    let distKm = null;
+    if (loc && Number.isFinite(Number(s.lat))) {
+      const dLat = (Number(s.lat) - loc.lat) * 111;
+      const dLon = (Number(s.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+      distKm = Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+    const sc = personalScore(s, o, distKm);
+    if (sc > bestScore) { bestScore = sc; best = s; bestReason = o.fuel_95_status === true ? 'fuel95' : o.fuel_92_status === true ? 'fuel92' : 'diesel'; }
+  }
+  if (!best) return null;
+  const prefs = getDriverPrefs();
+  const outcomeCount = prefs.outcomes ? prefs.outcomes.length : 0;
+  const confidence = Math.min(95, 50 + trips.length * 3 + outcomeCount * 5);
+  return { station: best, score: bestScore, reason: bestReason, confidence: confidence, trips: trips.length };
+}
 function renderNow() {
   const cta = document.getElementById('ctaBest');
   if (!allStations.length) return;
@@ -3029,11 +3149,21 @@ function renderNow() {
     }
   }
   if (cta) {
-    if (best) {
+    const advice = getPersonalAdvice();
+    if (advice) {
+      const km = loc && Number.isFinite(Number(advice.station.lat)) ?
+        Math.sqrt(Math.pow((Number(advice.station.lat) - loc.lat) * 111, 2) +
+                  Math.pow((Number(advice.station.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180), 2)) : null;
+      cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(advice.station.name || 'АЗС') +
+        (km !== null ? ' · ' + (km < 1 ? Math.round(km * 1000) + ' м' : km.toFixed(1) + ' км') : '') +
+        ' · ' + advice.confidence + '%';
+      cta.onclick = () => { track('click_where_to_go', null, advice.station.id); rememberAdvice(); learnFromAction(advice.station.id, 'advice_click'); openSheet(advice.station.id); };
+    }
+    else if (best) {
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
         (bestKm !== null ? ' · ' + (bestKm < 1 ? Math.round(bestKm * 1000) + ' м' : bestKm.toFixed(1) + ' км') : '') +
         (bestReason === 'fuel' ? ' · топливо есть' : bestReason === 'diesel' ? ' · дизель есть' : '');
-      cta.onclick = () => { track('click_where_to_go', null, best.id); rememberAdvice(); openSheet(best.id); };
+      cta.onclick = () => { track('click_where_to_go', null, best.id); rememberAdvice(); learnFromAction(best.id, 'advice_click'); openSheet(best.id); };
     }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(3); }
   }
