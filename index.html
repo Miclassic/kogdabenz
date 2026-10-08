@@ -3224,6 +3224,57 @@ function applyLabelZoom() {
   const z = mapObj.getZoom();
   for (const lc of labelCtrls) lc.el.style.display = z >= lc.minZoom ? '' : 'none';
 }
+// === Область обслуживания на карте: туман снаружи, пунктир по кромке ===
+// Граница — рамки сбора (дом + донор Кубань/Адыгея): вне их мы не наблюдаем
+// станции и не даём прогнозов. Углы скруглены квадратичными кривыми — линия
+// читается как мягкая граница, а не как прямоугольник координат.
+function roundedRing(pts, r, seg) {
+  const out = [];
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], a = pts[(i - 1 + n) % n], b = pts[(i + 1) % n];
+    const va = [a[0] - p[0], a[1] - p[1]], vb = [b[0] - p[0], b[1] - p[1]];
+    const la = Math.hypot(va[0], va[1]), lb = Math.hypot(vb[0], vb[1]);
+    const pa = [p[0] + va[0] / la * r, p[1] + va[1] / la * r];
+    const pb = [p[0] + vb[0] / lb * r, p[1] + vb[1] / lb * r];
+    for (let s = 0; s < seg; s++) {
+      const t = s / seg;
+      out.push([
+        (1 - t) * (1 - t) * pa[0] + 2 * (1 - t) * t * p[0] + t * t * pb[0],
+        (1 - t) * (1 - t) * pa[1] + 2 * (1 - t) * t * p[1] + t * t * pb[1]
+      ]);
+    }
+  }
+  out.push(out[0].slice());
+  return out;
+}
+function serviceAreaData() {
+  const pts = [
+    [37.20, 44.40], [38.60, 44.40], [38.60, 43.30], [41.00, 43.30],
+    [41.00, 46.00], [38.60, 46.00], [38.60, 45.20], [37.20, 45.20]
+  ];
+  const ring = roundedRing(pts, 0.25, 8);
+  const hole = ring.slice().reverse();
+  const outer = [[20, 35], [55, 35], [55, 55], [20, 55], [20, 35]];
+  return {
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', properties: { kind: 'dim' }, geometry: { type: 'Polygon', coordinates: [outer, hole] } },
+      { type: 'Feature', properties: { kind: 'line' }, geometry: { type: 'Polygon', coordinates: [ring] } }
+    ]
+  };
+}
+// туман и граница живут только на обзорных зумах: на городском и уличном
+// они мешали бы читать улицы (тот же дух, что таяние вуали маршрута)
+function applyServiceZoom() {
+  if (!mapObj || !mapObj.getLayer('service-dim')) return;
+  const z = mapObj.getZoom();
+  const dim = z <= 9 ? 0.38 : z >= 11.5 ? 0 : 0.38 * (11.5 - z) / 2.5;
+  const line = z <= 10 ? 0.55 : z >= 12 ? 0 : 0.55 * (12 - z) / 2;
+  mapObj.setPaintProperty('service-dim', 'fill-opacity', dim);
+  mapObj.setPaintProperty('service-line-casing', 'line-opacity', line * 0.9);
+  mapObj.setPaintProperty('service-line', 'line-opacity', line);
+}
 function ensureMap() {
   const box = document.getElementById('mapBox');
   if (!box || mapObj) return;
@@ -3295,6 +3346,14 @@ mapObj = new maplibregl.Map({
     // белая подложка + сплошная синяя сверху; пульс зон её не трогает
     if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
     if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
+    // область обслуживания: мягкий белый туман снаружи рамки и пунктирная
+    // синяя кромка по ней. Туман кладём ПОД тепло (before 'fuelheat-calm'),
+    // кромку поверх слоёв — её не закрывают ни поле, ни лужи
+    mapObj.addSource('service', { type: 'geojson', data: serviceAreaData() });
+    mapObj.addLayer({ id: 'service-dim', type: 'fill', source: 'service', filter: ['==', ['get', 'kind'], 'dim'], paint: { 'fill-color': '#ffffff', 'fill-opacity': 0.38 } }, 'fuelheat-calm');
+    mapObj.addLayer({ id: 'service-line-casing', type: 'line', source: 'service', filter: ['==', ['get', 'kind'], 'line'], paint: { 'line-color': '#ffffff', 'line-width': 4, 'line-opacity': 0.5, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
+    mapObj.addLayer({ id: 'service-line', type: 'line', source: 'service', filter: ['==', ['get', 'kind'], 'line'], paint: { 'line-color': '#2465ee', 'line-width': 1.6, 'line-opacity': 0.55, 'line-dasharray': [2, 2.4], 'line-cap': 'round' } });
+    applyServiceZoom();
     zoneReady = true;
     startZonePulse();
     renderMap();
@@ -3303,6 +3362,7 @@ mapObj = new maplibregl.Map({
   });
   mapObj.on('zoomend', () => applyLabelZoom());
   mapObj.on('zoom', applyZoneBadgesZoom);
+  mapObj.on('zoom', applyServiceZoom);
   mapObj.on('movestart', () => { fadeFloatChips(); closeRing(); closeQuick(); closeCovPop(); closeWhy(); });
   // тап мимо пина снимает меню действий и пузырь быстрой отметки
   document.addEventListener('pointerdown', e => {
@@ -4542,6 +4602,7 @@ function helpHtml() {
     '<div class="help-item"><div class="help-q">Что за плашка вверху главной панели?</div><div class="help-a">Это живая лента отметок за последние 4 часа: источник (топливо вернулось или пропало) и водители (топливо есть/нет, очередь, привезли). Строки сменяются циклом: заправка, улица, что случилось и время отметки.</div></div>' +
     '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов. Когда источник станцию не видит, каплю красят отметки людей: 2 голоса — ранний сигнал, 3 голоса — подтверждено; оранжевая капля со знаком вопроса — мнения людей разошлись.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за лужи вокруг капель?</div><div class="help-a">Это очереди. Чем краснее и заметнее лужа, тем больше людей стоят в очереди прямо сейчас. Значок с человечками внутри зоны — отметка очереди.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что за пунктирная граница на карте?</div><div class="help-a">Это край области, которую мы обслуживаем: внутри неё мы наблюдаем все заправки и даём прогнозы, а снаружи данных пока нет. Карта за границей слегка затуманена, чтобы глаз сразу видел, где работает КогдаБенз.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за кнопка «Тепло» на карте?</div><div class="help-a">Это тепловая карта спроса: одно сплошное поле показывает, где сейчас сосредоточен дефицит топлива. Зелёный — спокойно, жёлтый — напряжённо, оранжевый — дефицит, красный — ядро дефицита. В этом режиме капли и очереди скрыты, чтобы не мешать читать поле.</div></div>' +
     '<div class="help-item"><div class="help-q">Что такое «окно возврата»?</div><div class="help-a">Часы, когда топливо с большей вероятностью вернётся на заправку. Мы считаем их по истории заправки: когда и как обычно туда привозят бензин. Рядом с окном всегда показана уверенность в процентах.</div></div>' +
     '<div class="help-item"><div class="help-q">Как построить маршрут до заправки?</div><div class="help-a">Нажмите на каплю на карте и выберите «Построить маршрут»: сайт проведёт линию по дорогам от вашей точки, а внизу покажет примерное время в пути и расстояние в километрах. Если маршрут построить не удалось (например, нет связи) — карта просто подлетит к заправке.</div></div>' +
