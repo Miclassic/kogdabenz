@@ -1962,6 +1962,95 @@ function drawRouteCanvas() {
   const g = cv.getContext('2d');
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, box.width, box.height);
+  // граница области обслуживания: волнистый живой контур + штриховка
+  // «недоступно» снаружи (красно-белая диагональная зебра, как запрещённые
+  // зоны в играх). Клип evenodd: прямоугольник экрана минус кольцо —
+  // зебра ложится только ВНЕ области обслуживания. Тает к уличному зуму.
+  if (serviceRing) {
+    const z = mapObj.getZoom();
+    const a = z <= 10 ? 0.6 : z >= 12 ? 0 : 0.6 * (12 - z) / 2;
+    if (a > 0.02) {
+      const pts = [];
+      for (let i = 0; i < serviceRing.length; i++) pts.push(mapObj.project(serviceRing[i]));
+      // зебра снаружи
+      g.save();
+      g.beginPath();
+      g.rect(0, 0, box.width, box.height);
+      for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
+      g.closePath();
+      g.clip('evenodd');
+      const step = 14, HH = box.height;
+      g.lineWidth = 6;
+      g.strokeStyle = 'rgba(255,255,255,' + (a * 0.5).toFixed(3) + ')';
+      g.beginPath();
+      for (let x = -HH + step / 2; x < box.width + HH; x += step) { g.moveTo(x, 0); g.lineTo(x + HH, HH); }
+      g.stroke();
+      g.strokeStyle = 'rgba(57,124,255,' + (a * 0.18).toFixed(3) + ')';
+      g.beginPath();
+      for (let x = -HH; x < box.width + HH; x += step) { g.moveTo(x, 0); g.lineTo(x + HH, HH); }
+      g.stroke();
+      // вода: собираем экранные полигоны один раз — они нужны и для вырубки
+      // зебры, и для клипа пунктирной кромки (граница не должна идти по морю)
+      let waterPolys = [];
+      try {
+        const opts = waterLayerIds.length ? { layers: waterLayerIds } : undefined;
+        const wf = mapObj.queryRenderedFeatures([[0, 0], [box.width, box.height]], opts);
+        for (const f of wf) {
+          if (!f.layer || String(f.layer.id).indexOf('water') < 0) continue;
+          const gg = f.geometry;
+          if (!gg) continue;
+          const polys = gg.type === 'Polygon' ? [gg.coordinates] : gg.type === 'MultiPolygon' ? gg.coordinates : null;
+          if (!polys) continue;
+          for (const poly of polys) waterPolys.push(poly.map(ring => ring.map(c => mapObj.project(c))));
+        }
+      } catch (e) {}
+      // вырубаем зебру над водой: на море не может быть АЗС.
+      // destination-out стирает только пиксели зебры на этом канвасе, море чистое.
+      if (waterPolys.length) {
+        g.globalCompositeOperation = 'destination-out';
+        for (const poly of waterPolys) {
+          g.beginPath();
+          for (const ring of poly) {
+            for (let i = 0; i < ring.length; i++) { if (i) g.lineTo(ring[i].x, ring[i].y); else g.moveTo(ring[i].x, ring[i].y); }
+            g.closePath();
+          }
+          g.fill('evenodd'); // evenodd сохраняет острова внутри воды нетронутыми
+        }
+        g.globalCompositeOperation = 'source-over';
+      }
+      g.restore();
+      // сама кромка: мягкое свечение + точки поверх зебры.
+      // Клип по воде (evenodd: прямоугольник экрана минус полигоны воды) —
+      // граница не перечёркивает море: над водой линия просто не рисуется,
+      // обрываясь на берегу, а на суше и на островах остаётся.
+      g.save();
+      if (waterPolys.length) {
+        g.beginPath();
+        g.rect(0, 0, box.width, box.height);
+        for (const poly of waterPolys) {
+          for (const ring of poly) {
+            for (let i = 0; i < ring.length; i++) { if (i) g.lineTo(ring[i].x, ring[i].y); else g.moveTo(ring[i].x, ring[i].y); }
+            g.closePath();
+          }
+        }
+        g.clip('evenodd');
+      }
+      g.beginPath();
+      for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
+      g.closePath();
+      g.lineJoin = 'round';
+      g.lineCap = 'round';
+      g.setLineDash([]);
+      g.lineWidth = 10;
+      g.strokeStyle = 'rgba(57,124,255,' + (a * 0.10).toFixed(3) + ')';
+      g.stroke();
+      g.setLineDash([0.5, 8.5]);
+      g.lineWidth = 2;
+      g.strokeStyle = 'rgba(57,124,255,' + (a * 0.7).toFixed(3) + ')';
+      g.stroke();
+      g.restore();
+    }
+  }
   if (!routeFeature || !routeFeature.geometry) return;
   const coords = routeFeature.geometry.coordinates;
   const step = Math.max(1, Math.floor(coords.length / 400));
@@ -3019,6 +3108,8 @@ let mapObj = null, allQueue = [];
 let heatMode = false;
 let heatStrength = 0.55; // в обычном режиме карты тепло тише, чтобы не спорить с пинами и кластерами
 let routeFeature = null; // линия маршрута как фича рабочего источника zones
+let serviceRing = null; // точки кольца границы обслуживания для канваса
+let waterLayerIds = []; // id слоёв воды базовой карты: зебра не лежит на море
 let zoneReady = false;
 let objMarkers = [];
 let lastClusterCenterByStation = {};
@@ -3043,7 +3134,7 @@ function geoLooksSuspect(pos) {
   if (!pos || !pos.coords) return true;
   if (pos.coords.accuracy > 300) return true;
   const la = pos.coords.latitude, lo = pos.coords.longitude;
-  return !(la >= 42.9 && la <= 46.4 && lo >= 36.9 && lo <= 41.9);
+  return !(la >= 42.9 && la <= 48.7 && lo >= 36.9 && lo <= 46.0);
 }
 // Прыжок: новая точка дальше 5 км от последней принятой — молча верить нельзя:
 // это глушилки или реальный переезд. В обоих случаях спрашиваем водителя и
@@ -3152,6 +3243,8 @@ const OUR_LABELS = [
   { name: 'Новороссийск', lon: 37.77, lat: 44.72, city: true, minZoom: 0 },
   { name: 'Краснодар', lon: 38.98, lat: 45.03, minZoom: 0 },
   { name: 'Сочи', lon: 39.72, lat: 43.60, minZoom: 0 },
+  { name: 'Ростов-на-Дону', lon: 39.70, lat: 47.23, minZoom: 0 },
+  { name: 'Ставрополь', lon: 41.97, lat: 45.04, minZoom: 0 },
   { name: 'Майкоп', lon: 40.12, lat: 44.60, minZoom: 9 },
   { name: 'Анапа', lon: 37.32, lat: 44.89, minZoom: 9 },
   { name: 'Геленджик', lon: 38.07, lat: 44.56, minZoom: 9 },
@@ -3249,9 +3342,9 @@ function roundedRing(pts, r, seg) {
   return out;
 }
 function serviceAreaData() {
+  // ВАЖНО: пары вида [долгота, широта] (GeoJSON), сначала долгота!
   const pts = [
-    [37.20, 44.40], [38.60, 44.40], [38.60, 43.30], [41.00, 43.30],
-    [41.00, 46.00], [38.60, 46.00], [38.60, 45.20], [37.20, 45.20]
+    [37.20, 43.30], [45.90, 43.30], [45.90, 48.60], [37.20, 48.60]
   ];
   const ring = roundedRing(pts, 0.35, 10);
   const hole = ring.slice().reverse();
@@ -3264,8 +3357,41 @@ function serviceAreaData() {
     ]
   };
 }
-// туман и граница живут только на обзорных зумах: на городском и уличном
-// они мешали бы читать улицы (тот же дух, что таяние вуали маршрута)
+// Граница — не строгий прямоугольник: сначала уплотняем кольцо точками,
+// потом сдвигаем каждую вдоль нормали гармониками 3/5/7 волн по периметру
+// (фазы фиксированы — форма не дрожит между перерисовками). Амплитуда ~6 км:
+// контур дышит и выглядит живой кромкой, а не рамкой чертежа.
+function densifyRing(ring, stepDeg) {
+  const out = [];
+  for (let i = 0; i < ring.length - 1; i++) {
+    const a = ring[i], b = ring[i + 1];
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const n = Math.max(1, Math.round(d / stepDeg));
+    for (let k = 0; k < n; k++) out.push([a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]);
+  }
+  out.push(out[0].slice());
+  return out;
+}
+function organicServiceRing(ring) {
+  const dense = densifyRing(ring, 0.05);
+  const N = dense.length - 1; // последняя точка равна первой
+  const p1 = 1.7, p2 = 4.2, p3 = 0.6;
+  const AMP_M = 6000;
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const prev = dense[(i - 1 + N) % N], cur = dense[i], next = dense[(i + 1) % N];
+    let tx = next[0] - prev[0], ty = next[1] - prev[1];
+    const tl = Math.hypot(tx, ty) || 1;
+    tx /= tl; ty /= tl;
+    const nx = -ty, ny = tx;
+    const t = i / N * 2 * Math.PI;
+    const w = 0.55 * Math.sin(3 * t + p1) + 0.3 * Math.sin(5 * t + p2) + 0.18 * Math.sin(7 * t + p3);
+    const m = w * AMP_M;
+    out.push([cur[0] + nx * (m / (111320 * Math.cos(cur[1] * Math.PI / 180))), cur[1] + ny * (m / 111320)]);
+  }
+  out.push(out[0].slice());
+  return out;
+}
 function applyServiceZoom() {
   if (!mapObj || !mapObj.getLayer('service-line')) return;
   const z = mapObj.getZoom();
@@ -3291,6 +3417,7 @@ mapObj = new maplibregl.Map({
     for (const layer of mapObj.getStyle().layers || []) {
       if (layer.type === 'symbol') mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
       else if (layer.id.indexOf('building') >= 0) mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
+      if (layer.type === 'fill' && layer.id.indexOf('water') >= 0) waterLayerIds.push(layer.id);
     }
     for (const l of OUR_LABELS) {
       const el = document.createElement('div');
@@ -3344,13 +3471,12 @@ mapObj = new maplibregl.Map({
     // белая подложка + сплошная синяя сверху; пульс зон её не трогает
     if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
     if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
-    // область обслуживания: только мягкая линия — синее свечение снизу
-    // (широкая размытая) + тонкий пунктир сверху. Без тумана и заливки:
-    // их прямоугольные кромки читались как баг рендера
-    mapObj.addSource('service', { type: 'geojson', data: serviceAreaData() });
-    mapObj.addLayer({ id: 'service-line-casing', type: 'line', source: 'service', filter: ['==', ['get', 'kind'], 'line'], paint: { 'line-color': '#2465ee', 'line-width': 9, 'line-opacity': 0.16, 'line-blur': 6, 'line-cap': 'round', 'line-join': 'round' } });
-    mapObj.addLayer({ id: 'service-line', type: 'line', source: 'service', filter: ['==', ['get', 'kind'], 'line'], paint: { 'line-color': '#2465ee', 'line-width': 1.5, 'line-opacity': 0.6, 'line-dasharray': [1.6, 2.6], 'line-cap': 'round' } });
-    applyServiceZoom();
+    // область обслуживания: границу рисуем на канвасе (drawRouteCanvas) —
+    // GL-линия на этом устройстве не отрисовалась, канвас рисуется гарантированно.
+    // Запоминаем точки кольца и сразу рисуем границу.
+    serviceRing = organicServiceRing(serviceAreaData().features[1].geometry.coordinates[0]);
+    routeCanvasEl();
+    drawRouteCanvas();
     zoneReady = true;
     startZonePulse();
     renderMap();
@@ -4467,7 +4593,9 @@ const CITY_BOXES = [
   { key: 'sochi', name: 'Сочи', nameIn: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
   { key: 'tuapse', name: 'Туапсе', nameIn: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
   { key: 'armavir', name: 'Армавир', nameIn: 'Армавире', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
-  { key: 'maykop', name: 'Майкоп', nameIn: 'Майкопе', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 }
+  { key: 'maykop', name: 'Майкоп', nameIn: 'Майкопе', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 },
+  { key: 'rostov', name: 'Ростов-на-Дону', nameIn: 'Ростове-на-Дону', lat1: 47.15, lat2: 47.35, lon1: 39.55, lon2: 39.85 },
+  { key: 'stavropol', name: 'Ставрополь', nameIn: 'Ставрополе', lat1: 44.95, lat2: 45.10, lon1: 41.80, lon2: 42.10 }
 ];
 let userCityKey = 'novorossiysk';
 function detectUserCity() {

@@ -12,7 +12,9 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.40&lon1=37.20&lat2=45.20&lon2=38.60';
 // Донорские рамки волны 1 (метка региона пишется в stations.region)
 const DONOR_FRAMES = [
-  { region: 'kuban', url: 'https://gdebenz.ru/api/stations?lat1=43.30&lon1=38.60&lat2=46.00&lon2=41.00' }
+  { region: 'kuban', url: 'https://gdebenz.ru/api/stations?lat1=43.30&lon1=38.60&lat2=46.00&lon2=41.00' },
+  { region: 'rostov', url: 'https://gdebenz.ru/api/stations?lat1=46.00&lon1=38.80&lat2=48.60&lon2=44.50' },
+  { region: 'stavropol', url: 'https://gdebenz.ru/api/stations?lat1=44.20&lon1=40.80&lat2=46.60&lon2=45.90' }
 ];
 
 // "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
