@@ -296,9 +296,23 @@ body { overflow:hidden; }
 /* загрузка v2: только капля, наполняющаяся топливом; уровень = прогресс */
 .boot-drop-wrap { position:relative; display:grid; place-items:center; width:min(210px, 56vw); filter:drop-shadow(0 18px 40px rgba(8,18,40,.45)); animation:bootFloat 3.2s ease-in-out infinite; }
 .boot-drop-wrap::before { content:''; position:absolute; inset:-14%; border-radius:50%; background:radial-gradient(50% 50% at 50% 45%, rgba(90,160,255,.34), rgba(90,160,255,0) 70%); animation:bootGlow 3.2s ease-in-out infinite; pointer-events:none; }
-.boot-drop-orb { position:relative; width:100%; aspect-ratio:1/1; border-radius:50%; display:grid; place-items:center; background: radial-gradient(120% 90% at 18% 8%, rgba(255,255,255,.42), rgba(255,255,255,0) 46%), linear-gradient(140deg,#4b93ff 0%,#2465ee 52%,#1746c8 100%); box-shadow:0 16px 40px rgba(23,70,200,.45), inset 0 1px 0 rgba(255,255,255,.5); }
-.boot-drop-orb::after { content:''; position:absolute; inset:-14px; border-radius:50%; border:2px solid rgba(140,196,255,.55); animation:bootRing 1.6s ease-out infinite; pointer-events:none; }
-.boot-drop { position:relative; width:62%; display:block; }
+.boot-drop-orb-wrap { position:relative; width:100%; aspect-ratio:1/1; display:grid; place-items:center; }
+/* стеклянный блик сферы поверх всего (и воды, и капли) */
+.boot-drop-orb-wrap::before { content:''; position:absolute; inset:0; border-radius:50%; background:radial-gradient(120% 90% at 30% 12%, rgba(255,255,255,.26), rgba(255,255,255,0) 46%); pointer-events:none; z-index:3; }
+.boot-drop-orb-wrap::after { content:''; position:absolute; inset:-14px; border-radius:50%; border:2px solid rgba(140,196,255,.55); animation:bootRing 1.6s ease-out infinite; pointer-events:none; }
+/* стеклянный шар: без серой обводки, с внутренними тенями глубины */
+.boot-drop-orb { position:relative; width:100%; height:100%; border-radius:50%; display:grid; place-items:center; overflow:hidden; --fill:0%;
+  background:radial-gradient(120% 120% at 50% 28%, rgba(255,255,255,.10), rgba(255,255,255,.05) 55%, rgba(255,255,255,.03) 100%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16), inset 0 12px 28px rgba(8,18,40,.28), inset 0 -10px 24px rgba(8,18,40,.22), 0 16px 40px rgba(23,70,200,.30); }
+/* синее «топливо» шара: два вращающихся скруглённых квадрата — их кромка живёт волной, как в капле. 0% — поверхность ниже дна, 100% — выше верха */
+.boot-drop-orb::before, .boot-drop-orb::after { content:''; position:absolute; left:50%; width:300%; aspect-ratio:1/1; pointer-events:none; }
+.boot-drop-orb::before { top:calc(258% - var(--fill) * 1.16); border-radius:45%; background:linear-gradient(180deg,#4b93ff 0%,#2465ee 55%,#1746c8 100%); box-shadow:0 -8px 22px rgba(90,160,255,.45); animation:orbSpin 7s linear infinite; z-index:1; }
+.boot-drop-orb::after { top:calc(258% - var(--fill) * 1.16 - 2.5%); border-radius:46%; background:rgba(140,180,255,.50); animation:orbSpinBack 11s linear infinite; z-index:0; }
+@keyframes orbSpin { from { transform:translate(-50%,-50%) rotate(0deg); } to { transform:translate(-50%,-50%) rotate(360deg); } }
+@keyframes orbSpinBack { from { transform:translate(-50%,-50%) rotate(0deg); } to { transform:translate(-50%,-50%) rotate(-360deg); } }
+.boot-drop { position:relative; width:62%; display:block; z-index:2; filter:drop-shadow(0 5px 12px rgba(8,18,40,.35)); }
+/* стрелки в капле: живые часики, пропорция как у настоящих 1:12 */
+.bd-hand { transform-box:view-box; transform-origin:12px 14.6px; transition:transform .12s linear; }
 .bd-body { fill:rgba(255,255,255,.94); }
 .bd-line { fill:none; stroke:rgba(255,255,255,.5); stroke-width:.7; }
 .bd-wave { fill:#ffd968; }
@@ -306,10 +320,11 @@ body { overflow:hidden; }
 .bd-wave.front { animation:bdWaveFront 1.6s linear infinite; }
 @keyframes bdWaveFront { from { transform:translateX(0); } to { transform:translateX(-12px); } }
 @keyframes bdWaveBack { from { transform:translateX(-12px); } to { transform:translateX(0); } }
+.boot-line { min-height:18px; margin-top:16px; max-width:300px; color:rgba(235,243,255,.85); font-size:12.5px; line-height:1.4; font-weight:600; letter-spacing:.2px; text-align:center; text-shadow:0 2px 12px rgba(8,18,40,.45); }
 .boot-fail { width:min(320px, calc(100vw - 40px)); margin-top:20px; text-align:center; color:#fff; text-shadow:0 2px 12px rgba(8,18,40,.45); }
 .boot-fail-t { font-size:18px; font-weight:900; letter-spacing:-.5px; }
 .boot-fail-s { margin-top:6px; color:rgba(235,243,255,.8); font-size:11.5px; line-height:1.5; font-weight:600; }
-@media (prefers-reduced-motion: reduce) { .boot-drop-wrap, .boot-drop-wrap::before, .boot-drop-orb::after, .bd-wave { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .boot-drop-wrap, .boot-drop-wrap::before, .boot-drop-orb-wrap::after, .boot-drop-orb::before, .boot-drop-orb::after, .bd-wave { animation:none; } .bd-hand { transition:none; } }
 /* панель 1 */
 .p1 { overflow:hidden; }
 .p1-head { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
@@ -984,8 +999,9 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="boot-back" id="bootBack">
     <div class="boot-col">
       <div class="boot-drop-wrap" aria-hidden="true">
-        <div class="boot-drop-orb">
-          <svg class="boot-drop" viewBox="0 0 24 24">
+        <div class="boot-drop-orb-wrap">
+          <div class="boot-drop-orb">
+            <svg class="boot-drop" viewBox="0 0 24 24">
             <defs>
               <clipPath id="bootDropClip"><path d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/></clipPath>
             </defs>
@@ -996,10 +1012,17 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
                 <path class="bd-wave front" d="M-24 0 q3 -1.6 6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 V24 H-24 Z"/>
               </g>
             </g>
-            <path class="bd-line" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/>
-          </svg>
+            <g class="bd-hands" stroke="#2465ee" stroke-width="1.1" stroke-linecap="round" fill="none">
+            <path class="bd-hand bd-hand-h" d="M12 14.6 L13.3 15.4"/>
+            <path class="bd-hand bd-hand-m" d="M12 14.6 L12 11.9"/>
+          </g>
+          <circle class="bd-hub" cx="12" cy="14.6" r="0.7" fill="#2465ee"/>
+          <path class="bd-line" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/>
+        </svg>
+        </div>
         </div>
       </div>
+      <div class="boot-line" id="bootLine">Будим заправки города…</div>
       <div class="boot-fail" id="bootFailBox" style="display:none">
         <div class="boot-fail-t">Данные не загрузились</div>
         <div class="boot-fail-s">Сеть или база не ответили вовремя. Обычно помогает ещё одна попытка.</div>
@@ -5329,6 +5352,14 @@ function closeWnZoom() {
 // Этапы листаются таймером, прогресс ползёт к 95% и ждёт реальной
 // готовности — честные «100%» при пустых панелях не показываем.
 const BOOT_TARGETS = [16, 34, 52, 70, 86, 95];
+const BOOT_LINES = [
+  'Будим заправки города…',
+  'Слушаем, где сейчас топливо течёт, а где высохло…',
+  'Проверяем, какие колонки не молчат…',
+  'Считаем очереди, чтобы вам в них не стоять…',
+  'Примеряем заправки к вашим маршрутам…',
+  'Раскладываем по полочкам — почти готово…'
+];
 let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTimer = null, bootOver = false, bootT0 = 0;
 // загрузка не должна выглядеть муляжом: оверлей не имеет права показать
 // «всё готово», пока start() реально не привёз данные. bootDataOk — флаг
@@ -5351,13 +5382,34 @@ function bootStart() {
 function applyBootStage(i) {
   bootStage = i;
   bootTarget = BOOT_TARGETS[i];
+  const el = document.getElementById('bootLine');
+  if (!el) return;
+  const txt = BOOT_LINES[i] || BOOT_LINES[BOOT_LINES.length - 1];
+  if (el.textContent === txt) return;
+  el.classList.remove('boot-woosh-in');
+  el.classList.add('boot-woosh-out');
+  setTimeout(() => {
+    el.textContent = txt;
+    el.classList.remove('boot-woosh-out');
+    el.classList.add('boot-woosh-in');
+    setTimeout(() => el.classList.remove('boot-woosh-in'), 400);
+  }, 200);
 }
 function bootPaintPct() {
+  const p = Math.max(0, Math.min(100, bootPct));
+  const orb = document.querySelector('.boot-drop-orb');
+  if (orb) orb.style.setProperty('--fill', p + '%');
   const g = document.getElementById('bootFuelG');
-  if (!g) return;
-  // 0% → поверхность ниже дна капли (пусто), 100% → у кончика (полно)
-  const level = 22 - (Math.max(0, Math.min(100, bootPct)) / 100) * 19.4;
-  g.setAttribute('transform', 'translate(0 ' + level.toFixed(2) + ')');
+  if (g) {
+    const level = 22 - (p / 100) * 19.4;
+    g.setAttribute('transform', 'translate(0 ' + level.toFixed(2) + ')');
+  }
+  // стрелки привязаны к заливке: встала заливка — встали стрелки.
+  // минутная делает 2 оборота за всю загрузку, часовая — 2/12 (пропорция 1:12 как у настоящих часов)
+  const hm = document.querySelector('.bd-hand-m');
+  const hh = document.querySelector('.bd-hand-h');
+  if (hm) hm.style.transform = 'rotate(' + (p * 7.2).toFixed(1) + 'deg)';
+  if (hh) hh.style.transform = 'rotate(' + (p * 0.6).toFixed(1) + 'deg)';
 }
 function hideBoot() {
   const back = document.getElementById('bootBack');
