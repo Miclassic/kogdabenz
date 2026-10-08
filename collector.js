@@ -288,29 +288,24 @@ async function main() {
   const list = await fetchGdebenz();
   console.log('   Станций в ответе: ' + list.length);
   const donorLists = [];
+  // Защита от дублей: рамки доноров могут стыковаться с основной и друг
+  // с другом — сначала запоминаем osm_id основной рамки, потом каждый донор
+  // оставит только станции, которых ещё не было. Postgres получит уникальные ключи.
+  const seenOsm = new Set(list.map(s => String(s.osm_id)));
   for (const f of DONOR_FRAMES) {
     const dl = await fetchFrame(f.url, 'GdeBenz (' + f.region + ')');
     console.log('   Донор ' + f.region + ': станций ' + dl.length);
-    donorLists.push({ region: f.region, list: dl });
+    const clean = dl.filter(s => {
+      const k = String(s.osm_id);
+      if (seenOsm.has(k)) return false;
+      seenOsm.add(k);
+      return true;
+    });
+    donorLists.push({ region: f.region, list: clean });
     await new Promise(res => setTimeout(res, 1500)); // вежливая пауза между рамками
   }
 
   console.log('2) Сохраняю станции...');
-  // Страховка: если рамки когда-нибудь снова пересекутся, дубли ключа
-  // (external_id + source) убираем до отправки — первый экземпляр побеждает
-  // (основная рамка идёт раньше доноров). Postgres получит уникальные ключи.
-  {
-    const seenKeys = new Set();
-    const deduped = payload.filter(s => {
-      const k = s.external_id + '|' + s.source;
-      if (seenKeys.has(k)) return false;
-      seenKeys.add(k);
-      return true;
-    });
-    payload.length = 0;
-    payload.push(...deduped);
-    console.log('   После уборки дублей: ' + payload.length + ' станций');
-  }
   const homeExt = new Set(list.map(s => String(s.osm_id)));
   // паспорт топлив станции из meta.f (через запятую); null, если источник молчит
   const fuelsMetaOf = s => (s.meta && Array.isArray(s.meta.f) && s.meta.f.length) ? s.meta.f.join(',') : null;
