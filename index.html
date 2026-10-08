@@ -2534,23 +2534,15 @@ function buildFeed() {
   // лента персональна: только события города пользователя (те же боксы,
   // что у списка и чипов); у водителя в другом городе — его события
   const citySet = new Set(cityStationList().map(s => s.id));
-  // источник: сравниваем соседние наблюдения станции — статус топлива сменился
-  const bySt = {};
-  for (const o of allObservations) (bySt[o.station_id] = bySt[o.station_id] || []).push(o);
-  for (const id of Object.keys(bySt)) {
-    if (!citySet.has(id)) continue;
-    const rows = bySt[id].slice().sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    for (let i = 0; i < rows.length - 1; i++) {
-      const n = rows[i], p = rows[i + 1];
-      const t = new Date(n.timestamp).getTime();
-      if (t < since) break;
-      const pairs = [['92', 'fuel_92_status'], ['95', 'fuel_95_status'], ['diesel', 'diesel_status']];
-      for (const pr of pairs) {
-        if (n[pr[1]] === null || n[pr[1]] === undefined || p[pr[1]] === null || p[pr[1]] === undefined) continue;
-        if (n[pr[1]] === p[pr[1]]) continue;
-        items.push({ st: id, fuel: pr[0], kind: n[pr[1]] ? 'restored' : 'gone', t: t });
-      }
-    }
+  // источник: из таблицы events — той же, которую читает Телеграм-лента.
+  // Раньше пересчитывали смены из последних 5000 наблюдений: с ростом базы
+  // это окно сжалось до 2-3 часов, и часть отметок в ленту не доезжала
+  // (лента стояла, пока Телеграм гудел).
+  for (const e of allWaveEvents) {
+    if (!citySet.has(e.station_id)) continue;
+    const t = new Date(e.detected_at).getTime();
+    if (t < since) continue;
+    items.push({ st: e.station_id, fuel: e.fuel_type, kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone', t: t });
   }
   // народ: топливные и очередные отметки за окно (тоже только свой город)
   for (const f of allFeedback) {
@@ -4165,7 +4157,7 @@ async function start() {
       dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => []),
       dbQueryAll('/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at').catch(() => []),
       dbQuery('/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000').catch(() => []),
-      dbQuery('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at&limit=5000').catch(() => [])
+      dbQuery('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000').catch(() => [])
     ]);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
     queueById = {};
