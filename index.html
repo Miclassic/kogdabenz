@@ -1878,11 +1878,12 @@ function stationCard(station, obs, pred) {
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
     '<div class="forecast-confidence">' + (prediction.confidence ? 'Вероятность: <strong>' + prediction.confidence + '%</strong>' : 'Пока недостаточно данных') + '</div>' +
+    (pred && prediction.note ? '<div class="forecast-confidence" style="margin-top:2px;opacity:.75">' + escapeHtml(prediction.note) + '</div>' : '') +
     '<div class="confidence-bar"><span style="width:' + cw + '%"></span></div>' + whyHtml(pred) + '</div>' +
     '<div class="forecast-right"><div class="graph-title">История АИ-95</div>' +
     '<div class="chart">' + graph + (pred && isSoon(pred) ? '<div class="soon-badge">' + icon('i-truck','ic-s') + 'Скоро</div>' : '') + '</div>' +
     '<div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div></div></section>' +
-    '<div class="info-row"><div class="info tap why-tap" data-fact="' + hc + ' снимков источника за 30 дней." onclick="openWhyChip(this,\'based\')"><div class="info-label">На основе</div><div class="info-value">' + hc + ' наблюдений</div></div>' +
+    '<div class="info-row"><div class="info tap why-tap" data-fact="' + hc + ' снимков источника за 30 дней." onclick="openWhyChip(this,\'based\')"><div class="info-label">На основе</div><div class="info-value">' + (hc ? hc + ' наблюдений' : 'нет наблюдений') + '</div></div>' +
     '<div class="info tap why-tap" data-fact="' + lastRestoration(station.id) + '" onclick="openWhyChip(this,\'restore\')"><div class="info-label">Пополнение</div><div class="info-value">' + lastRestorationShort(station.id) + '</div></div>' +
     '<div class="info tap why-tap" data-fact="' + accuracyLabel(station.id) + ' по этой АЗС." onclick="openWhyChip(this,\'acc\')"><div class="info-label">Точность</div><div class="info-value">' + accuracyLabel(station.id) + '</div></div></div>' +
     '<section class="feedback"><div class="feedback-header"><div class="feedback-icon">＋</div><div>' +
@@ -3777,6 +3778,11 @@ function queueStrip(stationId, obs) {
   const age = queueAgeMin(stationId);
   const high = obs && obs.queue_level === 'high';
   if (age === null && !high) return '';
+  // источник больше не подтверждает очередь (статус null или не high):
+  // эпизод из вьюхи может висеть «открытым» сутками — честная тусклая строка
+  if (!high) {
+    return '<div class="dg-strip" style="margin-top:8px;opacity:.75">' + icon('i-queue', 'ic-s') + '<span>очередь сообщали ' + ageRu(age) + ' назад — источник больше не подтверждает</span></div>';
+  }
   const txt = age !== null
     ? 'очередь стоит <b>' + ageRu(age) + '</b>'
     : 'очередь сейчас — началась только что';
