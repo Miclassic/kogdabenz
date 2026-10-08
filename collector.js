@@ -11,10 +11,14 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 // Сбор идёт широко, а на сайте показываем только новороссийские карточки.
 const GDEBENZ_URL = 'https://gdebenz.ru/api/stations?lat1=44.40&lon1=37.20&lat2=45.20&lon2=38.60';
 // Донорские рамки волны 1 (метка региона пишется в stations.region)
+// Рамки НЕ должны пересекаться: одна станция в двух донорах = дубль ключа
+// в одном upsert, а Postgres это запрещает («cannot affect row a second time»).
+// Стыки границ — только по линиям 46.60 и 41.00, покрытия дыр нет:
+// западная колонка до 41.00 — Кубань, восточная до 46.60 — Ставрополье, север — Ростов.
 const DONOR_FRAMES = [
-  { region: 'kuban', url: 'https://gdebenz.ru/api/stations?lat1=43.30&lon1=38.60&lat2=46.00&lon2=41.00' },
-  { region: 'rostov', url: 'https://gdebenz.ru/api/stations?lat1=46.00&lon1=38.80&lat2=48.60&lon2=44.50' },
-  { region: 'stavropol', url: 'https://gdebenz.ru/api/stations?lat1=44.20&lon1=40.80&lat2=46.60&lon2=45.90' }
+  { region: 'kuban', url: 'https://gdebenz.ru/api/stations?lat1=43.30&lon1=38.60&lat2=46.60&lon2=41.00' },
+  { region: 'rostov', url: 'https://gdebenz.ru/api/stations?lat1=46.60&lon1=38.80&lat2=48.60&lon2=44.50' },
+  { region: 'stavropol', url: 'https://gdebenz.ru/api/stations?lat1=44.20&lon1=41.00&lat2=46.60&lon2=45.90' }
 ];
 
 // "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
@@ -292,6 +296,21 @@ async function main() {
   }
 
   console.log('2) Сохраняю станции...');
+  // Страховка: если рамки когда-нибудь снова пересекутся, дубли ключа
+  // (external_id + source) убираем до отправки — первый экземпляр побеждает
+  // (основная рамка идёт раньше доноров). Postgres получит уникальные ключи.
+  {
+    const seenKeys = new Set();
+    const deduped = payload.filter(s => {
+      const k = s.external_id + '|' + s.source;
+      if (seenKeys.has(k)) return false;
+      seenKeys.add(k);
+      return true;
+    });
+    payload.length = 0;
+    payload.push(...deduped);
+    console.log('   После уборки дублей: ' + payload.length + ' станций');
+  }
   const homeExt = new Set(list.map(s => String(s.osm_id)));
   // паспорт топлив станции из meta.f (через запятую); null, если источник молчит
   const fuelsMetaOf = s => (s.meta && Array.isArray(s.meta.f) && s.meta.f.length) ? s.meta.f.join(',') : null;
