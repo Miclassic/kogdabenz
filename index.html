@@ -4479,7 +4479,7 @@ async function start() {
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
     const [observations, counts, predictions, verifiedThin, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll, events7, waveEv] = await Promise.all([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=5000&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status'),
-      dbQuery('/rest/v1/station_counts?select=station_id,total').catch(() => []),
+      dbQuery('/rest/v1/station_counts_snap?select=station_id,total').catch(() => []),
       dbQueryAll('/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*'),
       dbQueryAll('/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*'),
       dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at').catch(() => []),
