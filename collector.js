@@ -548,41 +548,50 @@ try {
         for (const f of qfb) fbByKey[f.station_id + '|' + f.created_at] = f;
       }
       const hhmm = iso => { const d = new Date(new Date(iso).getTime() + 3 * 3600 * 1000); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
-      const lineOf = e => {
+      const rowOf = e => {
         const f = e.fuel_type ? (FUEL_RU[e.fuel_type] || 'топливо') : null;
-        let phrase = null;
-        if (e.event_type === 'fuel_restored') phrase = '🟢 ' + (f || 'топливо') + ' вернулся';
-        else if (e.event_type === 'fuel_disappeared') phrase = '🔴 ' + (f || 'топливо') + ' кончился';
-        else if (e.event_type === 'queue_appeared') phrase = '🚗 очередь появилась';
-        else if (e.event_type === 'queue_gone') phrase = '✅ очередь рассосалась';
-        else if (e.event_type === 'fuel_available') phrase = '⛽ водители сообщают: ' + (f || 'топливо') + ' есть';
-        else if (e.event_type === 'fuel_unavailable') phrase = '🔴 водители сообщают: ' + (f || 'топливо') + ' нет';
-        else if (e.event_type === 'queue_high') {
+        const t = hhmm(e.detected_at);
+        if (e.event_type === 'fuel_restored') return '🟢 ' + (f || 'топливо') + ' · вернулся · ' + t;
+        if (e.event_type === 'fuel_disappeared') return '🔴 ' + (f || 'топливо') + ' · кончился · ' + t;
+        if (e.event_type === 'queue_appeared') return '🚗 очередь · появилась · ' + t;
+        if (e.event_type === 'queue_gone') return '✅ очередь · рассосалась · ' + t;
+        if (e.event_type === 'fuel_available') return '⛽ водители: ' + (f || 'топливо') + ' есть · ' + t;
+        if (e.event_type === 'fuel_unavailable') return '🔴 водители: ' + (f || 'топливо') + ' нет · ' + t;
+        if (e.event_type === 'queue_high') {
           const fb = fbByKey[e.station_id + '|' + e.detected_at];
-          phrase = '🚗 водители сообщают: очередь' + (fb && fb.queue_size ? ' ' + (QUEUE_SHORT[fb.queue_size] || '') + ' машин' : '');
+          return '🚗 водители: очередь' + (fb && fb.queue_size ? ' ' + (QUEUE_SHORT[fb.queue_size] || '') + ' машин' : '') + ' · ' + t;
         }
-        else if (e.event_type === 'queue_low') phrase = '🟢 водители сообщают: свободно';
-        else if (e.event_type === 'possible_delivery') phrase = '🚛 водители сообщают: похоже, привезли';
-        if (!phrase) return null;
-        return phrase + ' — ' + (LABEL[e.station_id] || 'АЗС') + ' · ' + hhmm(e.detected_at);
+        if (e.event_type === 'queue_low') return '🟢 водители: свободно · ' + t;
+        if (e.event_type === 'possible_delivery') return '🚛 водители: привезли · ' + t;
+        return null;
       };
       const devIds = [...new Set(favs.map(f => f.device_id))];
       const subs = await sbGetAll('/rest/v1/tg_subscriptions?device_id=in.(' + devIds.map(d => '"' + d + '"').join(',') + ')&enabled=eq.true&select=device_id,chat_id');
       const chatByDev = {};
       for (const s of subs) chatByDev[s.device_id] = s.chat_id;
-      const linesByChat = {};
+      // сообщение-таблица: станция — жирный заголовок-«шапка», события —
+      // компактные строки под ней; адрес не повторяется в каждой строке,
+      // строки короткие и не рвутся на мобильном, блоки разделены пустой строкой
+      const groupsByChat = {};
       for (const f of favs) {
         const chat = chatByDev[f.device_id];
         if (!chat) continue;
         for (const e of evs) {
           if (e.station_id !== f.station_id) continue;
-          const line = lineOf(e);
-          if (line) (linesByChat[chat] = linesByChat[chat] || []).push(line);
+          const row = rowOf(e);
+          if (!row) continue;
+          const arr = groupsByChat[chat] = groupsByChat[chat] || [];
+          let grp = arr.find(g => g.st === e.station_id);
+          if (!grp) { grp = { st: e.station_id, label: LABEL[e.station_id] || 'АЗС', rows: [] }; arr.push(grp); }
+          grp.rows.push(row);
         }
       }
       let sent = 0;
-      for (const chat of Object.keys(linesByChat)) {
-        await tgTo(Number(chat), '⭐ Ваше избранное:\n' + linesByChat[chat].slice(0, 10).join('\n'));
+      for (const chat of Object.keys(groupsByChat)) {
+        const blocks = groupsByChat[chat].slice(0, 6).map(g =>
+          '<b>📍 ' + g.label + '</b>\n' + g.rows.slice(0, 8).join('\n')
+        ).join('\n\n');
+        await tgTo(Number(chat), '⭐ <b>Ваше избранное</b> · ' + hhmm(evs[evs.length - 1].detected_at) + '\n\n' + blocks);
         sent++;
       }
       console.log('   Персональных уведомлений отправлено: ' + sent);
