@@ -4522,7 +4522,7 @@ async function start() {
     if (ob) ob.classList.remove('on');
   }
   try {
-    const stations = await dbQueryAll('/rest/v1/stations?select=*');
+    const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = stations.map(s => s.id);
@@ -4558,6 +4558,7 @@ async function start() {
     allQueueEvents = queueEvAll || [];
     allEvents7 = events7 || [];
     allWaveEvents = waveEv || [];
+    saveCache(); // ранний снимок: следующий сбой сети покажет данные с плашкой, а не экран ошибки
     flushFeedbackQueue();
     flushPollQueue();
     flushReportQueue();
@@ -5377,7 +5378,7 @@ function bootStart() {
     if (bootOver) return;
     if (bootStage < BOOT_TARGETS.length - 1) applyBootStage(bootStage + 1);
   }, 1900);
-  setTimeout(() => { if (!bootOver) bootFail('Сеть или база не ответили за 25 секунд'); }, 25000);
+  setTimeout(() => { if (!bootOver) bootFail('Сеть или база не ответили за 45 секунд'); }, 45000);
 }
 function applyBootStage(i) {
   bootStage = i;
