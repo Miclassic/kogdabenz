@@ -1130,11 +1130,18 @@ async function dbQuery(path) {
 // страницы по 1000 со стабильным порядком, пока страница не придёт неполной
 async function dbQueryAll(path, orderCol) {
   const sep = path.indexOf('?') >= 0 ? '&' : '?';
+  const col = orderCol || 'id';
   const out = [];
-  for (let offset = 0; ; offset += 1000) {
-    const page = await dbQuery(path + sep + 'order=' + (orderCol || 'id') + '.asc&limit=1000&offset=' + offset);
-    for (const r of page) out.push(r);
-    if (page.length < 1000) break;
+  // страницы по 1000 забираем парами параллельно: цепочка вдвое короче,
+  // на слабой мобильной сети это минус десятки секунд на загрузку
+  for (let offset = 0; ; offset += 2000) {
+    const pair = await Promise.all([
+      dbQuery(path + sep + 'order=' + col + '.asc&limit=1000&offset=' + offset),
+      dbQuery(path + sep + 'order=' + col + '.asc&limit=1000&offset=' + (offset + 1000))
+    ]);
+    for (const r of pair[0]) out.push(r);
+    for (const r of pair[1]) out.push(r);
+    if (pair[0].length < 1000 || pair[1].length < 1000) break;
   }
   return out;
 }
@@ -4665,7 +4672,7 @@ function scheduleOfflineRetry() {
   offlineRetryTimer = setInterval(() => {
     if (!offlineMode || refreshing) return;
     manualRefresh(true);
-  }, 5000);
+  }, 30000); // каждые 5 сек полная загрузка сама забивала слабую сеть — интервал как в readme
 }
 // === Спасательный круг: снимок данных в памяти телефона ===
 // После каждой удачной загрузки пишем свежий снимок в localStorage.
