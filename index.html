@@ -1724,9 +1724,8 @@ function maybeAdvicePop() {
   if (adviceShownThisSession) return;
   if (offlineMode) return; // в офлайне не советуем по несвежим данным
   if (!allStations.length) { if (adviceTries++ < 12) setTimeout(maybeAdvicePop, 3000); return; }
-  const d = new Date(); const today = d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
-  let last = ''; try { last = localStorage.getItem('kbAdviceDay') || ''; } catch (e) {}
-  if (last === today) return;
+  // показываем при каждом заходе: топ-3 живой (данные каждые 10 мин).
+  // от двойного показа в одной сессии защищает adviceShownThisSession выше.
   const openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'lifeBack'].some(id => {
     const el = document.getElementById(id); return el && el.classList.contains('open');
   });
@@ -1734,7 +1733,6 @@ function maybeAdvicePop() {
   let ok = false;
   try { ok = renderAdvicePop(); } catch (e) { console.log('Окно «куда ехать» не собралось: ' + e.message); return; }
   if (!ok) return;
-  try { localStorage.setItem('kbAdviceDay', today); } catch (e) {}
   adviceShownThisSession = true;
   document.getElementById('advicePop').classList.add('open');
   document.getElementById('adviceBack').classList.add('open');
@@ -1742,8 +1740,10 @@ function maybeAdvicePop() {
 function closeAdvicePop() {
   const pop = document.getElementById('advicePop'); const back = document.getElementById('adviceBack');
   if (pop) pop.classList.remove('open'); if (back) back.classList.remove('open');
-  // установка важнее «не показывать вовсе»: дождавшись закрытия совета — зовём её
+  // установка и «что нового» важнее «не показывать вовсе»: дождавшись закрытия
+  // совета — зовём их по очереди (установка первой, whatsnew дожмётся installBack)
   setTimeout(maybeInstallPop, 300);
+  setTimeout(maybeWhatsNew, 700);
 }
 function adviceRoute(i) {
   const it = adviceList[i]; if (!it) return; const st = it.st;
@@ -5296,6 +5296,7 @@ function closeInstallPop(markSeen) {
   if (back) back.classList.remove('open');
   if (markSeen) { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} }
   setTimeout(maybeLifePop, 700);
+  setTimeout(maybeWhatsNew, 900);
 }
 async function installRun() {
   if (deferredInstall) {
@@ -5586,7 +5587,8 @@ function maybeWhatsNew() {
   const pop = document.getElementById('wnPop');
   if (!pop || pop.classList.contains('open')) return;
   if (!WHATS_NEW.length || wnAgeDays(WHATS_NEW[0]) > 14) return;
-  if (adviceShownThisSession) return;
+  // не блокируем советом: «что нового» выйдет после закрытия advice
+  // (см. closeAdvicePop / closeInstallPop) — раз в сутки по kbWnDay.
   let last = '';
   try { last = localStorage.getItem('kbWnDay') || ''; } catch (e) {}
   const d = new Date();
