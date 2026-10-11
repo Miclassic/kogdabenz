@@ -28,6 +28,17 @@ async function sbGet(path) {
   if (!r.ok) throw new Error('GET ' + path + ' → ' + r.status + ' ' + await r.text());
   return r.json();
 }
+// пагинация: циклом по 1000 до конца (Supabase REST режет запросы до 1000 строк)
+async function sbGetAll(path) {
+  const sep = path.indexOf('?') >= 0 ? '&' : '?';
+  const out = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await sbGet(path + sep + 'limit=1000&offset=' + offset);
+    for (const r of page) out.push(r);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
 async function sbPost(path, rows) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     method: 'POST',
@@ -130,28 +141,28 @@ async function main() {
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
-  const stations = await sbGet('/rest/v1/stations?select=id,name,brand,address,lat,lon&limit=2000');
+  const stations = await sbGetAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
   console.log('   Всего: ' + stations.length + ' (в Новороссийске: ' + stations.filter(isOwn).length + ')');
 
   console.log('2) Достаю события fuel_restored за ' + HISTORY_DAYS + ' дней...');
-  const restoredEvents = await sbGet(
-    '/rest/v1/events?event_type=eq.fuel_restored&detected_at=gte.' + since +
-    '&select=station_id,fuel_type,detected_at&limit=50000'
-  );
+  const restoredEvents = await sbGetAll(
+'/rest/v1/events?event_type=eq.fuel_restored&detected_at=gte.' + since +
+'&select=station_id,fuel_type,detected_at'
+);
   console.log('   Событий: ' + restoredEvents.length);
 
   console.log('3) Достаю события fuel_disappeared...');
-  const disappearedEvents = await sbGet(
-    '/rest/v1/events?event_type=eq.fuel_disappeared&detected_at=gte.' + since +
-    '&select=station_id,fuel_type,detected_at&limit=50000'
-  );
+  const disappearedEvents = await sbGetAll(
+'/rest/v1/events?event_type=eq.fuel_disappeared&detected_at=gte.' + since +
+'&select=station_id,fuel_type,detected_at'
+);
   console.log('   Событий: ' + disappearedEvents.length);
 
   console.log('3.5) Достаю очередные события для контекста k-NN...');
-  const queueEventsRaw = await sbGet(
-    '/rest/v1/events?event_type=in.(queue_high,queue_appeared,queue_gone,queue_low)&detected_at=gte.' + since +
-    '&select=station_id,event_type,detected_at&limit=50000'
-  );
+  const queueEventsRaw = await sbGetAll(
+'/rest/v1/events?event_type=in.(queue_high,queue_appeared,queue_gone,queue_low)&detected_at=gte.' + since +
+'&select=station_id,event_type,detected_at'
+);
   const queueEvents = queueEventsRaw.map(e => ({ station_id: e.station_id, type: e.event_type, t: new Date(e.detected_at).getTime() }));
   console.log('   Событий: ' + queueEvents.length);
 
