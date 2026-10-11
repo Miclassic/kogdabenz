@@ -258,6 +258,10 @@ body { overflow:hidden; }
 .adv-rank { flex:0 0 auto; width:20px; height:20px; border-radius:50%; background:#2465ee; color:#fff; font-size:11px; font-weight:900; display:grid; place-items:center; }
 .adv-badge { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; font-size:8.5px; font-weight:850; text-transform:uppercase; letter-spacing:.5px; padding:5px 9px; border-radius:99px; }
 .adv-badge .ic { width:12px; height:12px; }
+.adv-card { position:relative; isolation:isolate; overflow:hidden; }
+.adv-wm { position:absolute; right:-10px; top:50%; transform:translateY(-50%) rotate(-8deg); width:110px; height:110px; opacity:.08; pointer-events:none; z-index:0; filter:grayscale(.15); }
+.adv-wm img { width:100%; height:100%; object-fit:contain; }
+.adv-card > *:not(.adv-wm) { position:relative; z-index:1; }
 .adv-badge.yes { background:#e5f8ef; color:#12855c; }
 .adv-badge.fc { background:#e7f0ff; color:#2465ee; }
 .adv-name { flex:1; min-width:0; font-size:13px; font-weight:850; letter-spacing:-.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -1200,12 +1204,12 @@ function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/<
 function time5(v) { if (!v) return '—'; const s = String(v); return s.length >= 5 ? s.substring(0,5) : s; }
 function fuelLabel(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
 function icon(n, cls) { return '<svg class="ic ' + (cls || '') + '"><use href="#' + n + '"/></svg>'; }
-function fuelHtml(ok, fresh) {
+function fuelHtml(ok, trust) {
   if (ok === null || ok === undefined) return '<span class="unknown"><span class="dot gray"></span>нет данных</span>';
   if (ok) {
-    // наличие утверждаем только свежей отметкой источника (порог 6 ч един по продукту);
-    // несвежее «было» не выдаём за «есть» — защита от ложных зелёных капель и репутации
-    if (fresh === false) return '<span class="unknown"><span class="dot gray"></span>не подтверждён</span>';
+    // наличие утверждаем только свежим И достоверным снимком источника
+    // (свежесть ≤6 ч + машина состояний против блефа чужих отметок)
+    if (trust === false) return '<span class="unknown"><span class="dot gray"></span>не подтверждён</span>';
     return '<span class="yes"><span class="dot green"></span>есть</span>';
   }
   return '<span class="no"><span class="dot red"></span>нет</span>';
@@ -1656,7 +1660,7 @@ function buildAdviceList() {
   for (const st of city) {
     if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
     const o = last[st.id]; if (!o) continue;
-    if (!obsFresh(o)) continue; // только свежее (≤6 ч) — правило проекта
+    if (!obsFresh(o) || stateSuspicious(o)) continue; // свежее (≤6 ч) и без блефа источника
     let km = null;
     if (loc) { const dLat = (Number(st.lat) - loc.lat) * 111; const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180); km = Math.sqrt(dLat * dLat + dLon * dLon); }
     const f = pinKey(o) !== 'unknown' ? pinKey(o) : (folkPinState(st.id, o) || 'unknown');
@@ -1710,7 +1714,9 @@ function renderAdvicePop() {
     const fresh = adviceFreshMeta(o);
     const reasons = adviceReasons(it);
     const our = it.ourChoice ? '<span class="adv-our">' + icon('i-star', 'ic-s') + 'наш выбор</span>' : '';
-    return '<div class="adv-card' + (i === 0 ? ' best' : '') + (it.ourChoice ? ' our' : '') + '">' +
+    const bk = brandKey(st);
+    const wm = (bk && BRAND_LOGOS[bk]) ? '<div class="adv-wm" aria-hidden="true"><img src="' + BRAND_LOGOS[bk] + '" alt=""></div>' : '';
+    return '<div class="adv-card' + (i === 0 ? ' best' : '') + (it.ourChoice ? ' our' : '') + '">' + wm +
       '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + badge + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + '</div>' +
       '<div class="adv-addr">' + escapeHtml(st.brand ? st.brand + ' · ' : '') + escapeHtml(st.address || '') + '</div>' +
       '<div class="adv-fuels">' + fuels + '</div>' +
@@ -2189,9 +2195,9 @@ function stationCard(station, obs, pred) {
     tgStrip(station) +
     workStrip(obs) +
     '<div class="fuels">' +
-    '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status, obsFresh(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
-    '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status, obsFresh(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
-    '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status, obsFresh(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
+    '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
+    '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
+    '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
     '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
@@ -4206,16 +4212,24 @@ function effPinKey(st, o) {
   if (k !== 'unknown') return k;
   return folkPinState(st.id, o) || 'unknown';
 }
+// доверие к снимку источника: свежий (≤6 ч) И не в «подозрительном» состоянии
+// машины состояний коллектора. Подозрительное = источник мигнул «есть» на фоне
+// дефицита (SUSPECTED_LOSS / CONFIRMED_LOSS / DEPLETION / RECOVERY_STARTED) —
+// ровно профиль блефа чужих отметок на gdebenz. «Нет» (false) не трогаем:
+// ложное отсутствие для водителя безопасно.
+function stateSuspicious(o) {
+  if (!o) return false;
+  const s = o.fuel_state;
+  return s === 'SUSPECTED_LOSS' || s === 'CONFIRMED_LOSS' || s === 'DEPLETION' || s === 'RECOVERY_STARTED';
+}
+function availTrustworthy(o) { return obsFresh(o) && !stateSuspicious(o); }
 function pinKey(o) {
   if (!o) return 'unknown';
-  const fresh = obsFresh(o);
-  // наличие (true) утверждаем только свежей отметкой; несвежее true гасим, чтобы
-  // старый «был бензин» не светился зелёным/оранжевым (защита репутации).
-  // «нет» (false) оставляем: консервативно и безопасно для водителя.
+  const trust = availTrustworthy(o);
   const nullish = v => v === null || v === undefined;
-  const gate = v => nullish(v) ? null : (fresh ? v : (v === false ? false : null));
+  const gate = v => nullish(v) ? null : (trust ? v : (v === false ? false : null));
   const g = gate(o.fuel_95_status), p = gate(o.fuel_92_status), d = gate(o.diesel_status);
-  if (g === null) return 'unknown'; // держим прежнюю семантику: 95 — главный индикатор
+  if (g === null) return 'unknown'; // 95 — главный индикатор: не доверяем = серый
   if (g === true) return 'yes';
   if (d === true && p !== true) return 'diesel';
   if (p === true) return 'part';
@@ -4815,7 +4829,7 @@ async function start() {
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
     const R = await Promise.allSettled([
-      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status').catch(() => []),
+      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state').catch(() => []),
       dbQueryAll('/rest/v1/station_counts_snap?select=station_id,total', 'station_id').catch(() => []),
       dbQueryAll('/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*'),
       dbQueryAll('/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*'),
@@ -4823,7 +4837,7 @@ async function start() {
       dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300').catch(() => []),
       dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
       dbQueryAll('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', 'station_id').catch(() => []),
-      dbQueryAll('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status', 'station_id').catch(() => []),
+      dbQueryAll('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', 'station_id').catch(() => []),
       dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
       dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => []),
       dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => []),
