@@ -1,4 +1,4 @@
-// ===== Предиктор Новороссийска v1.11 (+ отказ от city-пула) =====
+// ===== Предиктор Новороссийска v1.14 (отказ от city-пула + самообучение промахов + пагинация Supabase) =====
 // Умное объединение: свои события → по бренду → по городу.
 // Модель длительности дефицита: если топливо сейчас исчезло,
 // считаем, когда его обычно возвращают.
@@ -137,7 +137,7 @@ function shiftWindowTimes(winFrom, winTo, shiftMin) {
   return [minutesToTime(nf), minutesToTime(nt)];
 }
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.12 (State Machine Aware + самообучение промахов) ===');
+  console.log('=== ПРЕДИКТОР v1.14 (State Machine Aware + самообучение промахов + пагинация) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
@@ -170,14 +170,20 @@ async function main() {
   // ВАЖНОЕ ИЗМЕНЕНИЕ v1.6: Выбираем поле fuel_state
   const lastObs = {};
   let obs;
+  // v1.13.1: наблюдения циклом по 1000 в окне 13 часов (как донор-лукбэк коллектора);
+  // одиночный запрос резался Supabase-ом до 1000 строк, из-за чего кубань/доноры
+  // пропадал в «молчащих» между часовыми залпами heartbeat
+  const OBS_SEL = 'select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score';
+  const obsSince = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
 try {
-  obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=20000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score');
+  obs = await sbGetAll('/rest/v1/observations?' + OBS_SEL + '&timestamp=gte.' + obsSince + '&order=timestamp.desc');
+  console.log('   Наблюдений в окне 13ч: ' + obs.length);
 } catch (e1) {
-  // 57014 statement timeout: таблица выросла — пауза и повтор с меньшим лимитом
-  // (8000 строк хватает с запасом: 862 станции × последние 4 + последние статусы)
-  console.log('   observations таймаут, повтор через 5 сек: ' + e1.message);
+  // фолбэк: если пагинация упала (таймаут/сеть), берём последнюю 1000 свежих —
+  // лучше частично, чем никак; дом всё равно пишется каждые 10 минут
+  console.log('   observations пагинация упала, фолбэк на limit 1000: ' + e1.message);
   await new Promise(res => setTimeout(res, 5000));
-  obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=8000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,timestamp,fuel_state,reliability_score');
+  obs = await sbGet('/rest/v1/observations?' + OBS_SEL + '&order=timestamp.desc&limit=1000');
 }
   for (const o of obs) if (!lastObs[o.station_id]) lastObs[o.station_id] = o;
 
@@ -618,11 +624,11 @@ try {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.13|' + source,
+        algorithm_version: 'v1.14|' + source,
         target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.13'
+        model_version: 'v1.14'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
@@ -658,10 +664,10 @@ try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.13: появились новые прогнозы (' + created + ' шт)! Порог brand ≥12, окна компактнее.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.14: появились новые прогнозы (' + created + ' шт)! Лечение обрезки Supabase (пагинация), станции с ≥3 событиями на своём ритме.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.13 завершил работу');
+  console.log('✅ Предиктор v1.14 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
