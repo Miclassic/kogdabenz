@@ -4826,6 +4826,65 @@ function flyToStation(id) {
   mapObj.stop();
   mapObj.easeTo({ center: [Number(st.lon), Number(st.lat)], zoom: 15, duration: 900 });
 }
+// === Фоновый добор дыр: что не пришло на первой загрузке — добираем по одному,
+// без перезагрузки страницы и без повторной качки хороших кусков. Глобал
+// перезаписывается ТОЛЬКО когда повтор успешен. Разброс по времени + одно
+// соединение за раз = не усиливаем лавину при перегрузе базы. ===
+let pendingPreds = [], verifiedPreds = [];
+let LOAD_DEFS = [], pendingLoads = [], drainTimer = null, drainBusy = false, softTimer = null;
+function softRefresh() {
+  // перерисовываем панели, потребляющие добранные данные; дебаунс, чтобы
+  // несколько удачных доборов подряд не дёргали тяжёлую карту много раз
+  if (softTimer) clearTimeout(softTimer);
+  softTimer = setTimeout(() => {
+    softTimer = null;
+    try {
+      renderStations(cityStationList()); // тянет renderNow -> hero/чипы/мини-карта/точность/плашка
+      renderHeat();
+      if (mapObj && zoneReady) renderMap();
+      renderAccuracy();
+      lastWaveStats = allWaveEvents.length ? cityWaveStats() : null;
+      renderWave();
+      saveCache();
+    } catch (e) { console.log('softRefresh: ' + e.message); }
+  }, 600);
+}
+function scheduleDrainAgain(base) {
+  if (drainTimer) return;
+  const ms = (base == null) ? (4000 + Math.random() * 5000) : base;
+  drainTimer = setTimeout(drainPendingLoads, ms);
+}
+function drainPendingLoads() {
+  drainTimer = null;
+  if (drainBusy) { scheduleDrainAgain(); return; }
+  // не лезем, пока идёт полная загрузка/офлайн-режим/вкладка спит —
+  // там дыры чинит полный путь (manualRefresh / start), а не мелкий добор
+  if (offlineMode || refreshing || startRunning || document.visibilityState !== 'visible') { scheduleDrainAgain(); return; }
+  if (!pendingLoads.length) return;
+  const i = pendingLoads[0];
+  const d = LOAD_DEFS[i];
+  if (!d) { pendingLoads.shift(); scheduleDrainAgain(); return; }
+  drainBusy = true;
+  const p = d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path);
+  p.then(rows => {
+    drainBusy = false;
+    try { d.set(rows); } catch (e) {}
+    pendingLoads.shift();
+    d._tries = 0;
+    softRefresh();
+    scheduleDrainAgain(1500 + Math.random() * 2000); // следующий дырявый кусок — с небольшим зазором
+  }).catch(err => {
+    drainBusy = false;
+    const msg = String((err && err.message) || '');
+    // преходящее (сеть/обрыв/перегруз 429/5xx) — крутим в хвост и пробуем ещё;
+    // постоянное (4xx не-429, битый запрос) — не долбим, убираем из очереди
+    const transient = (err && err.overload) || /abort|failed to fetch|network|load failed|http 429|http 5\d\d/i.test(msg);
+    d._tries = (d._tries || 0) + 1;
+    if (!transient || d._tries >= 8) pendingLoads.shift();
+    else pendingLoads.push(pendingLoads.shift()); // в хвост: дать другим кускам шанс
+    scheduleDrainAgain(4000 + Math.random() * 5000);
+  });
+}
 async function start() {
   const app = document.getElementById('app');
   offlineMode = false;
@@ -4846,39 +4905,39 @@ async function start() {
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const R = await Promise.allSettled([
-      dbQuery('/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state').catch(() => []),
-      dbQueryAll('/rest/v1/station_counts_snap?select=station_id,total', 'station_id').catch(() => []),
-      dbQueryAll('/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*'),
-      dbQueryAll('/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*'),
-      dbQuery('/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at').catch(() => []),
-      dbQuery('/rest/v1/user_feedback?order=created_at.desc&limit=300').catch(() => []),
-      dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
-      dbQueryAll('/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', 'station_id').catch(() => []),
-      dbQueryAll('/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', 'station_id').catch(() => []),
-      dbQuery('/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')').catch(() => []),
-      dbQuery('/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168').catch(() => []),
-      dbQuery('/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000').catch(() => []),
-      dbQueryAll('/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at').catch(() => []),
-      dbQuery('/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000').catch(() => []),
-      dbQuery('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000').catch(() => [])
-    ]);
-    // разбираем поштучно: что пришло — то и используем, что упало — не роняет остальных
-    const gv = (i, d) => { const r = R[i]; return r && r.status === 'fulfilled' ? r.value : (d !== undefined ? d : []); };
-    const observations = gv(0), counts = gv(1), predictions = gv(2), verifiedThin = gv(3), events = gv(4), feedback = gv(5), hourly = gv(6), queue = gv(7), lastRows = gv(8), lastPrice = gv(9), priceRows = gv(10), queueEps = gv(11), queueEvAll = gv(12), events7 = gv(13), waveEv = gv(14);
-    allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
-    queueById = {};
-    for (const x of allQueue) queueById[x.station_id] = x;
-    allLastObs = {};
-    for (const o of (lastRows || [])) allLastObs[o.station_id] = o;
-    allPredictions = predictions.concat(verifiedThin || []); allEvents = events; allFeedback = feedback; allHourly = hourly;
-    // упавший ценовой запрос НЕ затирает прогретое/известное (см. прогрев выше)
-    if (R[9] && R[9].status === 'fulfilled') { allLastPrice = {}; for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x; }
-    if (R[10] && R[10].status === 'fulfilled') priceHourly = priceRows || [];
-    queueEpisodes = queueEps || [];
-    allQueueEvents = queueEvAll || [];
-    allEvents7 = events7 || [];
-    allWaveEvents = waveEv || [];
+    // описатели 15 кусков: путь + как читать + куда класть. Один источник правды
+    // и для первой загрузки, и для фонового добора дыр (drainPendingLoads).
+    LOAD_DEFS = [
+      { all: false, path: '/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allObservations = r || []; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_counts_snap?select=station_id,total', set: r => { allCounts = r || []; } },
+      { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*', set: r => { pendingPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
+      { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*', set: r => { verifiedPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
+      { all: false, path: '/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at', set: r => { allEvents = r || []; } },
+      { all: false, path: '/rest/v1/user_feedback?order=created_at.desc&limit=300', set: r => { allFeedback = r || []; } },
+      { all: false, path: '/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allHourly = r || []; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', set: r => { allQueue = r || []; queueById = {}; for (const x of allQueue) queueById[x.station_id] = x; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allLastObs = {}; for (const o of (r || [])) allLastObs[o.station_id] = o; } },
+      { all: false, path: '/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allLastPrice = {}; for (const x of (r || [])) allLastPrice[x.station_id] = x; } },
+      { all: false, path: '/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168', set: r => { priceHourly = r || []; } },
+      { all: false, path: '/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000', set: r => { queueEpisodes = r || []; } },
+      { all: true, orderCol: 'id', path: '/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at', set: r => { allQueueEvents = r || []; } },
+      { all: false, path: '/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000', set: r => { allEvents7 = r || []; } },
+      { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } }
+    ];
+    const R = await Promise.allSettled(LOAD_DEFS.map(d => d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path)));
+    allStations = stations;
+    pendingLoads = [];
+    for (let i = 0; i < LOAD_DEFS.length; i++) {
+      const r = R[i];
+      if (r && r.status === 'fulfilled') LOAD_DEFS[i].set(r.value);
+      else {
+        pendingLoads.push(i); // дыра: доберём фоном, без перезагрузки
+        // цены (9,10) при провале НЕ затираем — держим прогретое из кэша (Ц1);
+        // остальные при провале честно пустые до добора (наблюдения меняются
+        // каждые 10 мин, греть их старьём было бы враньём)
+        if (i !== 9 && i !== 10) LOAD_DEFS[i].set([]);
+      }
+    }
     saveCache(); // ранний снимок: следующий сбой сети покажет данные с плашкой, а не экран ошибки
     flushFeedbackQueue();
     flushPollQueue();
@@ -4900,6 +4959,7 @@ async function start() {
     setTimeout(maybeLifePop, 1500);
 setTimeout(maybeWhatsNew, 2600);
 renderWhatsNewPanel();
+    if (pendingLoads.length) scheduleDrainAgain(2500 + Math.random() * 3000); // добрать дыры фоном, без перезагрузки
   } catch (e) {
     // Связь отвалилась: если в памяти есть снимок — показываем его с честной
     // плашкой; человек видит прежние данные и может ставить отметки.
