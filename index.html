@@ -274,6 +274,12 @@ body { overflow:hidden; }
 .adv-why-i { padding:3px 7px; border-radius:8px; background:#f4f7fc; border:1px solid #e6ebf4; color:#33445f; font-size:8.5px; font-weight:700; }
 .adv-actions { display:flex; gap:6px; margin-top:8px; }
 .adv-actions .cta-btn { flex:1; padding:8px 6px; font-size:10px; }
+.adv-our { margin-left:auto; flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:99px; font-size:9px; font-weight:900; letter-spacing:.3px; color:#5a3b00; background:linear-gradient(135deg,#ffe08a,#f5b82e 55%,#e89b16); box-shadow:0 4px 12px rgba(232,155,22,.4), inset 0 1px 0 rgba(255,255,255,.6); animation:ourGlow 2.6s ease-in-out infinite; }
+.adv-our .ic { width:11px; height:11px; }
+.adv-card.our { border-color:#f3cf7a; background:linear-gradient(180deg,#fffaf0,#fff); }
+@keyframes ourGlow { 0%,100% { box-shadow:0 4px 12px rgba(232,155,22,.35), inset 0 1px 0 rgba(255,255,255,.6); } 50% { box-shadow:0 6px 20px rgba(232,155,22,.6), inset 0 1px 0 rgba(255,255,255,.75); } }
+.adv-meta.cheap { color:#12855c; } .adv-meta.dear { color:#c2403f; } .adv-meta.fresh-ok { color:#12855c; }
+@media (prefers-reduced-motion: reduce) { .adv-our { animation:none; } }
 @media(min-width:900px){ .advice-pop { width:min(680px, calc(100vw - 40px)); } .adv-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .adv-card { margin-top:0; } }
 /* === загрузочный оверлей: фирменная загрузка с этапами поверх заблюренной страницы === */
 .boot-back { position:fixed; inset:0; z-index:96; display:flex; align-items:center; justify-content:center; background:rgba(13,24,46,.62); backdrop-filter:blur(16px) saturate(.75); -webkit-backdrop-filter:blur(16px) saturate(.75); opacity:1; transition:opacity .45s ease; }
@@ -1564,6 +1570,62 @@ function adviceQueueText(id, o) {
   if (demandOf(id) >= 12) return 'очередь была недавно';
   return 'очередей не видно';
 }
+// цена focus-топлива + дельта к городу (метрика объективности выбора)
+function adviceFocusFuel(it) {
+  if (it.kind === 'forecast') return it.pred ? it.pred.fuel_type : '95';
+  return it.f === 'yes' ? '95' : it.f === 'part' ? '92' : 'diesel';
+}
+function advicePriceMeta(st, it) {
+  const fl = adviceFocusFuel(it);
+  const col = fl === '92' ? 'price_92' : fl === '95' ? 'price_95' : 'price_diesel';
+  const cityKey = fl === '92' ? 'p92' : fl === '95' ? 'p95' : 'pdt';
+  const p = allLastPrice[st.id];
+  const v = p ? p[col] : null;
+  if (v === null || v === undefined) return '<span class="adv-meta">' + icon('i-chart', 'ic-s') + 'цена: нет данных</span>';
+  const cur = priceHourly.find(r => r[cityKey] !== null && r[cityKey] !== undefined);
+  let dTxt = '', cls = '';
+  if (cur) {
+    const dv = Number(v) - Number(cur[cityKey]);
+    if (dv < -0.049) { dTxt = ' −' + Math.abs(dv).toFixed(1) + '₽ к городу'; cls = ' cheap'; }
+    else if (dv > 0.049) { dTxt = ' +' + dv.toFixed(1) + '₽ к городу'; cls = ' dear'; }
+    else dTxt = ' ±0₽ к городу';
+  }
+  return '<span class="adv-meta' + cls + '">' + icon('i-chart', 'ic-s') + fuelLabel(fl) + ' ' + Number(v).toFixed(1) + '₽' + dTxt + '</span>';
+}
+// когда источник последний раз видел станцию (10-мин цикл коллектора)
+function adviceFreshMeta(o) {
+  const m = o ? o.data_freshness_minutes : null;
+  if (m === null || m === undefined) return '<span class="adv-meta">' + icon('i-clock', 'ic-s') + 'отметка: нет времени</span>';
+  const t = m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн';
+  const cls = m <= 30 ? ' fresh-ok' : '';
+  return '<span class="adv-meta' + cls + '">' + icon('i-clock', 'ic-s') + 'отметка ' + t + ' назад</span>';
+}
+// вторая, «тщательная» сверка по всем метрикам среди показанных трёх:
+// наличие топлива, уверенность прогноза, свежесть, цена к городу, расстояние, очередь.
+// Победитель = «наш выбор» (золотая плашка), ставится первым.
+function fullChoiceScore(it) {
+  const cl = (x, a, b) => Math.max(a, Math.min(b, x));
+  const fuel = it.kind === 'forecast' ? 0 : it.f === 'yes' ? 1 : it.f === 'part' ? 0.6 : 0.3;
+  const conf = it.pred ? cl(getPrediction(it.pred).confidence / 100, 0, 1) : 0;
+  const m = it.o && it.o.data_freshness_minutes != null ? it.o.data_freshness_minutes : null;
+  const fresh = m === null ? 0.5 : cl(1 - m / 360, 0, 1);
+  const fl = adviceFocusFuel(it);
+  const col = fl === '92' ? 'price_92' : fl === '95' ? 'price_95' : 'price_diesel';
+  const cityKey = fl === '92' ? 'p92' : fl === '95' ? 'p95' : 'pdt';
+  const p = allLastPrice[it.st.id]; const pv = p ? p[col] : null;
+  const cur = priceHourly.find(r => r[cityKey] !== null && r[cityKey] !== undefined);
+  const price = (pv == null || !cur) ? 0 : cl(-(Number(pv) - Number(cur[cityKey])) / 3, -1, 1);
+  const dist = it.km != null ? cl(1 - it.km / 15, 0, 1) : 0.5;
+  const qn = demandOf(it.st.id) + liveQueueCount(it.st.id) * 6;
+  const queue = cl(1 - qn / 60, 0, 1);
+  return 30 * fuel + 22 * conf + 16 * fresh + 14 * price + 12 * dist + 6 * queue;
+}
+function rankByFinalMetrics(list) {
+  for (const it of list) it._fs = fullChoiceScore(it);
+  list.sort((a, b) => b._fs - a._fs);
+  if (list.length) list[0].ourChoice = true;
+  return list;
+}
 function adviceCoreScore(st, o, km, pred) {
   let s = 0;
   const f = pinKey(o) !== 'unknown' ? pinKey(o) : (folkPinState(st.id, o) || 'unknown');
@@ -1606,7 +1668,7 @@ function buildAdviceList() {
   nows.sort((a, b) => b.score - a.score); fcs.sort((a, b) => b.score - a.score);
   const out = nows.slice(0, 3);
   if (out.length < 3) out.push(...fcs.slice(0, 3 - out.length));
-  return out.slice(0, 3);
+  return rankByFinalMetrics(out.slice(0, 3));
 }
 function adviceReasons(it) {
   const r = []; const o = it.o;
@@ -1637,12 +1699,15 @@ function renderAdvicePop() {
     const q = adviceQueueText(st.id, o);
     let win = '';
     if (it.pred) { const g = getPrediction(it.pred); win = '<span class="adv-win">' + icon('i-clock', 'ic-s') + 'окно ' + (g.eta ? ('≈ ' + g.eta) : g.time) + ' · ' + g.confidence + '%</span>'; }
+    const price = advicePriceMeta(st, it);
+    const fresh = adviceFreshMeta(o);
     const reasons = adviceReasons(it);
-    return '<div class="adv-card' + (i === 0 ? ' best' : '') + '">' +
-      '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + badge + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span></div>' +
+    const our = it.ourChoice ? '<span class="adv-our">' + icon('i-star', 'ic-s') + 'наш выбор</span>' : '';
+    return '<div class="adv-card' + (i === 0 ? ' best' : '') + (it.ourChoice ? ' our' : '') + '">' +
+      '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + badge + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + '</div>' +
       '<div class="adv-addr">' + escapeHtml(st.brand ? st.brand + ' · ' : '') + escapeHtml(st.address || '') + '</div>' +
       '<div class="adv-fuels">' + fuels + '</div>' +
-      '<div class="adv-metas">' + dist + '<span class="adv-meta">' + icon('i-queue', 'ic-s') + q + '</span>' + win + '</div>' +
+      '<div class="adv-metas">' + dist + price + fresh + '<span class="adv-meta">' + icon('i-queue', 'ic-s') + q + '</span>' + win + '</div>' +
       (reasons ? '<div class="adv-why">' + reasons + '</div>' : '') +
       '<div class="adv-actions"><button class="cta-btn" onclick="adviceRoute(' + i + ')">' + icon('i-truck', 'ic-s') + 'На карте + маршрут</button>' +
       '<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button></div>' +
@@ -1690,7 +1755,18 @@ function adviceRoute(i) {
 function adviceCard(i) {
   const it = adviceList[i]; if (!it) return; const st = it.st;
   track('click_where_to_go', null, st.id); learnFromAction(st.id, 'advice_click'); rememberAdvice();
-  closeAdvicePop(); openSheet(st.id);
+  // окно НЕ закрываем (просьба): держим до крестика/фона или «на карте + маршрут».
+  // Шторку карточки поднимаем поверх окна — детали видны, окно живёт под ними.
+  openSheetAboveAdvice(st.id);
+}
+function openSheetAboveAdvice(id) {
+  const st = allStations.find(s => s.id === id); if (!st) return;
+  track('open_station_card', null, id); learnFromAction(id, 'card_open');
+  const obs = getLastObservations()[id];
+  document.getElementById('sheetBody').innerHTML = stationCard(st, obs, pickPrediction(id, obs));
+  const sheet = document.getElementById('sheet'); const back = document.getElementById('sheetBack');
+  if (sheet) { sheet.style.zIndex = '92'; sheet.classList.add('open'); }
+  if (back) { back.style.zIndex = '91'; back.classList.add('open'); }
 }
 // === Избранное на сервере + подписка на Телеграм ===
 // Сердечко раньше жило только в localStorage — бот о нём не знал. Теперь
@@ -2190,8 +2266,9 @@ function openSheet(id) {
   document.getElementById('sheetBack').classList.add('open');
 }
 function closeSheet() {
-  document.getElementById('sheet').classList.remove('open');
-  document.getElementById('sheetBack').classList.remove('open');
+  const sheet = document.getElementById('sheet'); const back = document.getElementById('sheetBack');
+  if (sheet) { sheet.classList.remove('open'); sheet.style.zIndex = ''; }
+  if (back) { back.classList.remove('open'); back.style.zIndex = ''; }
   // карточку открыли с карты — возвращаемся на панель карты;
   // центр и зум не тронуты (карта не пересоздавалась), место то же
   if (sheetFromMap) { sheetFromMap = false; pagerGo(2); }
