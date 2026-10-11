@@ -4796,7 +4796,7 @@ async function start() {
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    const [observations, counts, predictions, verifiedThin, events, feedback, hourly, queue, lastRows, lastPrice, priceRows, queueEps, queueEvAll, events7, waveEv] = await Promise.all([
+    const R = await Promise.allSettled([
       dbQuery('/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status').catch(() => []),
       dbQueryAll('/rest/v1/station_counts_snap?select=station_id,total', 'station_id').catch(() => []),
       dbQueryAll('/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*'),
@@ -4813,6 +4813,9 @@ async function start() {
       dbQuery('/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000').catch(() => []),
       dbQuery('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000').catch(() => [])
     ]);
+    // разбираем поштучно: что пришло — то и используем, что упало — не роняет остальных
+    const gv = (i, d) => { const r = R[i]; return r && r.status === 'fulfilled' ? r.value : (d !== undefined ? d : []); };
+    const observations = gv(0), counts = gv(1), predictions = gv(2), verifiedThin = gv(3), events = gv(4), feedback = gv(5), hourly = gv(6), queue = gv(7), lastRows = gv(8), lastPrice = gv(9), priceRows = gv(10), queueEps = gv(11), queueEvAll = gv(12), events7 = gv(13), waveEv = gv(14);
     allStations = stations; allObservations = observations; allCounts = counts; allQueue = queue || [];
     queueById = {};
     for (const x of allQueue) queueById[x.station_id] = x;
@@ -5718,6 +5721,7 @@ function bootFail(msg) {
   if (bootOver) return;
   bootOver = true;
   bootFailed = true;
+  startRunning = false; // ошибка показана — кнопка «Попробовать снова» снова жива
   if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
   console.log('Загрузка не удалась: ' + (msg || ''));
