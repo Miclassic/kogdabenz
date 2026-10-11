@@ -4927,12 +4927,24 @@ renderWhatsNewPanel();
   }
 }
 let startRunning = false;
+let startGen = 0;
 function retryStart() {
+  // повторный тап во время идущей попытки не запускает параллельную загрузку:
+  // оверлей уже крутится (это и есть реакция на первый тап)
   if (startRunning) return;
+  const g = ++startGen;
   startRunning = true;
-  const app = document.getElementById('app');
-  if (app) app.innerHTML = '<div class="status">Подключаюсь к данным...</div>';
-  start().finally(() => { startRunning = false; });
+  bootStart(); // мгновенная реакция: экран ошибки -> «крутится», прогресс заново
+  start().then(() => {
+    if (g !== startGen) return; // устаревшая попытка — не трогаем загрузочный экран
+    if (bootDataOk || offlineMode) bootDone();
+    else bootFail(window.__startErr || 'Данные пришли пустыми — источник молчит');
+  }).catch(() => {
+    if (g !== startGen) return;
+    bootFail(window.__startErr || 'Неизвестная ошибка загрузки');
+  }).finally(() => {
+    if (g === startGen) startRunning = false;
+  });
 }
 // кнопка «Обновить» на плашке «Нет связи»: повторяем загрузку без перезагрузки
 // страницы. На время загрузки плашка остаётся с текстом «Обновляю данные…»,
@@ -5687,6 +5699,15 @@ let bootDataOk = true, bootFailed = false;
 function bootStart() {
   const back = document.getElementById('bootBack');
   if (!back) return;
+  // идемпотентный запуск: повторный вызов (кнопка «Попробовать снова») обязан
+  // убить старые таймеры и вернуть оверлей в «крутится», скрыв экран ошибки —
+  // иначе клик по кнопке не даёт никакой видимой реакции и кажется мёртвым
+  if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
+  if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
+  bootOver = false; bootFailed = false;
+  bootPct = 3; bootTarget = 3; bootStage = -1;
+  back.style.display = ''; back.classList.remove('off');
+  const fb = document.getElementById('bootFailBox'); if (fb) fb.style.display = 'none';
   bootT0 = Date.now();
   bootPaintPct();
   bootTimer = setInterval(() => {
@@ -5753,7 +5774,7 @@ function bootFail(msg) {
   if (bootOver) return;
   bootOver = true;
   bootFailed = true;
-  startRunning = false; // ошибка показана — кнопка «Попробовать снова» снова жива
+  startRunning = false; // ошибка показана -> кнопка «Попробовать снова» снова кликабельна
   if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
   console.log('Загрузка не удалась: ' + (msg || ''));
@@ -5872,10 +5893,12 @@ function tickClock() {
   if (el) { const d = new Date(); el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 }
 bootStart();
+const g0 = ++startGen;
 start().then(() => {
+  if (g0 !== startGen) return;
   if (bootDataOk || offlineMode) bootDone();
   else bootFail(window.__startErr || 'Данные пришли пустыми — источник молчит');
-}).catch(() => bootFail(window.__startErr || 'Неизвестная ошибка загрузки'));
+}).catch(() => { if (g0 !== startGen) return; bootFail(window.__startErr || 'Неизвестная ошибка загрузки'); });
 track('pageview');
 loadPulse().catch(e => console.log('pulse: ' + e.message));
 currentPanel = 1;
