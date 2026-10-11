@@ -2224,7 +2224,25 @@ function stationCard(station, obs, pred) {
     '<div class="recent">' + recentFeedback(station.id) + '</div></section></article>';
 }
 function sparkline(stationId) {
-  const rows = allHourly.filter(h => h.station_id === stationId).sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-24);
+  let rows = allHourly.filter(h => h.station_id === stationId).sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-24);
+  // фолбэк: тяжёлая почасовая вьюха station_hourly иногда отваливается при
+  // перегрузе базы (allSettled честно её изолирует) — собираем ту же форму
+  // доли АИ-95 по часам из живых наблюдений, чтобы кардиограмма не пропадала.
+  // Час берём абсолютный (без поясов): у кардиограммы нет оси часов, важна форма.
+  if (rows.length < 2) {
+    const buckets = {};
+    for (const o of allObservations) {
+      if (o.station_id !== stationId) continue;
+      const t = o.timestamp ? new Date(o.timestamp).getTime() : NaN;
+      if (!isFinite(t)) continue;
+      const hk = Math.floor(t / 3600000);
+      const b = buckets[hk] = buckets[hk] || { total: 0, available_95: 0 };
+      b.total++;
+      if (o.fuel_95_status === true) b.available_95++;
+    }
+    rows = Object.keys(buckets).map(k => ({ hour: Number(k) * 3600000, total: buckets[k].total, available_95: buckets[k].available_95 }))
+      .sort((a, b) => a.hour - b.hour).slice(-24);
+  }
   if (rows.length < 2) return '';
   const vals = rows.map(r => r.total ? r.available_95 / r.total : 0);
   const W = 64, H = 22;
@@ -2966,7 +2984,7 @@ function miniMapGo() { pagerGo(2); ensureMap(); }
    (возврат/пропажа топлива по смене соседних наблюдений) и народ
    (топливо/очередь/привоз). Строка: АЗС • улица • что • время отметки.
    Переключение циклом с «вушем», полоска = прогресс до следующего слайда. */
-const FEED_HOURS = 4;
+const FEED_HOURS = 1;
 const FEED_MS = 4500;
 let feedItems = [], feedIdx = 0, feedTimer = null;
 function buildFeed() {
@@ -3036,7 +3054,7 @@ function applyFeedSlide(i, animate) {
   const it = feedItems[i];
   const paint = () => {
     if (!it) {
-      cap.textContent = 'Уведомления · ' + userCityName() + ' · ' + FEED_HOURS + ' часа';
+      cap.textContent = 'Уведомления · ' + userCityName() + ' · ' + FEED_HOURS + (FEED_HOURS === 1 ? ' час' : (FEED_HOURS < 5 ? ' часа' : ' часов'));
       line.textContent = 'Пока тихо: новых отметок за это время нет';
       if (ico) { ico.innerHTML = '<use href="#i-clock"/>'; ico.style.color = '#6a4fd8'; }
       if (bar) { bar.style.transition = 'none'; bar.style.width = '8%'; }
@@ -5252,7 +5270,7 @@ function helpHtml() {
     '<div class="help-lead">КогдаБенз — помощник водителя юга: Краснодарский край и Адыгея. Мы не просто показываем, где бензин: каждые 10 минут собираем отметки заправок и сообщения водителей, а потом подсказываем, когда топливо вернётся на заправку и когда лучше поехать.</div>' +
     '<div class="help-item"><div class="help-q">Зачем создан этот сайт?</div><div class="help-a">В дефицит бензин пропадает с заправок, а очереди появляются внезапно. Чтобы не ездить по городу вслепую, мы собрали все отметки в одном месте и заранее подсказываем, когда и куда лучше заправиться.</div></div>' +
     '<div class="help-item"><div class="help-q">Откуда берутся данные?</div><div class="help-a">Из двух источников: народная карта заправок (обновляется каждые 10 минут) и отметки таких же водителей, как вы: «топливо есть», «очередь», «привезли». Чем больше людей отмечают, тем точнее подсказки.</div></div>' +
-    '<div class="help-item"><div class="help-q">Что за плашка вверху главной панели?</div><div class="help-a">Это живая лента отметок за последние 4 часа: источник (топливо вернулось или пропало) и водители (топливо есть/нет, очередь, привезли). Строки сменяются циклом: заправка, улица, что случилось и время отметки.</div></div>' +
+    '<div class="help-item"><div class="help-q">Что за плашка вверху главной панели?</div><div class="help-a">Это живая лента отметок за последний час: источник (топливо вернулось или пропало) и водители (топливо есть/нет, очередь, привезли). Строки сменяются циклом: заправка, улица, что случилось и время отметки.</div></div>' +
     '<div class="help-item"><div class="help-q">Что означают цвета капель на карте?</div><div class="help-a">Зелёная — АИ-95 есть. Оранжевая — есть только АИ-92. Голубая — только дизель. Красная — ничего нет. Серая — свежих данных нет. Если топлив несколько сразу, капля окрашена градиентом из их цветов. Когда источник станцию не видит, каплю красят отметки людей: 2 голоса — ранний сигнал, 3 голоса — подтверждено; оранжевая капля со знаком вопроса — мнения людей разошлись.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за лужи вокруг капель?</div><div class="help-a">Это очереди. Чем краснее и заметнее лужа, тем больше людей стоят в очереди прямо сейчас. Значок с человечками внутри зоны — отметка очереди.</div></div>' +
     '<div class="help-item"><div class="help-q">Что за пунктирная граница на карте?</div><div class="help-a">Это край области, которую мы обслуживаем: внутри неё мы наблюдаем все заправки и даём прогнозы, а снаружи данных пока нет. Граница видна только на обзорной карте, при приближении к городу она тает, чтобы не мешать.</div></div>' +
