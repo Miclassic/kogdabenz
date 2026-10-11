@@ -34,7 +34,7 @@
   .row .nm small { display: block; color: #93a1b8; font-size: 10px; white-space: normal; }
   .row .vl { flex: 0 0 auto; font-weight: 800; }
   .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
-  .chart { width: 100%; height: 280px; background: #fff; border: 1px solid #e6ebf4; border-radius: 14px; overflow: hidden; }
+  .chart { width: 100%; min-height: 280px; background: #fff; border: 1px solid #e6ebf4; border-radius: 14px; overflow: visible; }
   .chart-tabs { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
   .chart-tabs button { border: 1px solid #e6ebf4; background: #f7f9fc; color: #5b6b86; border-radius: 10px; padding: 5px 11px; font-size: 11px; font-weight: 800; cursor: pointer; }
   .chart-tabs button.on { background: linear-gradient(135deg, #4385ff, #2465ee); color: #fff; border-color: transparent; }
@@ -43,6 +43,96 @@
   .chart-legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
   .chart-empty { padding: 60px 10px; text-align: center; color: #93a1b8; font-size: 11px; }
   .chart-tip { position: absolute; pointer-events: none; background: #14213d; color: #fff; font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; white-space: nowrap; }
+
+  .chart-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 10px 8px 4px;
+    max-height: 340px;
+    overflow: auto;
+  }
+  .week-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #e6ebf4;
+  }
+  .week-row:last-child { border-bottom: 0; }
+  .week-label {
+    flex: 0 0 52px;
+    font-size: 10px;
+    font-weight: 800;
+    color: #5b7ba6;
+    padding-bottom: 18px;
+  }
+  .week-bars {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    min-width: 0;
+  }
+  .model-col {
+    flex: 1 1 0;
+    min-width: 28px;
+    max-width: 58px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .model-track {
+    width: 100%;
+    height: 150px;
+    background: #f7f9fc;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px #e6ebf4;
+  }
+  .model-fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    min-height: 2px;
+    background: linear-gradient(to top, #ef4444 0%, #f59e0b 50%, #22c55e 100%);
+    background-size: 100% 150px;
+    background-position: 0 100%;
+  }
+  .model-value {
+    margin-top: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    color: #5b6b86;
+    white-space: nowrap;
+  }
+  .model-name {
+    margin-top: 1px;
+    font-size: 9px;
+    color: #93a1b8;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .chart-scale {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 2px 0;
+    font-size: 10px;
+    font-weight: 800;
+    color: #5b6b86;
+  }
+  .chart-scale i {
+    flex: 1;
+    display: block;
+    height: 8px;
+    border-radius: 5px;
+    background: linear-gradient(to right, #ef4444, #f59e0b, #22c55e);
+  }
 </style>
 </head>
 <body>
@@ -55,6 +145,7 @@
 const SUPABASE_URL = 'https://tiargqbjtraqaooxjafy.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRpYXJncWJqdHJhcWFvb3hqYWZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzOTQ2NjYsImV4cCI6MjEwNDk3MDY2Nn0.eVra5X-9Y3aoQJsZf1uPn9D1m14A3GsiIC5QPa-o31E';
 const DASH_SECRET = 'kb-dash-2026-x9f3k'; // тот же, что в dash.html и в SQL
+
 // цвета линий: старая версия — серая, прошлая — оранжевая, текущая — синяя,
 // aggregate (общая) — чёрная толстая
 const VERSION_COLORS = {
@@ -63,161 +154,160 @@ const VERSION_COLORS = {
   'v1.11': '#2465ee',
   'aggregate': '#14213d'
 };
+
 function versionColor(v) {
   if (VERSION_COLORS[v]) return VERSION_COLORS[v];
   // неизвестная версия — по хешу имени, чтобы не ломалось
   let h = 0; for (const c of String(v)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return 'hsl(' + (h % 360) + ', 60%, 45%)';
 }
+
 let chartData = null;
 let chartMetric = 'median_min'; // median_min / mae_min / p90_min / success_pct
 
 function drawChart() {
   const box = document.getElementById('chartBox');
+  const legend = document.getElementById('chartLegend');
   if (!box || !chartData) return;
+
   const ts = chartData.version_timeseries || [];
   const agg = chartData.aggregate_timeseries || [];
-  if (!ts.length && !agg.length) { box.innerHTML = '<div class="chart-empty">Пока нет данных для графика — верификатор не проверил ни одной недели.</div>'; return; }
 
-  // собираем все недели из обоих массивов, сортируем по ISO-формату (строки сами сортируются)
+  let versions = Array.from(new Set(ts.map(p => p.version))).sort();
+  let useAggOnly = false;
+
+  if (!versions.length && agg.length) {
+    versions = ['aggregate'];
+    useAggOnly = true;
+  }
+
   const weeksSet = new Set();
   for (const p of ts) weeksSet.add(p.week);
-  for (const p of agg) weeksSet.add(p.week);
+  if (useAggOnly) {
+    for (const p of agg) weeksSet.add(p.week);
+  }
+
   const weeks = Array.from(weeksSet).sort();
-  if (!weeks.length) { box.innerHTML = '<div class="chart-empty">Нет недель с данными.</div>'; return; }
 
-  // собираем линии: для каждой версии — массив значений по неделям (null если данных < 3)
-  const versions = Array.from(new Set(ts.map(p => p.version))).sort();
-  const lines = {};
-  for (const v of versions) {
-    lines[v] = weeks.map(w => {
-      const row = ts.find(p => p.version === v && p.week === w);
-      if (!row || row.n < 3) return null; // ворота честности
-      return row[chartMetric];
-    });
+  if (!weeks.length || !versions.length) {
+    box.innerHTML = '<div class="chart-empty">Пока нет данных для графика — верификатор не проверил ни одной недели.</div>';
+    if (legend) legend.innerHTML = '';
+    return;
   }
-  // aggregate
-  const aggLine = weeks.map(w => {
-    const row = agg.find(p => p.week === w);
-    if (!row || row.n < 3) return null;
-    return row[chartMetric];
-  });
 
-  // масштаб Y: берём все ненулевые значения + 10% запаса
+  const points = {};
   const allVals = [];
-  for (const arr of Object.values(lines)) for (const v of arr) if (v !== null) allVals.push(v);
-  for (const v of aggLine) if (v !== null) allVals.push(v);
-  if (!allVals.length) { box.innerHTML = '<div class="chart-empty">Нет точек с данными (≥3 измерения в неделе).</div>'; return; }
-  const yMin = 0;
-  const yMax = Math.max(...allVals) * 1.1;
-  const isPct = chartMetric === 'success_pct';
 
-  // размеры SVG
-  const W = box.clientWidth || 560, H = 280;
-  // левое поле шире, чтобы «N ч MM мин» влезало целиком,
-  // правое шире, чтобы последняя неделя не обрезалась
-  const padL = 74, padR = 40, padT = 18, padB = 32;
-  const plotW = W - padL - padR, plotH = H - padT - padB;
-  const xAt = i => padL + plotW * (i / Math.max(1, weeks.length - 1));
-  const yAt = v => padT + plotH * (1 - (v - yMin) / (yMax - yMin));
+  for (const v of versions) {
+    points[v] = {};
+    for (const w of weeks) {
+      let row = null;
 
-  let svg = '<svg width="' + W + '" height="' + H + '" style="display:block">';
-  // сетка
-  const yTicks = 4;
-  for (let i = 0; i <= yTicks; i++) {
-    const y = padT + plotH * (i / yTicks);
-    const v = yMax - (yMax - yMin) * (i / yTicks);
-    svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" stroke="#e6ebf4" stroke-dasharray="3 3"/>';
-    const label = isPct ? Math.round(v) + '%' : fmtMin(Math.round(v));
-    svg += '<text x="' + (padL - 6) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" font-weight="700" fill="#93a1b8">' + label + '</text>';
-  }
-  // подписи X (недели) — не чаще чем каждая 3-я, иначе каша
-  const step = weeks.length <= 6 ? 1 : weeks.length <= 12 ? 2 : 3;
-  for (let i = 0; i < weeks.length; i += step) {
-    const x = xAt(i);
-    // крайние подписи прижимаем к краям, чтобы не резались:
-    // первая неделя — от левого края, последняя — к правому
-    const anchor = i === 0 ? 'start' : (i === weeks.length - 1 ? 'end' : 'middle');
-    svg += '<text x="' + x + '" y="' + (H - padB + 14) + '" text-anchor="' + anchor + '" font-size="9" font-weight="700" fill="#93a1b8">' + weeks[i] + '</text>';
-    svg += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - padB) + '" y2="' + (H - padB + 4) + '" stroke="#93a1b8"/>';
-  }
-  // если шаг перескочил последнюю неделю — всё равно подписываем её
-  const lastI = weeks.length - 1;
-  if (lastI % step !== 0) {
-    const x = xAt(lastI);
-    svg += '<text x="' + x + '" y="' + (H - padB + 14) + '" text-anchor="end" font-size="9" font-weight="700" fill="#93a1b8">' + weeks[lastI] + '</text>';
-    svg += '<line x1="' + x + '" x2="' + x + '" y1="' + (H - padB) + '" y2="' + (H - padB + 4) + '" stroke="#93a1b8"/>';
-  }
+      if (v === 'aggregate') {
+        row = agg.find(p => p.week === w);
+      } else {
+        row = ts.find(p => p.version === v && p.week === w);
+      }
 
-  // плавный кусок линии БЕЗ провисания (монотонный сплайн):
-  // линия проходит точно через точки, а в минимумах/максимумах
-  // закругляется горизонтально, как на кардиограмме
-  function smoothSeg(pts) {
-    const n = pts.length;
-    if (n < 2) return '';
-    let d = 'M' + pts[0][0].toFixed(1) + ',' + pts[0][1].toFixed(1);
-    if (n === 2) {
-      d += 'L' + pts[1][0].toFixed(1) + ',' + pts[1][1].toFixed(1);
-      return d;
-    }
-    // уклоны отрезков и касательные в точках
-    const dl = [];
-    for (let i = 0; i < n - 1; i++) dl.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0]));
-    const m = [dl[0]];
-    for (let i = 1; i < n - 1; i++) m.push(dl[i - 1] * dl[i] <= 0 ? 0 : (dl[i - 1] + dl[i]) / 2);
-    m.push(dl[n - 2]);
-    for (let i = 0; i < n - 1; i++) {
-      if (dl[i] === 0) { m[i] = 0; m[i + 1] = 0; }
-      else {
-        const a = m[i] / dl[i], b = m[i + 1] / dl[i];
-        const s = a * a + b * b;
-        if (s > 9) { const t = 3 / Math.sqrt(s); m[i] = t * a * dl[i]; m[i + 1] = t * b * dl[i]; }
+      const raw = row ? row[chartMetric] : null;
+
+      if (
+        row &&
+        row.n >= 3 &&
+        raw !== null &&
+        raw !== undefined &&
+        raw !== '' &&
+        isFinite(Number(raw))
+      ) {
+        const val = Number(raw);
+        points[v][w] = { val: val, n: Number(row.n) };
+        allVals.push(val);
       }
     }
-    for (let i = 0; i < n - 1; i++) {
-      const h = pts[i + 1][0] - pts[i][0];
-      d += 'C' + (pts[i][0] + h / 3).toFixed(1) + ',' + (pts[i][1] + m[i] * h / 3).toFixed(1) +
-        ' ' + (pts[i + 1][0] - h / 3).toFixed(1) + ',' + (pts[i + 1][1] - m[i + 1] * h / 3).toFixed(1) +
-        ' ' + pts[i + 1][0].toFixed(1) + ',' + pts[i + 1][1].toFixed(1);
-    }
-    return d;
-  }
-  function pathD(arr) {
-    let d = '', seg = [];
-    for (let i = 0; i < arr.length; i++) {
-      if (arr[i] === null) { d += smoothSeg(seg); seg = []; continue; } // дыра в данных -> линия прерывается
-      seg.push([xAt(i), yAt(arr[i])]);
-    }
-    d += smoothSeg(seg);
-    return d;
   }
 
-  // aggregate — толстая, рисуем первой
-  const aggPath = pathD(aggLine);
-  if (aggPath) svg += '<path d="' + aggPath + '" fill="none" stroke="' + versionColor('aggregate') + '" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>';
-  for (let i = 0; i < aggLine.length; i++) {
-    if (aggLine[i] !== null) svg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(aggLine[i]).toFixed(1) + '" r="3.5" fill="' + versionColor('aggregate') + '" stroke="#fff" stroke-width="1.5"/>';
+  if (!allVals.length) {
+    box.innerHTML = '<div class="chart-empty">Нет точек с данными (≥3 измерения в неделе).</div>';
+    if (legend) legend.innerHTML = '';
+    return;
   }
-  // версии — сверху aggregate
-  for (const v of versions) {
-    const d = pathD(lines[v]);
-    if (d) svg += '<path d="' + d + '" fill="none" stroke="' + versionColor(v) + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
-    // точки на линиях
-    for (let i = 0; i < lines[v].length; i++) {
-      if (lines[v][i] !== null) svg += '<circle cx="' + xAt(i).toFixed(1) + '" cy="' + yAt(lines[v][i]).toFixed(1) + '" r="3.2" fill="' + versionColor(v) + '" stroke="#fff" stroke-width="1.5"/>';
-    }
-  }
-  svg += '</svg>';
-  box.innerHTML = svg;
 
-  // легенда
-  let leg = '<div class="chart-legend">';
-  for (const v of versions) {
-    leg += '<span><i style="background:' + versionColor(v) + '"></i>' + v + '</span>';
+  const min = Math.min(...allVals);
+  const max = Math.max(...allVals);
+  const higherBetter = chartMetric === 'success_pct';
+
+  const scoreOf = function(val) {
+    if (max === min) return 0.5;
+    const t = higherBetter
+      ? (val - min) / (max - min)
+      : (max - val) / (max - min);
+    return Math.max(0, Math.min(1, t));
+  };
+
+  const fmtVal = function(val) {
+    if (chartMetric === 'success_pct') return Math.round(val) + '%';
+    return fmtMin(val);
+  };
+
+  const shortName = function(v) {
+    if (v === 'aggregate') return 'все';
+    const s = String(v);
+    const p = s.split('|');
+    return p[0] + (p[1] ? ' · ' + p[1] : '');
+  };
+
+  let html = '<div class="chart-bars">';
+
+  for (const w of weeks) {
+    html += '<div class="week-row"><div class="week-label">' + w + '</div><div class="week-bars">';
+
+    let hasAny = false;
+
+    for (const v of versions) {
+      const pt = points[v][w];
+      if (!pt) continue;
+
+      hasAny = true;
+
+      const t = scoreOf(pt.val);
+      const h = Math.round(6 + t * 94);
+      const title = shortName(v) + ' · ' + fmtVal(pt.val) + ' · оценка ' + Math.round(t * 100) + '% · n=' + pt.n;
+
+      html +=
+        '<div class="model-col" title="' + title.replace(/"/g, '&quot;') + '">' +
+          '<div class="model-track">' +
+            '<div class="model-fill" style="height:' + h + '%"></div>' +
+          '</div>' +
+          '<div class="model-value">' + fmtVal(pt.val) + '</div>' +
+          '<div class="model-name">' + shortName(v) + '</div>' +
+        '</div>';
+    }
+
+    if (!hasAny) {
+      html += '<div class="note" style="flex:1;margin:0">В этой неделе нет версий с ≥3 измерениями.</div>';
+    }
+
+    html += '</div></div>';
   }
-  leg += '<span><i style="background:' + versionColor('aggregate') + ';height:4px"></i>всё вместе</span>';
-  leg += '</div>';
-  document.getElementById('chartLegend').innerHTML = leg;
+
+  html += '</div>';
+  box.innerHTML = html;
+
+  if (legend) {
+    const metricName =
+      chartMetric === 'median_min' ? 'медиана ошибки' :
+      chartMetric === 'mae_min' ? 'MAE' :
+      chartMetric === 'p90_min' ? 'P90' :
+      'попадания';
+
+    const direction = higherBetter
+      ? 'чем выше столбец — тем лучше'
+      : 'для ошибок чем ниже значение, тем выше столбец (лучше)';
+
+    legend.innerHTML =
+      '<div class="chart-scale"><span>хуже</span><i></i><span>лучше</span></div>' +
+      '<div class="note">Столбцы — версии алгоритма по неделям. Высота и цвет показывают относительную оценку по метрике «' + metricName + '»: ' + direction + '. Значение под столбцом — исходная метрика.</div>';
+  }
 }
 
 function setMetric(m) {
@@ -452,7 +542,7 @@ function render(d) {
   html += '</div>';
   html += '<div id="chartBox" class="chart"></div>';
   html += '<div id="chartLegend"></div>';
-  html += '<div class="note"><b>Ось Y</b> — величина метрики (для ошибок меньше = лучше, для попаданий больше = лучше). <b>Ось X</b> — ISO-недели по дате проверки. <b>Толстая линия</b> — все версии вместе (общая). Точки рисуются только там, где в неделе ≥3 измеренных прогнозов — иначе это шум, а не тренд. Одна версия может пропадать с графика в неделях, где её прогнозов мало.</div>';
+  html += '<div class="note">Переключи метрику кнопками выше. Красный — хуже, зелёный — лучше; высота столбца показывает относительное улучшение.</div>';
   html += '</div>';
 
   app.innerHTML = html;
