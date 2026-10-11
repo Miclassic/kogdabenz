@@ -256,7 +256,8 @@ body { overflow:hidden; }
 .adv-card.best { border-color:#bcd4ff; background:linear-gradient(180deg,#f3f8ff,#fff); }
 .adv-top { display:flex; align-items:center; gap:7px; }
 .adv-rank { flex:0 0 auto; width:20px; height:20px; border-radius:50%; background:#2465ee; color:#fff; font-size:11px; font-weight:900; display:grid; place-items:center; }
-.adv-badge { flex:0 0 auto; font-size:8.5px; font-weight:850; text-transform:uppercase; letter-spacing:.5px; padding:4px 8px; border-radius:99px; }
+.adv-badge { flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; font-size:8.5px; font-weight:850; text-transform:uppercase; letter-spacing:.5px; padding:5px 9px; border-radius:99px; }
+.adv-badge .ic { width:12px; height:12px; }
 .adv-badge.yes { background:#e5f8ef; color:#12855c; }
 .adv-badge.fc { background:#e7f0ff; color:#2465ee; }
 .adv-name { flex:1; min-width:0; font-size:13px; font-weight:850; letter-spacing:-.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -946,7 +947,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           <span><i style="background:#ef5350"></i>ничего нет</span>
           <span><i style="background:#a7b1c1"></i>нет данных</span>
           <span><i style="background:#f5a05a"></i>разные мнения (народ)</span>
-          <span><i style="background:#1bb978;opacity:.45"></i>тусклые капля, квадрат и поле — отметка старше 6 ч</span>
+          <span><i style="background:#ef5350;opacity:.45"></i>тусклый красный — «нет», отметка старше 6 ч</span>
+          <span><i style="background:#a7b1c1"></i>серый — старше 6 ч: наличие не подтверждаем</span>
         </div>
       </div>
       <div id="legHeat">
@@ -1198,9 +1200,14 @@ function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/<
 function time5(v) { if (!v) return '—'; const s = String(v); return s.length >= 5 ? s.substring(0,5) : s; }
 function fuelLabel(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
 function icon(n, cls) { return '<svg class="ic ' + (cls || '') + '"><use href="#' + n + '"/></svg>'; }
-function fuelHtml(ok) {
+function fuelHtml(ok, fresh) {
   if (ok === null || ok === undefined) return '<span class="unknown"><span class="dot gray"></span>нет данных</span>';
-  if (ok) return '<span class="yes"><span class="dot green"></span>есть</span>';
+  if (ok) {
+    // наличие утверждаем только свежей отметкой источника (порог 6 ч един по продукту);
+    // несвежее «было» не выдаём за «есть» — защита от ложных зелёных капель и репутации
+    if (fresh === false) return '<span class="unknown"><span class="dot gray"></span>не подтверждён</span>';
+    return '<span class="yes"><span class="dot green"></span>есть</span>';
+  }
   return '<span class="no"><span class="dot red"></span>нет</span>';
 }
 function getPrediction(pred) {
@@ -2182,9 +2189,9 @@ function stationCard(station, obs, pred) {
     tgStrip(station) +
     workStrip(obs) +
     '<div class="fuels">' +
-    '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
-    '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
-    '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
+    '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status, obsFresh(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
+    '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status, obsFresh(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
+    '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status, obsFresh(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
     '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
     '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
     '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
@@ -4200,12 +4207,18 @@ function effPinKey(st, o) {
   return folkPinState(st.id, o) || 'unknown';
 }
 function pinKey(o) {
-  if (!o || o.fuel_95_status === null || o.fuel_95_status === undefined) return 'unknown';
-  if (o.fuel_95_status) return 'yes';
-  // жив ТОЛЬКО дизель (92 и 95 не доступны) — светло-синий пин
-  if (o.diesel_status === true && o.fuel_92_status !== true) return 'diesel';
-  // АИ-95 нет, но жив АИ-92 (дизель может быть тоже) — частичный состав
-  if (o.fuel_92_status === true) return 'part';
+  if (!o) return 'unknown';
+  const fresh = obsFresh(o);
+  // наличие (true) утверждаем только свежей отметкой; несвежее true гасим, чтобы
+  // старый «был бензин» не светился зелёным/оранжевым (защита репутации).
+  // «нет» (false) оставляем: консервативно и безопасно для водителя.
+  const nullish = v => v === null || v === undefined;
+  const gate = v => nullish(v) ? null : (fresh ? v : (v === false ? false : null));
+  const g = gate(o.fuel_95_status), p = gate(o.fuel_92_status), d = gate(o.diesel_status);
+  if (g === null) return 'unknown'; // держим прежнюю семантику: 95 — главный индикатор
+  if (g === true) return 'yes';
+  if (d === true && p !== true) return 'diesel';
+  if (p === true) return 'part';
   return 'no';
 }
 // порог свежести един по продукту: 6 часов (тот же, что у советника
@@ -4789,6 +4802,11 @@ async function start() {
     const ob = document.getElementById('offlineBar');
     if (ob) ob.classList.remove('on');
   }
+  // цены меняются медленно: прогреваем известное из кэша ДО загрузки, чтобы
+  // упавший в этом заходе ценовой запрос не стирал цену в «нет данных» (дрожание)
+  if (!refreshing) {
+    try { const cc = loadCache(); if (cc) { if (cc.lastPrice) allLastPrice = cc.lastPrice; if (cc.priceHourly) priceHourly = cc.priceHourly; } } catch (e) {}
+  }
   try {
     const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
@@ -4822,9 +4840,9 @@ async function start() {
     allLastObs = {};
     for (const o of (lastRows || [])) allLastObs[o.station_id] = o;
     allPredictions = predictions.concat(verifiedThin || []); allEvents = events; allFeedback = feedback; allHourly = hourly;
-    allLastPrice = {};
-    for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x;
-    priceHourly = priceRows || [];
+    // упавший ценовой запрос НЕ затирает прогретое/известное (см. прогрев выше)
+    if (R[9] && R[9].status === 'fulfilled') { allLastPrice = {}; for (const x of (lastPrice || [])) allLastPrice[x.station_id] = x; }
+    if (R[10] && R[10].status === 'fulfilled') priceHourly = priceRows || [];
     queueEpisodes = queueEps || [];
     allQueueEvents = queueEvAll || [];
     allEvents7 = events7 || [];
