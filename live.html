@@ -268,7 +268,9 @@ function drawChart() {
   let html = '<div class="chart-bars">';
 
   for (const w of weeks) {
-    html += '<div class="week-row"><div class="week-label">' + w + '</div><div class="week-bars">';
+    let weekN = 0;
+    for (const v of versions) if (points[v][w]) weekN += points[v][w].n;
+    html += '<div class="week-row"><div class="week-label">' + w + '<br><span style="color:#93a1b8;font-weight:700">n=' + weekN + '</span></div><div class="week-bars">';
 
     let hasAny = false;
 
@@ -631,10 +633,23 @@ function render(d) {
   html += '<div class="subcap">Попадания по ширине окна</div>';
   if (!wb.length) html += '<div class="note">Пока нет верифицированных окон с посчитанной шириной.</div>';
   wb.forEach(b => {
-    html += '<div class="row"><span class="nm">Окно ' + b.bucket + '<small>верифицировано ' + b.n + ' · возврат был ' + b.with_return + ' · условные ' + (b.cond_pct === null || b.cond_pct === undefined ? '—' : b.cond_pct + '%') + '</small></span>' +
-      '<span class="vl" style="color:' + condColor(b.success_pct) + '">' + (b.success_pct === null || b.success_pct === undefined ? '—' : b.success_pct + '%') + '</span></div>';
+    html += '<div class="row"><span class="nm">Окно ' + b.bucket + '<small>верифицировано ' + b.n + ' · возврат был ' + b.with_return + '</small></span>' +
+      '<span class="vl"><span style="color:#93a1b8">' + (b.success_pct === null || b.success_pct === undefined ? '—' : b.success_pct + '%') + '</span> / <span style="color:' + condColor(b.cond_pct) + '">' + (b.cond_pct === null || b.cond_pct === undefined ? '—' : b.cond_pct + '%') + '</span></span></div>';
   });
-  html += '<div class="note">Корзина «≤1 ч» (включая 30-минутные окна) — эксперимент: показывается со своей метрикой попаданий, а не как достижение. Цвет процента — порог: ≥50% зелёный, 25–49% оранжевый, &lt;25% красный.</div>';
+  html += '<div class="note">Корзина «≤1 ч» (включая 30-минутные окна) — эксперимент: показывается со своей метрикой попаданий, а не как достижение. Два числа: общие попадания (серые, их давит base rate рынка) / условные среди окон с возвратом (цвет: ≥50% зелёный, 25–49% оранжевый, &lt;25% красный).</div>';
+  const nv = d.naive_stats || {};
+  html += '<div class="subcap">Модель против наива (чем окупается хлеб)</div>';
+  if (nv.n) {
+    const rr2 = d.return_rate || {};
+    const modelCond = rr2.cond_pct;
+    const condBetter = modelCond != null && nv.rand_cond_pct != null && modelCond >= nv.rand_cond_pct;
+    const winBetter = nv.med_abs_win != null && nv.med_abs_base != null && nv.med_abs_win <= nv.med_abs_base;
+    html += '<div class="row"><span class="nm">Условные попадания: модель против случайного окна той же ширины<small>случайное окно внутри 06:00–23:00 ловит возврат с вероятностью ≈ ширина/17ч</small></span><span class="vl"><span style="color:' + (condBetter ? '#127a55' : '#c03434') + '">' + (modelCond == null ? '—' : modelCond + '%') + '</span> / ' + (nv.rand_cond_pct == null ? '—' : nv.rand_cond_pct + '%') + '</span></div>';
+    html += '<div class="row"><span class="nm">Медиана |ошибки|: центр окна против голой медианы длительности<small>baseline — медиана эпизодов «исчезло→вернулось» без k-NN и сдвигов</small></span><span class="vl"><span style="color:' + (winBetter ? '#127a55' : '#c03434') + '">' + fmtMin(nv.med_abs_win) + '</span> / ' + fmtMin(nv.med_abs_base) + '</span></div>';
+    html += '<div class="note">Измерено на ' + nv.n + ' верифицированных окнах, из них с возвратом ' + nv.with_return + '. Модель окупается, когда первое число зелёное и выше наива, а медиана ошибки ниже наива.</div>';
+  } else {
+    html += '<div class="note">Пока мало верифицированных окон для сравнения с наивом.</div>';
+  }
   html += '<div class="subcap">Уверенность: какой режим</div>';
   if (calibActive) {
     html += '<div class="vd-chip tone-g" style="display:inline-block">Калибровочная таблица применена: от ' + String(calib.built_at).slice(0, 10) + ', по ' + calib.n + ' проверенным (' + calib.successes + ' попаданий). Уверенность на странице и сайте = вероятность.</div>';
@@ -642,10 +657,16 @@ function render(d) {
     html += '<div class="vd-chip tone-o" style="display:inline-block">Калибровочной таблицы нет — сырая уверенность (ворота не пройдены или не накопились). Процент уверенности сейчас — балл, а не вероятность.</div>';
   }
   if (shift && shift.entries) {
-    const parts = Object.keys(shift.entries).map(f =>
-      fuelRu(f) + ': окно ' + ((shift.entries[f].shift_window_min || 0) >= 0 ? '+' : '') + (shift.entries[f].shift_window_min || 0) + ' мин, ETA ' + ((shift.entries[f].shift_eta_min || 0) >= 0 ? '+' : '') + (shift.entries[f].shift_eta_min || 0) + ' мин'
-    );
-    html += '<div class="note" style="margin-top:6px">Самообучение промахов: таблица сдвигов от ' + String(shift.built_at).slice(0, 10) + ' — ' + parts.join('; ') + '.</div>';
+    const parts = Object.keys(shift.entries).map(f => {
+      const e = shift.entries[f];
+      const bw = e.bias_window_min == null ? '—' : (e.bias_window_min >= 0 ? '+' : '') + e.bias_window_min + ' мин';
+      const sw = e.shift_window_min == null ? 'без сдвига' : ((e.shift_window_min >= 0 ? '+' : '') + e.shift_window_min + ' мин');
+      const be = e.bias_eta_min == null ? '—' : (e.bias_eta_min >= 0 ? '+' : '') + e.bias_eta_min + ' мин';
+      const se = e.shift_eta_min == null ? 'без сдвига' : ((e.shift_eta_min >= 0 ? '+' : '') + e.shift_eta_min + ' мин');
+      const clampHit = (e.bias_eta_min != null && e.shift_eta_min != null && Math.abs(e.bias_eta_min) > Math.abs(e.shift_eta_min)) ? ' (упёрся в зажим ±6ч!)' : '';
+      return fuelRu(f) + ': bias окна ' + bw + ' → ' + sw + '; bias ETA ' + be + ' → ' + se + clampHit;
+    });
+    html += '<div class="note" style="margin-top:6px">Самообучение промахов: таблица от ' + String(shift.built_at).slice(0, 10) + ' — ' + parts.join('; ') + '. Bias — измеренное медианное отставание факта; сдвиг — что применено (зажато ±6ч). С v1.15 ETA = центр окна, shift_eta_min не применяется.</div>';
   } else {
     html += '<div class="note" style="margin-top:6px">Таблицы сдвигов промахов нет — окно и ETA считаются как раньше.</div>';
   }

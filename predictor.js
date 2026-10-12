@@ -12,6 +12,12 @@
 //       Нет таблицы (мало данных) — работаем по сырой уверенности, как раньше.
 // v1.10: окно по квантилям 20–80% (вместо медиана ± σ), фильтр привозов по классу
 //        дня (будни/выходные), синхронизация окна с ETA при глубоком дефиците.
+// v1.15: ETA переопределён: точечный ETA = центр окна на дату прицела. Модель
+//        длительности (k-NN/медиана эпизодов «исчезло→вернулось») в текущем
+//        рынке систематически опаздывает на 6+ часов (bias ≤ -360 мин, кламп
+//        ±6ч это маскировал), а bias центра окна около нуля. Синхронизация
+//        окна с ETA удалена (нечего согласовывать), shift_eta_min к ETA не
+//        применяется (окно уже сдвинуто shift_window_min). baseline остаётся «голым».
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const MIN_EVENTS_PRELIM = 3;
@@ -137,7 +143,7 @@ function shiftWindowTimes(winFrom, winTo, shiftMin) {
   return [minutesToTime(nf), minutesToTime(nt)];
 }
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.14 (State Machine Aware + самообучение промахов + пагинация) ===');
+  console.log('=== ПРЕДИКТОР v1.15 (State Machine Aware + самообучение промахов + пагинация) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
@@ -514,81 +520,58 @@ try {
       const rawConfidence = confidence;
       confidence = Math.min(0.95, Math.max(0.05, calibrate(confidence)));
 
-      // Модель длительности дефицита
-      let expectedRestoreAt = null;
-      let baselineRestoreAt = null;
-      let knnInfo = null;
-      const currentStatus = curObs ? curObs[fuelCol[fuel]] : null;
-
-      if (currentStatus === false) {
-        const pairDurations = pairsByPair[pairKey] ||
-          (source === 'brand' && st.brand
-            ? [].concat(...stations.filter(s => s.brand === st.brand)
-                .map(s => pairsByPair[s.id + '|' + fuel] || []))
-            : []);
-
-        if (pairDurations.length >= MIN_EVENTS_PRELIM) {
-          const disappearedAt = lastDisByPair[pairKey] || null;
-          if (disappearedAt) {
-            const elapsed = (Date.now() - disappearedAt) / 60000;
-
-            const knnScored = similarEpisodes(st, fuel, disappearedAt);
-            const knn = knnScored.map(x => x.e);
-            let knnMedian = null, knnSupport = 0, p2h = null, knnDist = null;
-
-            if (knn.length >= 8) {
-              knnSupport = knn.length;
-              knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
-              p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
-              knnDist = Math.round(1000 * knnScored.reduce((s, x) => s + x.dist, 0) / knnScored.length) / 1000;
-            }
-
-            const useDur = knnMedian !== null ? knnMedian : medianOf(pairDurations);
-            const remaining = Math.max(5, useDur - elapsed);
-            expectedRestoreAt = new Date(Date.now() + remaining * 60000).toISOString();
-            // v1.12: сдвиг ETA на измеренный bias топлива; baseline сознательно
-         // НЕ трогаем — он обязан остаться «голым» для честного сравнения
-         const fsh0 = fuelShifts ? fuelShifts[fuel] : null;
-         if (fsh0 && fsh0.shift_eta_min) expectedRestoreAt = new Date(new Date(expectedRestoreAt).getTime() + fsh0.shift_eta_min * 60000).toISOString();
-
-            const baseDur = medianOf(pairDurations);
-            baselineRestoreAt = new Date(Date.now() + Math.max(5, baseDur - elapsed) * 60000).toISOString();
-            knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h, mean_dist: knnDist };
-          }
-        }
-      }
-
-      // v1.10: синхронизация окна с ETA. Если дефицит глубокий и ETA далеко
-      // (больше 8 часов впереди), окно «сегодня днём» противоречило бы ETA
-      // «завтра утром» — переставляем окно вокруг часа ETA (±2 часа,
-      // в рамках 06:00–23:00). target_date ниже посчитается от нового окна.
-      let winFrom = from, winTo = to;
-      if (expectedRestoreAt) {
-        const hoursUntilEta = (new Date(expectedRestoreAt).getTime() - Date.now()) / 3600000;
-        if (hoursUntilEta > 8) {
-          const etaMsk = new Date(new Date(expectedRestoreAt).getTime() + 3 * 3600 * 1000);
-          const etaMin = etaMsk.getUTCHours() * 60 + etaMsk.getUTCMinutes();
-          let wf = Math.max(6 * 60, etaMin - 120);
-          let wt = Math.min(23 * 60, etaMin + 120);
-          // хотфикс v1.10.1: ночная ETA (раньше ~08:00) выворачивала окно —
-          // конец раньше начала (кейс -55 мин на live-странице).
-          // Тогда снимаем нижнюю рамку и строим окно вокруг ETA как обычно.
-          if (wt < wf + 2 * MIN_WINDOW_MIN) {
-            wf = Math.max(0, etaMin - 120);
-            wt = Math.min(1439, etaMin + 120);
-            if (wt < wf + 2 * MIN_WINDOW_MIN) wt = Math.min(1439, wf + 2 * MIN_WINDOW_MIN);
-          }
-          winFrom = minutesToTime(wf);
-      winTo = minutesToTime(wt);
-    }
-  }
-  // v1.12: самообучение на промахах — сдвиг окна на измеренный bias топлива
-  const fshift = fuelShifts ? fuelShifts[fuel] : null;
-  if (fshift && fshift.shift_window_min) {
-    const sw = shiftWindowTimes(winFrom, winTo, fshift.shift_window_min);
-    winFrom = sw[0]; winTo = sw[1];
-  }
-  const toMin = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+      // Модель длительности дефицита: v1.15 — модель больше не задаёт ETA,
+   // только baseline («голую» медиану) и k-NN-признаки для снапшота.
+   let expectedRestoreAt = null;
+   let baselineRestoreAt = null;
+   let knnInfo = null;
+   const currentStatus = curObs ? curObs[fuelCol[fuel]] : null;
+   if (currentStatus === false) {
+     const pairDurations = pairsByPair[pairKey] ||
+       (source === 'brand' && st.brand
+         ? [].concat(...stations.filter(s => s.brand === st.brand)
+             .map(s => pairsByPair[s.id + '|' + fuel] || []))
+         : []);
+     if (pairDurations.length >= MIN_EVENTS_PRELIM) {
+       const disappearedAt = lastDisByPair[pairKey] || null;
+       if (disappearedAt) {
+         const elapsed = (Date.now() - disappearedAt) / 60000;
+         const knnScored = similarEpisodes(st, fuel, disappearedAt);
+         const knn = knnScored.map(x => x.e);
+         let knnMedian = null, knnSupport = 0, p2h = null, knnDist = null;
+         if (knn.length >= 8) {
+           knnSupport = knn.length;
+           knnMedian = medianOf(knn.map(e => e.dur).sort((a, b) => a - b));
+           p2h = Math.round(100 * knn.filter(e => e.dur <= elapsed + 120).length / knn.length);
+           knnDist = Math.round(1000 * knnScored.reduce((s, x) => s + x.dist, 0) / knnScored.length) / 1000;
+         }
+         const baseDur = medianOf(pairDurations);
+         baselineRestoreAt = new Date(Date.now() + Math.max(5, baseDur - elapsed) * 60000).toISOString();
+         knnInfo = { support: knnSupport, median_dur_min: knnMedian === null ? null : Math.round(knnMedian), p_restore_2h: p2h, mean_dist: knnDist };
+       }
+     }
+   }
+   // v1.15: синхронизация окна с ETA удалена: ETA теперь сам центр окна,
+   // рассогласования «окно сегодня / ETA завтра» больше нет по построению.
+   let winFrom = from, winTo = to;
+   // v1.12: самообучение на промахах — сдвиг окна на измеренный bias топлива
+   const fshift = fuelShifts ? fuelShifts[fuel] : null;
+   if (fshift && fshift.shift_window_min) {
+     const sw = shiftWindowTimes(winFrom, winTo, fshift.shift_window_min);
+     winFrom = sw[0]; winTo = sw[1];
+   }
+   const toMin = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+   // v1.15: ETA = центр окна на дату прицела (по Москве). Пишем только станциям
+   // с топливом «нет» сейчас: продуктовый смысл ETA — «когда вернётся отсутствующее».
+   // У остальных expected_restore_at = null, как раньше (верификатор там и так
+   // меряет ошибку к центру окна своим фолбэком).
+   const targetDate = mskMinutesNow <= toMin ? todayStr : tomorrowStr;
+   if (currentStatus === false) {
+     const cf = Number(winFrom.slice(0, 2)) * 60 + Number(winFrom.slice(3, 5));
+     const ct = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+     const dayStart = Date.UTC(Number(targetDate.slice(0, 4)), Number(targetDate.slice(5, 7)) - 1, Number(targetDate.slice(8, 10))) - 3 * 3600 * 1000;
+     expectedRestoreAt = new Date(dayStart + ((cf + ct) / 2) * 60000).toISOString();
+   }
 
       // Features Snapshot v1.6
       const nb = nearbyMissing95(st);
@@ -624,11 +607,11 @@ try {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.14|' + source,
-        target_date: mskMinutesNow <= toMin ? todayStr : tomorrowStr,
+        algorithm_version: 'v1.15|' + source,
+        target_date: targetDate,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.14'
+        model_version: 'v1.15'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
@@ -664,10 +647,10 @@ try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.14: появились новые прогнозы (' + created + ' шт)! Лечение обрезки Supabase (пагинация), станции с ≥3 событиями на своём ритме.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.15: появились новые прогнозы (' + created + ' шт)! Лечение обрезки Supabase (пагинация), станции с ≥3 событиями на своём ритме.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.14 завершил работу');
+  console.log('✅ Предиктор v1.15 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
