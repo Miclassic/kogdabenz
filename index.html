@@ -3028,8 +3028,33 @@ function miniMapGo() { pagerGo(2); ensureMap(); }
 // карты, новой логики нет. Интерактив выключен: палец скроллит шторку, не карту.
 let cardMapObj = null, cardReady = false, cardMarkers = [], cardMainPin = null;
 const CARD_ZOOM = 15.2;
-// мини-3D заправки под пином карточки: здание + 2 колонки, красная палитра
-const CARD_ST3D = '<svg viewBox="0 0 46 30"><ellipse cx="24" cy="27" rx="20" ry="3.5" fill="rgba(20,33,61,.18)"/><polygon points="8,9 20,3 32,9 20,15" fill="#ff8a80"/><polygon points="8,9 20,15 20,26 8,20" fill="#ef5350"/><polygon points="32,9 20,15 20,26 32,20" fill="#c62828"/><polygon points="10.5,12.5 17.5,16 17.5,19 10.5,15.5" fill="#fff" opacity=".92"/><polygon points="24,17 29,14.5 34,17 29,19.5" fill="#ffcdd2"/><polygon points="24,17 29,19.5 29,27 24,24.5" fill="#ef5350"/><polygon points="34,17 29,19.5 29,27 34,24.5" fill="#b71c1c"/><polygon points="25.5,19 28,20.2 28,23 25.5,21.8" fill="#fff" opacity=".9"/><polygon points="33,13 38,10.5 43,13 38,15.5" fill="#ffcdd2"/><polygon points="33,13 38,15.5 38,23 33,20.5" fill="#ef5350"/><polygon points="43,13 38,15.5 38,23 43,20.5" fill="#b71c1c"/><polygon points="34.5,15 37,16.2 37,19 34.5,17.8" fill="#fff" opacity=".9"/></svg>';
+// мини-3D заправки под пином карточки: здание + 2 колонки.
+// Цвет держим в тон пина: каждая грань — свой оттенок базового цвета
+// (верх светлее, левая грань = базовый, правая темнее — так читается объём).
+const ST3D_PAL = {
+  yes:      { top:'#86e6c0', left:'#1bb978', right:'#0f8f5f', ctop:'#b8f0d8', cleft:'#1bb978', cright:'#0c7a50' },
+  part:     { top:'#ffc899', left:'#f5a05a', right:'#c26a2a', ctop:'#ffdcc0', cleft:'#f5a05a', cright:'#ad5c22' },
+  diesel:   { top:'#aecbff', left:'#6ea8ff', right:'#3d6fd0', ctop:'#cfe0ff', cleft:'#6ea8ff', cright:'#3561b8' },
+  no:       { top:'#ff8a80', left:'#ef5350', right:'#c62828', ctop:'#ffcdd2', cleft:'#ef5350', cright:'#b71c1c' },
+  conflict: { top:'#ffc899', left:'#f5a05a', right:'#c26a2a', ctop:'#ffdcc0', cleft:'#f5a05a', cright:'#ad5c22' },
+  unknown:  { top:'#d6dce6', left:'#a7b1c1', right:'#7d8ba0', ctop:'#e6ebf2', cleft:'#a7b1c1', cright:'#6e7c91' }
+};
+function cardSt3d(key) {
+  const p = ST3D_PAL[key] || ST3D_PAL.unknown;
+  return '<svg viewBox="0 0 46 30"><ellipse cx="24" cy="27" rx="20" ry="3.5" fill="rgba(20,33,61,.18)"/>' +
+    '<polygon points="8,9 20,3 32,9 20,15" fill="' + p.top + '"/>' +
+    '<polygon points="8,9 20,15 20,26 8,20" fill="' + p.left + '"/>' +
+    '<polygon points="32,9 20,15 20,26 32,20" fill="' + p.right + '"/>' +
+    '<polygon points="10.5,12.5 17.5,16 17.5,19 10.5,15.5" fill="#fff" opacity=".92"/>' +
+    '<polygon points="24,17 29,14.5 34,17 29,19.5" fill="' + p.ctop + '"/>' +
+    '<polygon points="24,17 29,19.5 29,27 24,24.5" fill="' + p.cleft + '"/>' +
+    '<polygon points="34,17 29,19.5 29,27 34,24.5" fill="' + p.cright + '"/>' +
+    '<polygon points="25.5,19 28,20.2 28,23 25.5,21.8" fill="#fff" opacity=".9"/>' +
+    '<polygon points="33,13 38,10.5 43,13 38,15.5" fill="' + p.ctop + '"/>' +
+    '<polygon points="33,13 38,15.5 38,23 33,20.5" fill="' + p.cleft + '"/>' +
+    '<polygon points="43,13 38,15.5 38,23 43,20.5" fill="' + p.cright + '"/>' +
+    '<polygon points="34.5,15 37,16.2 37,19 34.5,17.8" fill="#fff" opacity=".9"/></svg>';
+}
 const CARD_FH_DEFS = [
   { id:'fuelheat-calm', cls:'calm', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.35)','rgba(27,185,120,0.55)','rgba(27,185,120,0.70)','rgba(18,168,106,0.80)'] },
   { id:'fuelheat-hot', cls:'hot', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.40)','rgba(245,160,90,0.62)','rgba(239,83,80,0.78)','rgba(216,42,38,0.88)'] },
@@ -3160,12 +3185,14 @@ function applyCardMap(st) {
   if (!cardMainPin) {
     const el = document.createElement('div');
     el.className = 'card-pin';
-    el.innerHTML = '<div class="card-halo"></div><div class="card-st3d">' + CARD_ST3D + '</div><div class="mpin ' + kkMain + '">' + (kkMain==='conflict' ? '<span class="qmark">?</span>' : icon('i-pump')) + '</div>';
+    el.innerHTML = '<div class="card-halo"></div><div class="card-st3d">' + cardSt3d(kkMain) + '</div><div class="mpin ' + kkMain + '">' + (kkMain==='conflict' ? '<span class="qmark">?</span>' : icon('i-pump')) + '</div>';
     cardMainPin = new maplibregl.Marker({ element:el, anchor:'bottom' }).setLngLat([lon,lat]).addTo(cardMapObj);
   } else {
     cardMainPin.setLngLat([lon,lat]);
     const mp = cardMainPin.getElement().querySelector('.mpin');
     if (mp) mp.className = 'mpin ' + kkMain;
+    const stEl = cardMainPin.getElement().querySelector('.card-st3d');
+    if (stEl) stEl.innerHTML = cardSt3d(kkMain);
   }
   cardMapObj.resize();
 }
