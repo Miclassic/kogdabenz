@@ -453,7 +453,7 @@ function applyMapFilters() {
     if (Number(p.verified_ms) < cutMs) return false;
     if (mapFilters.city !== 'все' && p.city !== mapFilters.city) return false;
     if (mapFilters.fuel !== 'все' && String(p.fuel_type) !== String(mapFilters.fuel)) return false;
-    if (mapFilters.station_id && Number(p.station_id) !== Number(mapFilters.station_id)) return false;
+    if (mapFilters.station_id && String(p.station_id) !== String(mapFilters.station_id)) return false;
     return true;
   });
 }
@@ -624,7 +624,7 @@ function setMapFilter(kind, value) {
   if (kind === 'days') mapFilters.days = Number(value) || 7;
   if (kind === 'city') { mapFilters.city = value || 'все'; mapFilters.station_id = null; }
   if (kind === 'fuel') mapFilters.fuel = value || 'все';
-  if (kind === 'station_id') mapFilters.station_id = value ? Number(value) : null;
+  if (kind === 'station_id') mapFilters.station_id = value ? String(value) : null;
   // фильтры клиентские — повторный запрос не нужен, просто перерисовываем
   fillMapControls();
   drawMap();
