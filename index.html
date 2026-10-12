@@ -1712,6 +1712,10 @@ function renderAdvicePop() {
   const pop = document.getElementById('advicePop'); if (!pop) return false;
   adviceList = buildAdviceList();
   if (!adviceList.length) return false; // нечего советовать свежим — пустое окно не показываем
+  // лид по реальному числу вариантов: не обещаем «три», когда свежих достоверных
+  // станций меньше — иначе текст врёт водителю (кейс: 95 только на одной АЗС)
+  const nAdv = adviceList.length;
+  const nWord = nAdv === 1 ? 'Пока один лучший вариант' : nAdv === 2 ? 'Два лучших варианта' : 'Три лучших варианта';
   const cards = adviceList.map((it, i) => {
     const st = it.st, o = it.o;
     const badge = it.kind === 'now'
@@ -1745,9 +1749,9 @@ function renderAdvicePop() {
       '</div>';
   }).join('');
   pop.innerHTML = '<div class="hello-title">Куда ехать прямо сейчас · ' + escapeHtml(userCityName()) + '</div>' +
-    '<div class="help-lead" style="margin:4px 0 8px">Три лучших варианта по свежим данным: сначала где топливо есть сейчас, потом — где обещают привоз. Очереди не приукрашиваем: показываем что реально видим.</div>' +
+    '<div class="help-lead" style="margin:4px 0 8px">' + nWord + ' по свежим данным: где топливо есть сейчас, а если нет — где обещают привоз. Очереди не приукрашиваем: показываем что реально видим.</div>' +
     '<div class="adv-cards">' + cards + '</div>' +
-    '<div class="recent">Клик по варианту учит подборку под тебя: бренд, часы и исходы поездок. Показ раз в сутки — чтобы не мешать.</div>' +
+    '<div class="recent">Клик по варианту учит подборку под тебя: бренд, часы и исходы поездок. Показываем при каждом заходе — данные каждые 10 минут, топ живой.</div>' +
     '<button class="cta-btn ghost" style="width:100%;margin-top:8px" onclick="closeAdvicePop()">Закрыть</button>';
   return true;
 }
