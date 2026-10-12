@@ -285,16 +285,59 @@ async function main() {
   // джиттер до 45 сек: не стучим синхронно с волнами атаки и другими клиентами
   await new Promise(res => setTimeout(res, Math.floor(Math.random() * 45000)));
   console.log('1) Качаю GdeBenz (Новороссийск)...');
-  const list = await fetchGdebenz();
-  console.log('   Станций в ответе: ' + list.length);
-  const donorLists = [];
+// v5.3 аварийный режим: недоступность источника (домашняя рамка) — не повод
+// пропускать народные отметки. При upstream-ошибке не прерываем цикл, а
+// поднимаем флаг и сразу уходим в outageCrowdCycle(): шаги 2–5 (станции,
+// наблюдения, события по снимкам) пропускаются, толпа, жалобы и уборка
+// выполняются — во время атаки толпа единственный живой источник.
+let list = null;
+let upstreamDown = false;
+try {
+list = await fetchGdebenz();
+} catch (e) {
+if (!e.upstream) throw e;
+upstreamDown = true;
+console.error('⚠️ Домашняя рамка недоступна: ' + e.message + ' — включаю аварийный режим');
+await tgUpstreamThrottled('⚠️ GdeBenz недоступен (похоже на DDoS или защиту). Цикл в аварийном режиме: народные отметки и уборка выполняются, снимки пропускаю; вернусь через 10 минут.');
+}
+if (upstreamDown) {
+await outageCrowdCycle();
+console.log('✅ Цикл завершён в аварийном режиме: толпа и уборка без источника');
+return;
+}
+console.log('   Станций в ответе: ' + list.length);
+// v5.3 sanity-фильтр «200, но мусор»: под атакой CDN может отдать 200 с
+// пустым или обрезанным списком. Сравниваем с числом станций последнего
+// успешного цикла (bot_meta.upstream_sanity): упало вдвое и больше —
+// ничего не пишем, алерт и выход: обрезанный снимок записался бы как свежие данные.
+try {
+const prevRows = await sbGet('/rest/v1/bot_meta?key=eq.upstream_sanity&select=value');
+const prevN = prevRows.length ? Number(prevRows[0].value) : 0;
+if (prevN > 0 && list.length < prevN * 0.5) {
+console.error('⚠️ Sanity: источник отдал ' + list.length + ' станций против ' + prevN + ' в прошлом успешном цикле — похоже на ошмётки атаки, цикл пропущен');
+await tgUpstreamThrottled('⚠️ GdeBenz отдал аномально мало станций: ' + list.length + ' против ' + prevN + ' в прошлом цикле. Похоже на ошмётки атаки. Цикл пропущен, сайт показывает последние данные.');
+process.exit(0);
+}
+await sbPost('bot_meta?on_conflict=key', [{ key: 'upstream_sanity', value: String(list.length), updated_at: new Date().toISOString() }], 'return=minimal,resolution=merge-duplicates');
+} catch (e) { console.log('   ! Sanity-фильтр: ' + e.message); }
+const donorLists = [];
   // Защита от дублей: рамки доноров могут стыковаться с основной и друг
   // с другом — сначала запоминаем osm_id основной рамки, потом каждый донор
   // оставит только станции, которых ещё не было. Postgres получит уникальные ключи.
   const seenOsm = new Set(list.map(s => String(s.osm_id)));
   for (const f of DONOR_FRAMES) {
-    const dl = await fetchFrame(f.url, 'GdeBenz (' + f.region + ')');
-    console.log('   Донор ' + f.region + ': станций ' + dl.length);
+// v5.3: мёртвая донор-рамка пропускает только себя, не убивая весь цикл:
+// домашние наблюдения и события пишутся как обычно
+let dl;
+try {
+dl = await fetchFrame(f.url, 'GdeBenz (' + f.region + ')');
+} catch (e) {
+if (!e.upstream) throw e;
+console.error('⚠️ Донор ' + f.region + ' недоступен: ' + e.message + ' — пропускаю только его');
+await tgUpstreamThrottled('⚠️ Донор ' + f.region + ' недоступен (похоже на DDoS или защиту). Цикл продолжается без него.');
+continue;
+}
+console.log('   Донор ' + f.region + ': станций ' + dl.length);
     const clean = dl.filter(s => {
       const k = String(s.osm_id);
       if (seenOsm.has(k)) return false;
@@ -651,6 +694,103 @@ try {
   console.log('✅ Цикл завершён');
 }
 
+// === v5.3 аварийный режим: толпа и уборка без источника ===
+// Когда GdeBenz лежит (DDoS, защита, сеть), раньше цикл пропускал ВСЁ,
+// включая народные отметки, — а во время атаки толпа единственный живой
+// источник. Функция выполняет только шаги, не зависящие от источника:
+// отметки → события, жалобы, уборка старых наблюдений. Персональные
+// уведомления в аварийном режиме не шлются, но и не теряются:
+// bot_meta.personal_notify_at не продвигается, и первый здоровый цикл
+// доставит подписчикам всё, накопленное за аварию.
+async function outageCrowdCycle() {
+console.log('Аварийный режим: источник лежит, выполняю толпу и уборку без него...');
+const dbSt = await sbGetAll('/rest/v1/stations?select=id,name,address,lat,lon,region');
+const nameById = {};
+const wideById = {};
+const cityById = {};
+for (const s of dbSt) {
+nameById[s.id] = escTg((s.name || 'АЗС') + (s.address ? ' · ' + s.address : ''));
+wideById[s.id] = !(s.lat >= 44.60 && s.lat <= 44.85 && s.lon >= 37.55 && s.lon <= 38.05);
+cityById[s.id] = cityOfStation(s);
+}
+function stationLabel(id) {
+const base = nameById[id] || 'АЗС';
+if (!wideById[id]) return '<b>' + base + '</b>';
+return base + ' (' + (cityById[id] || 'регион') + ')';
+}
+const tgLines = [];
+console.log('6) Обрабатываю народные отметки...');
+let fbEvents = [];
+const unprocessed = await sbGetAll(
+'/rest/v1/user_feedback?processed_at=is.null&select=id,station_id,feedback_type,fuel_type,queue_size,created_at'
+);
+if (unprocessed.length) {
+fbEvents = unprocessed.map(f => ({
+station_id: f.station_id,
+event_type:
+f.feedback_type === 'delivery' ? 'possible_delivery' :
+f.feedback_type === 'available' ? 'fuel_available' :
+f.feedback_type === 'unavailable' ? 'fuel_unavailable' :
+f.feedback_type === 'queue' ? 'queue_high' :
+f.feedback_type === 'in_queue' ? 'queue_high' :
+'queue_low',
+fuel_type: f.fuel_type === 'all' ? null : (f.fuel_type || null),
+detected_at: f.created_at,
+confidence:
+f.feedback_type === 'queue'
+? (f.queue_size === 'huge' ? 0.95 : f.queue_size === 'large' ? 0.9 : f.queue_size === 'medium' ? 0.75 : f.queue_size === 'small' ? 0.6 : 0.7)
+: 0.85,
+source: 'user_feedback'
+}));
+await sbPost('events', fbEvents);
+for (const e of fbEvents) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
+const ids = unprocessed.map(f => f.id).join(',');
+await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
+console.log('   Народных отметок превращено в события: ' + fbEvents.length);
+} else {
+console.log('   Новых народных отметок нет');
+}
+console.log('6.5) Проверяю жалобы на отметки...');
+try {
+const reports = await sbGetAll('/rest/v1/feedback_reports?select=feedback_id,device_id');
+const byFb = {};
+for (const r of reports) (byFb[r.feedback_id] = byFb[r.feedback_id] || new Set()).add(r.device_id);
+const badIds = Object.keys(byFb).filter(id => byFb[id].size >= 2);
+if (!badIds.length) {
+console.log('   Жалоб нет или недостаточно (нужно 2 разных водителя)');
+} else {
+const fbs = await sbGetAll('/rest/v1/user_feedback?id=in.(' + badIds.join(',') + ')&select=id,station_id,created_at');
+for (const f of fbs) {
+await sbDelete('events?source=eq.user_feedback&station_id=eq.' + f.station_id + '&detected_at=eq.' + encodeURIComponent(f.created_at));
+}
+if (fbs.length) await sbDelete('user_feedback?id=in.(' + fbs.map(f => f.id).join(',') + ')');
+console.log('   Удалено отметок по жалобам: ' + fbs.length);
+}
+} catch (e) { console.log('   ! Жалобы: ' + e.message); }
+console.log('7) Убираю старые наблюдения (старше 30 дней)...');
+const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+try {
+const delRes = await fetch(
+SUPABASE_URL + '/rest/v1/observations?timestamp=lt.' + cutoff,
+{
+method: 'DELETE',
+headers: {
+apikey: SUPABASE_KEY,
+Authorization: 'Bearer ' + SUPABASE_KEY,
+Prefer: 'return=minimal'
+}
+}
+);
+console.log('   Уборка: HTTP ' + delRes.status);
+} catch (e) {
+console.log('   ! Уборка не прошла: ' + e.message);
+}
+if (tgLines.length) {
+const msk = new Date(Date.now() + 3 * 3600 * 1000);
+const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
+await tg('⚡ ' + hh + ' · аварийный режим (источник лежит): ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n'), true);
+}
+}
 main().catch(async e => {
   // Источник недоступен/под атакой — это НЕ баг коллектора: выходим тихо
   // (workflow зелёный), владельца тревожим не чаще раза в час.
