@@ -425,6 +425,24 @@ body { overflow:hidden; }
 .mini-map-box .user-dot { width:12px; height:12px; border-width:2px; }
 .mini-map-cap { position:absolute; left:8px; bottom:8px; z-index:5; pointer-events:none; display:inline-flex; align-items:center; gap:5px; padding:5px 9px; border-radius:12px; background:rgba(255,255,255,.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:9px; font-weight:800; box-shadow:0 6px 16px rgba(15,27,51,.14); }
 .mini-map-cap .ic { width:11px; height:11px; color:#2465ee; }
+/* мини-карта места внутри карточки АЗС: лужа очереди + тепло + пин данной АЗС */
+.card-map-wrap { position:relative; height:150px; margin:0 0 10px; border-radius:16px; border:1px solid #e8edf7; overflow:hidden; background:#eef2f8; box-shadow:0 6px 18px rgba(38,69,120,.07); }
+.card-map-box { position:absolute; inset:0; }
+.card-map-box .maplibregl-marker { pointer-events:none; }
+.card-map-box .mpin-wrap { width:14px; height:17px; }
+.card-map-box .mpin { width:14px; height:14px; border-width:1.5px; box-shadow:0 2px 6px rgba(15,27,51,.22); }
+.card-map-box .mpin .ic, .card-map-box .mpin .qmark, .card-map-box .mpin .qdot { display:none; }
+.card-map-box .mzone-ico { pointer-events:none; }
+.card-map-box .mzone-badge { width:16px; height:16px; }
+.card-map-box .mzone-badge .ic { width:10px; height:10px; }
+.card-pin { position:relative; width:26px; height:31px; }
+.card-pin .mpin { width:24px; height:24px; border-width:2.5px; box-shadow:0 4px 12px rgba(15,27,51,.3); }
+.card-pin .mpin .ic { width:13px; height:13px; }
+.card-halo { position:absolute; left:50%; top:13px; width:30px; height:30px; margin-left:-15px; margin-top:-15px; border-radius:50%; border:2px solid rgba(36,101,238,.55); animation:cardHalo 1.8s ease-out infinite; pointer-events:none; }
+@keyframes cardHalo { 0% { transform:scale(.6); opacity:.9; } 100% { transform:scale(1.5); opacity:0; } }
+.card-map-cap { position:absolute; left:8px; bottom:7px; z-index:5; pointer-events:none; display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:11px; background:rgba(255,255,255,.85); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid rgba(226,232,244,.85); color:#33445f; font-size:8.5px; font-weight:800; box-shadow:0 4px 12px rgba(15,27,51,.12); }
+.card-map-cap .ic { width:10px; height:10px; color:#2465ee; }
+@media (prefers-reduced-motion: reduce) { .card-halo { animation:none; opacity:.5; } }
 .mini-cap { display:flex; align-items:center; gap:5px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; }
 .mg-tabs { display:flex; background:#eef2f9; border:1px solid #e6ebf4; border-radius:9px; padding:2px; gap:2px; }
 .mg-tab { border:0; background:transparent; color:#7487a7; border-radius:7px; padding:3px 8px; font-size:9px; font-weight:800; cursor:pointer; }
@@ -1780,6 +1798,7 @@ function openSheetAboveAdvice(id) {
   const sheet = document.getElementById('sheet'); const back = document.getElementById('sheetBack');
   if (sheet) { sheet.style.zIndex = '92'; sheet.classList.add('open'); }
   if (back) { back.style.zIndex = '91'; back.classList.add('open'); }
+  requestAnimationFrame(() => mountCardMap(st));
 }
 // === Избранное на сервере + подписка на Телеграм ===
 // Сердечко раньше жило только в localStorage — бот о нём не знал. Теперь
@@ -2191,6 +2210,7 @@ function stationCard(station, obs, pred) {
     '<div class="station-info"><div class="station-name">' + escapeHtml(station.name || 'АЗС') + '</div>' +
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + ' · ' : '') + escapeHtml(station.address || '') + '</div></div>' +
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
+    '<div class="card-map-wrap"><div id="cardMapBox" class="card-map-box"><div class="status" style="padding:10px;font-size:10px">Карта места загрузится</div></div><div class="card-map-cap">' + icon('i-pin','ic-s') + 'обстановка места: лужа — очередь, поле — дефицит</div></div>' +
     '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
     tgStrip(station) +
     workStrip(obs) +
@@ -2295,6 +2315,7 @@ function openSheet(id) {
   document.getElementById('sheetBody').innerHTML = stationCard(st, obs, pickPrediction(id, obs));
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheetBack').classList.add('open');
+  requestAnimationFrame(() => mountCardMap(st));
 }
 function closeSheet() {
   const sheet = document.getElementById('sheet'); const back = document.getElementById('sheetBack');
@@ -2979,6 +3000,141 @@ function renderMiniMap() {
   }
 }
 function miniMapGo() { pagerGo(2); ensureMap(); }
+// === Мини-карта места внутри карточки АЗС: лужа очереди + тепло + пин данной АЗС ===
+// Один переиспользуемый экземпляр (не плодим WebGL-контексты): создаём лениво при
+// первом открытии карточки, дальше только двигаем камеру и перекладываем данные.
+// Слои/цвета/зоны — те же глобальные хелперы, что у главной мини-карты и полной
+// карты, новой логики нет. Интерактив выключен: палец скроллит шторку, не карту.
+let cardMapObj = null, cardReady = false, cardMarkers = [], cardMainPin = null;
+const CARD_ZOOM = 15.2;
+const CARD_FH_DEFS = [
+  { id:'fuelheat-calm', cls:'calm', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.35)','rgba(27,185,120,0.55)','rgba(27,185,120,0.70)','rgba(18,168,106,0.80)'] },
+  { id:'fuelheat-hot', cls:'hot', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.40)','rgba(245,160,90,0.62)','rgba(239,83,80,0.78)','rgba(216,42,38,0.88)'] },
+  { id:'fuelheat-calm-old', cls:'calm-old', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.16)','rgba(27,185,120,0.25)','rgba(27,185,120,0.32)','rgba(18,168,106,0.36)'] },
+  { id:'fuelheat-hot-old', cls:'hot-old', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.18)','rgba(245,160,90,0.28)','rgba(239,83,80,0.35)','rgba(216,42,38,0.40)'] }
+];
+function mountCardMap(st) {
+  const box = document.getElementById('cardMapBox');
+  if (!box || typeof maplibregl === 'undefined') return; // maplibre не доехал — честная плашка остаётся
+  const lon = Number(st.lon), lat = Number(st.lat);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+  if (!cardMapObj) {
+    box.innerHTML = '';
+    cardMapObj = new maplibregl.Map({ container:'cardMapBox', style:'https://tiles.openfreemap.org/styles/positron', center:[lon,lat], zoom:CARD_ZOOM, attributionControl:false, interactive:false });
+    cardMapObj.on('load', () => {
+      for (const layer of cardMapObj.getStyle().layers || []) {
+        if (layer.type === 'symbol') cardMapObj.setLayoutProperty(layer.id,'visibility','none');
+        else if (layer.id.indexOf('building') >= 0) cardMapObj.setLayoutProperty(layer.id,'visibility','none');
+      }
+      cardMapObj.addSource('fuelheat', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+      for (const d of CARD_FH_DEFS) {
+        cardMapObj.addLayer({ id:d.id, type:'heatmap', source:'fuelheat', filter:['==',['get','cls'],d.cls], paint:{ 'heatmap-weight':['get','w'], 'heatmap-intensity':1.8, 'heatmap-radius':50, 'heatmap-opacity':0.5, 'heatmap-color':['interpolate',['linear'],['heatmap-density'],0,d.ramp[0],0.25,d.ramp[1],0.5,d.ramp[2],0.75,d.ramp[3],1,d.ramp[4]] } });
+      }
+      cardMapObj.addSource('zones', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+      cardMapObj.addLayer({ id:'zones-halo', type:'fill', source:'zones', filter:['==',['get','kind'],'halo'], paint:{ 'fill-color':['get','color'], 'fill-opacity':0.08 } });
+      cardMapObj.addLayer({ id:'zones-fill', type:'fill', source:'zones', filter:['==',['get','kind'],'main'], paint:{ 'fill-color':['get','color'], 'fill-opacity':0.16 } });
+      cardMapObj.addLayer({ id:'zones-core', type:'fill', source:'zones', filter:['==',['get','kind'],'core'], paint:{ 'fill-color':['get','color'], 'fill-opacity':0.24 } });
+      cardMapObj.addLayer({ id:'zones-line', type:'line', source:'zones', filter:['==',['get','kind'],'main'], paint:{ 'line-color':['get','color'], 'line-opacity':0.24, 'line-width':1.2, 'line-dasharray':[1,1.8] } });
+      cardReady = true;
+      applyCardMap(st);
+    });
+  } else {
+    applyCardMap(st);
+  }
+}
+function applyCardMap(st) {
+  if (!cardMapObj || !cardReady) return;
+  const lon = Number(st.lon), lat = Number(st.lat);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
+  cardMapObj.stop();
+  cardMapObj.setCenter([lon,lat]);
+  cardMapObj.setZoom(CARD_ZOOM);
+  const z = CARD_ZOOM, ff = zoneStreetFade(z);
+  // радиус тепла под близкий кадр: рампа полной карты, слегка приглушена, чтобы
+  // поле читалось вокруг АЗС и не затопило маленький кадр (kScale главной мини-карты
+  // здесь не нужен — там вид сдалека, тут улица)
+  const hr = zoneRamp(FH_RADIUS, z) * 0.7;
+  const ho = zoneRamp(FH_OPACITY, z) * ff * 0.5;
+  for (const d of CARD_FH_DEFS) {
+    cardMapObj.setPaintProperty(d.id, 'heatmap-radius', hr);
+    cardMapObj.setPaintProperty(d.id, 'heatmap-opacity', ho);
+  }
+  cardMapObj.setPaintProperty('zones-halo','fill-opacity', zoneRamp(ZONE_STOPS.halo,z)*0.93);
+  cardMapObj.setPaintProperty('zones-fill','fill-opacity', zoneRamp(ZONE_STOPS.fill,z)*0.93);
+  cardMapObj.setPaintProperty('zones-core','fill-opacity', zoneRamp(ZONE_STOPS.core,z)*0.93);
+  cardMapObj.setPaintProperty('zones-line','line-opacity', zoneRamp(ZONE_STOPS.line,z)*0.93);
+  cardMapObj.setPaintProperty('zones-line','line-width', zoneRamp(ZONE_STOPS.width,z));
+  for (const m of cardMarkers) m.remove();
+  cardMarkers = [];
+  const last = getLastObservations();
+  const vb = cardMapObj.getBounds();
+  const pad = 0.02;
+  const inView = s => Number(s.lat) >= vb.getSouth()-pad && Number(s.lat) <= vb.getNorth()+pad && Number(s.lon) >= vb.getWest()-pad && Number(s.lon) <= vb.getEast()+pad;
+  // тепло по всем станциям: KDE-поле формируется соседями, как на полной карте
+  const fuelFeats = [];
+  for (const s of allStations) {
+    if (!Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lon))) continue;
+    const o = last[s.id];
+    const srcState = pinKey(o);
+    let state = srcState;
+    if (state === 'unknown') state = folkPinState(s.id, o) || 'unknown';
+    if (state === 'unknown') continue;
+    const stale = srcState !== 'unknown' && !obsFresh(o);
+    if (state === 'yes') fuelFeats.push({ type:'Feature', properties:{ cls: stale?'calm-old':'calm', w:1 }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+    let hotW = 0;
+    if (state === 'no') hotW = 1; else if (state==='part'||state==='diesel') hotW=0.65; else if (state==='conflict') hotW=0.5;
+    if (o && o.queue_level==='high') hotW += 0.35;
+    if (hotW > 0) fuelFeats.push({ type:'Feature', properties:{ cls: stale?'hot-old':'hot', w:hotW }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+  }
+  const fhSrc = cardMapObj.getSource('fuelheat');
+  if (fhSrc) fhSrc.setData({ type:'FeatureCollection', features:fuelFeats });
+  // лужи очередей в кадре + иконка очереди на каждой
+  const feats = [];
+  for (const s of allStations) {
+    if (!Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lon)) || !inView(s)) continue;
+    const sc = demandOf(s.id);
+    if (sc >= 12) {
+      const seed = seedOf(s.id);
+      const R = 100 + sc*6;
+      const col = 'rgb(' + demandRgb(sc) + ')';
+      feats.push(blobFeature(Number(s.lat),Number(s.lon),R,col,seed,'halo',1.25));
+      feats.push(blobFeature(Number(s.lat),Number(s.lon),R,col,seed,'main',1));
+      feats.push(blobFeature(Number(s.lat),Number(s.lon),R,col,seed,'core',0.55));
+      const elZ = document.createElement('div');
+      elZ.className = 'mzone-ico';
+      elZ.innerHTML = '<div class="mzone-badge" style="color:rgb(' + demandRgb(sc) + ')">' + icon('i-queue') + '</div>';
+      cardMarkers.push(new maplibregl.Marker({ element:elZ, anchor:'center' }).setLngLat([Number(s.lon),Number(s.lat)]).addTo(cardMapObj));
+    }
+  }
+  cardMapObj.getSource('zones').setData({ type:'FeatureCollection', features:feats });
+  // соседние капли (мельче), кроме данной АЗС; только с топливом — чтобы не шуметь
+  for (const s of allStations) {
+    if (s.id === st.id) continue;
+    if (!Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lon)) || !inView(s)) continue;
+    const o = last[s.id];
+    const kk = effPinKey(s, o);
+    if (kk === 'unknown' || kk === 'no' || kk === 'conflict') continue;
+    const wrap = document.createElement('div');
+    wrap.className = 'mpin-wrap' + (pinKey(o) !== 'unknown' && !obsFresh(o) ? ' stale' : '');
+    wrap.innerHTML = '<div class="mpin ' + kk + '"></div>';
+    cardMarkers.push(new maplibregl.Marker({ element:wrap, anchor:'bottom' }).setLngLat([Number(s.lon),Number(s.lat)]).addTo(cardMapObj));
+  }
+  // пин данной АЗС с кольцом-подсветкой — сразу видно, о какой заправке речь;
+  // рисуем всегда (даже серым при отсутствии данных): водитель должен видеть место
+  const oMain = last[st.id];
+  const kkMain = effPinKey(st, oMain);
+  if (!cardMainPin) {
+    const el = document.createElement('div');
+    el.className = 'card-pin';
+    el.innerHTML = '<div class="card-halo"></div><div class="mpin ' + kkMain + '">' + (kkMain==='conflict' ? '<span class="qmark">?</span>' : icon('i-pump')) + '</div>';
+    cardMainPin = new maplibregl.Marker({ element:el, anchor:'bottom' }).setLngLat([lon,lat]).addTo(cardMapObj);
+  } else {
+    cardMainPin.setLngLat([lon,lat]);
+    const mp = cardMainPin.getElement().querySelector('.mpin');
+    if (mp) mp.className = 'mpin ' + kkMain;
+  }
+  cardMapObj.resize();
+}
 /* герой, чипы, дайджест, шапка */
 /* плашка-герой: живая лента отметок за последние 4 часа — источник
    (возврат/пропажа топлива по смене соседних наблюдений) и народ
