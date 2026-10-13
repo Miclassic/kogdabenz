@@ -74,10 +74,29 @@ const raw = (v < 1 || f.conf_raw === null || f.conf_raw === undefined)
 async function main() {
   console.log('=== КАЛИБРАТОР v3 ===');
   const rows = await fetchVerified();
+  // v1.16-переход: калибровка уверенности — ТОЛЬКО по последней прод-версии.
+// Смена формулы (v1.15→v1.16) меняет шкалу сырого балла; смесь двух шкал в окне
+// 14 дней заставила бы изотонию построить враньё-таблицу (один факт — два балла).
+// Сдвиговый контур ниже не трогаем: window_error_minutes от шкалы не зависит.
+const verNum = mv => {
+  const m = String(mv || '').match(/v(\d+)\.(\d+)/);
+  return m ? [Number(m[1]), Number(m[2])] : [-1, -1];
+};
+let latestVer = [-1, -1];
+for (const p of rows) {
+  if (String(p.model_version || '').includes('|shadow')) continue;
+  const v = verNum(p.model_version);
+  if (v[0] > latestVer[0] || (v[0] === latestVer[0] && v[1] > latestVer[1])) latestVer = v;
+}
+const calibRows = rows.filter(p => {
+  const v = verNum(p.model_version);
+  return v[0] === latestVer[0] && v[1] === latestVer[1];
+});
+console.log('   Калибровка по последней прод-версии: v' + latestVer[0] + '.' + latestVer[1] + ' (строк ' + calibRows.length + ' из ' + rows.length + ')');
   console.log('Верифицированных прогнозов всего: ' + rows.length);
-  let data = toData(rows, FRESH_DAYS);
+  let data = toData(calibRows, FRESH_DAYS);
   let windowDays = FRESH_DAYS;
-  if (data.length < MIN_ROWS) { data = toData(rows, FRESH_DAYS_WIDE); windowDays = FRESH_DAYS_WIDE; }
+  if (data.length < MIN_ROWS) { data = toData(calibRows, FRESH_DAYS_WIDE); windowDays = FRESH_DAYS_WIDE; }
   // === v4: самообучение на промахах: сдвиги окна и ETA по топливам ===
   // Окно меряем к его центру (window_error_minutes), ETA — к expected_restore_at
   // (error_minutes строк, где ETA был). Ворота: n >= 30 и |медианный bias| >= 60 мин,

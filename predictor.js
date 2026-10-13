@@ -143,7 +143,7 @@ function shiftWindowTimes(winFrom, winTo, shiftMin) {
   return [minutesToTime(nf), minutesToTime(nt)];
 }
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.15 (State Machine Aware + самообучение промахов + пагинация) ===');
+  console.log('=== ПРЕДИКТОР v1.16 (State Machine Aware + самообучение промахов + пагинация) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
@@ -503,22 +503,30 @@ try {
       if (toMinWin < fromMin + minWin) toMinWin = fromMin + minWin;
       const from = minutesToTime(fromMin);
       const to = minutesToTime(toMinWin);
-      const tightness = 1 / (1 + (toMinWin - fromMin) / 120);
-
-      let confidence = 0.35 + 0.30 * tightness + Math.min(0.15, usedCount * 0.01);
-      if (source === 'brand') confidence *= 0.85;
-      if (source === 'city') confidence *= 0.70;
-      if (usedCount >= MIN_EVENTS_FULL && source === 'own') confidence += 0.10;
-
-      // v1.6 Adjustment: Penalize confidence slightly if state is unstable or suspect
-      const curObs = lastObs[st.id];
-      if (curObs && curObs.fuel_state === 'SUSPECTED_LOSS') {
-          confidence *= 0.9; // Less sure about recovery timing if loss isn't confirmed yet
-      }
-
-      confidence = Math.min(0.95, Math.max(0.05, confidence));
-      const rawConfidence = confidence;
-      confidence = Math.min(0.95, Math.max(0.05, calibrate(confidence)));
+      // v1.16: уверенность по ИЗМЕРЕННОЙ иерархии признаков (диагностика 13.10, ~23k строк).
+   // Старая формула была плоской (разброс бинов 6% < 15%): база 0.35 прижимала всех к 0.34–0.55,
+   // а usedCount*0.01 рос там, где факт падает (21+ событий = 4%, 3–5 = 17%).
+   // Две сильные ступени со 100% покрытием и разбросом >=15 п.п.:
+   //   prediction_source: own 21% / brand 5% / city 0%
+   //   ширина окна:       <=3ч 15–16% / 3–6ч 8% / >6ч 5%
+   // Калибратор натянет балл на факт изотонией — важны монотонность и разброс.
+   // usedCount не возвращаем: его обратный сигнал уже разложен в source+width.
+   const widthMin = toMinWin - fromMin;
+   const widthBonus = widthMin <= 180 ? 0.10 : widthMin <= 360 ? 0.04 : 0.0;
+   const sourceBonus = source === 'own' ? 0.14 : source === 'brand' ? 0.02 : 0.0;
+   let confidence = 0.04 + sourceBonus + widthBonus;
+   // кризис: массовые исчезновения (>=6 за 6ч) роняют попадания 9% -> 3%
+   if (disappears6h >= 6) confidence -= 0.03;
+   // режим восстановления/городского дефицита: окно почти не ловит (факт 0–1%)
+   if (regime === 'RECOVERY' || regime === 'CITY_SHORTAGE') confidence -= 0.02;
+   // машина состояний: подозрительная/подтверждённая потеря — срок возврата менее надёжен
+   const curObs = lastObs[st.id];
+   if (curObs && (curObs.fuel_state === 'SUSPECTED_LOSS' || curObs.fuel_state === 'CONFIRMED_LOSS')) {
+     confidence -= 0.02;
+   }
+   confidence = Math.min(0.95, Math.max(0.05, confidence));
+   const rawConfidence = confidence;
+   confidence = Math.min(0.95, Math.max(0.05, calibrate(confidence)));
 
       // Модель длительности дефицита: v1.15 — модель больше не задаёт ETA,
    // только baseline («голую» медиану) и k-NN-признаки для снапшота.
@@ -607,11 +615,11 @@ try {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.15|' + source,
+        algorithm_version: 'v1.16|' + source,
         target_date: targetDate,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.15'
+        model_version: 'v1.16'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
@@ -647,10 +655,10 @@ try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.15: появились новые прогнозы (' + created + ' шт)! Лечение обрезки Supabase (пагинация), станции с ≥3 событиями на своём ритме.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.16: появились новые прогнозы (' + created + ' шт)! Лечение обрезки Supabase (пагинация), станции с ≥3 событиями на своём ритме.' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.15 завершил работу');
+  console.log('✅ Предиктор v1.16 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
