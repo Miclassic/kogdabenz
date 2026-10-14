@@ -5348,20 +5348,29 @@ function saveCache() {
   if (offlineMode) return; // офлайн-данные не должны затирать хороший снимок
   if (!allStations.length) return; // частичный снимок без станций убил бы мгновенный вход
   try {
+    // Слияние: кусок, упавший в ЭТОМ прогоне, не должен вытирать из кэша
+    // хорошие данные прошлого снимка (иначе пустые отметки замораживают
+    // экран нулями на следующем входе — твой кейс 01:10)
+    let prev = null;
+    try { prev = JSON.parse(localStorage.getItem(LS_CACHE) || 'null'); } catch (e) {}
+    const keep = (cur, old) => {
+      const n = cur ? (Array.isArray(cur) ? cur.length : Object.keys(cur).length) : 0;
+      return n ? cur : (old !== undefined && old !== null ? old : cur);
+    };
     localStorage.setItem(LS_CACHE, JSON.stringify({
       t: Date.now(),
       stations: allStations,
-      lastObs: Object.values(allLastObs),
-      preds: allPredictions.filter(p => p.result === 'PENDING' || (p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined)).slice(0, 800),
-      feedback: allFeedback.slice(0, 300),
-      counts: allCounts,
-      hourly: allHourly,
-      lastPrice: allLastPrice,
-      priceHourly: priceHourly,
-      queueEpisodes: queueEpisodes,
-      fuelHourly: fuelHourly,
-      pulseRaw: pulseRaw,
-      pulseEv: pulseEv
+      lastObs: keep(Object.values(allLastObs), prev && prev.lastObs),
+      preds: keep(allPredictions.filter(p => p.result === 'PENDING' || (p.is_verified && p.error_minutes !== null && p.error_minutes !== undefined)).slice(0, 800), prev && prev.preds),
+      feedback: keep(allFeedback.slice(0, 300), prev && prev.feedback),
+      counts: keep(allCounts, prev && prev.counts),
+      hourly: keep(allHourly, prev && prev.hourly),
+      lastPrice: keep(allLastPrice, prev && prev.lastPrice),
+      priceHourly: keep(priceHourly, prev && prev.priceHourly),
+      queueEpisodes: keep(queueEpisodes, prev && prev.queueEpisodes),
+      fuelHourly: keep(fuelHourly, prev && prev.fuelHourly),
+      pulseRaw: keep(pulseRaw, prev && prev.pulseRaw),
+      pulseEv: keep(pulseEv, prev && prev.pulseEv)
     }));
   } catch (e) { console.log('Кэш не записан: ' + e.message); }
 }
@@ -6303,7 +6312,7 @@ function tickClock() {
 // молча обновляет цифры фоном. Нет снимка (первый заход) — капля как раньше.
 (function instantCacheRender() {
   const c = loadCache();
-  if (!c) return;
+  if (!c || !(c.lastObs || []).length) return; // снимок без отметок не помогает: честная загрузка с каплей, а не пустой экран
   applyCache(c);
   window.__cacheRendered = true;
   detectUserCity();
