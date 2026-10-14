@@ -16,6 +16,8 @@
 //        длительности (k-NN/медиана эпизодов «исчезло→вернулось») в текущем
 //        рынке систематически опаздывает на 6+ часов (bias ≤ -360 мин, кламп
 //        ±6ч это маскировал), а bias центра окна около нуля. Синхронизация
+// v1.16.1: день ETA = target_date строки (а не «сегодня/завтра» от времени прогона).
+//        Иначе ETA уезжал на завтра при окне на сегодня — верификатор писал ошибку ~-24ч.
 //        окна с ETA удалена (нечего согласовывать), shift_eta_min к ETA не
 //        применяется (окно уже сдвинуто shift_window_min). baseline остаётся «голым».
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -143,7 +145,7 @@ function shiftWindowTimes(winFrom, winTo, shiftMin) {
   return [minutesToTime(nf), minutesToTime(nt)];
 }
 async function main() {
-  console.log('=== ПРЕДИКТОР v1.16 (State Machine Aware + самообучение промахов + пагинация) ===');
+  console.log('=== ПРЕДИКТОР v1.16.1 (исправление дня ETA + самообучение промахов + пагинация) ===');
   const since = new Date(Date.now() - HISTORY_DAYS * 24 * 3600 * 1000).toISOString();
 
   console.log('1) Достаю станции...');
@@ -383,13 +385,17 @@ try {
   for (let offset = 0; ; offset += 1000) {
     const page = await sbGet(
       '/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&target_date=gte.' + todayStr +
-      '&model_version=not.like.*%7Cshadow*&select=id,station_id,fuel_type&order=id.asc&limit=1000&offset=' + offset
+      '&model_version=not.like.*%7Cshadow*&select=id,station_id,fuel_type,target_date&order=id.asc&limit=1000&offset=' + offset
     );
     for (const p of page) existing.push(p);
     if (page.length < 1000) break;
   }
   const existingByKey = {};
-  for (const p of existing) existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
+  const existingTargetByKey = {};
+  for (const p of existing) {
+    existingByKey[p.station_id + '|' + p.fuel_type] = p.id;
+    existingTargetByKey[p.station_id + '|' + p.fuel_type] = p.target_date;
+  }
   console.log('   Существующих PENDING-прогнозов (цель >= сегодня): ' + existing.length);
 
   console.log('4.9) Читаю таблицу калибровки уверенности...');
@@ -574,10 +580,13 @@ try {
    // У остальных expected_restore_at = null, как раньше (верификатор там и так
    // меряет ошибку к центру окна своим фолбэком).
    const targetDate = mskMinutesNow <= toMin ? todayStr : tomorrowStr;
-   if (currentStatus === false) {
-     const cf = Number(winFrom.slice(0, 2)) * 60 + Number(winFrom.slice(3, 5));
-     const ct = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
-     const dayStart = Date.UTC(Number(targetDate.slice(0, 4)), Number(targetDate.slice(5, 7)) - 1, Number(targetDate.slice(8, 10))) - 3 * 3600 * 1000;
+      // v1.16.1: день ETA = target_date строки (при обновлении target_date не трогаем, v1.9),
+      // иначе ETA уезжает на завтра при окне на сегодня → верификатор пишет ошибку ~-24ч
+      const etaDate = existingByKey[pairKey] ? (existingTargetByKey[pairKey] || targetDate) : targetDate;
+      if (currentStatus === false) {
+        const cf = Number(winFrom.slice(0, 2)) * 60 + Number(winFrom.slice(3, 5));
+        const ct = Number(winTo.slice(0, 2)) * 60 + Number(winTo.slice(3, 5));
+        const dayStart = Date.UTC(Number(etaDate.slice(0, 4)), Number(etaDate.slice(5, 7)) - 1, Number(etaDate.slice(8, 10))) - 3 * 3600 * 1000;
      expectedRestoreAt = new Date(dayStart + ((cf + ct) / 2) * 60000).toISOString();
    }
 
@@ -615,11 +624,11 @@ try {
         based_on_observations: usedCount,
         based_on_stations: basedOnStations,
         prediction_source: source,
-        algorithm_version: 'v1.16|' + source,
+        algorithm_version: 'v1.16.1|' + source,
         target_date: targetDate,
         result: 'PENDING',
         features: features,
-        model_version: 'v1.16'
+        model_version: 'v1.16.1'
       };
       // v1.9: ETA пишем всегда (включая null): иначе при молчании источника
       // (статус null) или возврате топлива в строке остаётся вчерашний
@@ -655,10 +664,10 @@ try {
       await fetch('https://api.telegram.org/bot' + process.env.TELEGRAM_BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.16: появились новые прогнозы (' + created + ' шт)! Лечение обрезки Supabase (пагинация), станции с ≥3 событиями на своём ритме.' })
+        body: JSON.stringify({ chat_id: process.env.TELEGRAM_CHAT_ID, 'text': '🔮 КогдаБенз v1.16.1: появились новые прогнозы (' + created + ' шт)! Исправление рассинхрона дня ETA (верификатор больше не получает ложные ошибки ~-24ч).' })
       });
     } catch (e) {}
   }
-  console.log('✅ Предиктор v1.16 завершил работу');
+  console.log('✅ Предиктор v1.16.1 завершил работу');
 }
 main().catch(e => { console.error('❌ Ошибка предиктора: ' + e.message); process.exit(1); });
