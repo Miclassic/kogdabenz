@@ -5055,6 +5055,7 @@ function softRefresh() {
   if (softTimer) clearTimeout(softTimer);
   softTimer = setTimeout(() => {
     softTimer = null;
+    if (!allStations.length) return; // куски доехали раньше станций — не мигаем пустым списком
     try {
       renderStations(cityStationList()); // тянет renderNow -> hero/чипы/мини-карта/точность/плашка
       renderHeat();
@@ -5102,6 +5103,17 @@ function drainPendingLoads() {
     scheduleDrainAgain(4000 + Math.random() * 5000);
   });
 }
+// Первый осмысленный экран: приехали станции + последние отметки —
+// прячем каплю и показываем список/матрицу; остальное дойдёт фоном.
+let firstPaintDone = false;
+function firstPaint() {
+  if (firstPaintDone || bootOver) return;
+  if (!allStations.length || !Object.keys(allLastObs).length) return;
+  firstPaintDone = true;
+  bootDataOk = true;
+  try { renderStations(cityStationList()); renderHeat(); } catch (e) {}
+  bootDone();
+}
 async function start() {
   const app = document.getElementById('app');
   offlineMode = false;
@@ -5145,30 +5157,57 @@ async function start() {
       { all: false, path: '/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000', set: r => { allEvents7 = r || []; } },
       { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } }
     ];
+    // описатели 15 кусков: путь + как читать + куда класть. Один источник правды
+    // и для первой загрузки, и для фонового добора дыр (drainPendingLoads).
+    LOAD_DEFS = [
+      { all: false, path: '/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allObservations = r || []; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_counts_snap?select=station_id,total', set: r => { allCounts = r || []; } },
+      { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*', set: r => { pendingPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
+      { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*', set: r => { verifiedPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
+      { all: false, path: '/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at', set: r => { allEvents = r || []; } },
+      { all: false, path: '/rest/v1/user_feedback?order=created_at.desc&limit=300', set: r => { allFeedback = r || []; } },
+      { all: false, path: '/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allHourly = r || []; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', set: r => { allQueue = r || []; queueById = {}; for (const x of allQueue) queueById[x.station_id] = x; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allLastObs = {}; for (const o of (r || [])) allLastObs[o.station_id] = o; firstPaint(); } },
+      { all: false, path: '/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allLastPrice = {}; for (const x of (r || [])) allLastPrice[x.station_id] = x; } },
+      { all: false, path: '/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168', set: r => { priceHourly = r || []; } },
+      { all: false, path: '/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000', set: r => { queueEpisodes = r || []; } },
+      { all: true, orderCol: 'id', path: '/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at', set: r => { allQueueEvents = r || []; } },
+      { all: false, path: '/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000', set: r => { allEvents7 = r || []; } },
+      { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } }
+    ];
+    // Все 15 летят ОДНОВРЕМЕННО, но каждый кусок применяется сразу по приходу:
+    // список и матрица оживают, как только доехали станции + последние отметки,
+    // а не когда весь конвой дотащится (это и есть лечение «грузится как в деревне»).
+    const P = LOAD_DEFS.map(d => {
+      const p = d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path);
+      p.then(rows => { try { d.set(rows); } catch (e) {} softRefresh(); }).catch(() => {});
+      return p;
+    });
     // СНАЧАЛА критичное (быстро, ~4 запроса)
     const R_crit = await Promise.allSettled(CRITICAL_DEFS.map(d => d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path)));
     // ТЯЖЁЛОЕ — параллельно, но не блокируем первую отрисовку
     const R = await Promise.allSettled(LOAD_DEFS.map(d => d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path)));
     allStations = stations;
-    // Применяем критичные данные сразу
-    for (let i = 0; i < CRITICAL_DEFS.length; i++) {
-      const r = R_crit[i];
-      if (r && r.status === 'fulfilled') CRITICAL_DEFS[i].set(r.value);
-    }
+    firstPaint(); // станции тут: если последние отметки уже доехали — капля прячется
     pendingLoads = [];
     for (let i = 0; i < LOAD_DEFS.length; i++) {
       const r = R[i];
       if (r && r.status === 'fulfilled') LOAD_DEFS[i].set(r.value);
       else {
         pendingLoads.push(i); // дыра: доберём фоном, без перезагрузки
-        // цены при провале НЕ затираем — держим прогретое из кэша;
-        // остальные при провале честно пустые до добора (наблюдения меняются
-        // каждые 10 мин, греть их старьём было бы враньём)
-        const critIdx = CRITICAL_DEFS.findIndex(d => d.path === LOAD_DEFS[i].path);
-        if (critIdx < 0) LOAD_DEFS[i].set([]);
+        // цены (9,10) при провале НЕ затираем — держим прогретое из кэша;
+        // последние отметки (8) при мгновенном входе тоже НЕ затираем —
+        // иначе экран обнулится до нулей, которые водитель уже видел.
+        // остальные при провале честно пустые до добора.
+        if (i !== 9 && i !== 10 && !(i === 8 && window.__cacheRendered)) LOAD_DEFS[i].set([]);
       }
     }
-    saveCache(); // ранний снимок: следующий сбой сети покажет данные с плашками, а не экран ошибки
+    saveCache(); // ранний снимок: следующий сбой сети покажет данные с плашкой, а не экран ошибки
+    window.__netOk = true;
+    const obNet = document.getElementById('offlineBar');
+    if (obNet) { obNet.classList.remove('on'); obNet.classList.remove('catch'); }
+    document.body.classList.remove('offline');
     flushFeedbackQueue();
     flushPollQueue();
     flushReportQueue();
@@ -5307,6 +5346,7 @@ let offlineMode = false;
 const LS_CACHE = 'kbCache';
 function saveCache() {
   if (offlineMode) return; // офлайн-данные не должны затирать хороший снимок
+  if (!allStations.length) return; // частичный снимок без станций убил бы мгновенный вход
   try {
     localStorage.setItem(LS_CACHE, JSON.stringify({
       t: Date.now(),
@@ -6258,7 +6298,32 @@ function tickClock() {
   const el = document.getElementById('p1Time');
   if (el) { const d = new Date(); el.textContent = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
 }
-bootStart();
+// === Мгновенный вход: последний снимок из телефона показываем СРАЗУ ===
+// Есть снимок — данные на экране без капли и без ожидания сети; сеть
+// молча обновляет цифры фоном. Нет снимка (первый заход) — капля как раньше.
+(function instantCacheRender() {
+  const c = loadCache();
+  if (!c) return;
+  applyCache(c);
+  window.__cacheRendered = true;
+  detectUserCity();
+  try {
+    renderStations(cityStationList());
+    renderHeat();
+    lastWaveStats = allWaveEvents.length ? cityWaveStats() : null;
+    renderWave();
+    updateMapPlate();
+    renderHero();
+    setTagline(currentPanel);
+  } catch (e) { console.log('мгновенный снимок: ' + e.message); }
+  // плашку «данные на ЧЧ:ММ» показываем только если сеть не успела за 4 сек
+  setTimeout(() => { if (!window.__netOk && !offlineMode) showOfflineBar(c.t); }, 4000);
+  // капли не будет вовсе: данные уже на экране
+  const bb = document.getElementById('bootBack');
+  if (bb) bb.style.display = 'none';
+  bootOver = true;
+})();
+if (!bootOver) bootStart();
 const g0 = ++startGen;
 start().then(() => {
   if (g0 !== startGen) return;
