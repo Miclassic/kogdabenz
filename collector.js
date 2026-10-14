@@ -90,6 +90,29 @@ async function sbPost(path, rows, prefer) {
   return (prefer || '').includes('representation') ? r.json() : null;
 }
 
+// v5.4: вставка наблюдений кусками с повторами: одиночная вставка всех строк
+// (дом + доноры, сотни строк) под нагрузкой упиралась в statement timeout
+// Supabase (ошибка 57014) и убивала весь цикл, включая толпу и предиктор.
+// Кусок 150 строк проходит быстро; случайный сбой базы переживаем до 3 попыток.
+async function sbPostChunks(path, rows, chunkSize) {
+  const size = chunkSize || 150;
+  for (let i = 0; i < rows.length; i += size) {
+    const chunk = rows.slice(i, i + size);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await sbPost(path, chunk);
+        break;
+      } catch (e) {
+        const msg = String(e.message || '');
+        const transient = /500|502|503|504|57014|timeout|failed to fetch|network|load failed/i.test(msg);
+        if (!transient || attempt >= 3) throw e;
+        console.log('   Кусок ' + (i + 1) + '–' + (i + chunk.length) + ': попытка ' + attempt + ' не удалась (' + msg.slice(0, 120) + '), жду 5 сек...');
+        await new Promise(res => setTimeout(res, 5000));
+      }
+    }
+  }
+}
+
 async function sbPatch(path, row) {
   const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
     method: 'PATCH',
@@ -477,7 +500,7 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
       if (changed || heartbeat) { obsRows.push(row); donorWritten++; }
     }
   }
-  await sbPost('observations', obsRows);
+  await sbPostChunks('observations', obsRows, 150);
   console.log('   Наблюдений записано: ' + obsRows.length + ' (дом ' + (obsRows.length - donorWritten) + ' + доноры ' + donorWritten + ')');
 
   console.log('5) Ищу изменения (события)...');
