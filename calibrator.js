@@ -50,7 +50,7 @@ async function fetchVerified() {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
     const page = await sbGet(
-      '/rest/v1/predictions?is_verified=eq.true&model_version=not.like.*%7Cshadow*' +
+      '/rest/v1/predictions?is_verified=eq.true&model_version=not.like.%25%7Cshadow%25' +
       '&select=confidence,result,features,verified_at,fuel_type,error_minutes,window_error_minutes,expected_restore_at' +
       '&order=id.asc&limit=1000&offset=' + offset
     );
@@ -72,7 +72,7 @@ const raw = (v < 1 || f.conf_raw === null || f.conf_raw === undefined)
 }
 
 async function main() {
-  console.log('=== КАЛИБРАТОР v3 ===');
+  console.log('=== КАЛИБРАТОР v4 ===');
   const rows = await fetchVerified();
   // v1.16-переход: калибровка уверенности — ТОЛЬКО по последней прод-версии.
 // Смена формулы (v1.15→v1.16) меняет шкалу сырого балла; смесь двух шкал в окне

@@ -105,7 +105,7 @@ async function logTrainingData() {
 }
 
 async function main() {
-  console.log('=== ВЕРИФИКАТОР v1.2 ===');
+  console.log('=== ВЕРИФИКАТОР v1.3 ===');
   const mskNow = new Date(Date.now() + 3 * 3600 * 1000);
   const todayStr = mskNow.toISOString().slice(0, 10);
   // v1.2: пагинация по 1000 — иначе при накоплении >1000 PENDING-прогнозов
