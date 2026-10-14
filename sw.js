@@ -1,6 +1,6 @@
 // Service Worker v1 для КогдаБенз
 // Стратегия: статика — cache-first (мгновенное открытие), API — network-first с фолбэком на кэш
-const CACHE_VERSION = 'kogdabenz-v136';
+const CACHE_VERSION = 'kogdabenz-v137';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -22,6 +22,19 @@ const STATIC_ASSETS = [
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];
+
+// Кэш плиток карты: cache-first, ограничение 2000 записей (примерно 100 МБ)
+const TILE_CACHE = 'kogdabenz-tiles-v136';
+const MAX_TILES = 2000;
+
+async function trimTileCache() {
+  const cache = await caches.open(TILE_CACHE);
+  const keys = await cache.keys();
+  if (keys.length > MAX_TILES) {
+    const toDelete = keys.slice(0, keys.length - MAX_TILES);
+    for (const req of toDelete) await cache.delete(req);
+  }
+}
 
 // Установка: кэшируем статику
 self.addEventListener('install', event => {
@@ -74,7 +87,25 @@ self.addEventListener('fetch', event => {
         })
     );
   }
-  // Статика: cache-first (мгновенное открытие, даже если сеть медленная)
+  // Плитки карты OpenFreeMap: cache-first + кэширование новых
+  else if (url.includes('tiles.openfreemap.org') || url.includes('demotiles.maplibre.org')) {
+    event.respondWith(
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).then(response => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(TILE_CACHE).then(cache => {
+              cache.put(event.request, responseClone);
+              trimTileCache();
+            });
+          }
+          return response;
+        });
+      })
+    );
+  }
+  // Остальная статика: cache-first (мгновенное открытие, даже если сеть медленная)
   else {
     event.respondWith(
       caches.match(event.request).then(cached => {
