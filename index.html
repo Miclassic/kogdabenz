@@ -5127,36 +5127,24 @@ async function start() {
   if (!refreshing) {
     try { const cc = loadCache(); if (cc) { if (cc.lastPrice) allLastPrice = cc.lastPrice; if (cc.priceHourly) priceHourly = cc.priceHourly; } } catch (e) {}
   }
+  // Первый осмысленный экран: станции + последние отметки доехали — прячем
+  // каплю и показываем список/матрицу; остальное добирается фоном.
+  let firstPaintDone = false;
+  const firstPaint = () => {
+    if (firstPaintDone || bootOver) return;
+    if (!allStations.length || !Object.keys(allLastObs).length) return;
+    firstPaintDone = true;
+    bootDataOk = true;
+    try { renderStations(cityStationList()); renderHeat(); } catch (e) {}
+    bootDone();
+  };
   try {
     const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-  const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-    // описатели 15 кусков: путь + как читать + куда класть. Один источник правды
-    // и для первой загрузки, и для фонового добора дыр (drainPendingLoads).
-    // КРИТИЧНОЕ (рисуем сразу): станции + последние наблюдения + цены
-    const CRITICAL_DEFS = [
-      { all: false, path: '/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allLastObs = {}; for (const o of (r || [])) allLastObs[o.station_id] = o; } },
-      { all: false, path: '/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allLastPrice = {}; for (const x of (r || [])) allLastPrice[x.station_id] = x; } },
-      { all: false, path: '/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168', set: r => { priceHourly = r || []; } },
-      { all: false, path: '/rest/v1/user_feedback?order=created_at.desc&limit=300', set: r => { allFeedback = r || []; } }
-    ];
-    // ТЯЖЁЛОЕ (рисуем после первой отрисовки): прогнозы, события, тепловая матрица
-    LOAD_DEFS = [
-      { all: false, path: '/rest/v1/observations?order=timestamp.desc&limit=2500&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allObservations = r || []; } },
-      { all: true, orderCol: 'station_id', path: '/rest/v1/station_counts_snap?select=station_id,total', set: r => { allCounts = r || []; } },
-      { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=*&result=eq.PENDING&is_verified=eq.false&model_version=not.like.*%7Cshadow*', set: r => { pendingPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
-      { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*', set: r => { verifiedPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
-      { all: false, path: '/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at', set: r => { allEvents = r || []; } },
-      { all: false, path: '/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allHourly = r || []; } },
-      { all: true, orderCol: 'station_id', path: '/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', set: r => { allQueue = r || []; queueById = {}; for (const x of allQueue) queueById[x.station_id] = x; } },
-      { all: false, path: '/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000', set: r => { queueEpisodes = r || []; } },
-      { all: true, orderCol: 'id', path: '/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at', set: r => { allQueueEvents = r || []; } },
-      { all: false, path: '/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000', set: r => { allEvents7 = r || []; } },
-      { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } }
-    ];
+    const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
     // описатели 15 кусков: путь + как читать + куда класть. Один источник правды
     // и для первой загрузки, и для фонового добора дыр (drainPendingLoads).
     LOAD_DEFS = [
@@ -5176,20 +5164,16 @@ async function start() {
       { all: false, path: '/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000', set: r => { allEvents7 = r || []; } },
       { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } }
     ];
-    // Все 15 летят ОДНОВРЕМЕННО, но каждый кусок применяется сразу по приходу:
-    // список и матрица оживают, как только доехали станции + последние отметки,
-    // а не когда весь конвой дотащится (это и есть лечение «грузится как в деревне»).
+    // Все 15 летят одновременно; каждый кусок применяется сразу по приходу —
+    // список оживает по мере доезда, а не когда весь конвой дотащится.
     const P = LOAD_DEFS.map(d => {
       const p = d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path);
       p.then(rows => { try { d.set(rows); } catch (e) {} softRefresh(); }).catch(() => {});
       return p;
     });
-    // СНАЧАЛА критичное (быстро, ~4 запроса)
-    const R_crit = await Promise.allSettled(CRITICAL_DEFS.map(d => d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path)));
-    // ТЯЖЁЛОЕ — параллельно, но не блокируем первую отрисовку
-    const R = await Promise.allSettled(LOAD_DEFS.map(d => d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path)));
+    const R = await Promise.allSettled(P);
     allStations = stations;
-    firstPaint(); // станции тут: если последние отметки уже доехали — капля прячется
+    firstPaint();
     pendingLoads = [];
     for (let i = 0; i < LOAD_DEFS.length; i++) {
       const r = R[i];
@@ -5199,7 +5183,6 @@ async function start() {
         // цены (9,10) при провале НЕ затираем — держим прогретое из кэша;
         // последние отметки (8) при мгновенном входе тоже НЕ затираем —
         // иначе экран обнулится до нулей, которые водитель уже видел.
-        // остальные при провале честно пустые до добора.
         if (i !== 9 && i !== 10 && !(i === 8 && window.__cacheRendered)) LOAD_DEFS[i].set([]);
       }
     }
