@@ -682,11 +682,16 @@ try {
   }
 } catch (e) { console.log('   ! Персональные уведомления: ' + e.message); }
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
-  console.log('7) Убираю старые наблюдения (старше 30 дней)...');
-  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  console.log('7) Убираю старые наблюдения (старше 7 дней, порциями по суткам)...');
+// v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
+// 440 МБ из 500): доноры с часовым heartbeat дают ~53k строк в сутки.
+// Суточные порции — чтобы один большой DELETE не отменил statement timeout.
+for (let d = 30; d >= 7; d--) {
+  const from = new Date(Date.now() - (d + 1) * 24 * 3600 * 1000).toISOString();
+  const to = new Date(Date.now() - d * 24 * 3600 * 1000).toISOString();
   try {
     const delRes = await fetch(
-      SUPABASE_URL + '/rest/v1/observations?timestamp=lt.' + cutoff,
+      SUPABASE_URL + '/rest/v1/observations?timestamp=gte.' + from + '&timestamp=lt.' + to,
       {
         method: 'DELETE',
         headers: {
@@ -696,10 +701,11 @@ try {
         }
       }
     );
-    console.log('   Уборка: HTTP ' + delRes.status);
+    if (!delRes.ok) console.log('   ! Уборка суток -' + d + ': HTTP ' + delRes.status);
   } catch (e) {
-    console.log('   ! Уборка не прошла: ' + e.message);
+    console.log('   ! Уборка суток -' + d + ': ' + e.message);
   }
+}
 
   if (tgLines.length) {
     // Контекст города из свежих домашних отметок (факт, не прогноз)
@@ -790,23 +796,29 @@ if (fbs.length) await sbDelete('user_feedback?id=in.(' + fbs.map(f => f.id).join
 console.log('   Удалено отметок по жалобам: ' + fbs.length);
 }
 } catch (e) { console.log('   ! Жалобы: ' + e.message); }
-console.log('7) Убираю старые наблюдения (старше 30 дней)...');
-const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
-try {
-const delRes = await fetch(
-SUPABASE_URL + '/rest/v1/observations?timestamp=lt.' + cutoff,
-{
-method: 'DELETE',
-headers: {
-apikey: SUPABASE_KEY,
-Authorization: 'Bearer ' + SUPABASE_KEY,
-Prefer: 'return=minimal'
-}
-}
-);
-console.log('   Уборка: HTTP ' + delRes.status);
-} catch (e) {
-console.log('   ! Уборка не прошла: ' + e.message);
+console.log('7) Убираю старые наблюдения (старше 7 дней, порциями по суткам)...');
+// v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
+// 440 МБ из 500): доноры с часовым heartbeat дают ~53k строк в сутки.
+// Суточные порции — чтобы один большой DELETE не отменил statement timeout.
+for (let d = 30; d >= 7; d--) {
+  const from = new Date(Date.now() - (d + 1) * 24 * 3600 * 1000).toISOString();
+  const to = new Date(Date.now() - d * 24 * 3600 * 1000).toISOString();
+  try {
+    const delRes = await fetch(
+      SUPABASE_URL + '/rest/v1/observations?timestamp=gte.' + from + '&timestamp=lt.' + to,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: 'Bearer ' + SUPABASE_KEY,
+          Prefer: 'return=minimal'
+        }
+      }
+    );
+    if (!delRes.ok) console.log('   ! Уборка суток -' + d + ': HTTP ' + delRes.status);
+  } catch (e) {
+    console.log('   ! Уборка суток -' + d + ': ' + e.message);
+  }
 }
 if (tgLines.length) {
 const msk = new Date(Date.now() + 3 * 3600 * 1000);
