@@ -433,20 +433,28 @@ function stationLabel(id) {
   };
   const homeIds = [...homeIdSet];
   if (homeIds.length) {
-    // домой полный лукбэк (~24ч): gap-детектор видит сквозь ночные null
+    // домой лукбэк 6ч (вместо 24ч): gap-детектор и машина состояний работают с меньшим окном,
+    // а ночные null уже учтены в функции computeFuelState (SILENCE = 6 наблюдений ~1ч).
+    // v5.5: минус ~300 МБ/сутки.
     const last = await sbGetAll(
       '/rest/v1/observations?station_id=in.(' + homeIds.map(i => '"' + i + '"').join(',') +
-      ')&timestamp=gte.' + new Date(Date.now() - 24 * 3600 * 1000).toISOString() + '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+      ')&timestamp=gte.' + new Date(Date.now() - 6 * 3600 * 1000).toISOString() + '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
     );
     for (const o of last) pushObs(o);
   }
-  // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч без списка id
-  const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
-  const donorLast = await sbGetAll(
-    '/rest/v1/observations?timestamp=gte.' + sinceDonor +
-    '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
-  );
-  for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
+  // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч
+  // v5.5: добавлен фильтр station_id — раньше тянули ВСЕ наблюдения за 13ч (~430 МБ/сутки),
+  // теперь только донорские (~50 МБ/сутки, минус 380 МБ).
+  const donorIds = donorLists.flatMap(d => d.list.map(s => idByExt[String(s.osm_id)]).filter(id => id));
+  if (donorIds.length) {
+    const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
+    const donorLast = await sbGetAll(
+      '/rest/v1/observations?station_id=in.(' + donorIds.map(i => '"' + i + '"').join(',') +
+      ')&timestamp=gte.' + sinceDonor +
+      '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+    );
+    for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
+  }
 
   console.log('4) Записываю новые наблюдения...');
   const mkRow = (s, id) => {
