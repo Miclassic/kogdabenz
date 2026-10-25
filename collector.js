@@ -442,19 +442,14 @@ function stationLabel(id) {
     );
     for (const o of last) pushObs(o);
   }
-  // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч
-  // v5.5: добавлен фильтр station_id — раньше тянули ВСЕ наблюдения за 13ч (~430 МБ/сутки),
-  // теперь только донорские (~50 МБ/сутки, минус 380 МБ).
-  const donorIds = donorLists.flatMap(d => d.list.map(s => idByExt[String(s.osm_id)]).filter(id => id));
-  if (donorIds.length) {
-    const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
-    const donorLast = await sbGetAll(
-      '/rest/v1/observations?station_id=in.(' + donorIds.map(i => '"' + i + '"').join(',') +
-      ')&timestamp=gte.' + sinceDonor +
-      '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
-    );
-    for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
-  }
+  // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч без списка id
+  // (список из ~2200 uuid в URL невозможен: Supabase отклоняет слишком длинные URL)
+  const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
+  const donorLast = await sbGetAll(
+    '/rest/v1/observations?timestamp=gte.' + sinceDonor +
+    '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+  );
+  for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
 
   console.log('4) Записываю новые наблюдения...');
   const mkRow = (s, id) => {
