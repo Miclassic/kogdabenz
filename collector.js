@@ -398,11 +398,17 @@ console.log('   Донор ' + f.region + ': станций ' + dl.length);
       region: d.region,
       fuels_meta: fuelsMetaOf(s)
     }))));
-  const saved = await sbPost(
-    'stations?on_conflict=external_id,source',
-    stationPayload,
-    'return=representation,resolution=merge-duplicates'
-  );
+  // v5.7: апсерт кусками по 400 станций — короткие транзакции вместо одной на
+  // несколько тысяч строк: меньше пик нагрузки на базу в окно сбора.
+  const saved = [];
+  for (let i = 0; i < stationPayload.length; i += 400) {
+    const part = await sbPost(
+      'stations?on_conflict=external_id,source',
+      stationPayload.slice(i, i + 400),
+      'return=representation,resolution=merge-duplicates'
+    );
+    for (const s of part) saved.push(s);
+  }
   const idByExt = {};
   for (const s of saved) idByExt[s.external_id] = s.id;
   const nameById = {};
@@ -442,14 +448,17 @@ function stationLabel(id) {
     );
     for (const o of last) pushObs(o);
   }
-  // доноры: v5.6 — вместо 13-часовой истории (~40k строк за цикл, ~0,6 ГБ/сутки)
-  // читаем вьюху station_last_obs: последняя строка по каждой станции (~2300 строк).
-  // Для сравнения «изменилось/heartbeat» этого достаточно. Мост сквозь молчание
-  // у доноров теперь смотрит только последнюю строку: если она null — событие
+  // доноры: v5.7 — вьюха station_last_obs оказалась самым тяжёлым запросом цикла:
+  // её DISTINCT ON сканирует ВСЕ наблюдения за 7 дней (сотни тысяч строк), и в окно
+  // сбора сайт не мог дышать. Вместо неё читаем окно 90 минут по индексу timestamp:
+  // доноры пишут heartbeat раз в час, поэтому у каждой живой станции свежая строка
+  // в окне есть. Если у станции строки в окне нет (сбой записи) — она считается
+  // «изменившейся» и пишет heartbeat сама, само-починка. Мост сквозь молчание
+  // у доноров смотрит только последнюю строку: если она null — событие
   // донора пропускаем (дом не задет: у дома отдельная история 6ч).
   const donorLast = await sbGetAll(
-    '/rest/v1/station_last_obs?select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp',
-    'station_id'
+    '/rest/v1/observations?timestamp=gte.' + new Date(Date.now() - 90 * 60 * 1000).toISOString() +
+    '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
   );
   for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
 
@@ -691,7 +700,8 @@ try {
 // v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
 // 440 МБ из 500): доноры с часовым heartbeat дают ~53k строк в сутки.
 // Суточные порции — чтобы один большой DELETE не отменил statement timeout.
-for (let d = 30; d >= 7; d--) {
+const mskHourClean = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Moscow', hour: '2-digit', hour12: false }).format(new Date()));
+for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
   const from = new Date(Date.now() - (d + 1) * 24 * 3600 * 1000).toISOString();
   const to = new Date(Date.now() - d * 24 * 3600 * 1000).toISOString();
   try {
@@ -805,7 +815,8 @@ console.log('7) Убираю старые наблюдения (старше 7 �
 // v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
 // 440 МБ из 500): доноры с часовым heartbeat дают ~53k строк в сутки.
 // Суточные порции — чтобы один большой DELETE не отменил statement timeout.
-for (let d = 30; d >= 7; d--) {
+const mskHourClean = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Moscow', hour: '2-digit', hour12: false }).format(new Date()));
+for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
   const from = new Date(Date.now() - (d + 1) * 24 * 3600 * 1000).toISOString();
   const to = new Date(Date.now() - d * 24 * 3600 * 1000).toISOString();
   try {
