@@ -442,12 +442,14 @@ function stationLabel(id) {
     );
     for (const o of last) pushObs(o);
   }
-  // доноры: история хранится разреженно (смены + heartbeat), берём окно 13ч без списка id
-  // (список из ~2200 uuid в URL невозможен: Supabase отклоняет слишком длинные URL)
-  const sinceDonor = new Date(Date.now() - 13 * 3600 * 1000).toISOString();
+  // доноры: v5.6 — вместо 13-часовой истории (~40k строк за цикл, ~0,6 ГБ/сутки)
+  // читаем вьюху station_last_obs: последняя строка по каждой станции (~2300 строк).
+  // Для сравнения «изменилось/heartbeat» этого достаточно. Мост сквозь молчание
+  // у доноров теперь смотрит только последнюю строку: если она null — событие
+  // донора пропускаем (дом не задет: у дома отдельная история 6ч).
   const donorLast = await sbGetAll(
-    '/rest/v1/observations?timestamp=gte.' + sinceDonor +
-    '&order=timestamp.desc&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp'
+    '/rest/v1/station_last_obs?select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp',
+    'station_id'
   );
   for (const o of donorLast) if (!homeIdSet.has(o.station_id)) pushObs(o);
 

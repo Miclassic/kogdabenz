@@ -161,6 +161,9 @@ const VERSION_COLORS = {
   'v1.1': '#93a1b8',
   'v1.2': '#f5a05a',
   'v1.11': '#2465ee',
+  'v1.15': '#1e90ff',
+  'v1.16': '#0066cc',
+  'v1.16.1': '#004499',
   'aggregate': '#14213d'
 };
 
@@ -709,7 +712,7 @@ function render(d) {
 }
 
 load();
-setInterval(load, 60000);
+setInterval(load, 300000); // владелец-мониторинг: 5 минут достаточно; 60 сек съедали трафик и лимит логов
 </script>
 </body>
 </html>
