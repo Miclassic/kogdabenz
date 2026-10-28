@@ -1,0 +1,17 @@
+name: db-dump
+on:
+  workflow_dispatch:
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: pg_dump from Supabase
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client sshpass
+          PGCONNECT_TIMEOUT=30 pg_dump "${{ secrets.SUPABASE_DB_URI }}" --format=custom --no-owner --no-privileges --schema=public -f /tmp/kb.dump
+          ls -lh /tmp/kb.dump
+      - name: scp to VPS
+        run: |
+          sshpass -p "${{ secrets.VPS_PASS }}" scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/kb.dump root@89.111.154.103:/tmp/kb.dump
+          echo "uploaded to vps"
