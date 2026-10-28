@@ -3,70 +3,422 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>КогдаБенз · статистика сайта</title>
+<title>КогдаБенз · Аналитика</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; background: #f3f7ff; color: #14213d; padding: 16px; max-width: 900px; margin: 0 auto; }
-  h1 { font-size: 20px; margin-bottom: 2px; }
-  .sub { color: #71809c; font-size: 11px; margin-bottom: 14px; }
-  .section { background: #fff; border: 1px solid #e6ebf4; border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: 0 10px 26px rgba(38,69,120,.07); }
-  .section h2 { font-size: 13px; margin-bottom: 10px; }
-  /* итог одним блоком вместо плиток */
-  .hero { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, #ffffff, #eef4ff); }
-  .hero-num { flex: 0 0 auto; font-size: 46px; font-weight: 900; letter-spacing: -2px; line-height: 1; background: linear-gradient(90deg, #2465ee, #2ea3ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .hero-right { min-width: 0; }
-  .hero-cap { font-size: 10px; font-weight: 800; color: #5b7ba6; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
-  .hero-lines { color: #33445f; font-size: 12px; line-height: 1.55; }
-  .hero-lines b { color: #14213d; }
-  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
-  .bar-row span { flex: 0 0 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .bar-track { flex: 1; height: 16px; min-width: 0; }
-  .bar { height: 16px; border-radius: 8px; background: linear-gradient(90deg, #4385ff, #2465ee); min-width: 2px; }
-  .bar.green { background: linear-gradient(90deg, #21b986, #19b77a); }
-  .bar.orange { background: linear-gradient(90deg, #f5d565, #f5a05a); }
-  .bar-row b { flex: 0 0 auto; }
-  .note { margin-top: 8px; color: #93a1b8; font-size: 10px; line-height: 1.4; }
-  .chart { display: flex; align-items: flex-end; gap: 2px; height: 110px; margin-top: 10px; }
-  .chart div { flex: 1; background: linear-gradient(180deg, #78a4ff, #d6e3ff); border-radius: 4px 4px 0 0; min-width: 4px; }
-  .axis { display: flex; justify-content: space-between; font-size: 9px; color: #9aa7bd; margin-top: 4px; }
-  .err { padding: 20px; background: #fff2e8; border-radius: 14px; color: #c26a2a; font-weight: 700; }
+  
+  :root {
+    --primary: #3b82f6;
+    --primary-dark: #2563eb;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-tertiary: #94a3b8;
+    --bg-primary: #f8fafc;
+    --bg-card: #ffffff;
+    --border: #e2e8f0;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+  }
+
+  .header .subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 4px;
+  }
+
+  .header-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #f1f5f9;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .header-badge::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* KPI Cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: all 0.2s;
+  }
+
+  .kpi-card:hover {
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+  }
+
+  .kpi-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+
+  .kpi-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+
+  .kpi-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+
+  .kpi-change.positive {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .kpi-change.negative {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .kpi-change.neutral {
+    background: #f1f5f9;
+    color: var(--text-secondary);
+  }
+
+  .kpi-subtitle {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+  }
+
+  /* Section */
+  .section {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-icon {
+    font-size: 20px;
+  }
+
+  /* Chart Container */
+  .chart-container {
+    position: relative;
+    width: 100%;
+    height: 300px;
+    margin: 16px 0;
+  }
+
+  .chart-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .chart-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-top: 8px;
+    padding: 0 4px;
+  }
+
+  /* Bar Chart */
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bar-item {
+    display: grid;
+    grid-template-columns: 200px 1fr 80px;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .bar-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar-track {
+    height: 32px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+  }
+
+  .bar-fill.primary {
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  }
+
+  .bar-fill.success {
+    background: linear-gradient(90deg, #10b981, #34d399);
+  }
+
+  .bar-fill.warning {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  }
+
+  .bar-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: right;
+  }
+
+  /* Table */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table th {
+    text-align: left;
+    padding: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .data-table td {
+    padding: 12px;
+    font-size: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .data-table tr:hover {
+    background: #f8fafc;
+  }
+
+  /* Badge */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .badge-primary {
+    background: #dbeafe;
+    color: #1e40af;
+  }
+
+  .badge-success {
+    background: #d1fae5;
+    color: #065f46;
+  }
+
+  .badge-warning {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  /* Note */
+  .note {
+    margin-top: 16px;
+    padding: 12px;
+    background: #f8fafc;
+    border-left: 3px solid var(--primary);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* Error */
+  .error {
+    padding: 24px;
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    border-radius: 12px;
+    color: #991b1b;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .container { padding: 16px; }
+    .header h1 { font-size: 24px; }
+    .kpi-grid { grid-template-columns: 1fr; }
+    .bar-item { grid-template-columns: 140px 1fr 60px; }
+    .bar-label { font-size: 13px; }
+    .section { padding: 16px; }
+  }
+
+  /* Loading */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px;
+    color: var(--text-secondary);
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 12px;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
 </style>
 </head>
 <body>
-  <h1>⛽ КогдаБенз · статистика сайта</h1>
-  <div class="sub">Анонимно: без имён и адресов. Страница только ваша — ссылкой не делитесь.</div>
-  <div id="app"><div class="err">Загружаю данные…</div></div>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>⛽ КогдаБенз · Аналитика</h1>
+      <div class="subtitle">Анонимная статистика использования сайта</div>
+    </div>
+    <div class="header-badge">Обновлено только что</div>
+  </div>
+
+  <div id="app">
+    <div class="loading">
+      <div class="spinner"></div>
+      <span>Загрузка данных...</span>
+    </div>
+  </div>
+</div>
 
 <script>
 const SUPABASE_URL = 'https://api.kogdabenz.ru';
 const SUPABASE_KEY = 'eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
-const DASH_SECRET = 'kb-dash-2026-x9f3k'; // тот же, что в SQL-функции
+const DASH_SECRET = 'kb-dash-2026-x9f3k';
 
-// расшифровка вопросов и ответов опросов
 const POLL_Q = {
-  arrive_truth: 'Подъехали к заправке — наша информация про топливо совпала?',
+  arrive_truth: 'Подъехали к заправке — информация совпала?',
   usability: 'Сайтом удобно пользоваться?',
-  map_clear: 'Карта понятна: капли, круги, цвета?',
-  forecast_true: 'Мы пишем «топливо вернётся с 14 до 16». По вашему опыту это сбывается?',
-  marks_why: 'Вы отмечаете (топливо, очереди)? Почему?',
-  stars: 'Оцените сайт в целом.',
-  advice_outcome: 'Недавно вы строили маршрут до заправки через «Куда ехать». Чем закончилось?'
+  map_clear: 'Карта понятна?',
+  forecast_true: 'Прогнозы сбываются?',
+  marks_why: 'Почему оставляете отметки?',
+  stars: 'Оценка сайта',
+  advice_outcome: 'Результат совета «Куда ехать»'
 };
+
 const POLL_A = {
-  // arrive_truth
-  match: 'Всё совпало', almost: 'Почти, одно топливо ошиблось', wrong: 'Нет, было по-другому', notyet: 'Ещё не подъезжал',
-  // usability
-  great: 'Да, всё понятно и быстро', ok: 'В целом удобно', confuse: 'Иногда путаюсь', bad: 'Не очень',
-  // map_clear
-  glance: 'Да, читаю с первого взгляда', legend: 'Подсматриваю в подсказку цветов', no: 'Не понимаю карту',
-  // forecast_true
-  always: 'Да, почти всегда', half: 'Примерно через раз', rare: 'Редко',
-  // marks_why
-  help: 'Да, хочу помочь городу', sometimes: 'Иногда', whynot: 'Нет, не понимаю зачем', hard: 'Нет, неудобно или долго',
-  // advice_outcome
-  fuel: 'Доехал и заправился', miss: 'Поехал, но топливо или очередь — не как ожидал', notwent: 'Ещё не доехал', noadv: 'Не воспользовался советом'
+  match: 'Всё совпало', almost: 'Почти совпало', wrong: 'Не совпало', notyet: 'Ещё не проверял',
+  great: 'Очень удобно', ok: 'В целом удобно', confuse: 'Иногда путаюсь', bad: 'Неудобно',
+  glance: 'Да, с первого взгляда', legend: 'Подсматриваю в легенду', no: 'Не понимаю',
+  always: 'Почти всегда', half: 'Примерно через раз', rare: 'Редко',
+  help: 'Хочу помочь городу', sometimes: 'Иногда', whynot: 'Не понимаю зачем', hard: 'Неудобно',
+  fuel: 'Доехал и заправился', miss: 'Не как ожидал', notwent: 'Ещё не доехал', noadv: 'Не воспользовался'
 };
-// человеческие названия действий на сайте
+
 const EVENT_RU = {
   pageview: ['👀', 'Открыли сайт'],
   panel_view: ['📖', 'Листали панели'],
@@ -74,224 +426,331 @@ const EVENT_RU = {
   click_where_to_go: ['🧭', 'Жали «Куда ехать»'],
   feedback_submit: ['🙏', 'Оставляли отметку']
 };
-// человеческие названия городов
-const CITY_RU = { novorossiysk: 'Новороссийск', gelendzhik: 'Геленджик', anapa: 'Анапа', krymsk: 'Крымск', krasnodar: 'Краснодар', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавир', maykop: 'Майкоп' };
-function cityRu(c) { return CITY_RU[c] || (c === 'unknown' ? 'город не определился' : c); }
-// «откуда пришли» по-человечески
+
+const CITY_RU = {
+  novorossiysk: 'Новороссийск', gelendzhik: 'Геленджик', anapa: 'Анапа',
+  krymsk: 'Крымск', krasnodar: 'Краснодар', sochi: 'Сочи',
+  tuapse: 'Туапсе', armavir: 'Армавир', maykop: 'Майкоп'
+};
+
+function cityRu(c) { return CITY_RU[c] || (c === 'unknown' ? 'Не определён' : c); }
+
 function sourceRu(s) {
-  if (s === 'direct') return 'Напрямую: ссылка, закладка или иконка';
+  if (s === 'direct') return 'Напрямую';
   if (s.indexOf('ref: ') === 0) {
     const m = s.slice(5).match(/\/\/([^\/]+)/);
     const host = (m ? m[1] : s.slice(5)).replace(/^www\./, '');
-    const known = [['vk.com','ВКонтакте'],['vk.ru','ВКонтакте'],['t.me','Телеграм'],['telegram.org','Телеграм'],['yandex','Яндекс'],['google','Гугл'],['ok.ru','Одноклассники'],['wa.me','Ватсап'],['whatsapp','Ватсап'],['avito','Авито']];
-    for (const k of known) if (host.indexOf(k[0]) >= 0) return 'Перешли из: ' + k[1];
-    return 'Перешли с сайта: ' + host;
+    const known = [['vk.com','ВКонтакте'],['t.me','Телеграм'],['yandex','Яндекс'],['google','Google']];
+    for (const k of known) if (host.indexOf(k[0]) >= 0) return k[1];
+    return host;
   }
-  if (s.indexOf('utm: ') === 0) return 'Реклама: ' + s.slice(5).split(' / ').join(' · ');
+  if (s.indexOf('utm: ') === 0) return 'Реклама: ' + s.slice(5).split(' / ')[0];
   return s;
 }
+
 function num(v) { return (v === null || v === undefined) ? 0 : v; }
+
+function formatNumber(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toString();
+}
 
 async function load() {
   const app = document.getElementById('app');
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ secret: DASH_SECRET })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    if (d.error) throw new Error('токен не подошёл');
-    
-    // загружаем статистику опросов
-    const rp = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ secret: DASH_SECRET })
-    });
-    const poll = await rp.json();
-    
-    // загружаем статистику советника
-    const ra = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', {
-      method: 'POST',
-      headers: {
-        apikey: SUPABASE_KEY,
-        Authorization: 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ secret: DASH_SECRET })
-    });
-    const advisor = await ra.json();
-    
-    render(d, poll, advisor);
+    const [statsRes, pollRes, advisorRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
+      })
+    ]);
+
+    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok) throw new Error('HTTP error');
+
+    const [stats, poll, advisor] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json()]);
+    if (stats.error) throw new Error('Invalid token');
+
+    render(stats, poll, advisor);
   } catch (e) {
-    app.innerHTML = '<div class="err">Не удалось загрузить данные: ' + e.message + '</div>';
+    app.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
   }
 }
 
-function render(d, poll, advisor) {
+function render(stats, poll, advisor) {
   const app = document.getElementById('app');
-  const ret = d.retention || {};
-  const fun = d.funnel || [];
-  const daily = d.daily || [];
-  const sources = d.sources || [];
-  const cities = d.cities || [];
   let html = '';
 
-  // итог одним блоком: большое число + четыре строки текста
-  html += '<div class="section hero"><div class="hero-num">' + num(d.mau_30d) + '</div><div class="hero-right">' +
-    '<div class="hero-cap">человек за последние 30 дней</div>' +
-    '<div class="hero-lines">' +
-    '<div>Вчера было <b>' + num(d.dau_yesterday) + '</b>, сегодня — <b>' + num(d.dau_today) + '</b>.</div>' +
-    '<div>За неделю: <b>' + num(ret.new_7d) + '</b> новых, <b>' + num(ret.returning_7d) + '</b> вернулись.</div>' +
-    '<div>Всего визитов <b>' + num(d.total_sessions) + '</b>, действий в них — <b>' + num(d.total_hits) + '</b>.</div>' +
-    '<div>Без интернета сайт открывали в <b>' + (d.offline_share === null || d.offline_share === undefined ? '0' : d.offline_share) + '%</b> обращений.</div>' +
-    '</div></div></div>';
+  // KPI Cards
+  const ret = stats.retention || {};
+  const dauChange = stats.dau_yesterday > 0 ? ((stats.dau_today - stats.dau_yesterday) / stats.dau_yesterday * 100).toFixed(1) : 0;
+  const dauChangeClass = dauChange > 0 ? 'positive' : dauChange < 0 ? 'negative' : 'neutral';
+  const dauChangeIcon = dauChange > 0 ? '↑' : dauChange < 0 ? '↓' : '→';
 
-  // когда приходили
-  html += '<div class="section"><h2>📅 Когда приходили</h2><div class="chart">';
-  const maxSessions = Math.max(1, ...daily.map(x => x.sessions));
-  daily.forEach(day => {
-    const h = Math.max(4, Math.round(day.sessions / maxSessions * 100));
-    html += '<div style="height:' + h + '%" title="' + day.day + ': человек ' + day.sessions + '"></div>';
-  });
-  html += '</div><div class="axis"><span>' + (daily[0] ? daily[0].day : '') + '</span><span>' + (daily.length ? daily[daily.length - 1].day : '') + '</span></div>' +
-    '<div class="note">Столбик — сколько человек заходило в этот день. Нажми на столбик — покажет число.</div></div>';
+  html += '<div class="kpi-grid">';
+  
+  html += `<div class="kpi-card">
+    <div class="kpi-label">Пользователи за 30 дней</div>
+    <div class="kpi-value">${formatNumber(num(stats.mau_30d))}</div>
+    <div class="kpi-subtitle">Уникальных посетителей</div>
+  </div>`;
 
-  // что делали
-  html += '<div class="section"><h2>👣 Что делали на сайте</h2>';
-  const maxFunnel = Math.max(1, ...fun.map(x => x.sessions));
-  fun.forEach(f => {
-    const e = EVENT_RU[f.event] || ['•', f.event];
-    const w = Math.round(f.sessions / maxFunnel * 100);
-    html += '<div class="bar-row"><span>' + e[0] + ' ' + e[1] + '</span><div class="bar-track"><div class="bar" style="width:' + w + '%"></div></div><b>' + f.sessions + '</b></div>';
-  });
-  html += '<div class="note">Число — сколько человек сделали это хотя бы раз за всё время.</div></div>';
+  html += `<div class="kpi-card">
+    <div class="kpi-label">Активность сегодня</div>
+    <div class="kpi-value">${num(stats.dau_today)}</div>
+    <div class="kpi-change ${dauChangeClass}">${dauChangeIcon} ${Math.abs(dauChange)}% vs вчера</div>
+    <div class="kpi-subtitle">Вчера: ${num(stats.dau_yesterday)}</div>
+  </div>`;
 
-  // откуда пришли
-  html += '<div class="section"><h2>🚪 Откуда пришли</h2>';
-  const maxSrc = Math.max(1, ...sources.map(x => x.sessions));
-  sources.forEach(s => {
-    const w = Math.round(s.sessions / maxSrc * 100);
-    html += '<div class="bar-row"><span>' + sourceRu(s.source) + '</span><div class="bar-track"><div class="bar green" style="width:' + w + '%"></div></div><b>' + s.sessions + '</b></div>';
-  });
-  html += '<div class="note">«Напрямую» — когда открыли ссылку, закладку или иконку на экране, без перехода с другого сайта.</div></div>';
+  html += `<div class="kpi-card">
+    <div class="kpi-label">Новые за неделю</div>
+    <div class="kpi-value">${formatNumber(num(ret.new_7d))}</div>
+    <div class="kpi-subtitle">Вернувшихся: ${formatNumber(num(ret.returning_7d))}</div>
+  </div>`;
 
-  // города
-  html += '<div class="section"><h2>🏙 Из каких городов смотрели</h2>';
-  const maxCity = Math.max(1, ...cities.map(x => x.sessions));
-  cities.forEach(c => {
-    const w = Math.round(c.sessions / maxCity * 100);
-    html += '<div class="bar-row"><span>' + cityRu(c.city) + '</span><div class="bar-track"><div class="bar orange" style="width:' + w + '%"></div></div><b>' + c.sessions + '</b></div>';
-  });
-  html += '<div class="note">Город определяется примерно, по координатам телефона — тот же город, что сайт показывает в списке АЗС.</div></div>';
+  html += `<div class="kpi-card">
+    <div class="kpi-label">Всего сессий</div>
+    <div class="kpi-value">${formatNumber(num(stats.total_sessions))}</div>
+    <div class="kpi-subtitle">Действий: ${formatNumber(num(stats.total_hits))}</div>
+  </div>`;
 
-  // === Блок опросов водителей ===
+  html += '</div>';
+
+  // Daily Activity Chart
+  const daily = stats.daily || [];
+  if (daily.length > 0) {
+    html += '<div class="section">';
+    html += '<div class="section-header"><div class="section-title"><span class="section-icon">📊</span>Активность по дням</div></div>';
+    html += '<div class="chart-container">';
+    
+    const maxSessions = Math.max(...daily.map(d => d.sessions));
+    const chartHeight = 280;
+    const barWidth = Math.max(20, Math.min(40, 800 / daily.length));
+    const chartWidth = daily.length * (barWidth + 8);
+    
+    html += `<svg class="chart-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" preserveAspectRatio="xMidYMid meet">`;
+    
+    daily.forEach((day, i) => {
+      const barHeight = (day.sessions / maxSessions) * (chartHeight - 40);
+      const x = i * (barWidth + 8);
+      const y = chartHeight - barHeight - 30;
+      
+      html += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="url(#barGradient)" rx="4"/>`;
+      
+      if (i % Math.ceil(daily.length / 7) === 0) {
+        html += `<text x="${x + barWidth/2}" y="${chartHeight - 10}" text-anchor="middle" font-size="11" fill="#64748b">${day.day.slice(5)}</text>`;
+      }
+    });
+    
+    html += `<defs>
+      <linearGradient id="barGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+        <stop offset="100%" style="stop-color:#60a5fa;stop-opacity:1" />
+      </linearGradient>
+    </defs>`;
+    html += '</svg></div>';
+    html += '<div class="note">Количество уникальных пользователей за каждый день. Наведите на столбик для точного значения.</div>';
+    html += '</div>';
+  }
+
+  // Funnel
+  const funnel = stats.funnel || [];
+  if (funnel.length > 0) {
+    html += '<div class="section">';
+    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🎯</span>Действия пользователей</div></div>';
+    html += '<div class="bar-chart">';
+    
+    const maxFunnel = Math.max(...funnel.map(f => f.sessions));
+    funnel.forEach(f => {
+      const event = EVENT_RU[f.event] || ['•', f.event];
+      const width = (f.sessions / maxFunnel * 100);
+      html += `<div class="bar-item">
+        <div class="bar-label">${event[0]} ${event[1]}</div>
+        <div class="bar-track"><div class="bar-fill primary" style="width: ${width}%"></div></div>
+        <div class="bar-value">${formatNumber(f.sessions)}</div>
+      </div>`;
+    });
+    
+    html += '</div>';
+    html += '<div class="note">Сколько уникальных пользователей выполнили каждое действие хотя бы раз.</div>';
+    html += '</div>';
+  }
+
+  // Sources
+  const sources = stats.sources || [];
+  if (sources.length > 0) {
+    html += '<div class="section">';
+    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🔗</span>Источники трафика</div></div>';
+    html += '<div class="bar-chart">';
+    
+    const maxSrc = Math.max(...sources.map(s => s.sessions));
+    sources.slice(0, 10).forEach(s => {
+      const width = (s.sessions / maxSrc * 100);
+      html += `<div class="bar-item">
+        <div class="bar-label">${sourceRu(s.source)}</div>
+        <div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div>
+        <div class="bar-value">${formatNumber(s.sessions)}</div>
+      </div>`;
+    });
+    
+    html += '</div>';
+    html += '<div class="note">Откуда пользователи приходят на сайт. «Напрямую» — закладки, иконки, прямые ссылки.</div>';
+    html += '</div>';
+  }
+
+  // Cities
+  const cities = stats.cities || [];
+  if (cities.length > 0) {
+    html += '<div class="section">';
+    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🏙️</span>География пользователей</div></div>';
+    html += '<div class="bar-chart">';
+    
+    const maxCity = Math.max(...cities.map(c => c.sessions));
+    cities.forEach(c => {
+      const width = (c.sessions / maxCity * 100);
+      html += `<div class="bar-item">
+        <div class="bar-label">${cityRu(c.city)}</div>
+        <div class="bar-track"><div class="bar-fill warning" style="width: ${width}%"></div></div>
+        <div class="bar-value">${formatNumber(c.sessions)}</div>
+      </div>`;
+    });
+    
+    html += '</div>';
+    html += '<div class="note">Город определяется по координатам устройства. Тот же город, что показывается в списке АЗС.</div>';
+    html += '</div>';
+  }
+
+  // Polls
   if (poll && !poll.error && poll.total_answers > 0) {
-    html += '<div class="section"><h2>💬 Что водители думают о сайте</h2>';
+    html += '<div class="section">';
+    html += '<div class="section-header"><div class="section-title"><span class="section-icon">💬</span>Опросы водителей</div></div>';
     
-    // Большая цифра: всего ответов
-    html += '<div style="margin-bottom:12px"><div style="font-size:32px;font-weight:900;letter-spacing:-1px;background:linear-gradient(90deg,#2465ee,#2ea3ff);-webkit-background-clip:text;background-clip:text;color:transparent">' + 
-      num(poll.total_answers) + '</div>' +
-      '<div style="font-size:11px;color:#71809c;margin-top:4px">Уникальных людей ответило: <b>' + num(poll.unique_respondents) + '</b>';
-    if (poll.avg_stars !== null && poll.avg_stars !== undefined) {
-      html += ' · Средняя оценка: <b>' + poll.avg_stars.toFixed(1).replace('.', ',') + '</b> из 5';
-    }
-    html += '</div></div>';
-    
-    // По каждому вопросу: бары с долями ответов
+    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div class="kpi-card">
+        <div class="kpi-label">Всего ответов</div>
+        <div class="kpi-value">${formatNumber(poll.total_answers)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Уникальных респондентов</div>
+        <div class="kpi-value">${formatNumber(poll.unique_respondents)}</div>
+      </div>
+      ${poll.avg_stars !== null ? `<div class="kpi-card">
+        <div class="kpi-label">Средняя оценка</div>
+        <div class="kpi-value">${poll.avg_stars.toFixed(1)} ★</div>
+      </div>` : ''}
+    </div>`;
+
     if (poll.answers_by_question) {
       poll.answers_by_question.forEach(q => {
         const qText = POLL_Q[q.question_key] || q.question_key;
-        html += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #e6ebf4"><div style="font-size:12px;font-weight:800;margin-bottom:8px">' + qText + '</div>';
-        
         const total = q.answers.reduce((s, a) => s + a.cnt, 0);
         const maxCnt = Math.max(...q.answers.map(a => a.cnt));
         
+        html += `<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">${qText}</div>
+          <div class="bar-chart">`;
+        
         q.answers.forEach(a => {
-          let aText = '';
-          if (q.question_key === 'stars') {
-            // звёзды: показываем распределение
-            const starNum = parseInt(a.answer_key.replace('star', '').split('_')[0]);
-            aText = starNum + ' ★';
-          } else {
-            aText = POLL_A[a.answer_key] || a.answer_key;
-          }
-          
+          let aText = q.question_key === 'stars' ? a.answer_key.replace('star', '').split('_')[0] + ' ★' : (POLL_A[a.answer_key] || a.answer_key);
           const pct = total > 0 ? Math.round(a.cnt / total * 100) : 0;
-          const w = Math.round(a.cnt / maxCnt * 100);
-          const barClass = pct >= 50 ? 'green' : pct >= 25 ? 'orange' : '';
+          const width = (a.cnt / maxCnt * 100);
+          const barClass = pct >= 50 ? 'success' : pct >= 25 ? 'warning' : 'primary';
           
-          html += '<div class="bar-row"><span>' + aText + '</span><div class="bar-track"><div class="bar ' + barClass + '" style="width:' + w + '%"></div></div><b>' + a.cnt + ' (' + pct + '%)</b></div>';
+          html += `<div class="bar-item">
+            <div class="bar-label">${aText}</div>
+            <div class="bar-track"><div class="bar-fill ${barClass}" style="width: ${width}%"></div></div>
+            <div class="bar-value">${a.cnt} (${pct}%)</div>
+          </div>`;
         });
         
-        html += '</div>';
+        html += '</div></div>';
       });
     }
     
-    html += '<div class="note">Ответы анонимные: только device_id, вопрос и ответ. Звёзды (1–5) показывают отдельно с распределением и средней оценкой.</div></div>';
+    html += '<div class="note">Ответы полностью анонимны. Звёзды показывают распределение оценок от 1 до 5.</div>';
+    html += '</div>';
   }
 
-  // === Блок качества советника "Куда ехать" ===
+  // Advisor
   if (advisor && !advisor.error && advisor.total_advice > 0) {
-    html += '<div class="section"><h2>🧭 Качество советника «Куда ехать»</h2>';
+    html += '<div class="section">';
+    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник «Куда ехать»</div></div>';
     
-    // Большая цифра: доля принятия советов
     const acceptanceRate = advisor.acceptance_rate || 0;
-    const adviceWithRoute = advisor.advice_with_route || 0;
-    const totalAdvice = advisor.total_advice || 0;
     
-    html += '<div style="margin-bottom:12px"><div style="font-size:32px;font-weight:900;letter-spacing:-1px;background:linear-gradient(90deg,#2465ee,#2ea3ff);-webkit-background-clip:text;background-clip:text;color:transparent">' + 
-      acceptanceRate.toFixed(1).replace('.', ',') + '%</div>' +
-      '<div style="font-size:11px;color:#71809c;margin-top:4px">' +
-      'Советов дали: <b>' + totalAdvice + '</b> · Построили маршрут: <b>' + num(advisor.route_built_count) + '</b> · ' +
-      'Приняли совет (маршрут к той же станции): <b>' + adviceWithRoute + '</b></div>';
-    
-    if (advisor.avg_session_duration !== null && advisor.avg_session_duration !== undefined) {
-      const avgMin = Math.round(advisor.avg_session_duration / 60);
-      const avgSec = Math.round(advisor.avg_session_duration % 60);
-      html += '<div style="font-size:11px;color:#71809c;margin-top:4px">Средняя длительность сессии: <b>' + avgMin + ' мин ' + avgSec + ' сек</b></div>';
-    }
-    html += '</div>';
-    
-    // Топ станций по советам
+    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      <div class="kpi-card">
+        <div class="kpi-label">Принятие советов</div>
+        <div class="kpi-value">${acceptanceRate.toFixed(1)}%</div>
+        <div class="kpi-subtitle">Маршрут к той же станции</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Всего советов</div>
+        <div class="kpi-value">${formatNumber(advisor.total_advice)}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Построено маршрутов</div>
+        <div class="kpi-value">${formatNumber(advisor.route_built_count)}</div>
+      </div>
+      ${advisor.avg_session_duration !== null ? `<div class="kpi-card">
+        <div class="kpi-label">Средняя сессия</div>
+        <div class="kpi-value">${Math.round(advisor.avg_session_duration / 60)}м ${Math.round(advisor.avg_session_duration % 60)}с</div>
+      </div>` : ''}
+    </div>`;
+
     if (advisor.top_advised_stations && advisor.top_advised_stations.length > 0) {
-      html += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #e6ebf4"><div style="font-size:12px;font-weight:800;margin-bottom:8px">Топ станций по советам</div>';
+      html += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">';
+      html += '<div style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">Топ станций по советам</div>';
+      html += '<div class="bar-chart">';
+      
       const maxAdv = Math.max(...advisor.top_advised_stations.map(s => s.advice_count));
-      advisor.top_advised_stations.forEach(s => {
-        const w = Math.round(s.advice_count / maxAdv * 100);
-        html += '<div class="bar-row"><span>' + escapeHtml(s.name) + '</span><div class="bar-track"><div class="bar" style="width:' + w + '%"></div></div><b>' + s.advice_count + '</b></div>';
+      advisor.top_advised_stations.slice(0, 5).forEach(s => {
+        const width = (s.advice_count / maxAdv * 100);
+        html += `<div class="bar-item">
+          <div class="bar-label">${s.name}</div>
+          <div class="bar-track"><div class="bar-fill primary" style="width: ${width}%"></div></div>
+          <div class="bar-value">${s.advice_count}</div>
+        </div>`;
       });
-      html += '</div>';
+      
+      html += '</div></div>';
     }
     
-    // Топ станций по построенным маршрутам
     if (advisor.top_routed_stations && advisor.top_routed_stations.length > 0) {
-      html += '<div style="margin-top:14px;padding-top:10px;border-top:1px solid #e6ebf4"><div style="font-size:12px;font-weight:800;margin-bottom:8px">Топ станций по построенным маршрутам</div>';
+      html += '<div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">';
+      html += '<div style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">Топ станций по маршрутам</div>';
+      html += '<div class="bar-chart">';
+      
       const maxRoute = Math.max(...advisor.top_routed_stations.map(s => s.route_count));
-      advisor.top_routed_stations.forEach(s => {
-        const w = Math.round(s.route_count / maxRoute * 100);
-        html += '<div class="bar-row"><span>' + escapeHtml(s.name) + '</span><div class="bar-track"><div class="bar green" style="width:' + w + '%"></div></div><b>' + s.route_count + '</b></div>';
+      advisor.top_routed_stations.slice(0, 5).forEach(s => {
+        const width = (s.route_count / maxRoute * 100);
+        html += `<div class="bar-item">
+          <div class="bar-label">${s.name}</div>
+          <div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div>
+          <div class="bar-value">${s.route_count}</div>
+        </div>`;
       });
-      html += '</div>';
+      
+      html += '</div></div>';
     }
     
-    html += '<div class="note">Доля принятия — сколько раз после совета «Куда ехать» построили маршрут к той же станции. Высокий процент = советник попадает в цель.</div></div>';
+    html += '<div class="note">Доля принятия показывает, насколько точно советник попадает в потребности пользователей.</div>';
+    html += '</div>';
   }
 
   app.innerHTML = html;
 }
-
-function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 
 load();
 </script>
