@@ -559,6 +559,8 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   if (events.length) await sbPost('events', events);
   console.log('   Событий обнаружено: ' + events.length);
   for (const e of events) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
+  console.log('5.5) Обновляю суточную сводку city_daily...');
+  await cityDailyRollup();
   // === ШАГ 6: превращаем народные отметки user_feedback в события ===
   console.log('6) Обрабатываю народные отметки...');
 let fbEvents = [];
@@ -738,6 +740,67 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
   console.log('✅ Цикл завершён');
 }
 
+// === ШАГ 5.5: суточная сводка city_daily ===
+// Норма «среднее исчезновений АИ-95 за предыдущие 6 суток» больше не считается
+// из observations (7 дней хранения + разреженные доноры съедают историю).
+// Берём её из вечной сводки, которая дописывается из events (events не удаляются).
+// Первый прогон делает бэкфилл за 7 суток из накопленных событий.
+async function cityDailyRollup() {
+  try {
+    const st = await sbGetAll('/rest/v1/stations?select=id,lat,lon');
+    const cityBySt = {};
+    for (const s of st) cityBySt[s.id] = cityOfStation(s);
+    const MSK = 3 * 3600 * 1000;
+    const nowMsk = new Date(Date.now() + MSK);
+    const back = await sbGet('/rest/v1/bot_meta?key=eq.city_daily_backfill&select=value');
+    const days = (back.length && back[0].value === '1') ? [1] : [1, 2, 3, 4, 5, 6, 7];
+    const acc = {};
+    for (const d of days) {
+      const dayMsk = new Date(Date.UTC(
+        nowMsk.getUTCFullYear(), nowMsk.getUTCMonth(), nowMsk.getUTCDate() - d
+      ));
+      const from = new Date(dayMsk.getTime() - MSK);
+      const to   = new Date(from.getTime() + 24 * 3600 * 1000);
+      const evs = await sbGetAll(
+        '/rest/v1/events?detected_at=gte.' + from.toISOString() +
+        '&detected_at=lt.' + to.toISOString() +
+        '&event_type=in.(fuel_disappeared,fuel_restored)&fuel_type=eq.95' +
+        '&select=station_id,event_type'
+      );
+      for (const e of evs) {
+        const c = cityBySt[e.station_id];
+        if (!c) continue;
+        const key = c + '|' + dayMsk.toISOString().slice(0, 10);
+        if (!acc[key]) acc[key] = {
+          city: c, day: dayMsk.toISOString().slice(0, 10),
+          disappeared: 0, restored: 0, updated_at: new Date().toISOString()
+        };
+        if (e.event_type === 'fuel_disappeared') acc[key].disappeared++;
+        else acc[key].restored++;
+      }
+      // нулевые строки для всех городов: «0» = спокойные сутки, а не дыра в истории
+      for (const c of CITY_BOXES) {
+        const key = c.name + '|' + dayMsk.toISOString().slice(0, 10);
+        if (!acc[key]) acc[key] = {
+          city: c.name, day: dayMsk.toISOString().slice(0, 10),
+          disappeared: 0, restored: 0, updated_at: new Date().toISOString()
+        };
+      }
+    }
+    const rows = Object.values(acc);
+    if (rows.length) {
+      await sbPost('city_daily?on_conflict=city,day', rows, 'return=minimal,resolution=merge-duplicates');
+    }
+    if (!(back.length && back[0].value === '1')) {
+      await sbPost('bot_meta?on_conflict=key', [{
+        key: 'city_daily_backfill', value: '1', updated_at: new Date().toISOString()
+      }], 'return=minimal,resolution=merge-duplicates');
+    }
+    console.log('   city_daily: обновлено ' + rows.length + ' строк за ' + days.length + ' сут(ок)');
+  } catch (e) {
+    console.log('   ! city_daily: ' + e.message);
+  }
+}
 // === v5.3 аварийный режим: толпа и уборка без источника ===
 // Когда GdeBenz лежит (DDoS, защита, сеть), раньше цикл пропускал ВСЁ,
 // включая народные отметки, — а во время атаки толпа единственный живой
@@ -811,6 +874,8 @@ if (fbs.length) await sbDelete('user_feedback?id=in.(' + fbs.map(f => f.id).join
 console.log('   Удалено отметок по жалобам: ' + fbs.length);
 }
 } catch (e) { console.log('   ! Жалобы: ' + e.message); }
+console.log('6.6) Обновляю суточную сводку city_daily (без источника)...');
+await cityDailyRollup();
 console.log('7) Убираю старые наблюдения (старше 7 дней, порциями по суткам)...');
 // v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
 // 440 МБ из 500): доноры с часовым heartbeat дают ~53k строк в сутки.
