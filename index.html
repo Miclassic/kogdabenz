@@ -370,57 +370,66 @@ body { overflow:hidden; }
 .boot-fail-t { font-size:18px; font-weight:900; letter-spacing:-.5px; }
 .boot-fail-s { margin-top:6px; color:rgba(235,243,255,.8); font-size:11.5px; line-height:1.5; font-weight:600; }
 @media (prefers-reduced-motion: reduce) { .boot-drop-wrap, .boot-drop-wrap::before, .boot-drop-orb-wrap::after, .boot-drop-orb::before, .boot-drop-orb::after, .bd-wave { animation:none; } .bd-hand { transition:none; } }
-/* === Пульс города: карточка главной панели (макет «премиум минимализм») === */
+/* === Пульс города v2: премиум-минимализм — воздух, hairline, без шума === */
 .dot.yellow { background:#f5d565; } .dot.orange { background:#f5a05a; }
-.pulse-card { position:relative; overflow:hidden; padding:14px; border-radius:22px; background:linear-gradient(135deg,#f2f8ff 0%,#eafaf3 100%); border:1px solid #dfe8f6; }
-.pulse-card::after { content:''; position:absolute; right:0; top:0; bottom:0; width:52%; background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60'><path d='M0 60V38h10V28h8v32zM20 60V20h6v-6h6v46zM40 60V32h12v28zM58 60V14h5v-4h5v50zM76 60V40h10v20zM92 60V24h8v36zM108 60V34h10v26zM124 60V10h6v-4h6v54zM142 60V30h10v30zM158 60V18h8v42zM174 60V42h12v18zM190 60V26h10v34z' fill='%232465ee' fill-opacity='.10'/></svg>") right bottom / auto 78% no-repeat; pointer-events:none; }
-.pulse-top { position:relative; z-index:1; display:flex; align-items:flex-start; gap:12px; }
-.pulse-ico { flex:0 0 auto; width:44px; height:44px; border-radius:14px; background:#fff; border:1px solid #e3ecf5; display:grid; place-items:center; color:#2465ee; box-shadow:0 6px 16px rgba(38,69,120,.10); }
-.pulse-num { font-size:34px; font-weight:900; letter-spacing:-1.5px; line-height:1; }
-.pulse-num small { font-size:13px; font-weight:800; color:#93a1b8; letter-spacing:0; }
-.pulse-status { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:13px; font-weight:850; cursor:pointer; }
-.pulse-status .dot { width:9px; height:9px; }
-.pulse-note { margin-top:3px; color:#5b7ba6; font-size:10.5px; font-weight:600; }
-.pulse-delta { margin-left:auto; flex:0 0 auto; padding:7px 10px; border-radius:14px; background:#fff; border:1px solid #e3ecf5; box-shadow:0 6px 16px rgba(38,69,120,.10); font-size:12px; font-weight:900; text-align:center; }
-.pulse-delta small { display:block; font-size:8px; font-weight:700; color:#93a1b8; text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
-.pulse-delta.up { color:#12855c; } .pulse-delta.down { color:#c2403f; } .pulse-delta.flat { color:#7487a7; }
+.pulse-card { position:relative; overflow:hidden; padding:16px 14px 14px; border-radius:24px; border:0; background:linear-gradient(165deg,#fdfeff 0%,#f5f9ff 48%,#effaf5 100%); box-shadow:0 14px 34px rgba(38,69,120,.10), inset 0 1px 0 #fff; }
+.pulse-card::after { content:''; position:absolute; right:-40px; top:-60px; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle at 50% 50%, rgba(57,124,255,.10), rgba(57,124,255,0) 70%); pointer-events:none; }
+.pulse-card::before { content:''; position:absolute; left:-30px; bottom:-70px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle at 50% 50%, rgba(25,183,122,.10), rgba(25,183,122,0) 70%); pointer-events:none; }
+.pulse-top { position:relative; z-index:1; display:flex; align-items:center; gap:12px; }
+.pulse-ico { flex:0 0 auto; width:42px; height:42px; border-radius:14px; background:linear-gradient(140deg,#4b93ff,#2465ee); color:#fff; display:grid; place-items:center; box-shadow:0 8px 18px rgba(36,101,238,.30), inset 0 1px 0 rgba(255,255,255,.4); }
+.pulse-scorebox { flex:1; min-width:0; }
+.pulse-num { font-size:38px; font-weight:900; letter-spacing:-2px; line-height:1; color:#14213d; }
+.pulse-num small { font-size:13px; font-weight:800; color:#93a1b8; letter-spacing:0; margin-left:2px; }
+.pulse-status { display:flex; align-items:center; gap:6px; margin-top:3px; font-size:13px; font-weight:850; color:#14213d; cursor:pointer; }
+.pulse-status .dot { width:8px; height:8px; }
+.pulse-delta { flex:0 0 auto; padding:6px 10px; border-radius:12px; background:#fff; box-shadow:0 4px 12px rgba(38,69,120,.10); text-align:center; min-width:74px; }
+.pulse-delta b { display:block; font-size:13px; font-weight:900; letter-spacing:-.3px; }
+.pulse-delta small { display:block; font-size:7px; font-weight:800; color:#93a1b8; text-transform:uppercase; letter-spacing:.4px; margin-top:1px; }
+.pulse-delta.up b { color:#12855c; } .pulse-delta.down b { color:#c2403f; } .pulse-delta.flat b { color:#7487a7; }
+.pulse-note { position:relative; z-index:1; margin-top:8px; color:#5b7ba6; font-size:10.5px; line-height:1.45; font-weight:600; }
 .pulse-kpis { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
-.pulse-kpi { padding:9px 10px; border-radius:16px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 4px 12px rgba(38,69,120,.06); min-width:0; }
-.pulse-kpi b { display:block; font-size:13px; font-weight:900; letter-spacing:-.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pulse-kpi span { display:block; color:#71809c; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pulse-kpi i { font-style:normal; font-size:9px; font-weight:850; }
+.pulse-kpi { padding:10px 10px 9px; border-radius:16px; background:#fff; box-shadow:0 4px 14px rgba(38,69,120,.07); min-width:0; cursor:pointer; }
+.pulse-kpi .kp-head { display:flex; align-items:center; gap:5px; }
+.pulse-kpi .kp-head .ic { width:13px; height:13px; color:#2465ee; flex:0 0 auto; }
+.pulse-kpi b { font-size:15px; font-weight:900; letter-spacing:-.4px; color:#14213d; white-space:nowrap; }
+.pulse-kpi span { display:block; margin-top:1px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pulse-kpi i { font-style:normal; display:block; margin-top:3px; font-size:9px; font-weight:850; white-space:nowrap; }
 .pulse-kpi i.g { color:#12855c; } .pulse-kpi i.r { color:#c2403f; } .pulse-kpi i.n { color:#93a1b8; }
-.pulse-d24 { position:relative; z-index:1; margin-top:10px; padding:10px; border-radius:16px; background:rgba(255,255,255,.85); border:1px solid #e6ebf4; }
-.pulse-d24-t { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:850; margin-bottom:8px; }
-.pulse-d24-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
-.pulse-d24-i { text-align:center; min-width:0; }
-.pulse-d24-i .ic { width:16px; height:16px; }
-.pulse-d24-i b { display:block; font-size:12px; font-weight:900; letter-spacing:-.3px; margin-top:2px; }
-.pulse-d24-i span { display:block; color:#93a1b8; font-size:7.5px; font-weight:700; line-height:1.25; margin-top:1px; }
+.pulse-d24 { position:relative; z-index:1; margin-top:8px; padding:10px 10px 8px; border-radius:16px; background:rgba(255,255,255,.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(38,69,120,.06); }
+.pulse-d24-t { font-size:11px; font-weight:850; color:#14213d; }
+.pulse-d24-t small { float:right; color:#b6c2d6; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
+.pulse-d24-grid { display:grid; grid-template-columns:repeat(4,1fr); margin-top:8px; }
+.pulse-d24-i { text-align:center; min-width:0; padding:2px; border-left:1px solid #edf1f8; }
+.pulse-d24-i:first-child { border-left:0; }
+.pulse-d24-i .ic { width:14px; height:14px; opacity:.85; }
+.pulse-d24-i b { display:block; font-size:13px; font-weight:900; letter-spacing:-.3px; margin-top:2px; }
+.pulse-d24-i span { display:block; color:#93a1b8; font-size:7.5px; font-weight:700; line-height:1.3; margin-top:1px; }
 .pulse-d24-i b.g { color:#12855c; } .pulse-d24-i b.r { color:#c2403f; } .pulse-d24-i b.n { color:#7487a7; }
-.pulse-peak { position:relative; z-index:1; display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
+.pulse-peak { position:relative; z-index:1; display:flex; gap:6px; margin-top:8px; }
+.pulse-peak .gp { background:rgba(255,255,255,.8); border:0; box-shadow:0 3px 10px rgba(38,69,120,.06); color:#5b7ba6; cursor:pointer; }
+.pulse-peak .gp b { color:#14213d; margin-left:3px; }
 .pulse-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
-.pulse-feed { padding:10px; border-radius:18px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 6px 18px rgba(38,69,120,.06); min-width:0; }
-.pulse-feed-t { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:850; margin-bottom:6px; }
+.pulse-feed { padding:12px 12px 8px; border-radius:20px; background:#fff; border:0; box-shadow:0 8px 24px rgba(38,69,120,.08); min-width:0; }
+.pulse-feed-t { display:flex; align-items:center; justify-content:space-between; font-size:12px; font-weight:850; color:#14213d; margin-bottom:4px; }
 .pulse-feed-t .live { display:inline-flex; align-items:center; gap:4px; color:#12855c; font-size:9px; font-weight:800; }
-.pulse-feed-t .live i { width:7px; height:7px; border-radius:50%; background:#2fd39a; }
-.pf-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid #f0f4fa; }
+.pulse-feed-t .live i { width:6px; height:6px; border-radius:50%; background:#2fd39a; box-shadow:0 0 0 3px rgba(47,211,154,.15); }
+.pf-row { display:flex; align-items:center; gap:9px; padding:7px 0; border-top:1px solid #f2f5fa; }
 .pf-row:first-of-type { border-top:0; }
-.pf-ico { flex:0 0 auto; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; color:#fff; }
-.pf-ico.g { background:linear-gradient(135deg,#21b986,#19b77a); } .pf-ico.r { background:linear-gradient(135deg,#ff8a80,#ef5350); } .pf-ico.o { background:linear-gradient(135deg,#ffca80,#f5a05a); } .pf-ico.b { background:linear-gradient(135deg,#8ab6ff,#397cff); }
+.pf-ico { flex:0 0 auto; width:26px; height:26px; border-radius:9px; display:grid; place-items:center; color:#fff; }
+.pf-ico.g { background:linear-gradient(140deg,#2fd39a,#19b77a); } .pf-ico.r { background:linear-gradient(140deg,#ff8a80,#ef5350); } .pf-ico.o { background:linear-gradient(140deg,#ffca80,#f5a05a); } .pf-ico.b { background:linear-gradient(140deg,#8ab6ff,#397cff); }
 .pf-txt { min-width:0; flex:1; }
-.pf-txt b { display:block; font-size:10.5px; font-weight:850; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pf-txt span { display:block; color:#71809c; font-size:9px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.pf-time { flex:0 0 auto; color:#93a1b8; font-size:8.5px; font-weight:700; }
+.pf-txt b { display:block; font-size:11px; font-weight:850; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-txt span { display:block; color:#7c899e; font-size:9px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-time { flex:0 0 auto; color:#b6c2d6; font-size:8.5px; font-weight:700; }
 .pulse-side { display:flex; flex-direction:column; gap:8px; min-width:0; }
-.pulse-side .mini-map-wrap { height:150px; margin-bottom:0; }
-.pulse-side .mini-map-cap { left:8px; right:8px; bottom:8px; justify-content:center; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; border-color:transparent; font-size:10.5px; font-weight:850; padding:8px 9px; }
-.pulse-quote { padding:10px; border-radius:18px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 6px 18px rgba(38,69,120,.06); }
-.pulse-quote-t { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; margin-bottom:6px; }
-.pulse-quote-t .ic { color:#2465ee; }
-.pulse-quote p { margin:0; color:#33445f; font-size:10.5px; line-height:1.45; font-weight:600; }
-.pulse-quote small { display:block; margin-top:5px; color:#93a1b8; font-size:8.5px; font-weight:700; }
-@media(max-width:520px){ .pulse-grid { grid-template-columns:1fr; } .pulse-d24-grid { grid-template-columns:repeat(2,1fr); } }
+.pulse-side .mini-map-wrap { height:150px; margin-bottom:0; border:0; box-shadow:0 8px 24px rgba(38,69,120,.08); }
+.pulse-side .mini-map-cap { left:8px; right:8px; bottom:8px; justify-content:center; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; border-color:transparent; font-size:10.5px; font-weight:850; padding:8px 9px; box-shadow:0 8px 18px rgba(36,101,238,.35); }
+.pulse-quote { padding:12px; border-radius:20px; background:#fff; border:0; box-shadow:0 8px 24px rgba(38,69,120,.08); }
+.pulse-quote-t { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; color:#14213d; margin-bottom:6px; }
+.pulse-quote-t .ic { color:#2465ee; width:14px; height:14px; }
+.pulse-quote p { margin:0; color:#33445f; font-size:10.5px; line-height:1.5; font-weight:600; }
+.pulse-quote small { display:block; margin-top:6px; color:#b6c2d6; font-size:8.5px; font-weight:700; }
+@media(max-width:520px){ .pulse-grid { grid-template-columns:1fr; } .pulse-d24-i span { font-size:7px; } }}
 /* панель 2: блок со своей прокруткой. Раньше здесь был flex + overflow:hidden:
    высокая карточка «Пульс города» сжималась flex-ом до полоски и обрезалась,
    а прокрутка была запрещена. Блок не сжимает детей, скролл живой. */
@@ -976,30 +985,30 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <div class="pulse-card">
         <div class="pulse-top">
           <div class="pulse-ico"><svg class="ic ic-l"><use href="#i-spark"/></svg></div>
-          <div style="min-width:0">
-            <div class="pulse-num"><span id="pulseScore">—</span><small> /10</small></div>
+          <div class="pulse-scorebox">
+            <div class="pulse-num"><span id="pulseScore">—</span><small>/10</small></div>
             <div class="pulse-status" onclick="openWhyChip(this,'pulse')"><span class="dot green" id="pulseDot"></span><span id="pulseStatus">Считаем город…</span></div>
-            <div class="pulse-note" id="pulseNote">Пульс города по отметкам источника и водителей</div>
           </div>
-          <div class="pulse-delta flat" id="pulseDelta" style="display:none"><span id="pulseDeltaV">—</span><small>чем вчера в это время</small></div>
+          <div class="pulse-delta flat" id="pulseDelta" style="display:none"><b id="pulseDeltaV">—</b><small>к вчера, это время</small></div>
         </div>
+        <div class="pulse-note" id="pulseNote">Пульс города по отметкам источника и водителей</div>
         <div class="pulse-kpis">
-          <div class="pulse-kpi tap why-tap" onclick="openWhyChip(this,'now95')"><b id="pulseKpiFuel">—</b><span>АЗС с АИ-95</span><i class="n" id="pulseKpiFuelD"></i></div>
-          <div class="pulse-kpi tap why-tap" onclick="openWhyChip(this,'plateQ')"><b id="pulseKpiQueue">—</b><span>очереди</span><i class="n" id="pulseKpiQueueD"></i></div>
-          <div class="pulse-kpi tap why-tap" onclick="openWhyChip(this,'fresh')"><b id="pulseKpiActive">—</b><span>активных АЗС</span><i class="n" id="pulseKpiActiveD"></i></div>
+          <div class="pulse-kpi" onclick="openWhyChip(this,'now95')"><div class="kp-head"><svg class="ic"><use href="#i-pump"/></svg><b id="pulseKpiFuel">—</b></div><span>АЗС с АИ-95</span><i class="n" id="pulseKpiFuelD"></i></div>
+          <div class="pulse-kpi" onclick="openWhyChip(this,'plateQ')"><div class="kp-head"><svg class="ic"><use href="#i-queue"/></svg><b id="pulseKpiQueue">—</b></div><span>очереди</span><i class="n" id="pulseKpiQueueD"></i></div>
+          <div class="pulse-kpi" onclick="openWhyChip(this,'fresh')"><div class="kp-head"><svg class="ic"><use href="#i-clock"/></svg><b id="pulseKpiActive">—</b></div><span>активных АЗС</span><i class="n" id="pulseKpiActiveD"></i></div>
         </div>
         <div class="pulse-d24">
-          <div class="pulse-d24-t"><span>Что изменилось за 24 часа?</span><small style="color:#93a1b8;font-weight:700">источник + водители</small></div>
+          <div class="pulse-d24-t">Что изменилось за 24 часа?<small>источник + водители</small></div>
           <div class="pulse-d24-grid">
-            <div class="pulse-d24-i"><svg class="ic" style="color:#ef5350"><use href="#i-pump"/></svg><b class="n" id="pulseD95">—</b><span>АИ-95 · доля АЗС</span></div>
-            <div class="pulse-d24-i"><svg class="ic" style="color:#f5b82e"><use href="#i-pump"/></svg><b class="n" id="pulseDdt">—</b><span>дизель · доля АЗС</span></div>
+            <div class="pulse-d24-i"><svg class="ic" style="color:#ef5350"><use href="#i-pump"/></svg><b class="n" id="pulseD95">—</b><span>АИ-95</span></div>
+            <div class="pulse-d24-i"><svg class="ic" style="color:#f5b82e"><use href="#i-pump"/></svg><b class="n" id="pulseDdt">—</b><span>дизель</span></div>
             <div class="pulse-d24-i"><svg class="ic" style="color:#19b77a"><use href="#i-queue"/></svg><b class="n" id="pulseDq">—</b><span>очереди</span></div>
-            <div class="pulse-d24-i"><svg class="ic" style="color:#397cff"><use href="#i-heart"/></svg><b class="n" id="pulseDfb">—</b><span>отметок водителей</span></div>
+            <div class="pulse-d24-i"><svg class="ic" style="color:#397cff"><use href="#i-heart"/></svg><b class="n" id="pulseDfb">—</b><span>водители</span></div>
           </div>
         </div>
         <div class="pulse-peak">
-          <span class="gp gp-btn why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic ic-s"><use href="#i-chart"/></svg>пик <b id="pulsePeak" style="margin-left:3px">—</b></span>
-          <span class="gp gp-btn why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic ic-s"><use href="#i-queue"/></svg>спокойно <b id="pulseCalm" style="margin-left:3px">—</b></span>
+          <span class="gp gp-btn" onclick="openWhyChip(this,'peak')"><svg class="ic ic-s"><use href="#i-chart"/></svg>пик<b id="pulsePeak">—</b></span>
+          <span class="gp gp-btn" onclick="openWhyChip(this,'calm')"><svg class="ic ic-s"><use href="#i-queue"/></svg>спокойно<b id="pulseCalm">—</b></span>
         </div>
       </div>
       <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wavePlate')"></div>
@@ -3767,8 +3776,10 @@ function pulseCore(avail95, qshare) {
 function activeStationsCount(fromH, toH) {
   const now = Date.now();
   const a = now - toH * 3600 * 1000, b = now - fromH * 3600 * 1000;
+  const city = new Set(cityStationList().map(s => s.id));
   const set = new Set();
   for (const o of allObservations) {
+    if (!city.has(o.station_id)) continue; // только город пользователя, не весь юг
     const t = new Date(o.timestamp).getTime();
     if (t >= a && t < b) set.add(o.station_id);
   }
@@ -3778,7 +3789,7 @@ function pulseSetDelta(elI, now, prev, upGood) {
   if (!elI) return;
   if (now === null || now === undefined || prev === null || prev === undefined) { elI.textContent = ''; return; }
   const pp = Math.round((now - prev) * 100);
-  elI.textContent = pp === 0 ? '±0 за сутки' : (pp > 0 ? '+' + pp : '−' + Math.abs(pp)) + ' п.п. за сутки';
+  elI.textContent = pp === 0 ? '±0 · сутки' : (pp > 0 ? '+' + pp : '−' + Math.abs(pp)) + ' п.п. · сутки';
   elI.className = pp === 0 ? 'n' : ((pp > 0) === upGood ? 'g' : 'r');
 }
 function pulseFillD24(b, val, invert) {
@@ -3850,7 +3861,7 @@ function renderPulse() {
   el('pulseKpiActive').textContent = act;
   const ad = act - actPrev;
   const adEl = el('pulseKpiActiveD');
-  adEl.textContent = ad === 0 ? '±0 за час' : (ad > 0 ? '+' + ad : '−' + Math.abs(ad)) + ' за час';
+  adEl.textContent = ad === 0 ? '±0 · час' : (ad > 0 ? '+' + ad : '−' + Math.abs(ad)) + ' · час';
   adEl.className = ad > 0 ? 'g' : ad < 0 ? 'r' : 'n';
   // изменения за 24 ч (п.п. долей; очереди инвертируем: меньше — лучше)
   pulseFillD24(el('pulseD95'), (avail95 !== null && yAvail !== null) ? Math.round((avail95 - yAvail) * 100) : null, false);
