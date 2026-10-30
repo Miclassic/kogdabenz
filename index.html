@@ -370,6 +370,57 @@ body { overflow:hidden; }
 .boot-fail-t { font-size:18px; font-weight:900; letter-spacing:-.5px; }
 .boot-fail-s { margin-top:6px; color:rgba(235,243,255,.8); font-size:11.5px; line-height:1.5; font-weight:600; }
 @media (prefers-reduced-motion: reduce) { .boot-drop-wrap, .boot-drop-wrap::before, .boot-drop-orb-wrap::after, .boot-drop-orb::before, .boot-drop-orb::after, .bd-wave { animation:none; } .bd-hand { transition:none; } }
+/* === Пульс города: карточка главной панели (макет «премиум минимализм») === */
+.dot.yellow { background:#f5d565; } .dot.orange { background:#f5a05a; }
+.pulse-card { position:relative; overflow:hidden; padding:14px; border-radius:22px; background:linear-gradient(135deg,#f2f8ff 0%,#eafaf3 100%); border:1px solid #dfe8f6; }
+.pulse-card::after { content:''; position:absolute; right:0; top:0; bottom:0; width:52%; background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60'><path d='M0 60V38h10V28h8v32zM20 60V20h6v-6h6v46zM40 60V32h12v28zM58 60V14h5v-4h5v50zM76 60V40h10v20zM92 60V24h8v36zM108 60V34h10v26zM124 60V10h6v-4h6v54zM142 60V30h10v30zM158 60V18h8v42zM174 60V42h12v18zM190 60V26h10v34z' fill='%232465ee' fill-opacity='.10'/></svg>") right bottom / auto 78% no-repeat; pointer-events:none; }
+.pulse-top { position:relative; z-index:1; display:flex; align-items:flex-start; gap:12px; }
+.pulse-ico { flex:0 0 auto; width:44px; height:44px; border-radius:14px; background:#fff; border:1px solid #e3ecf5; display:grid; place-items:center; color:#2465ee; box-shadow:0 6px 16px rgba(38,69,120,.10); }
+.pulse-num { font-size:34px; font-weight:900; letter-spacing:-1.5px; line-height:1; }
+.pulse-num small { font-size:13px; font-weight:800; color:#93a1b8; letter-spacing:0; }
+.pulse-status { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:13px; font-weight:850; cursor:pointer; }
+.pulse-status .dot { width:9px; height:9px; }
+.pulse-note { margin-top:3px; color:#5b7ba6; font-size:10.5px; font-weight:600; }
+.pulse-delta { margin-left:auto; flex:0 0 auto; padding:7px 10px; border-radius:14px; background:#fff; border:1px solid #e3ecf5; box-shadow:0 6px 16px rgba(38,69,120,.10); font-size:12px; font-weight:900; text-align:center; }
+.pulse-delta small { display:block; font-size:8px; font-weight:700; color:#93a1b8; text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
+.pulse-delta.up { color:#12855c; } .pulse-delta.down { color:#c2403f; } .pulse-delta.flat { color:#7487a7; }
+.pulse-kpis { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-top:10px; }
+.pulse-kpi { padding:9px 10px; border-radius:16px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 4px 12px rgba(38,69,120,.06); min-width:0; }
+.pulse-kpi b { display:block; font-size:13px; font-weight:900; letter-spacing:-.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pulse-kpi span { display:block; color:#71809c; font-size:8.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pulse-kpi i { font-style:normal; font-size:9px; font-weight:850; }
+.pulse-kpi i.g { color:#12855c; } .pulse-kpi i.r { color:#c2403f; } .pulse-kpi i.n { color:#93a1b8; }
+.pulse-d24 { position:relative; z-index:1; margin-top:10px; padding:10px; border-radius:16px; background:rgba(255,255,255,.85); border:1px solid #e6ebf4; }
+.pulse-d24-t { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:850; margin-bottom:8px; }
+.pulse-d24-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.pulse-d24-i { text-align:center; min-width:0; }
+.pulse-d24-i .ic { width:16px; height:16px; }
+.pulse-d24-i b { display:block; font-size:12px; font-weight:900; letter-spacing:-.3px; margin-top:2px; }
+.pulse-d24-i span { display:block; color:#93a1b8; font-size:7.5px; font-weight:700; line-height:1.25; margin-top:1px; }
+.pulse-d24-i b.g { color:#12855c; } .pulse-d24-i b.r { color:#c2403f; } .pulse-d24-i b.n { color:#7487a7; }
+.pulse-peak { position:relative; z-index:1; display:flex; gap:5px; flex-wrap:wrap; margin-top:8px; }
+.pulse-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+.pulse-feed { padding:10px; border-radius:18px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 6px 18px rgba(38,69,120,.06); min-width:0; }
+.pulse-feed-t { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:850; margin-bottom:6px; }
+.pulse-feed-t .live { display:inline-flex; align-items:center; gap:4px; color:#12855c; font-size:9px; font-weight:800; }
+.pulse-feed-t .live i { width:7px; height:7px; border-radius:50%; background:#2fd39a; }
+.pf-row { display:flex; align-items:center; gap:8px; padding:6px 0; border-top:1px solid #f0f4fa; }
+.pf-row:first-of-type { border-top:0; }
+.pf-ico { flex:0 0 auto; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; color:#fff; }
+.pf-ico.g { background:linear-gradient(135deg,#21b986,#19b77a); } .pf-ico.r { background:linear-gradient(135deg,#ff8a80,#ef5350); } .pf-ico.o { background:linear-gradient(135deg,#ffca80,#f5a05a); } .pf-ico.b { background:linear-gradient(135deg,#8ab6ff,#397cff); }
+.pf-txt { min-width:0; flex:1; }
+.pf-txt b { display:block; font-size:10.5px; font-weight:850; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-txt span { display:block; color:#71809c; font-size:9px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pf-time { flex:0 0 auto; color:#93a1b8; font-size:8.5px; font-weight:700; }
+.pulse-side { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.pulse-side .mini-map-wrap { height:150px; margin-bottom:0; }
+.pulse-side .mini-map-cap { left:8px; right:8px; bottom:8px; justify-content:center; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; border-color:transparent; font-size:10.5px; font-weight:850; padding:8px 9px; }
+.pulse-quote { padding:10px; border-radius:18px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 6px 18px rgba(38,69,120,.06); }
+.pulse-quote-t { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; margin-bottom:6px; }
+.pulse-quote-t .ic { color:#2465ee; }
+.pulse-quote p { margin:0; color:#33445f; font-size:10.5px; line-height:1.45; font-weight:600; }
+.pulse-quote small { display:block; margin-top:5px; color:#93a1b8; font-size:8.5px; font-weight:700; }
+@media(max-width:520px){ .pulse-grid { grid-template-columns:1fr; } .pulse-d24-grid { grid-template-columns:repeat(2,1fr); } }
 /* панель 1 */
 .p1 { overflow:hidden; }
 .p1-head { display:flex; align-items:center; gap:9px; margin-bottom:6px; }
@@ -915,15 +966,53 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
         </div>
         <div class="p1-clock"><svg class="ic ic-s"><use href="#i-clock"/></svg><span id="p1Time">—</span></div>
       </div>
-      <div class="hero-line">
-        <svg class="ic"><use href="#i-spark"/></svg>
-        <div class="hl-main">
-          <div class="hl-fuel" id="hfFuel">Самый уверенный прогноз</div>
-          <div class="hl-window" id="hfWindow">—</div>
-          <div class="confidence-bar" style="margin-top:4px;height:4px"><span id="hfBar" style="width:8%"></span></div>
+      <div class="pulse-card">
+        <div class="pulse-top">
+          <div class="pulse-ico"><svg class="ic ic-l"><use href="#i-spark"/></svg></div>
+          <div style="min-width:0">
+            <div class="pulse-num"><span id="pulseScore">—</span><small> /10</small></div>
+            <div class="pulse-status" onclick="openWhyChip(this,'pulse')"><span class="dot green" id="pulseDot"></span><span id="pulseStatus">Считаем город…</span></div>
+            <div class="pulse-note" id="pulseNote">Пульс города по отметкам источника и водителей</div>
+          </div>
+          <div class="pulse-delta flat" id="pulseDelta" style="display:none"><span id="pulseDeltaV">—</span><small>чем вчера в это время</small></div>
+        </div>
+        <div class="pulse-kpis">
+          <div class="pulse-kpi tap why-tap" onclick="openWhyChip(this,'now95')"><b id="pulseKpiFuel">—</b><span>АЗС с АИ-95</span><i class="n" id="pulseKpiFuelD"></i></div>
+          <div class="pulse-kpi tap why-tap" onclick="openWhyChip(this,'plateQ')"><b id="pulseKpiQueue">—</b><span>очереди</span><i class="n" id="pulseKpiQueueD"></i></div>
+          <div class="pulse-kpi tap why-tap" onclick="openWhyChip(this,'fresh')"><b id="pulseKpiActive">—</b><span>активных АЗС</span><i class="n" id="pulseKpiActiveD"></i></div>
+        </div>
+        <div class="pulse-d24">
+          <div class="pulse-d24-t"><span>Что изменилось за 24 часа?</span><small style="color:#93a1b8;font-weight:700">источник + водители</small></div>
+          <div class="pulse-d24-grid">
+            <div class="pulse-d24-i"><svg class="ic" style="color:#ef5350"><use href="#i-pump"/></svg><b class="n" id="pulseD95">—</b><span>АИ-95 · доля АЗС</span></div>
+            <div class="pulse-d24-i"><svg class="ic" style="color:#f5b82e"><use href="#i-pump"/></svg><b class="n" id="pulseDdt">—</b><span>дизель · доля АЗС</span></div>
+            <div class="pulse-d24-i"><svg class="ic" style="color:#19b77a"><use href="#i-queue"/></svg><b class="n" id="pulseDq">—</b><span>очереди</span></div>
+            <div class="pulse-d24-i"><svg class="ic" style="color:#397cff"><use href="#i-heart"/></svg><b class="n" id="pulseDfb">—</b><span>отметок водителей</span></div>
+          </div>
+        </div>
+        <div class="pulse-peak">
+          <span class="gp gp-btn why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic ic-s"><use href="#i-chart"/></svg>пик <b id="pulsePeak" style="margin-left:3px">—</b></span>
+          <span class="gp gp-btn why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic ic-s"><use href="#i-queue"/></svg>спокойно <b id="pulseCalm" style="margin-left:3px">—</b></span>
         </div>
       </div>
-      <div class="hm-wrap">
+      <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wavePlate')"></div>
+      <div class="pulse-grid">
+        <div class="pulse-feed">
+          <div class="pulse-feed-t"><span>Лента событий</span><span class="live"><i></i>6 часов</span></div>
+          <div id="pulseFeed"><div class="recent">Лента оживёт, когда приедут данные.</div></div>
+        </div>
+        <div class="pulse-side">
+          <div class="mini-map-wrap" onclick="miniMapGo()">
+            <div id="miniMapBox" class="mini-map-box"><div class="status">Мини-карта загрузится вместе с данными</div></div>
+            <div class="mini-map-cap"><svg class="ic ic-s"><use href="#i-pin"/></svg>Открыть карту</div>
+          </div>
+          <div class="pulse-quote" id="pulseQuote" style="display:none">
+            <div class="pulse-quote-t"><svg class="ic ic-s"><use href="#i-help"/></svg>Слово водителям</div>
+            <p id="pulseQuoteTxt"></p><small id="pulseQuoteWho"></small>
+          </div>
+        </div>
+      </div>
+      <div class="hm-wrap" style="margin-top:8px">
         <div class="hm-body" id="heatGrid"></div>
         <div class="hm-axis"><span>00:00</span><span>04:00</span><span>08:00</span><span>12:00</span><span>16:00</span><span>20:00</span><span>00:00</span></div>
         <div class="hm-legend">
@@ -934,16 +1023,6 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           <span><i style="background:rgba(47,211,154,.35)"></i>тусклые пилюли — прогноз по ритму</span>
           <span><i style="background:#eef2f8;box-shadow:inset 0 0 0 1.5px rgba(36,101,238,.5)"></i>синий контур — окно возврата по прогнозу</span>
         </div>
-      </div>
-      <div class="chips3">
-        <div class="chip3 tap why-tap" onclick="openWhyChip(this,'now95')"><svg class="ic"><use href="#i-clock"/></svg><div><small>Сейчас · 95</small><b id="triNow">—</b></div></div>
-        <div class="chip3 tap why-tap" onclick="openWhyChip(this,'peak')"><svg class="ic"><use href="#i-chart"/></svg><div><small>Пик спроса</small><b id="triUsually">—</b></div></div>
-        <div class="chip3 tap why-tap" onclick="openWhyChip(this,'calm')"><svg class="ic"><use href="#i-queue"/></svg><div><small id="triFcLbl">Спокойно</small><b id="triFc">—</b></div></div>
-      </div>
-      <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wavePlate')"></div>
-      <div class="mini-map-wrap" onclick="miniMapGo()">
-        <div id="miniMapBox" class="mini-map-box"><div class="status">Мини-карта загрузится вместе с данными</div></div>
-        <div class="mini-map-cap"><svg class="ic"><use href="#i-pin"/></svg>мини-карта · тап — полная карта</div>
       </div>
       <div class="nowcard-cta">
         <button class="cta-btn" id="ctaBest"><svg class="ic"><use href="#i-spark"/></svg>Куда ехать сейчас</button>
@@ -3482,6 +3561,7 @@ const WHY_MAP = {
   accHit: { t: 'Попадание в окно', x: 'Прогноз указывает окно часов, когда топливо вероятно вернётся. Если возврат случился внутри окна (с допуском: привезли чуть раньше или отметка чуть запоздала) — это попадание.', e: () => { const v = allPredictions.filter(p => p.is_verified); const s = v.filter(p => p.result === 'SUCCESS').length; return 'Попаданий: ' + s + ' из ' + v.length + ' проверенных.'; } },
   qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории, не гарантия.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null },
   impact: { t: 'Как считаем «подтвердили»', x: 'Берём вашу отметку и смотрим: в пределах часа от неё кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС. Каждый такой водитель — подтверждение, что отметка попала в реальность. Выдуманные «просмотры» не показываем.', e: null },
+  pulse: { t: 'Пульс города', x: 'Оценка из 10: наличие АИ-95 (45%), очереди (25%), свежесть данных (20%), баланс возвратов и исчезновений за сутки (10%). «Чем вчера» сравниваем в тот же час по почасовому ритму города.', e: () => { const fr = freshStats(); return 'Свежие данные: ' + fr.fresh + ' из ' + fr.tot + ' АЗС. Оценка считается из отметок источника и водителей, без ручных поправок.'; } },
   wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() }
 };
 let whyOpenKey = null;
@@ -3660,6 +3740,175 @@ function getPersonalAdvice() {
   const confidence = Math.min(95, 50 + trips.length * 3 + outcomeCount * 5);
   return { station: best, score: bestScore, reason: bestReason, confidence: confidence, trips: trips.length };
 }
+// === Пульс города: оценка /10, дельта к вчера, изменения за 24 ч, лента и слово водителей ===
+// Считаем ТОЛЬКО из уже загруженных массивов (наблюдения, fuelHourly, события,
+// отметки) — новых запросов нет, карточка оживает вместе с данными.
+// Оценка честная и объяснимая: АИ-95 45% + очереди 25% + свежесть 20% + баланс
+// возвратов/исчезновений за сутки 10% (разбор — в подсказке по тапу на статус).
+function pulseRowYesterday() {
+  const t = new Date(Date.now() - 24 * 3600 * 1000);
+  for (const r of fuelHourly) {
+    const d = new Date(r.hour);
+    if (d.getDate() === t.getDate() && d.getMonth() === t.getMonth() && d.getHours() === t.getHours()) return r;
+  }
+  return null;
+}
+function pulseCore(avail95, qshare) {
+  if (avail95 === null || avail95 === undefined || qshare === null || qshare === undefined) return null;
+  return 10 * (0.65 * avail95 + 0.35 * (1 - qshare));
+}
+function activeStationsCount(fromH, toH) {
+  const now = Date.now();
+  const a = now - toH * 3600 * 1000, b = now - fromH * 3600 * 1000;
+  const set = new Set();
+  for (const o of allObservations) {
+    const t = new Date(o.timestamp).getTime();
+    if (t >= a && t < b) set.add(o.station_id);
+  }
+  return set.size;
+}
+function pulseSetDelta(elI, now, prev, upGood) {
+  if (!elI) return;
+  if (now === null || now === undefined || prev === null || prev === undefined) { elI.textContent = ''; return; }
+  const pp = Math.round((now - prev) * 100);
+  elI.textContent = pp === 0 ? '±0 за сутки' : (pp > 0 ? '+' + pp : '−' + Math.abs(pp)) + ' п.п. за сутки';
+  elI.className = pp === 0 ? 'n' : ((pp > 0) === upGood ? 'g' : 'r');
+}
+function pulseFillD24(b, val, invert) {
+  if (!b) return;
+  if (val === null || val === undefined) { b.textContent = '—'; b.className = 'n'; return; }
+  const good = invert ? -val : val;
+  b.textContent = val === 0 ? '±0' : (val > 0 ? '+' + val : '−' + Math.abs(val));
+  b.className = val === 0 ? 'n' : (good > 0 ? 'g' : 'r');
+}
+function renderPulse() {
+  const el = id => document.getElementById(id);
+  if (!el('pulseScore')) return;
+  const last = getLastObservations();
+  let k95 = 0, a95 = 0, kdt = 0, adt = 0, q = 0, selling = 0;
+  for (const s of cityStationList()) {
+    const o = last[s.id]; if (!o) continue;
+    if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { k95++; if (o.fuel_95_status) a95++; }
+    if (o.diesel_status !== null && o.diesel_status !== undefined) { kdt++; if (o.diesel_status) adt++; }
+    if (o.fuel_92_status === true || o.fuel_95_status === true || o.diesel_status === true) selling++;
+    if (o.queue_level === 'high') q++;
+  }
+  const avail95 = k95 ? a95 / k95 : null, availDt = kdt ? adt / kdt : null, qshare = selling ? q / selling : null;
+  const fr = freshStats();
+  const freshShare = fr.tot ? fr.fresh / fr.tot : 0;
+  const since24 = Date.now() - 24 * 3600 * 1000;
+  let rest24 = 0, dis24 = 0;
+  for (const e of allWaveEvents) {
+    const t = new Date(e.detected_at).getTime();
+    if (t < since24) continue;
+    if (e.event_type === 'fuel_restored') rest24++;
+    else if (e.event_type === 'fuel_disappeared') dis24++;
+  }
+  const evbal = (rest24 + dis24) ? rest24 / (rest24 + dis24) : 0.5;
+  const score = (avail95 === null || qshare === null) ? null
+    : 10 * (0.45 * avail95 + 0.25 * (1 - qshare) + 0.20 * freshShare + 0.10 * evbal);
+  el('pulseScore').textContent = score === null ? '—' : score.toFixed(1).replace('.', ',');
+  const lvl = score === null ? -1 : score >= 7.5 ? 3 : score >= 5.5 ? 2 : score >= 3.5 ? 1 : 0;
+  const LVL = [
+    ['Дефицит', 'red', 'Топливо в дефиците: ловите окна возврата в прогнозах.'],
+    ['Напряжённо', 'orange', 'Топливо исчезает волнами — проверяйте АЗС перед выездом.'],
+    ['Умеренно', 'yellow', 'Есть очереди и провалы, но большинство АЗС продаёт.'],
+    ['Спокойно', 'green', 'Город живёт. Заправляться комфортно.']
+  ];
+  if (lvl >= 0) {
+    el('pulseStatus').textContent = LVL[lvl][0];
+    el('pulseDot').className = 'dot ' + LVL[lvl][1];
+    el('pulseNote').textContent = LVL[lvl][2];
+  }
+  // дельта к вчера в это же время: ядро «топливо+очереди» по ритму города
+  const y = pulseRowYesterday();
+  const yAvail = y && y.k95 ? y.a95 / y.k95 : null;
+  const yQ = y && y.selling ? y.q / y.selling : null;
+  const coreNow = pulseCore(avail95, qshare);
+  const coreY = pulseCore(yAvail, yQ);
+  const dEl = el('pulseDelta');
+  if (coreNow === null || coreY === null) dEl.style.display = 'none';
+  else {
+    const d = coreNow - coreY;
+    dEl.style.display = '';
+    dEl.className = 'pulse-delta ' + (d > 0.15 ? 'up' : d < -0.15 ? 'down' : 'flat');
+    el('pulseDeltaV').textContent = (d > 0 ? '+' : d < 0 ? '−' : '±') + Math.abs(d).toFixed(1).replace('.', ',');
+  }
+  // KPI: топливо / очереди / активные за час
+  el('pulseKpiFuel').textContent = avail95 === null ? '—' : Math.round(avail95 * 100) + '%';
+  pulseSetDelta(el('pulseKpiFuelD'), avail95, yAvail, true);
+  el('pulseKpiQueue').textContent = qshare === null ? '—' : (qshare < 0.1 ? 'Низкие' : qshare < 0.3 ? 'Средние' : 'Высокие');
+  pulseSetDelta(el('pulseKpiQueueD'), qshare, yQ, false);
+  const act = activeStationsCount(0, 1), actPrev = activeStationsCount(1, 2);
+  el('pulseKpiActive').textContent = act;
+  const ad = act - actPrev;
+  const adEl = el('pulseKpiActiveD');
+  adEl.textContent = ad === 0 ? '±0 за час' : (ad > 0 ? '+' + ad : '−' + Math.abs(ad)) + ' за час';
+  adEl.className = ad > 0 ? 'g' : ad < 0 ? 'r' : 'n';
+  // изменения за 24 ч (п.п. долей; очереди инвертируем: меньше — лучше)
+  pulseFillD24(el('pulseD95'), (avail95 !== null && yAvail !== null) ? Math.round((avail95 - yAvail) * 100) : null, false);
+  pulseFillD24(el('pulseDdt'), (availDt !== null && y && y.kdt) ? Math.round((availDt - y.adt / y.kdt) * 100) : null, false);
+  pulseFillD24(el('pulseDq'), (qshare !== null && yQ !== null) ? Math.round((qshare - yQ) * 100) : null, true);
+  let fb24 = 0;
+  for (const f of allFeedback) if (new Date(f.created_at).getTime() >= since24) fb24++;
+  const fbEl = el('pulseDfb');
+  fbEl.textContent = '+' + fb24;
+  fbEl.className = fb24 ? 'g' : 'n';
+  // пик и спокойное окно — те же данные, что у чипов раньше
+  const pc = peakAndCalm();
+  el('pulsePeak').textContent = pc.peak === '—' ? '—' : pc.peak.replace(/:00/g, '');
+  el('pulseCalm').textContent = pc.calm === '—' ? (pc.advice ? 'очередь ' + pc.advice : '—') : pc.calm.replace(/:00/g, '');
+  // лента событий за 6 часов: источник + народ, список вместо вращающейся строки
+  const citySet = new Set(cityStationList().map(s => s.id));
+  const since6 = Date.now() - 6 * 3600 * 1000;
+  const items = [];
+  for (const e of allWaveEvents) {
+    if (!citySet.has(e.station_id)) continue;
+    const t = new Date(e.detected_at).getTime();
+    if (t < since6) continue;
+    items.push({ st: e.station_id, fuel: e.fuel_type, kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone', t: t });
+  }
+  for (const f of allFeedback) {
+    const t = new Date(f.created_at).getTime();
+    if (t < since6 || !citySet.has(f.station_id)) continue;
+    if (f.feedback_type === 'available') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_yes', t: t });
+    else if (f.feedback_type === 'unavailable') items.push({ st: f.station_id, fuel: f.fuel_type, kind: 'folk_no', t: t });
+    else if (f.feedback_type === 'delivery') items.push({ st: f.station_id, fuel: null, kind: 'delivery', t: t });
+    else if (f.feedback_type === 'queue') items.push({ st: f.station_id, fuel: null, kind: 'queue', t: t });
+    else if (f.feedback_type === 'in_queue') items.push({ st: f.station_id, fuel: null, kind: 'queue_live', t: t });
+  }
+  items.sort((a, b) => b.t - a.t);
+  const feedBox = el('pulseFeed');
+  if (!items.length) feedBox.innerHTML = '<div class="recent">За последние 6 часов событий не было — это тоже новость: город спокоен.</div>';
+  else feedBox.innerHTML = items.slice(0, 6).map(it => {
+    const s = stationById(it.st);
+    const nm = s ? (s.name || 'АЗС') : 'АЗС';
+    const adr = s && s.address ? s.address : '';
+    const d = new Date(it.t);
+    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    const ic = feedIcon(it);
+    const cls = (it.kind === 'restored' || it.kind === 'folk_yes') ? 'g' : (it.kind === 'gone' || it.kind === 'folk_no') ? 'r' : (it.kind === 'delivery') ? 'b' : 'o';
+    const folk = it.kind === 'folk_yes' || it.kind === 'folk_no' || it.kind === 'queue' || it.kind === 'queue_live' || it.kind === 'delivery';
+    let what;
+    if (it.kind === 'queue' || it.kind === 'queue_live') what = 'очередь' + (it.q ? ' ' + (QUEUE_SHORT[it.q] || '') : '');
+    else if (it.kind === 'delivery') what = 'привезли';
+    else what = fuelLabel(it.fuel) + (it.kind === 'restored' ? ' вернулся' : it.kind === 'gone' ? ' пропал' : it.kind === 'folk_yes' ? ' есть' : ' нет');
+    return '<div class="pf-row"><span class="pf-ico ' + cls + '"><svg class="ic ic-s"><use href="#' + ic[0] + '"/></svg></span>' +
+      '<span class="pf-txt"><b>' + escapeHtml(nm) + '</b><span>' + (folk ? 'водители: ' : 'источник: ') + escapeHtml(what) + (adr ? ' · ' + escapeHtml(adr) : '') + '</span></span>' +
+      '<span class="pf-time">' + hm + '</span></div>';
+  }).join('');
+  // слово водителям: свежий комментарий из народных отметок
+  const qBox = el('pulseQuote');
+  const withComment = allFeedback.filter(f => f.comment_text && new Date(f.created_at).getTime() >= since24 && citySet.has(f.station_id));
+  if (!withComment.length) qBox.style.display = 'none';
+  else {
+    const c = withComment[0];
+    const d = new Date(c.created_at);
+    qBox.style.display = '';
+    el('pulseQuoteTxt').textContent = '«' + c.comment_text + '»';
+    el('pulseQuoteWho').textContent = 'водитель · ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+}
 function renderNow() {
   const cta = document.getElementById('ctaBest');
   if (!allStations.length) return;
@@ -3753,6 +4002,7 @@ function renderNow() {
   }
   updateMapPlate();
   renderHero();
+  renderPulse();
   ensureMiniMap();
   renderMiniMap();
   renderAccuracy();
@@ -5581,7 +5831,7 @@ async function loadPulse() {
     .then(f => { fuelHourly = f; renderHeat(); lastWaveStats = allWaveEvents.length ? cityWaveStats() : null;
     renderWave();
     updateMapPlate();
-    renderHero(); setTagline(currentPanel); saveCache(); })
+    renderHero(); renderPulse(); setTagline(currentPanel); saveCache(); })
     .catch(() => { if (!offlineMode) fuelHourly = []; renderHeat(); renderHero(); });
   // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
   setTimeout(() => { renderNow(); }, 400);
