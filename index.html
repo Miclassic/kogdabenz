@@ -1031,7 +1031,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <div class="dg-strip tap why-tap" id="waveStrip" style="display:none;margin-top:6px" onclick="openWhyChip(this,'wavePlate')"></div>
       <div class="pulse-grid">
         <div class="pulse-feed">
-          <div class="pulse-feed-t"><span>Лента событий</span><span class="live"><i></i>6 часов</span></div>
+          <div class="pulse-feed-t"><span>Лента событий</span><span class="live"><i></i><span id="pulseFeedWin">последние 6 ч</span></span></div>
           <div id="pulseFeed"><div class="recent">Лента оживёт, когда приедут данные.</div></div>
         </div>
         <div class="pulse-side">
@@ -3968,6 +3968,8 @@ function renderPulse() {
     else if (f.feedback_type === 'in_queue') items.push({ st: f.station_id, fuel: null, kind: 'queue_live', t: t });
   }
   items.sort((a, b) => b.t - a.t);
+  const winEl = el('pulseFeedWin');
+  if (winEl) winEl.textContent = items.length ? items.length + ' за последние 6 ч' : 'последние 6 ч';
   const feedBox = el('pulseFeed');
   if (!items.length) feedBox.innerHTML = '<div class="recent">За последние 6 часов событий не было — это тоже новость: город спокоен.</div>';
   else feedBox.innerHTML = items.slice(0, 6).map(it => {
