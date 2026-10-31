@@ -376,17 +376,19 @@ body { overflow:hidden; }
 /* touch-action:none — забираем жест целиком себе, чтобы свайп по линзе
    НЕ сдвигал панель пейджера (раньше весь экран уезжал влево).
    Вертикальный скролл страницы при этом не страдает: карточка всего 104px. */
-.lenti { position:relative; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; box-shadow:0 10px 26px rgba(38,69,120,.12); }
+/* overflow:hidden — блик с inset:-40% больше не растягивает панель вбок:
+   именно он создавал горизонтальную прокрутку внутри .p1 и «сдвиг экрана» */
+.lenti { position:relative; overflow:hidden; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; box-shadow:0 10px 26px rgba(38,69,120,.12); }
 .lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; }
 .lenti-scene { position:absolute; inset:0; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:20px; opacity:0; transition:opacity .18s ease; transform:translateZ(18px); }
 .lenti-scene.on { opacity:1; }
 .lenti-scene.s0 { background:linear-gradient(135deg,#e5f8ef,#eef4ff); }
 .lenti-scene.s1 { background:linear-gradient(135deg,#e7f0ff,#efeaff); }
-.lenti-scene.s2 { background:linear-gradient(135deg,#fff6e8,#eef4ff); }
+.lenti-scene.s2 { background:linear-gradient(135deg,#f4f1ff,#eef4ff); }
 .lenti-ico { flex:0 0 auto; width:44px; height:44px; border-radius:14px; display:grid; place-items:center; color:#fff; transform:translateZ(26px); }
 .s0 .lenti-ico { background:linear-gradient(140deg,#2fd39a,#19b77a); }
 .s1 .lenti-ico { background:linear-gradient(140deg,#8ab6ff,#397cff); }
-.s2 .lenti-ico { background:linear-gradient(140deg,#ffca80,#f5a05a); }
+.s2 .lenti-ico { background:linear-gradient(140deg,#a78bfa,#7c6dff); }
 .lenti-txt { min-width:0; flex:1; transform:translateZ(22px); }
 .lenti-cap { display:block; font-size:8px; font-weight:900; letter-spacing:.8px; text-transform:uppercase; color:#7487a7; }
 .lenti-val { display:block; font-size:15px; font-weight:900; letter-spacing:-.4px; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -412,8 +414,8 @@ body { overflow:hidden; }
 /* штамп бренда — наклейка справа в потоке карточки: по центру, ничего не перекрывает */
 .lenti-stamp { flex:0 0 auto; width:46px; height:46px; margin-right:2px; border-radius:13px; background:#fff; border:1px solid rgba(226,232,244,.9); box-shadow:0 6px 14px rgba(15,27,51,.16); display:grid; place-items:center; padding:7px; transform:rotate(-4deg); }
 .lenti-stamp img { width:100%; height:100%; object-fit:contain; }
-.lenti-bars { position:absolute; right:12px; bottom:10px; width:92px; height:40px; opacity:.5; }
-.lenti-heart { position:absolute; right:20px; top:12px; width:26px; height:26px; fill:none; stroke:#7c6dff; stroke-width:2; opacity:.35; }
+/* «город живёт»: кардиограмма народных отметок за 7 дней, на конце линии — сердце */
+.lenti-ecg { position:absolute; left:42%; right:14px; top:16px; height:72px; opacity:.9; pointer-events:none; }
 /* текст чуть плотнее и крупнее — он главный на линзе */
 .lenti-val { font-size:16px; color:#101d38; }
 .lenti-sub { color:#4a5b78; font-weight:700; }
@@ -489,7 +491,7 @@ body { overflow:hidden; }
 /* страховка от flex-панели: панель 2 ТОЛЬКО блок со своим скроллом,
    карточка и её соседи не сжимаются (flex-shrink:0 на случай flex-контейнера).
    Правило стоит в конце файла-блока, поэтому перебивает любые ранние .p1 */
-.p1 { display:block; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.p1 { display:block; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; }
 .pulse-card, .pulse-kpis, .pulse-d24, .pulse-peak, .pulse-grid, .pulse-feed, .pulse-side, .pulse-quote, .hm-wrap, .nowcard-cta { flex:0 0 auto; }
 /* === Топ-3 по ближайшему окну: свайп «сейчас / потом», тап — карточка АЗС === */
 .top3 { margin-top:8px; padding:10px 10px 8px; border-radius:18px; background:#fff; box-shadow:0 6px 18px rgba(38,69,120,.07); }
@@ -4057,6 +4059,9 @@ function lentiApply() {
 }
 // Арт сцены «город живёт»: 7-дневный ритм народных отметок столбиками +
 // полупрозрачное сердце. Считаем из уже загруженного allFeedback — без запросов.
+// «город живёт»: кардиограмма народной активности за 7 дней (линия читается
+// даже когда всё тихо — честная прямая) + сердце-маркер на живом конце
+// и мягкое свечение народного фиолетового, как у брендов в «куда ехать».
 function lentiLifeBars() {
   const cnt = [];
   for (let i = 6; i >= 0; i--) {
@@ -4064,14 +4069,17 @@ function lentiLifeBars() {
     cnt.push(allFeedback.filter(f => new Date(f.created_at).toDateString() === d.toDateString()).length);
   }
   const max = Math.max(1, ...cnt);
-  const W = 92, H = 40, bw = 9, gap = (W - 7 * bw) / 8;
-  let r = '';
-  cnt.forEach((v, i) => {
-    const h = v ? Math.max(3, Math.round(v / max * 30)) : 2;
-    r += '<rect x="' + (gap + i * (bw + gap)).toFixed(1) + '" y="' + (H - h) + '" width="' + bw + '" height="' + h + '" rx="3" fill="#7c6dff" opacity="' + (v ? 0.55 : 0.18) + '"/>';
-  });
-  return '<svg class="lenti-bars" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">' + r + '</svg>' +
-    '<svg class="lenti-heart" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-heart"/></svg>';
+  const pts = cnt.map((v, i) => [8 + i * (104 / 6), 50 - (v / max) * 34]);
+  let line = '';
+  pts.forEach((p, i) => { line += (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); });
+  const area = line + 'L112 58L8 58Z';
+  const lp = pts[pts.length - 1];
+  return '<i class="lenti-glow" style="background:radial-gradient(circle at 80% 55%, #7c6dff29, rgba(255,255,255,0) 64%)"></i>' +
+    '<svg class="lenti-ecg" viewBox="0 0 120 60" preserveAspectRatio="none" aria-hidden="true">' +
+    '<path d="' + area + '" fill="#7c6dff" fill-opacity=".10"/>' +
+    '<path d="' + line + '" fill="none" stroke="#7c6dff" stroke-opacity=".55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    '<path transform="translate(' + (lp[0] - 5).toFixed(1) + ' ' + (lp[1] - 7).toFixed(1) + ') scale(0.42)" d="M12 20s-7-4.5-9-9c-1.2-2.8.6-6 3.8-6 2 0 3.6 1.2 5.2 3.4C13.6 6.2 15.2 5 17.2 5c3.2 0 5 3.2 3.8 6-2 4.5-9 9-9 9z" fill="#7c6dff" fill-opacity=".8"/>' +
+    '</svg>';
 }
 function lentiRender() {
   const el = id => document.getElementById(id);
