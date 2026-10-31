@@ -373,7 +373,10 @@ body { overflow:hidden; }
 /* === Лентикулярная карточка: «голограмма» как коллекционные карточки ===
    Угол наклона = слой данных: факт / прогноз / динамика. Слои на разной
    глубине (translateZ) дают параллакс линзы, штриховка + блик — голограмму. */
-.lenti { position:relative; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:pan-y; cursor:pointer; box-shadow:0 10px 26px rgba(38,69,120,.12); }
+/* touch-action:none — забираем жест целиком себе, чтобы свайп по линзе
+   НЕ сдвигал панель пейджера (раньше весь экран уезжал влево).
+   Вертикальный скролл страницы при этом не страдает: карточка всего 104px. */
+.lenti { position:relative; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; box-shadow:0 10px 26px rgba(38,69,120,.12); }
 .lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; }
 .lenti-scene { position:absolute; inset:0; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:20px; opacity:0; transition:opacity .18s ease; transform:translateZ(18px); }
 .lenti-scene.on { opacity:1; }
@@ -401,6 +404,10 @@ body { overflow:hidden; }
 .lenti-scrim { position:absolute; inset:0; border-radius:20px; background:linear-gradient(90deg, rgba(248,251,255,.95) 0%, rgba(248,251,255,.85) 42%, rgba(248,251,255,.40) 75%, rgba(248,251,255,.15) 100%); }
 /* «куда ехать»: свечение фирменного цвета бренда вместо квадрата-логотипа на фоне */
 .lenti-glow { position:absolute; inset:0; border-radius:20px; }
+/* «куда ехать»: приглушённая иллюстрация фоном (не в тексте!) — как в «что нового?»,
+   но тише, чтобы штамп бренда и цифры остались главными. Нет файла — просто свечение. */
+.lenti-advbg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:right center; border-radius:20px; opacity:.34; }
+.lenti-advscrim { position:absolute; inset:0; border-radius:20px; background:linear-gradient(90deg, rgba(248,251,255,.92) 0%, rgba(248,251,255,.78) 48%, rgba(248,251,255,.30) 100%); }
 /* штамп бренда — наклейка справа в потоке карточки: по центру, ничего не перекрывает */
 .lenti-stamp { flex:0 0 auto; width:46px; height:46px; margin-right:2px; border-radius:13px; background:#fff; border:1px solid rgba(226,232,244,.9); box-shadow:0 6px 14px rgba(15,27,51,.16); display:grid; place-items:center; padding:7px; transform:rotate(-4deg); }
 .lenti-stamp img { width:100%; height:100%; object-fit:contain; }
@@ -4103,7 +4110,12 @@ function lentiRender() {
   const bk = adv ? brandKey(adv.st) : null;
   const logo = bk && BRAND_LOGOS[bk] ? BRAND_LOGOS[bk] : null;
   const bc = (bk && BRAND_COLORS[bk]) || '#397cff';
-  if (art1) art1.innerHTML = '<i class="lenti-glow" style="background:radial-gradient(circle at 82% 55%, ' + bc + '29, rgba(255,255,255,0) 64%)"></i>';
+  // фон-иллюстрация (приглушённая) + свечение бренда под ней; путь правится в одной строке
+  const ADV_IMG = 'whatsnew-advice.png';
+  if (art1) art1.innerHTML =
+    '<img class="lenti-advbg" src="' + ADV_IMG + '" alt="" onerror="this.style.display=\'none\'">' +
+    '<i class="lenti-advscrim"></i>' +
+    '<i class="lenti-glow" style="background:radial-gradient(circle at 82% 55%, ' + bc + '29, rgba(255,255,255,0) 64%)"></i>';
   const stamp = el('lentiStamp');
   if (stamp) {
     stamp.style.display = logo ? '' : 'none';
@@ -4125,10 +4137,12 @@ function lentiBind() {
   };
   box.addEventListener('pointerdown', e => { sx = e.clientX; st = Date.now(); moved = 0; lentiIdle = false; });
   box.addEventListener('pointermove', e => {
+    // палец на карточке — жест наш: ни пейджер, ни скролл не перехватывают
+    if (e.pointerType === 'touch') e.preventDefault();
     if (e.pointerType !== 'mouse' && !(e.buttons & 1)) return;
     moved = Math.max(moved, Math.abs(e.clientX - sx));
     setFromX(e.clientX);
-  });
+  }, { passive: false });
   box.addEventListener('pointerup', () => {
     if (moved < 10 && Date.now() - st < 600) {
       const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
