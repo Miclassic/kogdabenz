@@ -755,6 +755,92 @@ try {
         console.log('   Новых народных заявлений нет');
       }
     } catch (e) { console.log('   ! Журнал свидетеля (народ): ' + e.message); }
+    // === ШАГ 6.8: журнал свидетеля (Score этап 2): независимость и подтверждения ===
+    // Свидетель = другое заявление по той же связке в окне от -5 до +60 минут.
+    // народ↔народ только разные device_id; источник↔народ взаимно;
+    // источник↔источник нет (один сенсор). Вес народа тает с разрывом (1→0.5),
+    // «с места» +0.15, источник эталонный 1.0. Потолок: 3 подтверждения
+    // с устройства по станции в сутки. Дубли связок не пишем.
+    console.log('6.8) Сопоставляю заявления и свидетелей...');
+    try {
+      const mskD = new Date(Date.now() + 3 * 3600 * 1000);
+      const dayStart = new Date(Date.UTC(mskD.getUTCFullYear(), mskD.getUTCMonth(), mskD.getUTCDate()) - 3 * 3600 * 1000).toISOString();
+      const claims = await sbGet(
+        '/rest/v1/witness_journal?role=eq.claim&created_at=gte.' + new Date(Date.now() - 130 * 60000).toISOString() +
+        '&created_at=lt.' + new Date(Date.now() - 2 * 60000).toISOString() +
+        '&select=id,station_id,fuel_type,claim,source_kind,device_id,on_site,created_at&order=id.asc&limit=400'
+      );
+      if (!claims.length) {
+        console.log('   Заявлений для сопоставления нет');
+      } else {
+        const rows = await sbGet(
+          '/rest/v1/witness_journal?created_at=gte.' + dayStart +
+          '&select=id,station_id,fuel_type,role,claim,source_kind,device_id,on_site,distance_m,created_at,linked_claim_id&order=id.asc&limit=5000'
+        );
+        const linksDone = new Set();
+        const perDeviceDay = {};
+        for (const r of rows) {
+          if (r.linked_claim_id !== null && r.linked_claim_id !== undefined) {
+            linksDone.add(r.linked_claim_id + '|' + r.source_kind + '|' + (r.device_id || '') + '|' + r.role);
+          }
+          if (r.role === 'confirm' && r.source_kind === 'folk' && r.device_id) {
+            const k = r.device_id + '|' + r.station_id + '|' + String(r.created_at).slice(0, 10);
+            perDeviceDay[k] = (perDeviceDay[k] || 0) + 1;
+          }
+        }
+        const out = [];
+        for (const c of claims) {
+          const cT = new Date(c.created_at).getTime();
+          for (const w of rows) {
+            if (w.role !== 'claim' || w.id === c.id) continue;
+            if (w.station_id !== c.station_id || w.fuel_type !== c.fuel_type) continue;
+            const gap = new Date(w.created_at).getTime() - cT;
+            if (gap < -5 * 60000 || gap > 60 * 60000) continue;
+            const role = (w.claim === c.claim) ? 'confirm' : 'refute';
+            let weight;
+            if (w.source_kind === 'folk' && c.source_kind === 'folk') {
+              if (!w.device_id || !c.device_id || w.device_id === c.device_id) continue;
+              weight = Math.max(0.5, 1 - 0.5 * (gap / 3600000));
+            } else if (w.source_kind === 'source' && c.source_kind === 'folk') {
+              weight = 1;
+            } else if (w.source_kind === 'folk' && c.source_kind === 'source') {
+              weight = Math.max(0.5, 1 - 0.5 * (gap / 3600000));
+            } else continue;
+            if (w.source_kind === 'folk') {
+              const capK = w.device_id + '|' + c.station_id + '|' + String(w.created_at).slice(0, 10);
+              if ((perDeviceDay[capK] || 0) >= 3) continue;
+              if (w.on_site) weight = Math.min(1, weight + 0.15);
+            }
+            const linkK = c.id + '|' + w.source_kind + '|' + (w.device_id || '') + '|' + role;
+            if (linksDone.has(linkK)) continue;
+            linksDone.add(linkK);
+            if (w.source_kind === 'folk') {
+              const capK = w.device_id + '|' + c.station_id + '|' + String(w.created_at).slice(0, 10);
+              perDeviceDay[capK] = (perDeviceDay[capK] || 0) + 1;
+            }
+            out.push({
+              station_id: c.station_id,
+              fuel_type: c.fuel_type,
+              role: role,
+              claim: w.claim,
+              source_kind: w.source_kind,
+              device_id: w.device_id || null,
+              on_site: !!w.on_site,
+              distance_m: (w.distance_m === null || w.distance_m === undefined) ? null : w.distance_m,
+              linked_claim_id: c.id,
+              weight: Math.round(weight * 1000) / 1000,
+              created_at: w.created_at
+            });
+          }
+        }
+        if (out.length) {
+          await sbPost('witness_journal', out);
+          console.log('   Подтверждений/опровержений записано: ' + out.length);
+        } else {
+          console.log('   Новых подтверждений нет');
+        }
+      }
+    } catch (e) { console.log('   ! Журнал свидетеля (сопоставление): ' + e.message); }
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
   console.log('7) Убираю старые наблюдения (старше 7 дней, порциями по суткам)...');
 // v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
