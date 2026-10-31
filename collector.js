@@ -558,6 +558,33 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
   }
   if (events.length) await sbPost('events', events);
   console.log('   Событий обнаружено: ' + events.length);
+  // === ШАГ 5.6: журнал свидетеля (КогдаБенз Score, этап 1): заявления источника ===
+    // Пишем ТОЛЬКО перевороты статуса (те же строки, где рождаются
+    // fuel_restored/fuel_disappeared) — журнал не раздувается снимками каждые 10 мин.
+    // Ошибка журнала не роняет цикл: этап 1 теневой, оценок пользователю нет.
+    try {
+      const wRowsS = [];
+      for (const e of events) {
+        if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
+        wRowsS.push({
+          station_id: e.station_id,
+          fuel_type: e.fuel_type,
+          role: 'claim',
+          claim: e.event_type === 'fuel_restored',
+          source_kind: 'source',
+          device_id: null,
+          on_site: false,
+          distance_m: null,
+          linked_claim_id: null,
+          weight: 1,
+          created_at: new Date().toISOString()
+        });
+      }
+      if (wRowsS.length) {
+        await sbPost('witness_journal', wRowsS);
+        console.log('   Журнал свидетеля (источник): ' + wRowsS.length);
+      }
+    } catch (e) { console.log('   ! Журнал свидетеля (источник): ' + e.message); }
   for (const e of events) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
   console.log('5.5) Обновляю суточную сводку city_daily...');
   await cityDailyRollup();
@@ -697,6 +724,37 @@ try {
     await sbPost('bot_meta?on_conflict=key', [{ key: 'personal_notify_at', value: evs[evs.length - 1].detected_at, updated_at: new Date().toISOString() }], 'return=minimal,resolution=merge-duplicates');
   }
 } catch (e) { console.log('   ! Персональные уведомления: ' + e.message); }
+// === ШАГ 6.7: журнал свидетеля (этап 1): народные заявления ===
+    // Свой водяной знак witness_logged_at (не processed_at): время заявления
+    // берём из created_at, поэтому отметки периода аварии источника попадут
+    // в журнал первым здоровым циклом с правильным временем. Колонка новая и
+    // пустая — первые циклы добьют ИСТОРИЮ отметок порциями по 300, это норма.
+    console.log('6.7) Пишу народные заявления в журнал свидетеля...');
+    try {
+      const wUnlogged = await sbGet(
+        '/rest/v1/user_feedback?witness_logged_at=is.null&feedback_type=in.(available,unavailable)&fuel_type=in.(92,95,diesel)&select=id,station_id,feedback_type,fuel_type,created_at,device_id,verified_on_site,distance_to_station_m&order=id.asc&limit=300'
+      );
+      if (wUnlogged.length) {
+        const wRowsF = wUnlogged.map(f => ({
+          station_id: f.station_id,
+          fuel_type: f.fuel_type,
+          role: 'claim',
+          claim: f.feedback_type === 'available',
+          source_kind: 'folk',
+          device_id: f.device_id || null,
+          on_site: !!f.verified_on_site,
+          distance_m: (f.distance_to_station_m === null || f.distance_to_station_m === undefined) ? null : f.distance_to_station_m,
+          linked_claim_id: null,
+          weight: 1,
+          created_at: f.created_at
+        }));
+        await sbPost('witness_journal', wRowsF);
+        await sbPatch('user_feedback?id=in.(' + wUnlogged.map(f => f.id).join(',') + ')', { witness_logged_at: new Date().toISOString() });
+        console.log('   Журнал свидетеля (народ): ' + wRowsF.length);
+      } else {
+        console.log('   Новых народных заявлений нет');
+      }
+    } catch (e) { console.log('   ! Журнал свидетеля (народ): ' + e.message); }
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
   console.log('7) Убираю старые наблюдения (старше 7 дней, порциями по суткам)...');
 // v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
