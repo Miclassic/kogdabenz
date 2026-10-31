@@ -4710,6 +4710,9 @@ function renderNow() {
     if (!citySet.has(s.id)) continue;
     const o = last[s.id];
     if (!o) continue;
+    // проценты очередей и топлива — только по свежим отметкам (≤6 ч):
+    // иначе шапка рапортует «АИ-95 есть на 82%» при единственной видимой АЗС
+    if (!obsFresh(o)) continue;
     tot++;
     if (o.queue_level === 'high') q++;
     if (o.fuel_95_status === true) { avail++; known++; }
@@ -4769,15 +4772,19 @@ function renderNow() {
   }
   const qPct = tot ? Math.round(100 * q / tot) : 0;
   const aPct = known ? Math.round(100 * avail / known) : 0;
+  // проценты честны только на нескудной выборке: 1–2 свежие отметки не могут
+  // говорить за весь город (кейс «1 из 34 свежие, но АИ-95 есть на 82%»)
+  const enough = known >= 5;
   const sub = document.getElementById('nowSub');
   if (sub) {
     const fr = freshStats();
     sub.innerHTML = '<span class="why-span" style="color:' + freshColor(fr) + ';font-weight:800;cursor:pointer" onclick="openWhyChip(this,\'fresh\')">Данные: ' + fr.fresh + ' из ' + fr.tot + ' свежие</span><br>' +
-      (known ? 'очереди на ' + qPct + '% АЗС · АИ-95 есть на ' + aPct + '%' : 'нет свежих отметок топлива');
+      (enough ? 'очереди на ' + qPct + '% АЗС · АИ-95 есть на ' + aPct + '%' : (known ? 'свежих отметок лишь ' + tot + ' — проценты по городу ещё не считаем' : 'нет свежих отметок топлива'));
   }
   const title = document.getElementById('nowTitle');
   if (title) {
     if (!known) title.textContent = 'Ждём свежие данные';
+    else if (!enough) title.textContent = 'Источник большей частью молчит';
     else if (tot && qPct >= 25) title.textContent = 'Город в очередях';
     else if (known - avail >= known * 0.5) title.textContent = 'В городе дефицит топлива';
     else if (qPct <= 6 && aPct >= 40) title.textContent = 'Сейчас спокойное время заправиться';
