@@ -434,6 +434,23 @@ body { overflow:hidden; }
 /* штамп бренда — наклейка справа в потоке карточки: по центру, ничего не перекрывает */
 .lenti-stamp { flex:0 0 auto; width:46px; height:46px; margin-right:2px; border-radius:13px; background:#fff; border:1px solid rgba(226,232,244,.9); box-shadow:0 6px 14px rgba(15,27,51,.16); display:grid; place-items:center; padding:7px; transform:rotate(-4deg); }
 .lenti-stamp img { width:100%; height:100%; object-fit:contain; }
+/* ч/б логи других вариантов топа: меньший и ещё меньший, случайно вокруг штампа */
+.lenti-ghost { position:absolute; display:grid; place-items:center; padding:3px; border-radius:8px; background:rgba(255,255,255,.85); border:1px solid rgba(226,232,244,.9); box-shadow:0 3px 8px rgba(15,27,51,.12); filter:grayscale(1); opacity:.65; pointer-events:none; }
+.lenti-ghost img { width:100%; height:100%; object-fit:contain; display:block; }
+.lenti-ghost.g1 { width:26px; height:26px; }
+.lenti-ghost.g2 { width:18px; height:18px; padding:2px; opacity:.5; }
+/* сцена «уведомления в Телеграм»: синее с белым,_plane и бейджи */
+.lenti-scene.s3 { background:linear-gradient(135deg,#37b3f0 0%,#229ED9 55%,#1b86c8 100%); padding-right:50px; }
+.s3 .lenti-cap { color:rgba(255,255,255,.78); }
+.s3 .lenti-val { color:#fff; }
+.s3 .lenti-sub { color:rgba(255,255,255,.88); }
+.s3 .lenti-ico { background:#fff; color:#229ED9; box-shadow:0 8px 18px rgba(18,110,170,.35); }
+.lenti-tg-badges { position:absolute; right:10px; top:50%; transform:translateY(-50%) rotate(-4deg); display:flex; flex-direction:column; gap:6px; }
+.tg-badge { width:30px; height:30px; border-radius:10px; background:#fff; display:grid; place-items:center; box-shadow:0 6px 14px rgba(15,27,51,.20); }
+.tg-badge.bell { color:#229ED9; }
+.tg-badge.bell .ic { width:15px; height:15px; }
+.tg-badge.brand .logo-mark { width:18px; height:18px; }
+.lenti-tgart { position:absolute; right:44px; top:13px; width:76px; height:76px; color:#fff; opacity:.14; pointer-events:none; }
 /* «город живёт»: кардиограмма народных отметок за 7 дней, на конце линии — сердце */
 .lenti-ecg { position:absolute; left:42%; right:14px; top:16px; height:72px; opacity:.9; pointer-events:none; }
 /* текст чуть плотнее и крупнее — он главный на линзе */
@@ -1084,6 +1101,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8L3.5 9.7l5.9-.9z"/></symbol>
 <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 8l9 6 9-6"/></symbol>
 <symbol id="i-clip" viewBox="0 0 24 24"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
+<symbol id="i-tg" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></symbol>
 </svg>
 <div class="page">
   <div class="offline-bar" id="offlineBar"></div>
@@ -1143,6 +1162,15 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
             <span class="lenti-art" id="lentiArt2"></span>
             <span class="lenti-ico"><svg class="ic ic-l"><use href="#i-heart"/></svg></span>
             <span class="lenti-txt"><span class="lenti-cap">город живёт</span><span class="lenti-val" id="lentiLifeV">—</span><span class="lenti-sub" id="lentiLifeS">тап — карточка города</span></span>
+          </div>
+          <div class="lenti-scene s3">
+            <span class="lenti-art" id="lentiArt3"></span>
+            <span class="lenti-ico"><svg class="ic ic-l"><use href="#i-tg"/></svg></span>
+            <span class="lenti-txt"><span class="lenti-cap">уведомления</span><span class="lenti-val" id="lentiTgV">Телеграм подскажет</span><span class="lenti-sub" id="lentiTgS">привоз на твоём АЗС — напишет бот</span></span>
+            <span class="lenti-tg-badges">
+              <span class="tg-badge bell"><svg class="ic ic-s"><use href="#i-bell"/></svg></span>
+              <span class="tg-badge brand"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#2465ee" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></span>
+            </span>
           </div>
           <span class="lenti-holo"></span>
           <span class="lenti-glare"></span>
@@ -4048,9 +4076,10 @@ function momentumExtra() {
 // Обложки и переходы меняются здесь, одной строкой на сцену.
 // go() — куда ведёт тап в текущем угле.
 const LENTI_SCENES = [
-  { cap: 'что нового?', go: () => openWhatsNewLens() },  // угол 0: свежее обновление сайта
-  { cap: 'куда ехать', go: () => openAdviceNow() },      // наклон вправо: живой советник с топ-3
-  { cap: 'город живёт', go: () => openLifeNow() }        // наклон влево: народная жизнь и твой вклад
+  { cap: 'что нового?', go: () => openWhatsNewLens() },  // слабый наклон вправо: свежее обновление
+  { cap: 'куда ехать', go: () => openAdviceNow() },      // сильный наклон вправо: живой советник с топ-3
+  { cap: 'город живёт', go: () => openLifeNow() },       // слабый наклон влево: народная жизнь и твой вклад
+  { cap: 'уведомления', go: () => tgSceneGo() }          // сильный наклон влево: Телеграм-бот
 ];
 let lentiAngle = 0, lentiIdle = true, lentiBound = false;
 // переходы сцен: каждое окно переиспользуем готовое, ничего нового не плодим
@@ -4069,6 +4098,11 @@ function openLifeNow() {
   document.getElementById('lifePop').classList.add('open');
   document.getElementById('lifeBack').classList.add('open');
 }
+// сцена «Телеграм»: тап — подключить уведомления (или открыть бота, если уже подключён)
+function tgSceneGo() { if (tgLinked) tgOpen(); else tgConnect(); }
+// 4 сцены на одном наклоне: скорость и размах автовращения не менялись,
+// изменились только границы зон (сильный наклон влево теперь тоже занят)
+function lentiIdx(a) { return a > 16 ? 1 : a > 0 ? 0 : a > -16 ? 2 : 3; }
 let lentiLastAngle = null, lentiLastIdx = -1, lentiScenesCache = null;
 function lentiApply() {
   // троттлинг: изменение угла меньше 0.25° не пишем в DOM вовсе —
@@ -4087,7 +4121,7 @@ function lentiApply() {
   card.style.setProperty('--sp1', (50 - (lentiAngle / 28) * 110).toFixed(0) + '%');
   card.style.setProperty('--sp2', (50 + (lentiAngle / 28) * 80).toFixed(0) + '%');
   // сцены и подсказку трогаем ТОЛЬКО при смене угловой зоны, список сцен закэширован
-  const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
+  const idx = lentiIdx(lentiAngle);
   if (idx !== lentiLastIdx) {
     lentiLastIdx = idx;
     if (!lentiScenesCache || !lentiScenesCache.length) lentiScenesCache = document.querySelectorAll('.lenti-scene');
@@ -4128,7 +4162,8 @@ function lentiRender() {
   el('lentiNewV').textContent = wn ? wn.title : 'обновления зреют';
   el('lentiNewS').textContent = wn ? wn.date + ' · ' + (wn.tag || 'новое') + ' · тап — карточка' : 'история — в панели «Обновления сайта»';
   // сцена 2: живой советник — лучшая станция прямо сейчас
-  const adv = buildAdviceList()[0];
+  const advList = buildAdviceList();
+  const adv = advList[0];
   el('lentiAdvV').textContent = adv ? (adv.st.name || 'АЗС') : 'нет свежих вариантов';
   el('lentiAdvS').textContent = adv
     ? (adv.kind === 'now' ? 'топливо есть сейчас · тап — топ-3' : 'окно по прогнозу · тап — топ-3')
@@ -4160,6 +4195,19 @@ function lentiRender() {
   const bc = (bk && BRAND_COLORS[bk]) || '#397cff';
   // фон сцены «куда ехать»: свечение бренда + пунктирный мотив маршрута
   // «точка ты → пин АЗС» цветом бренда. Никаких чужих коллажей — только смысл.
+  // ч/б призраки брендов из топ-3 (2-е и 3-е места): один меньше, другой ещё
+  // меньше, слоты вокруг цветного штампа выбираем случайно при каждой отрисовке
+  const ghostSrcs = [];
+  for (let gi = 1; gi < advList.length && ghostSrcs.length < 2; gi++) {
+    const gk = brandKey(advList[gi].st);
+    if (gk && BRAND_LOGOS[gk] && BRAND_LOGOS[gk] !== logo) ghostSrcs.push(BRAND_LOGOS[gk]);
+  }
+  const GHOST_SLOTS = [[58,6],[70,10],[52,62],[66,68],[78,58],[48,12],[76,26]];
+  let ghostHtml = '';
+  for (let gk2 = 0; gk2 < ghostSrcs.length; gk2++) {
+    const slot = GHOST_SLOTS.splice(Math.floor(Math.random() * GHOST_SLOTS.length), 1)[0];
+    ghostHtml += '<span class="lenti-ghost g' + (gk2 + 1) + '" style="left:' + slot[0] + '%;top:' + slot[1] + '%"><img src="' + ghostSrcs[gk2] + '" alt="" onerror="this.parentNode.style.display=\'none\'"></span>';
+  }
   if (art1) art1.innerHTML =
     '<i class="lenti-glow" style="background:radial-gradient(circle at 82% 55%, ' + bc + '29, rgba(255,255,255,0) 64%)"></i>' +
     '<svg class="lenti-route" viewBox="0 0 120 60" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' +
@@ -4167,13 +4215,21 @@ function lentiRender() {
     '<circle cx="8" cy="52" r="4" fill="' + bc + '" fill-opacity=".45"/>' +
     '<path d="M102 4 c-6 0-10 4.6-10 10 0 7.4 10 16 10 16 s10-8.6 10-16 c0-5.4-4-10-10-10 z" fill="' + bc + '" fill-opacity=".5"/>' +
     '<circle cx="102" cy="14" r="3.4" fill="#fff" fill-opacity=".9"/>' +
-    '</svg>';
+    '</svg>' + ghostHtml;
   const stamp = el('lentiStamp');
   if (stamp) {
     stamp.style.display = logo ? '' : 'none';
     stamp.innerHTML = logo ? '<img src="' + logo + '" alt="" onerror="this.parentNode.style.display=\'none\'">' : '';
   }
   if (art2) art2.innerHTML = lentiLifeBars();
+  // сцена 4: Телеграм — синий plane-водяной знак справа, тексты по статусу связки
+  const art3 = el('lentiArt3');
+  if (art3) art3.innerHTML =
+    '<i class="lenti-glow" style="background:radial-gradient(circle at 80% 45%, rgba(255,255,255,.30), rgba(255,255,255,0) 62%)"></i>' +
+    '<svg class="lenti-tgart" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-tg"/></svg>';
+  const tgV = el('lentiTgV'), tgS = el('lentiTgS');
+  if (tgV) tgV.textContent = tgLinked ? 'Уведомления включены' : 'Телеграм подскажет';
+  if (tgS) tgS.textContent = tgLinked ? 'бот следит за твоим АЗС' : 'привоз на твоём АЗС — напишет бот';
 }
 function lentiBind() {
   if (lentiBound) return;
@@ -4204,7 +4260,7 @@ function lentiBind() {
   }, { passive: false });
   box.addEventListener('pointerup', () => {
     if (moved < 10 && Date.now() - st < 600) {
-      const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
+      const idx = lentiIdx(lentiAngle);
       (LENTI_SCENES[idx].go || function () {})();
     }
     setTimeout(() => { lentiIdle = true; }, 6000);
