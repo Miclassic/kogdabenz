@@ -376,10 +376,11 @@ body { overflow:hidden; }
 /* touch-action:none — забираем жест целиком себе, чтобы свайп по линзе
    НЕ сдвигал панель пейджера (раньше весь экран уезжал влево).
    Вертикальный скролл страницы при этом не страдает: карточка всего 104px. */
-/* overflow:hidden — блик с inset:-40% больше не растягивает панель вбок:
-   именно он создавал горизонтальную прокрутку внутри .p1 и «сдвиг экрана» */
-.lenti { position:relative; overflow:hidden; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; box-shadow:0 10px 26px rgba(38,69,120,.12); }
-.lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; }
+/* Пластина линзы крутится ЦЕЛИКОМ, как склеенная: фон сцен, голограмма, блик,
+   подсказка и тень живут на .lenti-card. Внешний .lenti — только перспектива
+   и зона жеста, без своей подложки, чтобы не было белой статичной рамки. */
+.lenti { position:relative; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; }
+.lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; box-shadow:0 10px 26px rgba(38,69,120,.12); }
 .lenti-scene { position:absolute; inset:0; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:20px; opacity:0; transition:opacity .18s ease; transform:translateZ(18px); }
 .lenti-scene.on { opacity:1; }
 .lenti-scene.s0 { background:linear-gradient(135deg,#e5f8ef,#eef4ff); }
@@ -395,8 +396,10 @@ body { overflow:hidden; }
 .lenti-sub { display:block; font-size:9.5px; font-weight:600; color:#5b7ba6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* голограмма: мелкая штриховка линзы + блик, ползущий за углом наклона */
 .lenti-holo { position:absolute; inset:0; pointer-events:none; border-radius:20px; mix-blend-mode:soft-light; opacity:.5; transform:translateZ(34px); background:repeating-linear-gradient(105deg, rgba(255,255,255,0) 0 6px, rgba(255,255,255,.5) 6px 7px, rgba(255,255,255,0) 7px 12px); }
-.lenti-glare { position:absolute; inset:-40%; pointer-events:none; transform:translateZ(40px) translateX(var(--gx,0%)); background:linear-gradient(100deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 58%); }
-.lenti-hint { position:absolute; right:10px; bottom:7px; font-size:8px; font-weight:800; color:rgba(20,33,61,.42); letter-spacing:.4px; pointer-events:none; text-transform:uppercase; }
+/* блик ходит background-position внутри своих границ: ничего не торчит наружу,
+   обрезка не нужна, 3D-параллакс слоёв не ломается */
+.lenti-glare { position:absolute; inset:0; pointer-events:none; transform:translateZ(40px); background:linear-gradient(100deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 70%) center / 300% 100% no-repeat; background-position-x:var(--gp,50%); }
+.lenti-hint { position:absolute; right:10px; bottom:7px; z-index:3; font-size:8px; font-weight:800; color:rgba(20,33,61,.42); letter-spacing:.4px; pointer-events:none; text-transform:uppercase; }
 /* арт сцен живёт ПОЗАДИ текста и приглушён: текст — акцент, картинки — фон.
    Никаких новых ассетов: штамп бренда, картинка обновления и ритм отметок. */
 .lenti-art { position:absolute; inset:0; pointer-events:none; z-index:0; }
@@ -1126,8 +1129,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           </div>
           <span class="lenti-holo"></span>
           <span class="lenti-glare"></span>
+          <span class="lenti-hint" id="lentiHint">наклони карточку</span>
         </div>
-        <span class="lenti-hint" id="lentiHint">наклони карточку</span>
       </div>
       <div class="pulse-card">
         <div class="pulse-top">
@@ -4051,7 +4054,7 @@ function lentiApply() {
   const card = document.getElementById('lentiCard');
   if (!card) return;
   card.style.transform = 'rotateY(' + lentiAngle.toFixed(1) + 'deg)';
-  card.style.setProperty('--gx', (lentiAngle / 28 * 55).toFixed(0) + '%');
+  card.style.setProperty('--gp', (50 - (lentiAngle / 28) * 50).toFixed(0) + '%');
   const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
   document.querySelectorAll('.lenti-scene').forEach((s, i) => s.classList.toggle('on', i === idx));
   const hint = document.getElementById('lentiHint');
