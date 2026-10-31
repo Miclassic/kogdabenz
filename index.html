@@ -370,6 +370,41 @@ body { overflow:hidden; }
 .boot-fail-t { font-size:18px; font-weight:900; letter-spacing:-.5px; }
 .boot-fail-s { margin-top:6px; color:rgba(235,243,255,.8); font-size:11.5px; line-height:1.5; font-weight:600; }
 @media (prefers-reduced-motion: reduce) { .boot-drop-wrap, .boot-drop-wrap::before, .boot-drop-orb-wrap::after, .boot-drop-orb::before, .boot-drop-orb::after, .bd-wave { animation:none; } .bd-hand { transition:none; } }
+/* === Лентикулярная карточка: «голограмма» как коллекционные карточки ===
+   Угол наклона = слой данных: факт / прогноз / динамика. Слои на разной
+   глубине (translateZ) дают параллакс линзы, штриховка + блик — голограмму. */
+.lenti { position:relative; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:pan-y; cursor:pointer; box-shadow:0 10px 26px rgba(38,69,120,.12); }
+.lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; }
+.lenti-scene { position:absolute; inset:0; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:20px; opacity:0; transition:opacity .18s ease; transform:translateZ(18px); }
+.lenti-scene.on { opacity:1; }
+.lenti-scene.s0 { background:linear-gradient(135deg,#e5f8ef,#eef4ff); }
+.lenti-scene.s1 { background:linear-gradient(135deg,#e7f0ff,#efeaff); }
+.lenti-scene.s2 { background:linear-gradient(135deg,#fff6e8,#eef4ff); }
+.lenti-ico { flex:0 0 auto; width:44px; height:44px; border-radius:14px; display:grid; place-items:center; color:#fff; transform:translateZ(26px); }
+.s0 .lenti-ico { background:linear-gradient(140deg,#2fd39a,#19b77a); }
+.s1 .lenti-ico { background:linear-gradient(140deg,#8ab6ff,#397cff); }
+.s2 .lenti-ico { background:linear-gradient(140deg,#ffca80,#f5a05a); }
+.lenti-txt { min-width:0; flex:1; transform:translateZ(22px); }
+.lenti-cap { display:block; font-size:8px; font-weight:900; letter-spacing:.8px; text-transform:uppercase; color:#7487a7; }
+.lenti-val { display:block; font-size:15px; font-weight:900; letter-spacing:-.4px; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lenti-sub { display:block; font-size:9.5px; font-weight:600; color:#5b7ba6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* голограмма: мелкая штриховка линзы + блик, ползущий за углом наклона */
+.lenti-holo { position:absolute; inset:0; pointer-events:none; border-radius:20px; mix-blend-mode:soft-light; opacity:.5; transform:translateZ(34px); background:repeating-linear-gradient(105deg, rgba(255,255,255,0) 0 6px, rgba(255,255,255,.5) 6px 7px, rgba(255,255,255,0) 7px 12px); }
+.lenti-glare { position:absolute; inset:-40%; pointer-events:none; transform:translateZ(40px) translateX(var(--gx,0%)); background:linear-gradient(100deg, rgba(255,255,255,0) 42%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 58%); }
+.lenti-hint { position:absolute; right:10px; bottom:7px; font-size:8px; font-weight:800; color:rgba(20,33,61,.42); letter-spacing:.4px; pointer-events:none; text-transform:uppercase; }
+/* арт сцен живёт ПОЗАДИ текста и приглушён: текст — акцент, картинки — фон.
+   Никаких новых ассетов: штамп бренда, картинка обновления и ритм отметок. */
+.lenti-art { position:absolute; inset:0; pointer-events:none; z-index:0; }
+.lenti-ico, .lenti-txt { position:relative; z-index:2; }
+.lenti-thumb { position:absolute; right:10px; top:12px; width:92px; height:64px; object-fit:cover; border-radius:12px; opacity:.8; box-shadow:0 6px 16px rgba(15,27,51,.18); -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%); mask-image:linear-gradient(90deg,transparent 0,#000 26%); }
+.lenti-wm { position:absolute; right:-14px; bottom:-18px; width:110px; height:110px; object-fit:contain; opacity:.14; }
+.lenti-stamp { position:absolute; right:12px; top:14px; width:44px; height:44px; border-radius:13px; background:#fff; border:1px solid rgba(226,232,244,.9); box-shadow:0 6px 14px rgba(15,27,51,.14); display:grid; place-items:center; padding:6px; opacity:.65; transform:rotate(-6deg); }
+.lenti-stamp img { width:100%; height:100%; object-fit:contain; }
+.lenti-bars { position:absolute; right:12px; bottom:10px; width:92px; height:40px; opacity:.5; }
+.lenti-heart { position:absolute; right:20px; top:12px; width:26px; height:26px; fill:none; stroke:#7c6dff; stroke-width:2; opacity:.35; }
+/* текст чуть плотнее и крупнее — он главный на линзе */
+.lenti-val { font-size:16px; color:#101d38; }
+.lenti-sub { color:#4a5b78; font-weight:700; }
 /* === Пульс города v2: премиум-минимализм — воздух, hairline, без шума === */
 .dot.yellow { background:#f5d565; } .dot.orange { background:#f5a05a; }
 .pulse-card { position:relative; overflow:hidden; padding:16px 14px 14px; border-radius:24px; border:0; background:linear-gradient(165deg,#fdfeff 0%,#f5f9ff 48%,#effaf5 100%); box-shadow:0 14px 34px rgba(38,69,120,.10), inset 0 1px 0 #fff, inset 0 0 0 1.5px var(--pulse-edge, rgba(57,124,255,.12)); }
@@ -1056,6 +1091,28 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           <div class="nowcard-sub" id="nowSub">общая ситуация по всем АЗС</div>
         </div>
         <div class="p1-clock"><svg class="ic ic-s"><use href="#i-clock"/></svg><span id="p1Time">—</span></div>
+      </div>
+      <div class="lenti" id="lentiBox" aria-label="Карточка-линза: наклони, чтобы сменить слой данных">
+        <div class="lenti-card" id="lentiCard">
+          <div class="lenti-scene s0 on">
+            <span class="lenti-art" id="lentiArt0"></span>
+            <span class="lenti-ico"><svg class="ic ic-l"><use href="#i-spark"/></svg></span>
+            <span class="lenti-txt"><span class="lenti-cap">что нового?</span><span class="lenti-val" id="lentiNewV">—</span><span class="lenti-sub" id="lentiNewS">тап — карточка обновления</span></span>
+          </div>
+          <div class="lenti-scene s1">
+            <span class="lenti-art" id="lentiArt1"></span>
+            <span class="lenti-ico"><svg class="ic ic-l"><use href="#i-arrow"/></svg></span>
+            <span class="lenti-txt"><span class="lenti-cap">куда ехать</span><span class="lenti-val" id="lentiAdvV">—</span><span class="lenti-sub" id="lentiAdvS">тап — топ-3 варианта</span></span>
+          </div>
+          <div class="lenti-scene s2">
+            <span class="lenti-art" id="lentiArt2"></span>
+            <span class="lenti-ico"><svg class="ic ic-l"><use href="#i-heart"/></svg></span>
+            <span class="lenti-txt"><span class="lenti-cap">город живёт</span><span class="lenti-val" id="lentiLifeV">—</span><span class="lenti-sub" id="lentiLifeS">тап — карточка города</span></span>
+          </div>
+          <span class="lenti-holo"></span>
+          <span class="lenti-glare"></span>
+        </div>
+        <span class="lenti-hint" id="lentiHint">наклони карточку</span>
       </div>
       <div class="pulse-card">
         <div class="pulse-top">
@@ -3950,6 +4007,140 @@ function momentumExtra() {
   return 'За 6 ч: +' + m.rest6 + ' возвратов, −' + m.dis6 + ' исчезновений. Топливо после привоза держится обычно ' + life +
     (ago ? '. Последнее событие ленты ' + (ago < 60 ? ago + ' мин назад' : '~' + Math.round(ago / 60) + ' ч назад') : '') + '.';
 }
+// === Лентикулярная карточка: три угла = три слоя данных ===
+// Обложки и переходы меняются здесь, одной строкой на сцену.
+// go() — куда ведёт тап в текущем угле.
+const LENTI_SCENES = [
+  { cap: 'что нового?', go: () => openWhatsNewLens() },  // угол 0: свежее обновление сайта
+  { cap: 'куда ехать', go: () => openAdviceNow() },      // наклон вправо: живой советник с топ-3
+  { cap: 'город живёт', go: () => openLifeNow() }        // наклон влево: народная жизнь и твой вклад
+];
+let lentiAngle = 0, lentiIdle = true, lentiBound = false;
+// переходы сцен: каждое окно переиспользуем готовое, ничего нового не плодим
+function openWhatsNewLens() {
+  if (WHATS_NEW.length) showWhatsNew(WHATS_NEW[0]);
+  else pagerGo(4); // обновлений нет — ведём в панель «Обновления сайта»
+}
+function openAdviceNow() {
+  adviceShownThisSession = true; // сам попап в этот заход больше не выскочит
+  if (!renderAdvicePop()) { pagerGo(3); return; } // советовать нечего — список АЗС
+  document.getElementById('advicePop').classList.add('open');
+  document.getElementById('adviceBack').classList.add('open');
+}
+function openLifeNow() {
+  try { renderLifePop(); } catch (e) { return; }
+  document.getElementById('lifePop').classList.add('open');
+  document.getElementById('lifeBack').classList.add('open');
+}
+function lentiApply() {
+  const card = document.getElementById('lentiCard');
+  if (!card) return;
+  card.style.transform = 'rotateY(' + lentiAngle.toFixed(1) + 'deg)';
+  card.style.setProperty('--gx', (lentiAngle / 28 * 55).toFixed(0) + '%');
+  const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
+  document.querySelectorAll('.lenti-scene').forEach((s, i) => s.classList.toggle('on', i === idx));
+  const hint = document.getElementById('lentiHint');
+  if (hint) hint.textContent = LENTI_SCENES[idx].cap;
+}
+// Арт сцены «город живёт»: 7-дневный ритм народных отметок столбиками +
+// полупрозрачное сердце. Считаем из уже загруженного allFeedback — без запросов.
+function lentiLifeBars() {
+  const cnt = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000);
+    cnt.push(allFeedback.filter(f => new Date(f.created_at).toDateString() === d.toDateString()).length);
+  }
+  const max = Math.max(1, ...cnt);
+  const W = 92, H = 40, bw = 9, gap = (W - 7 * bw) / 8;
+  let r = '';
+  cnt.forEach((v, i) => {
+    const h = v ? Math.max(3, Math.round(v / max * 30)) : 2;
+    r += '<rect x="' + (gap + i * (bw + gap)).toFixed(1) + '" y="' + (H - h) + '" width="' + bw + '" height="' + h + '" rx="3" fill="#7c6dff" opacity="' + (v ? 0.55 : 0.18) + '"/>';
+  });
+  return '<svg class="lenti-bars" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">' + r + '</svg>' +
+    '<svg class="lenti-heart" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-heart"/></svg>';
+}
+function lentiRender() {
+  const el = id => document.getElementById(id);
+  if (!el('lentiNewV')) return;
+  // сцена 1: свежее обновление сайта — то, до чего не каждый досвайпает
+  const wn = WHATS_NEW.length ? WHATS_NEW[0] : null;
+  el('lentiNewV').textContent = wn ? wn.title : 'обновления зреют';
+  el('lentiNewS').textContent = wn ? wn.date + ' · ' + (wn.tag || 'новое') + ' · тап — карточка' : 'история — в панели «Обновления сайта»';
+  // сцена 2: живой советник — лучшая станция прямо сейчас
+  const adv = buildAdviceList()[0];
+  el('lentiAdvV').textContent = adv ? (adv.st.name || 'АЗС') : 'нет свежих вариантов';
+  el('lentiAdvS').textContent = adv
+    ? (adv.kind === 'now' ? 'топливо есть сейчас · тап — топ-3' : 'окно по прогнозу · тап — топ-3')
+    : 'тап — список АЗС города';
+  // сцена 3: народная жизнь за сутки + след водителя
+  const since24 = Date.now() - 24 * 3600 * 1000;
+  let fb = 0, onSite = 0;
+  for (const f of allFeedback) {
+    const t = new Date(f.created_at).getTime();
+    if (t < since24) continue;
+    fb++;
+    if (f.verified_on_site) onSite++;
+  }
+  el('lentiLifeV').textContent = fb ? fb + ' отметок за сутки' : 'за сутки тихо';
+  el('lentiLifeS').textContent = fb
+    ? (onSite ? onSite + ' с места · тап — карточка города' : 'тап — как жил город и твой вклад')
+    : 'тап — карточка «город живёт»';
+  // арт сцен из готовых ассетов: картинка обновления, штамп+водяной знак бренда,
+  // ритм народных отметок. Нет картинки/логотипа — слой просто пустой, текст живёт сам.
+  const art0 = el('lentiArt0'), art1 = el('lentiArt1'), art2 = el('lentiArt2');
+  if (art0) art0.innerHTML = wn && wn.img ? '<img class="lenti-thumb" src="' + wn.img + '" alt="" onerror="this.style.display=\'none\'">' : '';
+  const bk = adv ? brandKey(adv.st) : null;
+  const logo = bk && BRAND_LOGOS[bk] ? BRAND_LOGOS[bk] : null;
+  if (art1) art1.innerHTML = logo
+    ? '<img class="lenti-wm" src="' + logo + '" alt="" onerror="this.style.display=\'none\'">' +
+      '<span class="lenti-stamp"><img src="' + logo + '" alt="" onerror="this.parentNode.style.display=\'none\'"></span>'
+    : '';
+  if (art2) art2.innerHTML = lentiLifeBars();
+}
+function lentiBind() {
+  if (lentiBound) return;
+  const box = document.getElementById('lentiBox');
+  if (!box) return;
+  lentiBound = true;
+  let sx = 0, st = 0, moved = 0;
+  const setFromX = x => {
+    const r = box.getBoundingClientRect();
+    lentiAngle = Math.max(-28, Math.min(28, ((x - r.left) / r.width - 0.5) * 70));
+    lentiIdle = false;
+    lentiApply();
+  };
+  box.addEventListener('pointerdown', e => { sx = e.clientX; st = Date.now(); moved = 0; lentiIdle = false; });
+  box.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' && !(e.buttons & 1)) return;
+    moved = Math.max(moved, Math.abs(e.clientX - sx));
+    setFromX(e.clientX);
+  });
+  box.addEventListener('pointerup', () => {
+    if (moved < 10 && Date.now() - st < 600) {
+      const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
+      (LENTI_SCENES[idx].go || function () {})();
+    }
+    setTimeout(() => { lentiIdle = true; }, 6000);
+  });
+  box.addEventListener('pointercancel', () => { setTimeout(() => { lentiIdle = true; }, 2000); });
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) { lentiApply(); return; }
+  // автовращение без пальца: полный цикл по всем трём «подвкладкам», чтобы
+  // карточка сама показывала, что она линза и что внутри. Скорость — делитель:
+  // 650 ≈ круг за 4 сек; быстрее — уменьшай (400–500), медленнее — увеличивай (900+).
+  lentiIdle = true;
+  const loop = t => {
+    if (lentiIdle && document.visibilityState === 'visible') {
+      // медленнее: полный круг ~8.8 сек, каждая сцена читается ~3 сек.
+      // Хочешь ещё спокойнее — увеличь делитель (1800), бодрее — уменьши (1000).
+      lentiAngle = 24 * Math.sin(t / 1400);
+      lentiApply();
+    }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
 function renderPulse() {
   const el = id => document.getElementById(id);
   if (!el('pulseScore')) return;
@@ -4450,6 +4641,8 @@ function renderNow() {
   renderHero();
   renderPulse();
   renderTop3();
+  lentiRender();
+  lentiBind();
   ensureMiniMap();
   renderMiniMap();
   renderAccuracy();
