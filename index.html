@@ -404,6 +404,7 @@ body { overflow:hidden; }
 .lenti-scrim { position:absolute; inset:0; border-radius:20px; background:linear-gradient(90deg, rgba(248,251,255,.95) 0%, rgba(248,251,255,.85) 42%, rgba(248,251,255,.40) 75%, rgba(248,251,255,.15) 100%); }
 /* «куда ехать»: свечение фирменного цвета бренда вместо квадрата-логотипа на фоне */
 .lenti-glow { position:absolute; inset:0; border-radius:20px; }
+.lenti-route { position:absolute; right:62px; top:10px; width:46%; height:84px; opacity:.9; pointer-events:none; }
 /* «куда ехать»: приглушённая иллюстрация фоном (не в тексте!) — как в «что нового?»,
    но тише, чтобы штамп бренда и цифры остались главными. Нет файла — просто свечение. */
 .lenti-advbg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:right center; border-radius:20px; opacity:.34; }
@@ -4110,12 +4111,16 @@ function lentiRender() {
   const bk = adv ? brandKey(adv.st) : null;
   const logo = bk && BRAND_LOGOS[bk] ? BRAND_LOGOS[bk] : null;
   const bc = (bk && BRAND_COLORS[bk]) || '#397cff';
-  // фон-иллюстрация (приглушённая) + свечение бренда под ней; путь правится в одной строке
-  const ADV_IMG = 'whatsnew-advice.png';
+  // фон сцены «куда ехать»: свечение бренда + пунктирный мотив маршрута
+  // «точка ты → пин АЗС» цветом бренда. Никаких чужих коллажей — только смысл.
   if (art1) art1.innerHTML =
-    '<img class="lenti-advbg" src="' + ADV_IMG + '" alt="" onerror="this.style.display=\'none\'">' +
-    '<i class="lenti-advscrim"></i>' +
-    '<i class="lenti-glow" style="background:radial-gradient(circle at 82% 55%, ' + bc + '29, rgba(255,255,255,0) 64%)"></i>';
+    '<i class="lenti-glow" style="background:radial-gradient(circle at 82% 55%, ' + bc + '29, rgba(255,255,255,0) 64%)"></i>' +
+    '<svg class="lenti-route" viewBox="0 0 120 60" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' +
+    '<path d="M8 52 C 32 50, 36 26, 60 24 S 94 30, 102 16" fill="none" stroke="' + bc + '" stroke-opacity=".38" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7"/>' +
+    '<circle cx="8" cy="52" r="4" fill="' + bc + '" fill-opacity=".45"/>' +
+    '<path d="M102 4 c-6 0-10 4.6-10 10 0 7.4 10 16 10 16 s10-8.6 10-16 c0-5.4-4-10-10-10 z" fill="' + bc + '" fill-opacity=".5"/>' +
+    '<circle cx="102" cy="14" r="3.4" fill="#fff" fill-opacity=".9"/>' +
+    '</svg>';
   const stamp = el('lentiStamp');
   if (stamp) {
     stamp.style.display = logo ? '' : 'none';
@@ -4135,7 +4140,14 @@ function lentiBind() {
     lentiIdle = false;
     lentiApply();
   };
-  box.addEventListener('pointerdown', e => { sx = e.clientX; st = Date.now(); moved = 0; lentiIdle = false; });
+  let sy = 0;
+  box.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; st = Date.now(); moved = 0; lentiIdle = false; });
+  // страховка поверх touch-action: горизонтальный палец на карточке — наш жест,
+  // отменяем браузерную прокрутку, чтобы пейджер не дёргался ни на пиксель
+  box.addEventListener('touchmove', e => {
+    const t = e.touches[0];
+    if (Math.abs(t.clientX - sx) > Math.abs(t.clientY - sy)) e.preventDefault();
+  }, { passive: false });
   box.addEventListener('pointermove', e => {
     // палец на карточке — жест наш: ни пейджер, ни скролл не перехватывают
     if (e.pointerType === 'touch') e.preventDefault();
@@ -7299,6 +7311,19 @@ if (pagerEl) pagerEl.addEventListener('scroll', () => {
   if (i !== currentPanel) { currentPanel = i; setTagline(i); if (i === 2) ensureMap(); track('panel_view', i); }
   document.querySelectorAll('#pagerDots i').forEach((d, k) => d.classList.toggle('on', k === i));
 });
+// лечение «половинчатого» сдвига: скролл остановился между панелями —
+// через 140 мс мягко доводим до ближайшей. Снап мог быть снят подсказкой
+// пейджера в первые секунды, теперь залипание чинится само навсегда.
+let pagerSettleT = null;
+if (pagerEl) pagerEl.addEventListener('scroll', () => {
+  clearTimeout(pagerSettleT);
+  pagerSettleT = setTimeout(() => {
+    const w = pagerEl.clientWidth;
+    if (!w) return;
+    const i = Math.round(pagerEl.scrollLeft / w);
+    if (Math.abs(pagerEl.scrollLeft - i * w) > 8) pagerEl.scrollTo({ left: i * w, behavior: 'smooth' });
+  }, 140);
+}, { passive: true });
 let hintCancelled = false;
 (function pagerHint() {
   const pager = document.getElementById('pager');
