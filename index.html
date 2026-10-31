@@ -396,9 +396,13 @@ body { overflow:hidden; }
    Никаких новых ассетов: штамп бренда, картинка обновления и ритм отметок. */
 .lenti-art { position:absolute; inset:0; pointer-events:none; z-index:0; }
 .lenti-ico, .lenti-txt { position:relative; z-index:2; }
-.lenti-thumb { position:absolute; right:10px; top:12px; width:92px; height:64px; object-fit:cover; border-radius:12px; opacity:.8; box-shadow:0 6px 16px rgba(15,27,51,.18); -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 26%); mask-image:linear-gradient(90deg,transparent 0,#000 26%); }
-.lenti-wm { position:absolute; right:-14px; bottom:-18px; width:110px; height:110px; object-fit:contain; opacity:.14; }
-.lenti-stamp { position:absolute; right:12px; top:14px; width:44px; height:44px; border-radius:13px; background:#fff; border:1px solid rgba(226,232,244,.9); box-shadow:0 6px 14px rgba(15,27,51,.14); display:grid; place-items:center; padding:6px; opacity:.65; transform:rotate(-6deg); }
+/* «что нового?»: картинка обновления на ВСЮ карточку, слева белая вуаль под текст */
+.lenti-bg { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border-radius:20px; opacity:.6; }
+.lenti-scrim { position:absolute; inset:0; border-radius:20px; background:linear-gradient(90deg, rgba(248,251,255,.95) 0%, rgba(248,251,255,.85) 42%, rgba(248,251,255,.40) 75%, rgba(248,251,255,.15) 100%); }
+/* «куда ехать»: свечение фирменного цвета бренда вместо квадрата-логотипа на фоне */
+.lenti-glow { position:absolute; inset:0; border-radius:20px; }
+/* штамп бренда — наклейка справа в потоке карточки: по центру, ничего не перекрывает */
+.lenti-stamp { flex:0 0 auto; width:46px; height:46px; margin-right:2px; border-radius:13px; background:#fff; border:1px solid rgba(226,232,244,.9); box-shadow:0 6px 14px rgba(15,27,51,.16); display:grid; place-items:center; padding:7px; transform:rotate(-4deg); }
 .lenti-stamp img { width:100%; height:100%; object-fit:contain; }
 .lenti-bars { position:absolute; right:12px; bottom:10px; width:92px; height:40px; opacity:.5; }
 .lenti-heart { position:absolute; right:20px; top:12px; width:26px; height:26px; fill:none; stroke:#7c6dff; stroke-width:2; opacity:.35; }
@@ -1103,6 +1107,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
             <span class="lenti-art" id="lentiArt1"></span>
             <span class="lenti-ico"><svg class="ic ic-l"><use href="#i-arrow"/></svg></span>
             <span class="lenti-txt"><span class="lenti-cap">куда ехать</span><span class="lenti-val" id="lentiAdvV">—</span><span class="lenti-sub" id="lentiAdvS">тап — топ-3 варианта</span></span>
+            <span class="lenti-stamp" id="lentiStamp" style="display:none"></span>
           </div>
           <div class="lenti-scene s2">
             <span class="lenti-art" id="lentiArt2"></span>
@@ -4089,13 +4094,21 @@ function lentiRender() {
   // арт сцен из готовых ассетов: картинка обновления, штамп+водяной знак бренда,
   // ритм народных отметок. Нет картинки/логотипа — слой просто пустой, текст живёт сам.
   const art0 = el('lentiArt0'), art1 = el('lentiArt1'), art2 = el('lentiArt2');
-  if (art0) art0.innerHTML = wn && wn.img ? '<img class="lenti-thumb" src="' + wn.img + '" alt="" onerror="this.style.display=\'none\'">' : '';
+  // «что нового?»: картинка обновления на всю карточку + вуаль слева под текст
+  if (art0) art0.innerHTML = wn && wn.img
+    ? '<img class="lenti-bg" src="' + wn.img + '" alt="" onerror="this.style.display=\'none\'"><i class="lenti-scrim"></i>'
+    : '';
+  // «куда ехать»: на фоне — мягкое свечение фирменного цвета бренда,
+  // а логотип — аккуратный штамп справа в потоке (не плавает в углу)
   const bk = adv ? brandKey(adv.st) : null;
   const logo = bk && BRAND_LOGOS[bk] ? BRAND_LOGOS[bk] : null;
-  if (art1) art1.innerHTML = logo
-    ? '<img class="lenti-wm" src="' + logo + '" alt="" onerror="this.style.display=\'none\'">' +
-      '<span class="lenti-stamp"><img src="' + logo + '" alt="" onerror="this.parentNode.style.display=\'none\'"></span>'
-    : '';
+  const bc = (bk && BRAND_COLORS[bk]) || '#397cff';
+  if (art1) art1.innerHTML = '<i class="lenti-glow" style="background:radial-gradient(circle at 82% 55%, ' + bc + '29, rgba(255,255,255,0) 64%)"></i>';
+  const stamp = el('lentiStamp');
+  if (stamp) {
+    stamp.style.display = logo ? '' : 'none';
+    stamp.innerHTML = logo ? '<img src="' + logo + '" alt="" onerror="this.parentNode.style.display=\'none\'">' : '';
+  }
   if (art2) art2.innerHTML = lentiLifeBars();
 }
 function lentiBind() {
