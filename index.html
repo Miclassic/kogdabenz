@@ -379,8 +379,10 @@ body { overflow:hidden; }
 /* Пластина линзы крутится ЦЕЛИКОМ, как склеенная: фон сцен, голограмма, блик,
    подсказка и тень живут на .lenti-card. Внешний .lenti — только перспектива
    и зона жеста, без своей подложки, чтобы не было белой статичной рамки. */
-.lenti { position:relative; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; }
-.lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; box-shadow:0 10px 26px rgba(38,69,120,.12); }
+/* contain: layout paint — перерисовки линзы не задевают соседние карточки,
+   они больше не «дёргаются» на слабых телефонах */
+.lenti { position:relative; contain:layout paint; margin:2px 0 8px; height:104px; border-radius:20px; perspective:700px; touch-action:none; cursor:pointer; }
+.lenti-card { position:absolute; inset:0; border-radius:20px; transform-style:preserve-3d; will-change:transform; box-shadow:0 10px 26px rgba(38,69,120,.12); }
 .lenti-scene { position:absolute; inset:0; display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:20px; opacity:0; transition:opacity .18s ease; transform:translateZ(18px); }
 .lenti-scene.on { opacity:1; }
 .lenti-scene.s0 { background:linear-gradient(135deg,#e5f8ef,#eef4ff); }
@@ -403,11 +405,16 @@ body { overflow:hidden; }
    (--foil ≈ 0), при наклоне она «ловит свет»: прозрачность растёт с углом,
    радуга едет по карте, а блёстки-крошка — со своей скоростью (параллакс искр).
    Оба слоя чисто декоративные: pointer-events none, поверх сцен, под подсказкой. */
-.lenti-foil { position:absolute; inset:0; pointer-events:none; transform:translateZ(36px); border-radius:20px; mix-blend-mode:color-dodge; opacity:var(--foil,0); background:linear-gradient(115deg, rgba(255,255,255,0) 6%, rgba(255,90,140,.50) 22%, rgba(255,190,80,.45) 36%, rgba(110,255,180,.45) 50%, rgba(90,180,255,.50) 64%, rgba(200,110,255,.45) 78%, rgba(255,255,255,0) 94%) center / 260% 100% no-repeat; background-position-x:var(--fp,50%); }
-.lenti-spark { position:absolute; inset:0; pointer-events:none; transform:translateZ(38px); border-radius:20px; mix-blend-mode:soft-light; opacity:calc(var(--foil,0) * 1.4); background:
-  radial-gradient(circle at 20% 30%, rgba(255,255,255,.95) 0 1.2px, transparent 2.2px) 0 0 / 26px 26px repeat,
-  radial-gradient(circle at 70% 72%, rgba(255,255,255,.8) 0 1px, transparent 1.9px) 0 0 / 37px 37px repeat;
-  background-position-x:var(--sp1,50%), var(--sp2,50%); }
+/* Радуга обычным слоем: blend-режимы на светлой пастели давали «белое по белому».
+   Насыщенные стопы + прозрачность до .5 от угла наклона — фойл видно реально. */
+.lenti-foil { position:absolute; inset:0; pointer-events:none; transform:translateZ(36px); border-radius:20px; opacity:var(--foil,0); background:linear-gradient(115deg, rgba(255,255,255,0) 4%, rgba(255,70,150,.75) 20%, rgba(255,180,50,.70) 35%, rgba(50,240,160,.70) 50%, rgba(70,150,255,.75) 65%, rgba(190,80,255,.70) 80%, rgba(255,255,255,0) 96%) center / 260% 100% no-repeat; background-position-x:var(--fp,50%); }
+/* Искры — разноцветные глинты (белый/голубой/розовый): на пастели они читаются,
+   в отличие от белых точек через soft-light. Едут своими скоростями = параллакс. */
+.lenti-spark { position:absolute; inset:0; pointer-events:none; transform:translateZ(38px); border-radius:20px; opacity:var(--foil,0); background:
+  radial-gradient(circle at 20% 30%, rgba(255,255,255,.95) 0 1.1px, transparent 2px) 0 0 / 26px 26px repeat,
+  radial-gradient(circle at 70% 72%, rgba(120,220,255,.9) 0 1px, transparent 1.8px) 0 0 / 37px 37px repeat,
+  radial-gradient(circle at 45% 55%, rgba(255,120,220,.85) 0 .9px, transparent 1.7px) 0 0 / 21px 21px repeat;
+  background-position-x:var(--sp1,50%), var(--sp2,50%), var(--sp1,50%); }
 .lenti-hint { position:absolute; right:10px; bottom:7px; z-index:3; font-size:8px; font-weight:800; color:rgba(20,33,61,.42); letter-spacing:.4px; pointer-events:none; text-transform:uppercase; }
 /* арт сцен живёт ПОЗАДИ текста и приглушён: текст — акцент, картинки — фон.
    Никаких новых ассетов: штамп бренда, картинка обновления и ритм отметок. */
@@ -4061,21 +4068,32 @@ function openLifeNow() {
   document.getElementById('lifePop').classList.add('open');
   document.getElementById('lifeBack').classList.add('open');
 }
+let lentiLastAngle = null, lentiLastIdx = -1, lentiScenesCache = null;
 function lentiApply() {
+  // троттлинг: изменение угла меньше 0.25° не пишем в DOM вовсе —
+  // вдвое-втрое меньше перерисовок, соседние карточки не дёргаются
+  if (lentiLastAngle !== null && Math.abs(lentiAngle - lentiLastAngle) < 0.25) return;
+  lentiLastAngle = lentiAngle;
   const card = document.getElementById('lentiCard');
   if (!card) return;
   card.style.transform = 'rotateY(' + lentiAngle.toFixed(1) + 'deg)';
   card.style.setProperty('--gp', (50 - (lentiAngle / 28) * 50).toFixed(0) + '%');
-  // голограмма: сила «света» = модуль угла; радуга и блёстки едут в противофазе
+  // голограмма: линейная рампа с мёртвой зоной до 12% угла — в анфас карточка
+  // чистая, при наклоне радуга и глинты разгораются до заметных 0.5
   const mag = Math.min(1, Math.abs(lentiAngle) / 28);
-  card.style.setProperty('--foil', (mag * mag * 0.42).toFixed(3)); // квадратично: в анфас чисто
+  card.style.setProperty('--foil', (Math.max(0, (mag - 0.12) / 0.88) * 0.5).toFixed(3));
   card.style.setProperty('--fp', (50 - (lentiAngle / 28) * 70).toFixed(0) + '%');
   card.style.setProperty('--sp1', (50 - (lentiAngle / 28) * 110).toFixed(0) + '%');
   card.style.setProperty('--sp2', (50 + (lentiAngle / 28) * 80).toFixed(0) + '%');
+  // сцены и подсказку трогаем ТОЛЬКО при смене угловой зоны, список сцен закэширован
   const idx = lentiAngle < -8 ? 2 : lentiAngle > 8 ? 1 : 0;
-  document.querySelectorAll('.lenti-scene').forEach((s, i) => s.classList.toggle('on', i === idx));
-  const hint = document.getElementById('lentiHint');
-  if (hint) hint.textContent = LENTI_SCENES[idx].cap;
+  if (idx !== lentiLastIdx) {
+    lentiLastIdx = idx;
+    if (!lentiScenesCache || !lentiScenesCache.length) lentiScenesCache = document.querySelectorAll('.lenti-scene');
+    lentiScenesCache.forEach((s, i) => s.classList.toggle('on', i === idx));
+    const hint = document.getElementById('lentiHint');
+    if (hint) hint.textContent = LENTI_SCENES[idx].cap;
+  }
 }
 // Арт сцены «город живёт»: 7-дневный ритм народных отметок столбиками +
 // полупрозрачное сердце. Считаем из уже загруженного allFeedback — без запросов.
@@ -4197,10 +4215,14 @@ function lentiBind() {
   // карточка сама показывала, что она линза и что внутри. Скорость — делитель:
   // 650 ≈ круг за 4 сек; быстрее — уменьшай (400–500), медленнее — увеличивай (900+).
   lentiIdle = true;
+  // вне экрана автовращение спит: не жжём батарею внизу страницы и не
+  // «перелистываем сами» карточку, пока водитель читает ленту событий
+  let lentiInView = true;
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(es => { lentiInView = es[0].isIntersecting; }, { threshold: 0.25 }).observe(box);
+  }
   const loop = t => {
-    if (lentiIdle && document.visibilityState === 'visible') {
-      // медленнее: полный круг ~8.8 сек, каждая сцена читается ~3 сек.
-      // Хочешь ещё спокойнее — увеличь делитель (1800), бодрее — уменьши (1000).
+    if (lentiIdle && lentiInView && document.visibilityState === 'visible') {
       lentiAngle = 24 * Math.sin(t / 1900);
       lentiApply();
     }
