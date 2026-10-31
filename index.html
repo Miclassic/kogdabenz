@@ -400,6 +400,7 @@ body { overflow:hidden; }
 .pulse-kpi span { display:block; margin-top:1px; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pulse-kpi i { font-style:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; margin-top:3px; font-size:9px; font-weight:850; line-height:1.25; overflow:hidden; }
 .pulse-kpi i.g { color:#12855c; } .pulse-kpi i.r { color:#c2403f; } .pulse-kpi i.n { color:#93a1b8; }
+.pulse-kpi b.g { color:#12855c; } .pulse-kpi b.r { color:#c2403f; }
 .pulse-d24 { position:relative; z-index:1; margin-top:8px; padding:10px 10px 8px; border-radius:16px; background:rgba(255,255,255,.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(38,69,120,.06); }
 .pulse-d24-t { font-size:11px; font-weight:850; color:#14213d; }
 .pulse-d24-t small { float:right; color:#b6c2d6; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
@@ -443,6 +444,67 @@ body { overflow:hidden; }
    Правило стоит в конце файла-блока, поэтому перебивает любые ранние .p1 */
 .p1 { display:block; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 .pulse-card, .pulse-kpis, .pulse-d24, .pulse-peak, .pulse-grid, .pulse-feed, .pulse-side, .pulse-quote, .hm-wrap, .nowcard-cta { flex:0 0 auto; }
+/* === Топ-3 по ближайшему окну: свайп «сейчас / потом», тап — карточка АЗС === */
+.top3 { margin-top:8px; padding:10px 10px 8px; border-radius:18px; background:#fff; box-shadow:0 6px 18px rgba(38,69,120,.07); }
+.top3-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.top3-title { font-size:11px; font-weight:850; color:#14213d; }
+.top3-tabs { display:flex; background:#eef2f9; border-radius:9px; padding:2px; gap:2px; }
+.top3-tab { border:0; background:transparent; color:#7487a7; border-radius:7px; padding:3px 9px; font-size:9px; font-weight:800; cursor:pointer; }
+.top3-tab.active { background:#fff; color:#2465ee; box-shadow:0 2px 6px rgba(38,69,120,.12); }
+.top3-viewport { overflow:hidden; touch-action:pan-y; } /* горизонталь наш, панель не уводим */
+.top3-track { display:flex; width:200%; transition:transform .3s cubic-bezier(.2,.8,.2,1); }
+.top3-track.drag { transition:none; }
+.top3-page { width:50%; min-width:0; display:flex; flex-direction:column; gap:6px; }
+.t3-row { display:flex; align-items:center; gap:8px; padding:7px 8px; border-radius:14px; background:#f8fafc; border:1px solid #eef2f8; cursor:pointer; }
+.t3-row:active { background:#eef4ff; }
+.t3-logo { flex:0 0 auto; width:30px; height:30px; border-radius:10px; background:#fff; border:1px solid #eef2f8; display:grid; place-items:center; padding:4px; color:#5b6b86; overflow:hidden; }
+.t3-logo img { width:100%; height:100%; object-fit:contain; }
+.t3-logo .ic { width:16px; height:16px; }
+.t3-main { flex:1; min-width:0; }
+.t3-name { display:block; font-size:11.5px; font-weight:850; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.t3-fuels { display:flex; gap:3px; margin-top:3px; }
+.tf { font-style:normal; font-size:8px; font-weight:900; padding:2px 5px; border-radius:6px; }
+.tf.t95 { background:#e5f8ef; color:#12855c; }
+.tf.t92 { background:#fff2e8; color:#c26a2a; }
+.tf.tdt { background:#e7f0ff; color:#2465ee; }
+.tf.tno { background:#f2f4f9; color:#7c89a0; }
+.t3-right { flex:0 0 auto; text-align:right; }
+.t3-badge { display:inline-block; font-size:8.5px; font-weight:900; text-transform:uppercase; letter-spacing:.4px; padding:4px 8px; border-radius:99px; }
+.t3-badge.now { background:#e5f8ef; color:#12855c; }
+.t3-badge.later { background:#e7f0ff; color:#2465ee; }
+.t3-badge.none { background:#f2f4f9; color:#7c89a0; }
+.t3-time { display:block; margin-top:3px; color:#71809c; font-size:8.5px; font-weight:700; }
+.t3-empty { padding:10px 6px; color:#7c89a0; font-size:10px; font-weight:600; line-height:1.4; }
+.t3-item { display:flex; flex-direction:column; }
+.t3-addr { display:block; margin-top:1px; color:rgba(20,33,61,.40); font-size:8.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+/* ветка-«ответ»: вертикаль слева + горизонтальные отводки к каждому событию */
+.t3-thread { margin:3px 0 1px 22px; padding:3px 0 3px 12px; border-left:2px solid #e6ebf4; display:flex; flex-direction:column; gap:3px; }
+.t3-tw { position:relative; display:flex; align-items:center; gap:8px; font-size:9px; font-weight:600; color:rgba(20,33,61,.55); }
+.t3-tw::before { content:''; position:absolute; left:-12px; top:50%; width:10px; height:2px; background:#e6ebf4; }
+/* иконки ветки — те же сквирклы с призрачной меткой, что в ленте, но мельче */
+.t3-ico { width:20px; height:20px; border-radius:7px; }
+.t3-ico .ic { width:11px; height:11px; }
+.t3-ico .pf-ghost { font-size:13px; letter-spacing:-.8px; }
+.pf-ico.n { background:linear-gradient(140deg,#d6dce6,#a7b1c1); }
+.t3-tw b { font-weight:700; color:rgba(20,33,61,.62); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.t3-tw .tm { margin-left:auto; flex:0 0 auto; color:rgba(20,33,61,.35); font-size:8.5px; font-weight:700; }
+/* прозрачное окошко под активными АЗС: ближайшие окна возврата по прогнозу */
+.t3-sub { margin-top:8px; padding:8px 8px 6px; border-radius:14px; background:rgba(255,255,255,.45); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); border:1px solid rgba(226,232,244,.8); display:flex; flex-direction:column; gap:6px; }
+.t3-sub-t { font-size:8.5px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; color:#93a1b8; }
+.t3-sub .t3-row { background:rgba(255,255,255,.75); }
+/* Плашка события: нежный градиент по смыслу, как в «пульсе».
+   Красим ТОЛЬКО строки, где что-то случилось: пополнение/«есть» — зелёная,
+   пропал/«нет» — красная, очередь — оранжевая. Нет событий — строка нейтральна.
+   Градиент уходит в полупрозрачный белый, чтобы текст читался, кайма в тон. */
+.t3-row.ev-g { background:linear-gradient(135deg,rgba(33,185,134,.18),rgba(33,185,134,.06) 55%,rgba(255,255,255,.65)); border-color:rgba(33,185,134,.35); }
+.t3-row.ev-r { background:linear-gradient(135deg,rgba(239,83,80,.16),rgba(239,83,80,.05) 55%,rgba(255,255,255,.65)); border-color:rgba(239,83,80,.32); }
+.t3-row.ev-o { background:linear-gradient(135deg,rgba(245,160,90,.18),rgba(245,160,90,.06) 55%,rgba(255,255,255,.65)); border-color:rgba(245,160,90,.35); }
+.t3-row.ev-g, .t3-row.ev-r, .t3-row.ev-o { box-shadow:inset 0 1px 0 rgba(255,255,255,.55); }
+/* лента событий станции внутри карточки АЗС */
+.st-ev { margin-top:10px; padding:10px 12px; border-radius:16px; background:linear-gradient(135deg,#f6f9ff,#f4fbf7); border:1px solid #e3ecf5; }
+.st-ev-t { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; color:#14213d; margin-bottom:6px; }
+.st-ev-t .ic { color:#2465ee; width:14px; height:14px; }
+.st-ev .t3-thread { margin-left:6px; border-left-color:#dfe8f2; }
 /* панель 2: блок со своей прокруткой. Раньше здесь был flex + overflow:hidden:
    высокая карточка «Пульс города» сжималась flex-ом до полоски и обрезалась,
    а прокрутка была запрещена. Блок не сжимает детей, скролл живой. */
@@ -1021,10 +1083,22 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
             <span>где дешевле</span>
             <i class="n" id="pulseCheapName">—</i>
           </div>
-          <div class="pulse-kpi" onclick="openWhyChip(this,'plateQ')">
-            <div class="kp-head"><svg class="ic"><use href="#i-queue"/></svg><b id="pulseQueueNow">—</b></div>
-            <span>очереди</span>
-            <i class="n" id="pulseQueueSub">—</i>
+          <div class="pulse-kpi" onclick="openWhyChip(this,'momentum')"><div class="kp-head"><svg class="ic"><use href="#i-pump-fast"/></svg><b id="pulseMom">—</b></div><span>лента · 6 ч</span><i class="n" id="pulseMomSub">—</i>
+          </div>
+        </div>
+      </div>
+      <div class="top3">
+        <div class="top3-head">
+          <span class="top3-title">Топ-3 по городу</span>
+          <span class="top3-tabs">
+            <button class="top3-tab active" id="top3TabNow" onclick="top3Go(0)">сейчас</button>
+            <button class="top3-tab" id="top3TabLater" onclick="top3Go(1)">потом</button>
+          </span>
+        </div>
+        <div class="top3-viewport" id="top3View">
+          <div class="top3-track" id="top3Track">
+            <div class="top3-page" id="top3PageNow"></div>
+            <div class="top3-page" id="top3PageLater"></div>
           </div>
         </div>
       </div>
@@ -2356,6 +2430,7 @@ function stationCard(station, obs, pred) {
     liveQueueStrip(station.id) +
     queueForecastStrip(station.id) +
     onSiteStrip(station.id) +
+    stationEventsHtml(station.id) +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
@@ -3595,6 +3670,7 @@ const WHY_MAP = {
   qfcst: { t: 'Прогноз очереди', x: 'Смотрим, в какие часы очередь появлялась на этой АЗС (а своих отметок мало — тогда по городу) за последний месяц, и берём срединное время ± разброс. Это оценка по истории, не гарантия.', e: el => (el && el.dataset.qf) ? 'Считано ' + el.dataset.qf + '.' : null },
   impact: { t: 'Как считаем «подтвердили»', x: 'Берём вашу отметку и смотрим: в пределах часа от неё кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС. Каждый такой водитель — подтверждение, что отметка попала в реальность. Выдуманные «просмотры» не показываем.', e: null },
   pulse: { t: 'Пульс города', x: 'Оценка из 10: наличие АИ-95 (45%), очереди (25%), свежесть данных (20%), баланс возвратов и исчезновений за сутки (10%). «Чем вчера» сравниваем в тот же час по почасовому ритму города.', e: () => { const fr = freshStats(); return 'Свежие данные: ' + fr.fresh + ' из ' + fr.tot + ' АЗС. Оценка считается из отметок источника и водителей, без ручных поправок.'; } },
+  momentum: { t: 'Лента: куда движется ситуация', x: 'Сравниваем возвраты и исчезновения топлива в твоём городе за 6 часов — то же окно, что у ленты событий. Возвратов больше — ситуация улучшается, можно выбирать время и цену. Исчезновений больше — топливо уходит с рынка, заправляться лучше сейчас. Очереди никуда не делись: их по-прежнему видно на карте зонами и в карточках АЗС.', e: () => momentumExtra() },
   wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() }
 };
 let whyOpenKey = null;
@@ -3820,6 +3896,60 @@ function pulseFillD24(b, val, invert) {
 let pulseGoId = null, pulseCheapId = null;
 function pulseGoOpen() { if (pulseGoId) openSheet(pulseGoId); }
 function pulseCheapOpen() { if (pulseCheapId) openSheet(pulseCheapId); }
+// === Направление ситуации из ленты событий (окно 6 ч, как у ленты) ===
+// Возвраты против исчезновений по городу пользователя: «возвращается» /
+// «уходит» / «тихо». Плюс медианная «продолжительность жизни» топлива после
+// привоза за 7 дней (restored → следующее disappeared той же станции и топлива) —
+// она отвечает на вопрос «успею ли вечером», показываем её в тап-подсказке.
+function pulseMomentum() {
+  const now = Date.now();
+  const since6 = now - 6 * 3600 * 1000;
+  const citySet = new Set(cityStationList().map(s => s.id));
+  let rest6 = 0, dis6 = 0, lastT = 0;
+  const byPair = {};
+  for (const e of allWaveEvents) {
+    if (!citySet.has(e.station_id)) continue;
+    if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
+    const t = new Date(e.detected_at).getTime();
+    if (t > lastT) lastT = t;
+    const k = e.station_id + '|' + e.fuel_type;
+    (byPair[k] = byPair[k] || []).push({ t: t, kind: e.event_type });
+    if (t < since6) continue;
+    if (e.event_type === 'fuel_restored') rest6++;
+    else dis6++;
+  }
+  const durs = [];
+  for (const k of Object.keys(byPair)) {
+    const list = byPair[k].sort((a, b) => a.t - b.t);
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].kind !== 'fuel_restored') continue;
+      for (let j = i + 1; j < list.length; j++) {
+        if (list[j].kind === 'fuel_disappeared') {
+          const h = (list[j].t - list[i].t) / 3600000;
+          if (h > 0.2 && h < 24 * 7) durs.push(h);
+          break;
+        }
+      }
+    }
+  }
+  let lifeH = null;
+  if (durs.length >= 3) {
+    durs.sort((a, b) => a - b);
+    lifeH = durs.length % 2 ? durs[(durs.length - 1) / 2] : (durs[durs.length / 2 - 1] + durs[durs.length / 2]) / 2;
+  }
+  let verdict, cls;
+  if (rest6 >= 2 && rest6 > dis6) { verdict = 'прибывает'; cls = 'g'; }
+  else if (dis6 >= 2 && dis6 > rest6) { verdict = 'уходит'; cls = 'r'; }
+  else { verdict = 'тихо'; cls = 'n'; }
+  return { rest6: rest6, dis6: dis6, verdict: verdict, cls: cls, sub: '+' + rest6 + ' вернулось · −' + dis6 + ' пропало', lifeH: lifeH, lastT: lastT };
+}
+function momentumExtra() {
+  const m = pulseMomentum();
+  const life = m.lifeH === null ? 'пока мало данных' : (m.lifeH >= 24 ? 'больше суток' : '~' + Math.round(m.lifeH) + ' ч');
+  const ago = m.lastT ? Math.max(1, Math.round((Date.now() - m.lastT) / 60000)) : null;
+  return 'За 6 ч: +' + m.rest6 + ' возвратов, −' + m.dis6 + ' исчезновений. Топливо после привоза держится обычно ' + life +
+    (ago ? '. Последнее событие ленты ' + (ago < 60 ? ago + ' мин назад' : '~' + Math.round(ago / 60) + ' ч назад') : '') + '.';
+}
 function renderPulse() {
   const el = id => document.getElementById(id);
   if (!el('pulseScore')) return;
@@ -3933,21 +4063,14 @@ function renderPulse() {
     cnEl.className = 'n';
     pulseCheapId = null;
   }
-  // Плитка 3: очереди человеческими словами + сколько стоит самая долгая
-  let qStations = 0, worst = null;
-  const lastQ = getLastObservations();
-  for (const s of cityStationList()) {
-    const o = lastQ[s.id];
-    if (o && o.queue_level === 'high') {
-      qStations++;
-      const age = queueAgeMin(s.id);
-      if (age !== null && (worst === null || age > worst)) worst = age;
-    }
-  }
-  el('pulseQueueNow').textContent = qStations === 0 ? 'нет' : qStations + ' АЗС';
-  const qsEl = el('pulseQueueSub');
-  qsEl.textContent = qStations === 0 ? 'можно ехать свободно' : (worst !== null ? 'самая долгая ' + ageRu(worst) : 'очередь сейчас');
-  qsEl.className = qStations === 0 ? 'g' : 'r';
+  // Направление ситуации из ленты: торопиться или можно подождать
+  const mom = pulseMomentum();
+  const momVal = el('pulseMom');
+  momVal.textContent = mom.verdict;
+  momVal.className = mom.cls;
+  const momSub = el('pulseMomSub');
+  momSub.textContent = mom.sub;
+  momSub.className = mom.cls;
   // лента событий за 6 часов: источник + народ, список вместо вращающейся строки
   const citySet = new Set(cityStationList().map(s => s.id));
   const since6 = Date.now() - 6 * 3600 * 1000;
@@ -4000,6 +4123,236 @@ function renderPulse() {
     qBox.style.display = '';
     el('pulseQuoteTxt').textContent = '«' + c.comment_text + '»';
     el('pulseQuoteWho').textContent = 'водитель · ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+}
+// === Топ-3 по ближайшему окну: «сейчас» (окно открыто) / «потом» (ближайшие будущие) ===
+// Строка: логотип бренда + имя + чипы наличия топлива + бейдж окна с уверенностью.
+// Тап — карточка АЗС (тот же контур трекинга, что у списка и карты).
+let top3State = 0, top3Bound = false, top3Dragged = false;
+function top3Go(i) {
+  top3State = i ? 1 : 0;
+  const track = document.getElementById('top3Track');
+  if (track) { track.classList.remove('drag'); track.style.transform = 'translateX(' + (-top3State * 50) + '%)'; }
+  const tn = document.getElementById('top3TabNow'), tl = document.getElementById('top3TabLater');
+  if (tn) tn.classList.toggle('active', top3State === 0);
+  if (tl) tl.classList.toggle('active', top3State === 1);
+}
+function top3Open(id) {
+  if (top3Dragged) { top3Dragged = false; return; } // свайп не должен открывать карточку
+  track('open_station_card', null, id);
+  learnFromAction(id, 'card_open');
+  openSheet(id);
+}
+function top3FuelChips(o) {
+  const trust = availTrustworthy(o); // фильтр блефа: несвежее/подозрительное «есть» не зеленеет
+  const chips = [];
+  if (trust && o && o.fuel_95_status === true) chips.push('<i class="tf t95">95</i>');
+  if (trust && o && o.fuel_92_status === true) chips.push('<i class="tf t92">92</i>');
+  if (trust && o && o.diesel_status === true) chips.push('<i class="tf tdt">ДТ</i>');
+  if (chips.length) return chips.join('');
+  if (o && o.fuel_95_status === false && o.fuel_92_status === false && o.diesel_status === false) return '<i class="tf tno">нет</i>';
+  return '<i class="tf tno">нет данных</i>';
+}
+// строка ветки: сквиркл-иконка с призрачной меткой топлива (как в ленте событий)
+function threadRowHtml(e) {
+  const d = new Date(e.t);
+  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  let txt, cls, ico, ghost = '';
+  if (e.kind === 'restored') { txt = fuelLabel(e.fuel) + ' вернулся'; cls = 'g'; ico = 'i-check'; ghost = e.fuel === 'diesel' ? 'ДТ' : e.fuel; }
+  else if (e.kind === 'gone') { txt = fuelLabel(e.fuel) + ' пропал'; cls = 'r'; ico = 'i-cross'; ghost = e.fuel === 'diesel' ? 'ДТ' : e.fuel; }
+  else if (e.kind === 'folk_yes') { txt = 'народ: ' + fuelLabel(e.fuel) + ' есть'; cls = 'g'; ico = 'i-check'; ghost = e.fuel === 'diesel' ? 'ДТ' : e.fuel; }
+  else if (e.kind === 'folk_no') { txt = 'народ: ' + fuelLabel(e.fuel) + ' нет'; cls = 'r'; ico = 'i-cross'; ghost = e.fuel === 'diesel' ? 'ДТ' : e.fuel; }
+  else if (e.kind === 'delivery') { txt = 'народ: привезли'; cls = 'b'; ico = 'i-truck'; }
+  else if (e.kind === 'queue' || e.kind === 'queue_live') { txt = 'народ: очередь' + (e.q ? ' ' + (QUEUE_SHORT[e.q] || '') : ''); cls = 'o'; ico = 'i-queue'; }
+  else { txt = String(e.kind); cls = 'o'; ico = 'i-minus'; }
+  return '<div class="t3-tw"><span class="pf-ico t3-ico ' + cls + '">' + (ghost ? '<i class="pf-ghost">' + ghost + '</i>' : '') + '<svg class="ic ic-s"><use href="#' + ico + '"/></svg></span><b>' + txt + '</b><span class="tm">' + hm + '</span></div>';
+}
+// Цвет плашки по ПОСЛЕДНЕМУ событию строки: пополнение/«есть» (народ, привоз) —
+// нежная зелёная, пропал/«нет» — нежная красная, очередь — оранжевая.
+// Событий нет — пустая строка: карточка остаётся нейтральной,
+// красим только там, где что-то произошло, как просил владелец.
+function evTintClass(list) {
+  if (!list || !list.length) return '';
+  const k = list[0].kind;
+  if (k === 'restored' || k === 'folk_yes' || k === 'delivery') return ' ev-g';
+  if (k === 'gone' || k === 'folk_no') return ' ev-r';
+  if (k === 'queue' || k === 'queue_live') return ' ev-o';
+  return '';
+}
+// ветка-«ответ» под строкой топ-3: последние события станции из того же окна, что лента
+function top3ThreadHtml(list) {
+  if (!list.length) return '<div class="t3-thread"><div class="t3-tw"><span class="pf-ico t3-ico n"><svg class="ic ic-s"><use href="#i-minus"/></svg></span><b>событий за последние 6 ч нет</b></div></div>';
+  return '<div class="t3-thread">' + list.map(threadRowHtml).join('') + '</div>';
+}
+// лента событий одной станции за 24 ч — живёт в карточке АЗС;
+// пустая история = блок не рисуется вовсе, карточка не растягивается
+function stationEventsHtml(stationId) {
+  const since = Date.now() - 24 * 3600 * 1000;
+  const list = [];
+  for (const e of allWaveEvents) {
+    if (e.station_id !== stationId) continue;
+    const t = new Date(e.detected_at).getTime();
+    if (t < since) continue;
+    list.push({ kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone', fuel: e.fuel_type, t: t });
+  }
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId) continue;
+    const t = new Date(f.created_at).getTime();
+    if (t < since) continue;
+    if (f.feedback_type === 'available') list.push({ kind: 'folk_yes', fuel: f.fuel_type, t: t });
+    else if (f.feedback_type === 'unavailable') list.push({ kind: 'folk_no', fuel: f.fuel_type, t: t });
+    else if (f.feedback_type === 'delivery') list.push({ kind: 'delivery', t: t });
+    else if (f.feedback_type === 'queue') list.push({ kind: 'queue', q: f.queue_size, t: t });
+    else if (f.feedback_type === 'in_queue') list.push({ kind: 'queue_live', t: t });
+  }
+  if (!list.length) return '';
+  list.sort((a, b) => b.t - a.t);
+  return '<div class="st-ev"><div class="st-ev-t">' + icon('i-spark', 'ic-s') + 'События по станции · 24 часа</div>' +
+    '<div class="t3-thread">' + list.slice(0, 6).map(threadRowHtml).join('') + '</div></div>';
+}
+function top3RowHtml(st, o, pred, thread) {
+  const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const f = Number(String(pred.from_time).slice(0, 2)) * 60 + Number(String(pred.from_time).slice(3, 5));
+  const t = Number(String(pred.to_time).slice(0, 2)) * 60 + Number(String(pred.to_time).slice(3, 5));
+  const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  let badge, time;
+  if (pred.target_date > today) { badge = '<span class="t3-badge later">завтра</span>'; time = time5(pred.from_time) + '–' + time5(pred.to_time); }
+  else if (nowM >= f && nowM <= t) { badge = '<span class="t3-badge now">сейчас</span>'; time = 'до ' + time5(pred.to_time); }
+  else if (f > nowM) { badge = '<span class="t3-badge later">потом</span>'; time = 'через ~' + (f - nowM) + ' мин · ' + time5(pred.from_time) + '–' + time5(pred.to_time); }
+  else { badge = '<span class="t3-badge none">окно прошло</span>'; time = 'ждём новый прогноз'; }
+  const conf = Math.round((pred.confidence || 0) * 100);
+  return '<div class="t3-item">' +
+    '<div class="t3-row' + evTintClass(thread) + '" onclick="top3Open(\'' + st.id + '\')">' +
+    '<span class="t3-logo">' + stationLogo(st) + '</span>' +
+    '<span class="t3-main"><span class="t3-name">' + escapeHtml(st.name || 'АЗС') + '</span>' +
+    '<span class="t3-addr">' + escapeHtml(st.address || '') + '</span>' +
+    '<span class="t3-fuels">' + top3FuelChips(o) + '</span></span>' +
+    '<span class="t3-right">' + badge + '<span class="t3-time">' + time + ' · ' + conf + '%</span></span>' +
+    '</div>' +
+    top3ThreadHtml(thread) +
+    '</div>';
+}
+// Строка страницы «сейчас»: бейдж «есть сейчас», время последней отметки о пополнении.
+// Ветка-треда ниже — та же, что у окон: видно, что именно и когда пришло.
+function top3NowRowHtml(st, o, rest, thread) {
+  let time;
+  if (rest && rest.length) {
+    const d = new Date(rest[0].t);
+    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    time = 'пополнение в ' + hm + (rest.length > 1 ? ' и ещё ' + (rest.length - 1) + ' в ленте' : '');
+  } else {
+    time = 'факт наличия · без свежих привозов';
+  }
+  return '<div class="t3-item">' +
+    '<div class="t3-row' + evTintClass(thread) + '" onclick="top3Open(\'' + st.id + '\')">' +
+    '<span class="t3-logo">' + stationLogo(st) + '</span>' +
+    '<span class="t3-main"><span class="t3-name">' + escapeHtml(st.name || 'АЗС') + '</span>' +
+    '<span class="t3-addr">' + escapeHtml(st.address || '') + '</span>' +
+    '<span class="t3-fuels">' + top3FuelChips(o) + '</span></span>' +
+    '<span class="t3-right"><span class="t3-badge now">есть сейчас</span><span class="t3-time">' + time + '</span></span>' +
+    '</div>' +
+    top3ThreadHtml(thread) +
+    '</div>';
+}
+function renderTop3() {
+  const pageNow = document.getElementById('top3PageNow');
+  const pageLater = document.getElementById('top3PageLater');
+  if (!pageNow || !pageLater) return;
+  const last = getLastObservations();
+  const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  const items = [];
+  for (const st of cityStationList()) {
+    const o = last[st.id];
+    const pred = pickPrediction(st.id, o);
+    if (!pred) continue;
+    const f = Number(String(pred.from_time).slice(0, 2)) * 60 + Number(String(pred.from_time).slice(3, 5));
+    const t = Number(String(pred.to_time).slice(0, 2)) * 60 + Number(String(pred.to_time).slice(3, 5));
+    items.push({ st: st, o: o, pred: pred, key: winSortKey(pred), open: pred.target_date === today && nowM >= f && nowM <= t });
+  }
+  items.sort((a, b) => a.key - b.key);
+  // события по станциям за то же 6-часовое окно, что и лента: источник + народ
+  const since6 = Date.now() - 6 * 3600 * 1000;
+  const evBySt = {};
+  for (const e of allWaveEvents) {
+    const t = new Date(e.detected_at).getTime();
+    if (t < since6) continue;
+    const arr = evBySt[e.station_id] = evBySt[e.station_id] || [];
+    arr.push({ kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone', fuel: e.fuel_type, t: t });
+  }
+  for (const f of allFeedback) {
+    const t = new Date(f.created_at).getTime();
+    if (t < since6) continue;
+    const arr = evBySt[f.station_id] = evBySt[f.station_id] || [];
+    if (f.feedback_type === 'available') arr.push({ kind: 'folk_yes', fuel: f.fuel_type, t: t });
+    else if (f.feedback_type === 'unavailable') arr.push({ kind: 'folk_no', fuel: f.fuel_type, t: t });
+    else if (f.feedback_type === 'delivery') arr.push({ kind: 'delivery', t: t });
+    else if (f.feedback_type === 'queue') arr.push({ kind: 'queue', q: f.queue_size, t: t });
+    else if (f.feedback_type === 'in_queue') arr.push({ kind: 'queue_live', t: t });
+  }
+  for (const k of Object.keys(evBySt)) evBySt[k].sort((a, b) => b.t - a.t);
+  // «Сейчас» — по активности: топливо ЕСТЬ сейчас (достоверное) + отметки о пополнении
+  // из ленты за 6 ч (источник: fuel_restored; народ: привезли / топливо есть).
+  // Сортировка по свежести последней отметки пополнения. В спокойные недели
+  // привозов не бывает вовсе — тогда добираем станциями просто с наличием,
+  // но с честной пометкой «без свежих привозов», чтобы страница не пустовала.
+  const restBySt = {};
+  for (const id of Object.keys(evBySt)) {
+    const evs = evBySt[id].filter(e => e.kind === 'restored' || e.kind === 'delivery' || e.kind === 'folk_yes');
+    if (evs.length) restBySt[id] = evs; // evBySt уже отсортирован по убыванию времени
+  }
+  const nowCand = [];
+  for (const st of cityStationList()) {
+    const o = last[st.id];
+    if (!availTrustworthy(o)) continue; // фильтр блефа: несвежее/подозрительное наличие не считаем
+    if (o.fuel_95_status !== true && o.fuel_92_status !== true && o.diesel_status !== true) continue;
+    const rest = restBySt[st.id] || null;
+    nowCand.push({
+      st: st, o: o, rest: rest,
+      lastT: rest ? rest[0].t : 0,
+      n: rest ? rest.length : 0,
+      fm: (o.data_freshness_minutes === null || o.data_freshness_minutes === undefined) ? 1e9 : o.data_freshness_minutes
+    });
+  }
+  nowCand.sort((a, b) => ((b.n > 0) - (a.n > 0)) || (b.lastT - a.lastT) || (a.fm - b.fm));
+  const nowList = nowCand.slice(0, 3);
+  const laterList = items.filter(it => !it.open && it.key < 1e8).slice(0, 3);
+  // активных мало — ниже них прозрачное окошко с тем, что было здесь раньше:
+  // ближайшие окна возврата по прогнозам (активные станции не дублируем)
+  const winList = items.filter(it => it.key < 1e8 && !nowList.some(n => n.st.id === it.st.id)).slice(0, 3);
+  const subHtml = winList.length
+    ? '<div class="t3-sub"><div class="t3-sub-t">Ближайшие окна возврата · по прогнозу</div>' +
+      winList.map(it => top3RowHtml(it.st, it.o, it.pred, (evBySt[it.st.id] || []).slice(0, 2))).join('') + '</div>'
+    : '';
+  const nowHtml = nowList.map(it => top3NowRowHtml(it.st, it.o, it.rest, (evBySt[it.st.id] || []).slice(0, 3))).join('');
+  pageNow.innerHTML = (nowHtml || (subHtml ? '' : '<div class="t3-empty">Сейчас ни у одной АЗС города нет подтверждённого топлива. Свайпни к «потом» — там ближайшие окна возврата.</div>')) + subHtml;
+  pageLater.innerHTML = laterList.length
+    ? laterList.map(it => top3RowHtml(it.st, it.o, it.pred, (evBySt[it.st.id] || []).slice(0, 3))).join('')
+    : '<div class="t3-empty">Ближайших окон пока нет — прогнозы копятся. Загляни позже или открой «куда ехать».</div>';
+  // свайп по блоку: touch-action:pan-y не отдаёт жест горизонтальному пейджеру
+  if (!top3Bound) {
+    top3Bound = true;
+    const vp = document.getElementById('top3View');
+    const trackEl = document.getElementById('top3Track');
+    let sx = 0, sy = 0, dx = 0, active = false;
+    vp.addEventListener('pointerdown', e => { sx = e.clientX; sy = e.clientY; dx = 0; active = true; trackEl.classList.add('drag'); });
+    vp.addEventListener('pointermove', e => {
+      if (!active) return;
+      dx = e.clientX - sx;
+      if (Math.abs(dx) < Math.abs(e.clientY - sy)) { dx = 0; return; } // вертикаль — это скролл панели
+      trackEl.style.transform = 'translateX(' + (-top3State * vp.clientWidth + dx) + 'px)';
+    });
+    const finish = () => {
+      if (!active) return;
+      active = false;
+      top3Dragged = Math.abs(dx) > 10;
+      trackEl.classList.remove('drag');
+      if (dx < -50 && top3State === 0) top3Go(1);
+      else if (dx > 50 && top3State === 1) top3Go(0);
+      else top3Go(top3State);
+    };
+    vp.addEventListener('pointerup', finish);
+    vp.addEventListener('pointercancel', finish);
   }
 }
 function renderNow() {
@@ -4096,6 +4449,7 @@ function renderNow() {
   updateMapPlate();
   renderHero();
   renderPulse();
+  renderTop3();
   ensureMiniMap();
   renderMiniMap();
   renderAccuracy();
