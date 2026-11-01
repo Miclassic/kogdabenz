@@ -591,6 +591,33 @@ body { overflow:hidden; }
 .st-ev-t { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; color:#14213d; margin-bottom:6px; }
 .st-ev-t .ic { color:#2465ee; width:14px; height:14px; }
 .st-ev .t3-thread { margin-left:6px; border-left-color:#dfe8f2; }
+/* === КогдаБенз Score (этап 4): плитки паспорта в карточке и окно паспорта === */
+.sc-plate { margin-top:8px; padding:10px 10px 8px; border-radius:16px; background:linear-gradient(135deg,#f6f9ff,#f4fbf7); border:1px solid #e3ecf5; }
+.sc-head { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; color:#14213d; margin-bottom:6px; }
+.sc-head .ic { color:#2465ee; width:14px; height:14px; }
+.sc-head small { margin-left:auto; color:#93a1b8; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
+.sc-tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.sc-tile { padding:8px 6px; border-radius:12px; background:#fff; border:1px solid #e8edf7; text-align:center; cursor:pointer; min-width:0; }
+.sc-tile small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sc-tile b { display:block; margin-top:2px; font-size:16px; font-weight:900; letter-spacing:-.5px; }
+.sc-tile i { display:block; margin-top:1px; font-style:normal; font-size:8px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sc-tile.e0 b { color:#93a1b8; } .sc-tile.e0 i { color:#93a1b8; }
+.sc-tile.e1 b { color:#7487a7; } .sc-tile.e1 i { color:#c26a2a; }
+.sc-tile.e2 b { color:#33445f; } .sc-tile.e2 i { color:#2465ee; }
+.sc-tile.e3 b { color:#12855c; } .sc-tile.e3 i { color:#12855c; }
+.sc-pop { width:min(340px, calc(100vw - 32px)); max-height:86dvh; }
+.sc-row { margin-top:8px; padding:10px; border-radius:14px; background:#f8fafc; border:1px solid #e6ebf4; }
+.sc-row.on { background:#e7f0ff; border-color:#bcd4ff; }
+.sc-row-t { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:850; }
+.sc-row-t b.ml { margin-left:auto; font-size:15px; font-weight:900; letter-spacing:-.5px; }
+.sc-ev { font-size:8.5px; font-weight:800; padding:3px 7px; border-radius:99px; }
+.sc-ev.e0 { background:#f2f4f9; color:#7c89a0; } .sc-ev.e1 { background:#fff2e8; color:#c26a2a; } .sc-ev.e2 { background:#e7f0ff; color:#2465ee; } .sc-ev.e3 { background:#e5f8ef; color:#12855c; }
+.sc-cmp { margin-top:6px; display:flex; flex-direction:column; gap:4px; }
+.sc-cmp-row { display:flex; align-items:center; gap:6px; }
+.sc-cmp-row span { flex:0 0 92px; color:#71809c; font-size:9px; font-weight:700; }
+.sc-cmp-row i { height:6px; border-radius:99px; min-width:3px; background:#397cff; }
+.sc-cmp-row b { margin-left:auto; font-size:9.5px; font-weight:800; color:#33445f; }
+.sc-meta { margin-top:6px; color:#7485a0; font-size:9px; font-weight:700; }
 /* панель 2: блок со своей прокруткой. Раньше здесь был flex + overflow:hidden:
    высокая карточка «Пульс города» сжималась flex-ом до полоски и обрезалась,
    а прокрутка была запрещена. Блок не сжимает детей, скролл живой. */
@@ -1412,6 +1439,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="hello-pop mail-pop" id="mailPop"></div>
   <div class="hello-back" id="adviceBack" onclick="closeAdvicePop()"></div>
   <div class="hello-pop advice-pop" id="advicePop"></div>
+  <div class="hello-back" id="scoreBack" onclick="closeScorePop()"></div>
+  <div class="hello-pop sc-pop" id="scorePop"></div>
   <div class="shadow-card" id="shadowCard"></div>
 </div>
 <script>
@@ -1476,6 +1505,7 @@ document.addEventListener('visibilitychange', () => {
 });
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let allQueueEvents = [];
+let allScores = [], scoreMap = {};
 let allEvents7 = [];
 let allWaveEvents = [];
 let lastWaveStats = null;
@@ -2527,6 +2557,62 @@ function workStrip(obs) {
   else { txt = 'источник молчит о станции'; }
   return '<div class="dg-strip chip3 tap why-tap" style="margin:0 0 10px" onclick="openWhyChip(this,\'work\')">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
 }
+// === КогдаБенз Score (этап 4): паспорт на сайте ===
+// Теневая таблица score_shadow (ночной скорер): Score по связкам домашнего бокса.
+// Уровни доказательности: none — недостаточно данных (цифру НЕ показываем),
+// forming/stable/strong — растущая доказательность. Score не оценивает бензин
+// или честность владельца — только доверие к сведениям КогдаБенз по топливу.
+const SC_EV = { none: ['e0', 'недостаточно данных'], forming: ['e1', 'формируется'], stable: ['e2', 'устойчивый'], strong: ['e3', 'высокая доказательность'] };
+function scoreRow(stationId, fuel) { return scoreMap[stationId + '|' + fuel] || null; }
+function scoreTileHtml(stationId, fuel, label) {
+  const r = scoreRow(stationId, fuel);
+  const ev = r ? (SC_EV[r.evidence] || SC_EV.none) : SC_EV.none;
+  const num = (r && r.evidence !== 'none') ? r.score : '—';
+  return '<div class="sc-tile ' + ev[0] + '" onclick="openScorePop(\'' + stationId + '\',\'' + fuel + '\')"><small>' + label + '</small><b>' + num + '</b><i>' + ev[1] + '</i></div>';
+}
+function scorePlateHtml(station) {
+  if (!scoreRow(station.id, '95') && !scoreRow(station.id, '92') && !scoreRow(station.id, 'diesel')) return '';
+  return '<div class="sc-plate"><div class="sc-head">' + icon('i-spark', 'ic-s') + 'КогдаБенз Score · надёжность данных<small>тап — паспорт</small></div><div class="sc-tiles">' +
+    scoreTileHtml(station.id, '95', 'АИ-95') + scoreTileHtml(station.id, '92', 'АИ-92') + scoreTileHtml(station.id, 'diesel', 'дизель') +
+    '</div></div>';
+}
+function openScorePop(stationId, fuel) {
+  const pop = document.getElementById('scorePop'); const back = document.getElementById('scoreBack');
+  if (!pop || !back) return;
+  const st = allStations.find(s => s.id === stationId);
+  const CMP = [
+    ['confirm', 'независимые подтверждения', 25],
+    ['match', 'совпадение с реальностью', 30],
+    ['fresh', 'актуальность', 20],
+    ['stable', 'стабильность данных', 15],
+    ['srcq', 'качество источника', 10]
+  ];
+  let body = '';
+  for (const f of ['95', '92', 'diesel']) {
+    const r = scoreRow(stationId, f);
+    if (!r) continue;
+    const ev = SC_EV[r.evidence] || SC_EV.none;
+    const c = r.comp || {};
+    const bars = CMP.map(m => {
+      const v = Number(c[m[0]]) || 0;
+      return '<div class="sc-cmp-row"><span>' + m[1] + '</span><i style="width:' + Math.round(100 * v / m[2]) + '%"></i><b>' + v + '/' + m[2] + '</b></div>';
+    }).join('');
+    body += '<div class="sc-row' + (f === fuel ? ' on' : '') + '"><div class="sc-row-t">' + fuelLabel(f) +
+      '<span class="sc-ev ' + ev[0] + '">' + ev[1] + '</span><b class="ml">' + (r.evidence === 'none' ? '—' : r.score) + '/100</b></div>' +
+      '<div class="sc-cmp">' + bars + '</div>' +
+      '<div class="sc-meta">' + r.events_n + ' событий за оценкой · подтверждений: ' + (c.n_confirm || 0) + ' · опровержений: ' + (c.n_refute || 0) + ' · прогнозов проверено: ' + (c.n_verified || 0) + '</div></div>';
+  }
+  pop.innerHTML = '<div class="hello-title">Паспорт АЗС · ' + escapeHtml(st ? st.name || 'АЗС' : 'АЗС') + '</div>' +
+    '<div class="help-lead" style="margin:4px 0 8px">Score отвечает на один вопрос: насколько можно доверять сведениям КогдаБенз об этой станции по каждому топливу. Он не оценивает качество бензина и честность владельца.</div>' +
+    body +
+    '<div class="recent">Score пересчитывается каждую ночь из пяти составляющих: независимые подтверждения водителей и источника (25), совпадение прогнозов с реальностью по верификатору (30), актуальность последнего факта (20), стабильность данных без «миганий» (15), надёжность источника (10). Уровень «недостаточно данных» — меньше 10 событий: цифру не показываем, чтобы не обманывать.</div>' +
+    '<button class="cta-btn" style="width:100%;margin-top:8px" onclick="closeScorePop()">Понятно</button>';
+  pop.classList.add('open'); back.classList.add('open');
+}
+function closeScorePop() {
+  const pop = document.getElementById('scorePop'); const back = document.getElementById('scoreBack');
+  if (pop) pop.classList.remove('open'); if (back) back.classList.remove('open');
+}
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const graph = createGraph(station.id);
@@ -2541,6 +2627,7 @@ function stationCard(station, obs, pred) {
     '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
     tgStrip(station) +
     workStrip(obs) +
+    scorePlateHtml(station) +
     '<div class="fuels">' +
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
@@ -6205,7 +6292,8 @@ async function start() {
       { all: false, path: '/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000', set: r => { queueEpisodes = r || []; } },
       { all: true, orderCol: 'id', path: '/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at', set: r => { allQueueEvents = r || []; } },
       { all: false, path: '/rest/v1/events?detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,detected_at,source&order=detected_at.desc&limit=3000', set: r => { allEvents7 = r || []; } },
-      { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } }
+      { all: false, path: '/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString() + '&select=station_id,event_type,fuel_type,detected_at&limit=5000', set: r => { allWaveEvents = r || []; } },
+      { all: false, path: '/rest/v1/score_shadow?select=station_id,fuel_type,score,evidence,events_n,comp&limit=500', set: r => { allScores = r || []; scoreMap = {}; for (const x of allScores) scoreMap[x.station_id + '|' + x.fuel_type] = x; } }
     ];
     // Все 15 летят одновременно; каждый кусок применяется сразу по приходу —
     // список оживает по мере доезда, а не когда весь конвой дотащится.

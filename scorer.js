@@ -68,10 +68,10 @@ async function main() {
   const J = {};
   for (const r of jRows) {
     const k = r.station_id + '|' + r.fuel_type;
-    const a = J[k] = J[k] || { cw: 0, rw: 0, claims: 0, confirms: 0, lastT: 0 };
+    const a = J[k] = J[k] || { cw: 0, rw: 0, rf: 0, claims: 0, confirms: 0, lastT: 0 };
     if (r.role === 'claim') a.claims++;
     else if (r.role === 'confirm') { a.confirms++; a.cw += Number(r.weight) || 0; }
-    else if (r.role === 'refute') a.rw += Number(r.weight) || 0;
+    else if (r.role === 'refute') { a.rw += Number(r.weight) || 0; a.rf++; }
     const t = new Date(r.created_at).getTime();
     if (r.role !== 'refute' && t > a.lastT) a.lastT = t;
   }
@@ -122,7 +122,7 @@ async function main() {
         score: confirm + match + fresh + stable + srcq,
         evidence: evidence,
         events_n: eventsN,
-        comp: { confirm: confirm, match: match, fresh: fresh, stable: stable, srcq: srcq },
+        comp: { confirm: confirm, match: match, fresh: fresh, stable: stable, srcq: srcq, n_confirm: j.confirms, n_refute: j.rf, n_verified: v.n },
         computed_at: new Date().toISOString()
       });
     }
