@@ -662,6 +662,8 @@ body { overflow:hidden; }
 .cta-btn.big > .ic:first-child { width:17px; height:17px; }
 .cta-btn.ghost.big { background:#fff; border:1px solid #e6ebf4; color:#33445f; }
 .cta-btn.ghost.big > .ic:first-child { color:#2465ee; }
+.cta-btn.ghost.big.tg-onbtn { background:#e5f8ef; border-color:#bfe8d4; color:#12855c; }
+.cta-btn.ghost.big.tg-onbtn > .ic:first-child { color:#15976d; }
 .card-maprow { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:16px; background:#f7f9fc; margin-bottom:8px; cursor:pointer; }
 .cmr-txt { flex:1; min-width:0; }
 .cmr-txt b { display:block; font-size:12px; font-weight:900; }
@@ -2357,6 +2359,10 @@ async function refreshTgLink() {
     const st = allStations.find(s => s.id === el.getAttribute('data-tgstrip'));
     if (st) el.outerHTML = tgStrip(st);
   });
+  document.querySelectorAll('[data-tgbtn]').forEach(el => {
+    const st = allStations.find(s => s.id === el.getAttribute('data-tgbtn'));
+    if (st) el.outerHTML = tgButtonHtml(st);
+  });
   // открытое окно «Написать нам» сразу узнаёт новый статус связки
   const mailBackEl = document.getElementById('mailBack');
   const mailPopEl = document.getElementById('mailPop');
@@ -2867,6 +2873,22 @@ function scoreGaugeHtml(station, focusFuel) {
   const len = Math.round(125.7 * sc / 100 * 10) / 10;
   return '<span class="sc-gauge" onclick="' + open + '"><svg viewBox="0 0 100 56"><path class="g-track" d="M10 50a40 40 0 0 1 80 0"/><path class="g-val" d="M10 50a40 40 0 0 1 80 0" style="stroke:' + col + ';stroke-dasharray:' + len + ' 200"/></svg><b style="color:' + col + '">' + sc + '<span>/100</span></b><i style="color:' + col + '">' + lbl + '</i></span>';
 }
+// === вторичная кнопка карточки: текст по состоянию «сердечко + бот» ===
+// сердечко горит и бот подключён — констатируем: АЗС добавлена, уведомления
+// включены (тап открывает чат бота). Сердечко без бота — зовём связаться.
+// Без сердечка — прежний зов «Напомнить в Telegram» с подсказкой про сердечко.
+function tgButtonHtml(station) {
+  const fav = isFavorite(station.id);
+  if (fav && tgLinked) return '<button class="cta-btn ghost big tg-onbtn" data-tgbtn="' + station.id + '" onclick="tgOpen()">' + icon('i-check') + 'АЗС в избранном · уведомления включены' + icon('i-arrow') + '</button>';
+  if (fav) return '<button class="cta-btn ghost big" data-tgbtn="' + station.id + '" onclick="tgConnect()">' + icon('i-tg') + 'АЗС в избранном · включите уведомления' + icon('i-arrow') + '</button>';
+  return '<button class="cta-btn ghost big" data-tgbtn="' + station.id + '" onclick="tgNotifyTap(this,\'' + station.id + '\')">' + icon('i-tg') + 'Напомнить в Telegram' + icon('i-arrow') + '</button>';
+}
+function refreshTgButton(stationId) {
+  const btn = document.querySelector('[data-tgbtn="' + stationId + '"]');
+  if (!btn) return;
+  const st = allStations.find(s => s.id === stationId);
+  if (st) btn.outerHTML = tgButtonHtml(st);
+}
 function tgNotifyTap(btn, stationId) {
   if (tgLinked) { tgOpen(); return; }
   if (!isFavorite(stationId)) {
@@ -3003,7 +3025,7 @@ function stationCard(station, obs, pred) {
     '</div>' +
     '<div class="card-btns">' +
     '<button class="cta-btn big" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-nav') + 'Построить маршрут' + icon('i-arrow') + '</button>' +
-    '<button class="cta-btn ghost big" onclick="tgNotifyTap(this,\'' + station.id + '\')">' + icon('i-tg') + 'Напомнить в Telegram' + icon('i-arrow') + '</button>' +
+    tgButtonHtml(station) +
     '</div>' +
     '<div class="card-maprow" onclick="cardMapGo(\'' + station.id + '\')"><div class="cmr-txt"><b>На карте</b><small>Смотреть окрестности</small></div><div class="card-map-thumb"><div id="cardMapBox" class="card-map-box"></div></div></div>' +
     stationTimelineHtml(station, obs) +
@@ -6183,6 +6205,7 @@ function toggleFavoriteById(id) {
   else favs.push(id);
   localStorage.setItem('favorites', JSON.stringify(favs));
   syncFavorites();
+  refreshTgButton(id);
 }
 // меню действий вокруг капли (стиль The Sims): три синих чипа
 // слева / справа / снизу на равных расстояниях от капли
