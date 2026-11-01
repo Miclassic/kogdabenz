@@ -633,25 +633,25 @@ body { overflow:hidden; }
 .f-drop { color:#397cff; display:block; margin:0 auto 2px; }
 .f-drop .ic { width:16px; height:16px; }
 .f-tile b { display:block; font-size:12px; font-weight:900; letter-spacing:-.3px; }
-.f-st { display:flex; align-items:center; justify-content:center; gap:4px; margin-top:2px; font-size:10px; font-weight:800; }
+.f-st { display:flex; align-items:center; justify-content:center; gap:4px; margin-top:2px; font-size:9px; font-weight:800; white-space:nowrap; }
 .f-st.yes { color:#12855c; } .f-st.no { color:#c2403f; } .f-st.unknown { color:#c2902a; } .f-st.none { color:#7c89a0; }
 .f-st .ic { width:12px; height:12px; }
-.f-pill { display:block; margin-top:5px; padding:4px 6px; border-radius:9px; font-size:9px; font-weight:800; }
+.f-pill { display:block; margin-top:5px; padding:4px 4px; border-radius:9px; font-size:8.5px; font-weight:800; white-space:nowrap; }
 .f-pill.yes { background:#e5f8ef; color:#12855c; }
 .f-pill.no { background:#fdecec; color:#c2403f; }
 .f-pill.warn { background:#fff2e8; color:#c26a2a; }
 .f-pill.gray { background:#f2f4f9; color:#7c89a0; }
-.card-facts { display:grid; grid-template-columns:1.15fr 1fr 1fr; padding:8px 4px; border-radius:14px; background:#f7f9fc; margin-bottom:8px; }
-.cf { display:flex; gap:6px; padding:2px 8px; min-width:0; border-left:1px solid #e6ebf4; }
+.card-facts { display:grid; grid-template-columns:1.1fr 1fr 1fr; padding:8px 6px; border-radius:14px; background:linear-gradient(165deg,#f8fafd,#f4f7fc); border:1px solid #edf1f8; margin-bottom:8px; }
+.cf { display:flex; gap:6px; padding:2px 8px; min-width:0; border-left:1px solid rgba(20,33,61,.07); }
 .cf:first-child { border-left:0; }
 .cf-ico { flex:0 0 auto; width:26px; height:26px; border-radius:9px; background:#e7f0ff; color:#2465ee; display:grid; place-items:center; }
 .cf-ico .ic { width:13px; height:13px; }
 .cf div { min-width:0; }
-.cf small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; }
-.cf b { display:block; margin-top:1px; color:#14213d; font-size:10.5px; font-weight:850; line-height:1.3; }
+.cf small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cf b { display:block; margin-top:1px; color:#14213d; font-size:10px; font-weight:850; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cf b.g { color:#12855c; } .cf b.y { color:#c2902a; } .cf b.r { color:#c2403f; }
-.cf .cf-sub { display:block; color:#7485a0; font-size:8.5px; font-weight:700; }
-.cf-prices { font-size:9.5px !important; }
+.cf .cf-sub { display:block; color:#7485a0; font-size:8.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cf-prices { font-size:9.5px !important; line-height:1.4; }
 .card-btns { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
 .cta-btn.big { padding:12px 14px; font-size:12px; border-radius:16px; justify-content:space-between; }
 .cta-btn.big > .ic:first-child { width:17px; height:17px; }
@@ -664,12 +664,12 @@ body { overflow:hidden; }
 .card-map-thumb { position:relative; flex:0 0 46%; height:64px; border-radius:12px; overflow:hidden; background:#eef2f8; }
 .card-map-thumb .card-map-box { position:absolute; inset:0; }
 .card-map-thumb .card-st3d, .card-map-thumb .card-halo { display:none; }
-.card-map-thumb .card-pin { width:24px; height:30px; }
+.card-map-thumb .card-pin { width:24px; height:30px; transform:translateY(45%); }
 .card-map-thumb .card-pin .mpin { width:16px; height:16px; margin-left:-8px; border-width:2px; }
 .card-map-thumb .card-pin .mpin .ic { width:9px; height:9px; }
 .card-ev { display:flex; gap:10px; padding:10px; border-radius:16px; background:#f7f9fc; margin-bottom:8px; }
-.ev-head { flex:0 0 32%; min-width:0; }
-.ev-head b { display:block; font-size:12px; font-weight:900; }
+.ev-head { flex:0 0 34%; min-width:0; }
+.ev-head b { display:block; font-size:11.5px; font-weight:900; letter-spacing:-.2px; }
 .ev-head small { color:#7485a0; font-size:9px; font-weight:700; }
 .ev-tl { flex:1; display:flex; min-width:0; }
 .ev-node { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:2px; position:relative; text-align:center; }
@@ -693,7 +693,8 @@ body { overflow:hidden; }
 .g-val { fill:none; stroke-width:9; stroke-linecap:round; }
 .sc-gauge b { position:absolute; left:0; right:0; top:20px; text-align:center; font-size:20px; font-weight:900; letter-spacing:-1px; color:#14213d; }
 .sc-gauge b span { font-size:9px; font-weight:800; color:#93a1b8; letter-spacing:0; }
-.sc-gauge i { position:absolute; left:0; right:0; bottom:0; text-align:center; font-style:normal; font-size:8.5px; font-weight:800; }
+.sc-gauge i { position:absolute; left:-8px; right:-8px; bottom:0; text-align:center; font-style:normal; font-size:8px; font-weight:800; line-height:1.2; }
+.sc-gauge i span { display:block; font-size:7px; font-weight:700; opacity:.75; }
 /* вердикт-плашка: мгновенный ответ сверху карточки АЗС */
 .verdict { margin:0 0 10px; padding:12px 14px; border-radius:18px; }
 .verdict-t { font-size:15px; font-weight:900; letter-spacing:-.4px; line-height:1.25; }
@@ -2750,14 +2751,14 @@ function stationTimelineHtml(station, obs) {
     if (e.station_id !== station.id) continue;
     const t = new Date(e.detected_at).getTime();
     if (t < since) continue;
-    list.push({ t: t, kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone' });
+    list.push({ t: t, kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone', fuel: e.fuel_type });
   }
   for (const f of allFeedback) {
     if (f.station_id !== station.id) continue;
     const t = new Date(f.created_at).getTime();
     if (t < since) continue;
-    if (f.feedback_type === 'available') list.push({ t: t, kind: 'folk_yes' });
-    else if (f.feedback_type === 'unavailable') list.push({ t: t, kind: 'folk_no' });
+    if (f.feedback_type === 'available') list.push({ t: t, kind: 'folk_yes', fuel: f.fuel_type });
+    else if (f.feedback_type === 'unavailable') list.push({ t: t, kind: 'folk_no', fuel: f.fuel_type });
     else if (f.feedback_type === 'delivery') list.push({ t: t, kind: 'delivery' });
     else if (f.feedback_type === 'queue' || f.feedback_type === 'in_queue') list.push({ t: t, kind: 'queue' });
   }
@@ -2765,19 +2766,20 @@ function stationTimelineHtml(station, obs) {
   list.sort((a, b) => a.t - b.t);
   const nodes = list.slice(-3);
   const META = {
-    restored: ['i-check', 'g', 'Топливо вернулось'],
-    gone: ['i-cross', 'r', 'Топливо закончилось'],
-    folk_yes: ['i-check', 'g', 'Народ: топливо есть'],
-    folk_no: ['i-cross', 'r', 'Народ: топлива нет'],
-    delivery: ['i-truck', 'b', 'Народ: привезли'],
-    queue: ['i-queue', 'o', 'Народ: очередь'],
+    restored: ['i-check', 'g', 'вернулся'],
+    gone: ['i-cross', 'r', 'закончился'],
+    folk_yes: ['i-check', 'g', 'есть · народ'],
+    folk_no: ['i-cross', 'r', 'нет · народ'],
+    delivery: ['i-truck', 'b', 'привезли · народ'],
+    queue: ['i-queue', 'o', 'очередь · народ'],
     update: ['i-check', 'g', 'Обновление данных']
   };
   const word = nodes.length === 1 ? '1 изменение' : nodes.length < 5 ? nodes.length + ' изменения' : nodes.length + ' изменений';
   const body = nodes.length
     ? nodes.map(n => {
         const m = META[n.kind]; const d = new Date(n.t);
-        return '<span class="ev-node"><i class="ev-ico ' + m[1] + '"><svg class="ic ic-s"><use href="#' + m[0] + '"/></svg></i><b>' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + '</b><span>' + m[2] + '</span></span>';
+        const cap = n.fuel ? fuelLabel(n.fuel) + ' ' + m[2] : m[2];
+        return '<span class="ev-node"><i class="ev-ico ' + m[1] + '"><svg class="ic ic-s"><use href="#' + m[0] + '"/></svg></i><b>' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + '</b><span>' + cap + '</span></span>';
       }).join('')
     : '<span class="ev-quiet">за сутки изменений не было</span>';
   return '<div class="card-ev"><div class="ev-head"><b>События за 24 ч</b><small>' + (nodes.length ? word : 'тихо') + '</small></div><div class="ev-tl">' + body + '</div></div>';
@@ -2790,11 +2792,11 @@ function scoreGaugeHtml(station, focusFuel) {
   }
   const open = 'openScorePop(\'' + station.id + '\',\'' + rf + '\')';
   if (!r || r.evidence === 'none') {
-    return '<span class="sc-gauge" onclick="' + open + '"><svg viewBox="0 0 100 56"><path class="g-track" d="M10 50a40 40 0 0 1 80 0"/></svg><b>—<span>/100</span></b><i style="color:#93a1b8">данных мало</i></span>';
+    return '<span class="sc-gauge" onclick="' + open + '"><svg viewBox="0 0 100 56"><path class="g-track" d="M10 50a40 40 0 0 1 80 0"/></svg><b>—<span>/100</span></b><i style="color:#93a1b8">данных мало<span>&nbsp;</span></i></span>';
   }
   const sc = r.score;
   const col = sc < 35 ? '#ef5350' : sc < 60 ? '#f5a05a' : sc < 80 ? '#397cff' : '#19b77a';
-  const lbl = sc < 35 ? 'низкая уверенность' : sc < 60 ? 'средняя уверенность' : sc < 80 ? 'хорошая уверенность' : 'высокая уверенность';
+  const lbl = (sc < 35 ? 'низкая' : sc < 60 ? 'средняя' : sc < 80 ? 'хорошая' : 'высокая') + '<span>уверенность</span>';
   const len = Math.round(125.7 * sc / 100 * 10) / 10;
   return '<span class="sc-gauge" onclick="' + open + '"><svg viewBox="0 0 100 56"><path class="g-track" d="M10 50a40 40 0 0 1 80 0"/><path class="g-val" d="M10 50a40 40 0 0 1 80 0" style="stroke:' + col + ';stroke-dasharray:' + len + ' 200"/></svg><b style="color:' + col + '">' + sc + '<span>/100</span></b><i style="color:' + col + '">' + lbl + '</i></span>';
 }
@@ -2891,8 +2893,8 @@ function stationCard(station, obs, pred) {
     '<div class="verdict ' + vCls + '"><span class="v-ico">' + icon(vIco) + '</span><span class="v-txt"><span class="verdict-t">' + escapeHtml(vTitle) + '</span><span class="verdict-s">' + escapeHtml(vSub) + '</span></span></div>' +
     '<div class="f-tiles">' + tile('АИ-92', 'fuel_92_status') + tile('АИ-95', 'fuel_95_status') + tile('Дизель', 'diesel_status') + '</div>' +
     '<div class="card-facts">' +
-    '<div class="cf"><span class="cf-ico">' + icon('i-rub', 'ic-s') + '</span><div><small>Цены (последние)</small><b class="cf-prices">АИ-92 ' + pr('price_92') + '<br>АИ-95 ' + pr('price_95') + '<br>Дизель ' + pr('price_diesel') + '</b></div></div>' +
-    '<div class="cf"><span class="cf-ico">' + icon('i-queue', 'ic-s') + '</span><div><small>Вероятность очереди</small><b class="' + qCls + '">' + qVal + '</b><span class="cf-sub">' + escapeHtml(qSub) + '</span></div></div>' +
+    '<div class="cf"><span class="cf-ico">' + icon('i-rub', 'ic-s') + '</span><div><small>Цены</small><b class="cf-prices">92 · ' + pr('price_92') + '<br>95 · ' + pr('price_95') + '<br>ДТ · ' + pr('price_diesel') + '</b></div></div>' +
+    '<div class="cf"><span class="cf-ico">' + icon('i-queue', 'ic-s') + '</span><div><small>Очередь</small><b class="' + qCls + '">' + qVal + '</b><span class="cf-sub">' + escapeHtml(qSub) + '</span></div></div>' +
     '<div class="cf"><span class="cf-ico">' + icon('i-clock', 'ic-s') + '</span><div><small>Обновлено</small><b>' + upVal + '</b><span class="cf-sub">источник + народ</span></div></div>' +
     '</div>' +
     '<div class="card-btns">' +
