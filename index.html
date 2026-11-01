@@ -642,12 +642,11 @@ body { overflow:hidden; }
 .f-pill.warn { background:#fff2e8; color:#c26a2a; }
 .f-pill.gray { background:#f2f4f9; color:#7c89a0; }
 .card-facts { display:grid; grid-template-columns:1.1fr 1fr 1fr; padding:8px 6px; border-radius:14px; background:linear-gradient(165deg,#f8fafd,#f4f7fc); border:1px solid #edf1f8; margin-bottom:8px; }
-.cf { display:flex; gap:6px; padding:2px 8px; min-width:0; border-left:1px solid rgba(20,33,61,.07); }
+.cf { padding:4px 8px; min-width:0; border-left:1px solid rgba(20,33,61,.07); }
 .cf:first-child { border-left:0; }
-.cf-ico { flex:0 0 auto; width:26px; height:26px; border-radius:9px; background:#e7f0ff; color:#2465ee; display:grid; place-items:center; }
-.cf-ico .ic { width:13px; height:13px; }
 .cf div { min-width:0; }
-.cf small { display:block; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cf small { display:flex; align-items:center; gap:4px; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; overflow:hidden; }
+.cf small .ic { flex:0 0 auto; width:11px; height:11px; color:#2465ee; }
 .cf b { display:block; margin-top:1px; color:#14213d; font-size:10px; font-weight:850; line-height:1.35; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cf b.g { color:#12855c; } .cf b.y { color:#c2902a; } .cf b.r { color:#c2403f; }
 .cf .cf-sub { display:block; color:#7485a0; font-size:8.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -695,6 +694,28 @@ body { overflow:hidden; }
 .sc-gauge b span { font-size:9px; font-weight:800; color:#93a1b8; letter-spacing:0; }
 .sc-gauge i { position:absolute; left:-8px; right:-8px; bottom:0; text-align:center; font-style:normal; font-size:8px; font-weight:800; line-height:1.2; }
 .sc-gauge i span { display:block; font-size:7px; font-weight:700; opacity:.75; }
+/* народные отметки в карточке: стеклянная плашка с чипами фактов */
+.folk-card { padding:10px; border-radius:16px; background:linear-gradient(135deg,#f4fbf7,#f6f9ff); border:1px solid #dfe8f2; margin-bottom:8px; }
+.folk-head { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:850; color:#14213d; }
+.folk-head > .ic { color:#19b77a; width:14px; height:14px; flex:0 0 auto; }
+.folk-head small { color:#93a1b8; font-size:9px; font-weight:800; }
+.folk-add { margin-left:auto; flex:0 0 auto; border:0; border-radius:10px; padding:6px 10px; background:#fff; border:1px solid #dfe8f2; color:#2465ee; font-size:9.5px; font-weight:850; cursor:pointer; }
+.folk-row { margin-top:6px; display:flex; flex-wrap:wrap; align-items:center; gap:4px 6px; }
+.folk-ago { flex:0 0 auto; color:#7485a0; font-size:8.5px; font-weight:800; }
+.folk-chips { display:flex; flex-wrap:wrap; gap:4px; min-width:0; }
+.fk { display:inline-flex; align-items:center; gap:3px; font-style:normal; font-size:9px; font-weight:850; padding:4px 7px; border-radius:9px; }
+.fk .ic { width:10px; height:10px; }
+.fk.yes { background:#e5f8ef; color:#12855c; }
+.fk.no { background:#fdecec; color:#c2403f; }
+.fk.q { background:#fff2e8; color:#c26a2a; }
+.fk.inf { background:#e7f0ff; color:#2465ee; }
+.folk-comment { flex:1 1 100%; color:#5b6b86; font-size:9.5px; font-weight:600; font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.folk-quiet { margin-top:4px; color:#7485a0; font-size:9.5px; font-weight:700; line-height:1.4; }
+.folk-card .feedback-panel { margin-top:8px; }
+/* личная надёжность водителя в карточке «город живёт» */
+.life-rel { display:flex; align-items:center; gap:10px; margin-top:8px; padding:8px 10px; border-radius:14px; background:rgba(255,255,255,.10); border:1px solid rgba(160,200,255,.26); cursor:pointer; }
+.life-rel b { flex:0 0 auto; font-size:20px; font-weight:900; letter-spacing:-.5px; color:#fff; }
+.life-rel span { color:rgba(235,243,255,.72); font-size:9px; font-weight:700; line-height:1.35; }
 /* вердикт-плашка: мгновенный ответ сверху карточки АЗС */
 .verdict { margin:0 0 10px; padding:12px 14px; border-radius:18px; }
 .verdict-t { font-size:15px; font-weight:900; letter-spacing:-.4px; line-height:1.25; }
@@ -1929,6 +1950,45 @@ function myImpact() {
   }
   return { mine: mine, coVotes: coVotes, srcMatch: srcMatch, onSite: mine.filter(f => f.verified_on_site).length };
 }
+// === Этап 5 концепции: личная надёжность водителя из журнала свидетеля ===
+// Сравниваем отметки человека с независимыми свидетелями: народные голоса
+// других устройств в пределах часа и снимки источника в течение 2 часов
+// (строки confirm/refute в witness_journal со ссылкой на его заявление).
+let myRel = null;
+async function loadMyReliability() {
+  try {
+    const mine = await dbQuery('/rest/v1/witness_journal?source_kind=eq.folk&device_id=eq.' + encodeURIComponent(deviceId) + '&select=id,role,created_at&order=created_at.desc&limit=500');
+    const myClaims = mine.filter(r => r.role === 'claim');
+    const myWitness = mine.filter(r => r.role !== 'claim');
+    let conf = 0, ref = 0, srcConf = 0, folkConf = 0;
+    if (myClaims.length) {
+      const wit = await dbQuery('/rest/v1/witness_journal?linked_claim_id=in.(' + myClaims.map(c => c.id).join(',') + ')&select=role,weight,source_kind&limit=1000');
+      for (const w of wit) {
+        if (w.role === 'confirm') { conf += Number(w.weight) || 1; if (w.source_kind === 'source') srcConf++; else folkConf++; }
+        else if (w.role === 'refute') { ref += Number(w.weight) || 1; }
+      }
+    }
+    const judged = conf + ref;
+    myRel = {
+      claims: myClaims.length,
+      witnessed: myWitness.length,
+      confW: Math.round(conf * 10) / 10,
+      refW: Math.round(ref * 10) / 10,
+      srcConf: srcConf,
+      folkConf: folkConf,
+      pct: judged > 0 ? Math.round(100 * conf / judged) : null
+    };
+  } catch (e) { myRel = null; }
+}
+function myRelHtml() {
+  const r = myRel;
+  if (!r || !r.claims) return '<div class="life-rel"><b>—</b><span>ваша надёжность как источника<br>пока формируется — отметок ещё нет</span></div>';
+  const pct = r.pct !== null ? r.pct + '%' : '—';
+  const sub = r.pct !== null
+    ? 'отметок ' + r.claims + ' · подтверждено ' + r.confW + ' · опровергнуто ' + r.refW
+    : 'отметок ' + r.claims + ' · свидетелей пока нет — цифра формируется';
+  return '<div class="life-rel why-tap" onclick="openWhyChip(this,\'reliability\')"><b>' + pct + '</b><span>ваша надёжность как источника<br>' + sub + (r.witnessed ? '<br>сами подтвердили чужих отметок: ' + r.witnessed : '') + '</span></div>';
+}
 function lifeBars(days, series, colors) {
   const W = 300, H = 46, bw = 26, gap = (W - 7 * bw) / 8;
   const max = Math.max(1, ...series.flat());
@@ -1990,6 +2050,7 @@ function renderLifePop() {
     '<span class="rc-chip yes">' + icon('i-check', 'ic-s') + 'источник подтвердил ' + imp.srcMatch + '</span>' +
     '<span class="rc-chip info">' + icon('i-pin', 'ic-s') + 'с места ' + imp.onSite + '</span>' +
     '</div>' +
+    myRelHtml() +
     (imp.mine.length ? '<div class="hm-wrap" style="margin-top:8px"><div class="mini-cap" style="margin-bottom:4px">ваши отметки · 7 дней</div>' + lifeBars(days, [myS], ['#7c6dff']) + '</div>' : '') + '</div>' +
     '<div class="recent">Подтверждение водителями — когда кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС в пределах часа от вашей отметки. Подтверждение источником — когда в течение 2 часов после вашей отметки источник показал тот же статус. Это честные измеримые числа, без придуманных «просмотров».</div>' +
     '<button class="cta-btn" style="width:100%;margin-top:10px" onclick="closeLife()">Отлично</button>';
@@ -2822,6 +2883,39 @@ function cardMapGo(id) {
   };
   go();
 }
+// === народные отметки в карточке: чипы фактов за сутки + кнопка отметки ===
+function folkCardHtml(stationId) {
+  const since = Date.now() - 24 * 3600 * 1000;
+  const items = allFeedback.filter(f => f.station_id === stationId && new Date(f.created_at).getTime() >= since);
+  const btn = '<button class="folk-add" onclick="toggleFeedback(\'' + stationId + '\')">＋ Отметить</button>';
+  if (!items.length) {
+    return '<div class="folk-card"><div class="folk-head">' + icon('i-heart', 'ic-s') + '<b>Отметок водителей за 24 ч нет</b>' + btn + '</div>' +
+      '<div class="folk-quiet">Сообщите топливо или очередь первыми — город увидит сразу.</div>' +
+      feedbackPanel(stationId) + '</div>';
+  }
+  const batches = {};
+  for (const f of items) { const k = String(f.created_at).slice(0, 16); (batches[k] = batches[k] || []).push(f); }
+  const fuelShort = t => t === '92' ? 'АИ-92' : t === '95' ? 'АИ-95' : 'дизель';
+  const qShort = { small: '2–3', medium: '4–6', large: '7+', huge: '100+' };
+  const rowsHtml = Object.keys(batches).sort().reverse().slice(0, 2).map(k => {
+    const g = batches[k];
+    const min = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
+    const ago = min < 60 ? min + ' мин назад' : Math.round(min / 60) + ' ч назад';
+    const chips = [];
+    for (const f of g) if (f.feedback_type === 'available') chips.push('<i class="fk yes">' + icon('i-check', 'ic-s') + fuelShort(f.fuel_type) + '</i>');
+    for (const f of g) if (f.feedback_type === 'unavailable') chips.push('<i class="fk no">' + icon('i-cross', 'ic-s') + fuelShort(f.fuel_type) + '</i>');
+    for (const f of g) if (f.feedback_type === 'queue') chips.push('<i class="fk q">' + icon('i-queue', 'ic-s') + (qShort[f.queue_size] || 'очередь') + '</i>');
+    for (const f of g) if (f.feedback_type === 'delivery') chips.push('<i class="fk inf">' + icon('i-truck', 'ic-s') + 'привезли</i>');
+    for (const f of g) if (f.feedback_type === 'free') chips.push('<i class="fk yes">' + icon('i-check', 'ic-s') + 'свободно</i>');
+    for (const f of g) if (f.feedback_type === 'in_queue') chips.push('<i class="fk q">' + icon('i-queue', 'ic-s') + 'в очереди</i>');
+    const onSite = g.filter(f => f.verified_on_site).length;
+    const comment = (g.find(f => f.comment_text) || {}).comment_text || '';
+    return '<div class="folk-row"><span class="folk-ago">' + ago + (onSite ? ' · с места' : '') + '</span><span class="folk-chips">' + chips.join('') + '</span>' +
+      (comment ? '<span class="folk-comment">«' + escapeHtml(comment) + '»</span>' : '') + '</div>';
+  }).join('');
+  return '<div class="folk-card"><div class="folk-head">' + icon('i-heart', 'ic-s') + '<b>Отметки водителей</b><small>· 24 ч · ' + items.length + '</small>' + btn + '</div>' +
+    rowsHtml + feedbackPanel(stationId) + '</div>';
+}
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const trust = availTrustworthy(obs);
@@ -2893,9 +2987,9 @@ function stationCard(station, obs, pred) {
     '<div class="verdict ' + vCls + '"><span class="v-ico">' + icon(vIco) + '</span><span class="v-txt"><span class="verdict-t">' + escapeHtml(vTitle) + '</span><span class="verdict-s">' + escapeHtml(vSub) + '</span></span></div>' +
     '<div class="f-tiles">' + tile('АИ-92', 'fuel_92_status') + tile('АИ-95', 'fuel_95_status') + tile('Дизель', 'diesel_status') + '</div>' +
     '<div class="card-facts">' +
-    '<div class="cf"><span class="cf-ico">' + icon('i-rub', 'ic-s') + '</span><div><small>Цены</small><b class="cf-prices">92 · ' + pr('price_92') + '<br>95 · ' + pr('price_95') + '<br>ДТ · ' + pr('price_diesel') + '</b></div></div>' +
-    '<div class="cf"><span class="cf-ico">' + icon('i-queue', 'ic-s') + '</span><div><small>Очередь</small><b class="' + qCls + '">' + qVal + '</b><span class="cf-sub">' + escapeHtml(qSub) + '</span></div></div>' +
-    '<div class="cf"><span class="cf-ico">' + icon('i-clock', 'ic-s') + '</span><div><small>Обновлено</small><b>' + upVal + '</b><span class="cf-sub">источник + народ</span></div></div>' +
+    '<div class="cf"><div><small>' + icon('i-rub', 'ic-s') + 'Цены</small><b class="cf-prices">92 · ' + pr('price_92') + '<br>95 · ' + pr('price_95') + '<br>ДТ · ' + pr('price_diesel') + '</b></div></div>' +
+    '<div class="cf"><div><small>' + icon('i-queue', 'ic-s') + 'Очередь</small><b class="' + qCls + '">' + qVal + '</b><span class="cf-sub">' + escapeHtml(qSub) + '</span></div></div>' +
+    '<div class="cf"><div><small>' + icon('i-clock', 'ic-s') + 'Обновлено</small><b>' + upVal + '</b><span class="cf-sub">источник + народ</span></div></div>' +
     '</div>' +
     '<div class="card-btns">' +
     '<button class="cta-btn big" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-nav') + 'Построить маршрут' + icon('i-arrow') + '</button>' +
@@ -2903,6 +2997,7 @@ function stationCard(station, obs, pred) {
     '</div>' +
     '<div class="card-maprow" onclick="cardMapGo(\'' + station.id + '\')"><div class="cmr-txt"><b>На карте</b><small>Смотреть окрестности</small></div><div class="card-map-thumb"><div id="cardMapBox" class="card-map-box"></div></div></div>' +
     stationTimelineHtml(station, obs) +
+    folkCardHtml(station.id) +
     '<div class="sc-rowline"><div class="sc-rl-txt"><b>КогдаБенз Score<span class="sc-rl-i" onclick="openScorePop(\'' + station.id + '\',\'' + focusFuel + '\')">' + icon('i-help', 'ic-s') + '</span></b><small>Надёжность этой станции</small></div>' +
     scoreGaugeHtml(station, focusFuel) + '</div>' +
     '</article>';
@@ -4129,7 +4224,8 @@ const WHY_MAP = {
   impact: { t: 'Как считаем «подтвердили»', x: 'Берём вашу отметку и смотрим: в пределах часа от неё кто-то ещё отметил то же топливо с тем же вердиктом на той же АЗС. Каждый такой водитель — подтверждение, что отметка попала в реальность. Выдуманные «просмотры» не показываем.', e: null },
   pulse: { t: 'Пульс города', x: 'Оценка из 10: наличие АИ-95 (45%), очереди (25%), свежесть данных (20%), баланс возвратов и исчезновений за сутки (10%). «Чем вчера» сравниваем в тот же час по почасовому ритму города.', e: () => { const fr = freshStats(); return 'Свежие данные: ' + fr.fresh + ' из ' + fr.tot + ' АЗС. Оценка считается из отметок источника и водителей, без ручных поправок.'; } },
   momentum: { t: 'Лента: куда движется ситуация', x: 'Сравниваем возвраты и исчезновения топлива в твоём городе за 6 часов — то же окно, что у ленты событий. Возвратов больше — ситуация улучшается, можно выбирать время и цену. Исчезновений больше — топливо уходит с рынка, заправляться лучше сейчас. Очереди никуда не делись: их по-прежнему видно на карте зонами и в карточках АЗС.', e: () => momentumExtra() },
-  wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() }
+  wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() },
+  reliability: { t: 'Ваша надёжность', x: 'Каждую вашу отметку сравниваем с независимыми свидетелями: отметки других водителей в пределах часа от вашей и снимки источника в течение 2 часов после. Подтверждения добавляют надёжность, опровержения вычитают. Пока свидетелей нет — цифра не показывается, надёжность формируется.', e: () => myRel && myRel.pct !== null ? 'Из них источник подтвердил ' + myRel.srcConf + ' раз(а), водители — ' + myRel.folkConf + '.' : null }
 };
 let whyOpenKey = null;
 function closeWhy() {
@@ -6576,6 +6672,7 @@ async function start() {
     flushReportQueue();
     syncFavorites();   // довезти избранное до сервера (вдруг сердечки ставили до фичи)
     refreshTgLink();   // узнаём, подключён ли телеграм у этого устройства
+    loadMyReliability(); // личная надёжность водителя из журнала свидетеля
     if (!stations.length) { window.__startErr = 'Источник вернул пустой список станций'; bootDataOk = false; app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
