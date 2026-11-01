@@ -657,6 +657,12 @@ body { overflow:hidden; }
 .pr-ico.f92 { background:linear-gradient(140deg,#ffca80,#f5a05a); }
 .pr-ico.f95 { background:linear-gradient(140deg,#2fd39a,#19b77a); }
 .pr-ico.fdt { background:linear-gradient(140deg,#8ab6ff,#397cff); }
+/* мини-инфографики в колонках фактов: 24-часовые полоски тем же языком, что тепловая матрица */
+.cf-strip { display:flex; gap:1px; margin-top:5px; height:10px; }
+.cf-strip i { flex:1; min-width:1px; border-radius:2px; background:#e9edf5; }
+.cf-strip i.on { background:#f5a05a; }
+.cf-strip i.seen { background:#2fd39a; }
+.cf-strip i.now { box-shadow:inset 0 0 0 1.5px rgba(36,101,238,.6); }
 .card-btns { display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
 .cta-btn.big { padding:12px 14px; font-size:12px; border-radius:16px; justify-content:space-between; }
 .cta-btn.big > .ic:first-child { width:17px; height:17px; }
@@ -1793,6 +1799,48 @@ function agoRu(min) {
 function priceShort(id, col) {
   const p = allLastPrice[id];
   return p && p[col] !== null && p[col] !== undefined ? Number(p[col]).toFixed(1) + ' ₽' : 'цена —';
+}
+// === мини-инфографика колонок фактов: полоски за 24 часа ===
+// Очередь: часы, когда на станции был активен её собственный эпизод очереди.
+// Нет эпизодов за сутки вовсе — полоска светлая: сутки спокойные.
+function queueStripHtml(stationId) {
+  if (!queueEpisodes.length) return '';
+  const nowMs = Date.now();
+  let cells = '';
+  for (let i = 23; i >= 0; i--) {
+    const hEnd = nowMs - i * 3600000;
+    const hStart = hEnd - 3600000;
+    let on = false;
+    for (const e of queueEpisodes) {
+      if (e.station_id !== stationId) continue;
+      const s = new Date(e.started_at).getTime();
+      const en = e.ended_at ? new Date(e.ended_at).getTime() : nowMs;
+      if (s < hEnd && en > hStart) { on = true; break; }
+    }
+    cells += '<i class="' + (on ? 'on' : '') + (i === 0 ? ' now' : '') + '"></i>';
+  }
+  return '<span class="cf-strip">' + cells + '</span>';
+}
+// Источник: часы, когда источник видел станцию (снимки station_hourly за сутки).
+// Зелёная ячейка = снимок был, светлая = источник молчал: видно, почему строка
+// «Обновлено» именно такая и можно ли ей верить.
+function seenStripHtml(stationId) {
+  const seen = {};
+  let any = false;
+  for (const r of allHourly) {
+    if (r.station_id !== stationId) continue;
+    any = true;
+    const h = new Date(r.hour).getHours();
+    seen[h] = (seen[h] || 0) + (Number(r.total) || 0);
+  }
+  if (!any) return '';
+  const nowH = new Date().getHours();
+  let cells = '';
+  for (let i = 23; i >= 0; i--) {
+    const h = (nowH - i + 24) % 24;
+    cells += '<i class="' + (seen[h] ? 'seen' : '') + (i === 0 ? ' now' : '') + '"></i>';
+  }
+  return '<span class="cf-strip">' + cells + '</span>';
 }
 function createGraph(stationId) {
   const rows = allHourly.filter(h => h.station_id === stationId).sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-14);
@@ -3020,8 +3068,8 @@ function stationCard(station, obs, pred) {
     '<span class="pr-row"><i class="pr-ico f95">95</i><b>' + pr('price_95') + '</b></span>' +
     '<span class="pr-row"><i class="pr-ico fdt">ДТ</i><b>' + pr('price_diesel') + '</b></span>' +
     '</span></div></div>' +
-    '<div class="cf"><div><small>' + icon('i-queue', 'ic-s') + 'Очередь</small><b class="' + qCls + '">' + qVal + '</b><span class="cf-sub">' + escapeHtml(qSub) + '</span></div></div>' +
-    '<div class="cf"><div><small>' + icon('i-clock', 'ic-s') + 'Обновлено</small><b>' + upVal + '</b><span class="cf-sub">источник + народ</span></div></div>' +
+    '<div class="cf"><div><small>' + icon('i-queue', 'ic-s') + 'Очередь</small><b class="' + qCls + '">' + qVal + '</b><span class="cf-sub">' + escapeHtml(qSub) + '</span>' + queueStripHtml(station.id) + '</div></div>' +
+    '<div class="cf"><div><small>' + icon('i-clock', 'ic-s') + 'Обновлено</small><b>' + upVal + '</b><span class="cf-sub">источник + народ</span>' + seenStripHtml(station.id) + '</div></div>' +
     '</div>' +
     '<div class="card-btns">' +
     '<button class="cta-btn big" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-nav') + 'Построить маршрут' + icon('i-arrow') + '</button>' +
