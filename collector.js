@@ -841,6 +841,61 @@ try {
         }
       }
     } catch (e) { console.log('   ! Журнал свидетеля (сопоставление): ' + e.message); }
+    // === ШАГ 6.9: журнал свидетеля (этап 2): непрерывность источника ===
+    // Источник подтверждает народное заявление не только переворотом (6.8),
+    // но и «молчаливым согласием»: первый снимок источника в течение 2 часов
+    // после отметки показывает тот же статус этого топлива. Это главный
+    // поставщик подтверждений: перевороты редки, снимки каждые 10 минут.
+    console.log('6.9) Непрерывность источника: сверяю народные заявления со снимками...');
+    try {
+      const folkClaims = await sbGet(
+        '/rest/v1/witness_journal?role=eq.claim&source_kind=eq.folk&created_at=gte.' + new Date(Date.now() - 130 * 60000).toISOString() +
+        '&created_at=lt.' + new Date(Date.now() - 2 * 60000).toISOString() +
+        '&select=id,station_id,fuel_type,claim,created_at&order=id.asc&limit=200'
+      );
+      if (!folkClaims.length) {
+        console.log('   Свежих народных заявлений нет');
+      } else {
+        const linked = await sbGet(
+          '/rest/v1/witness_journal?linked_claim_id=in.(' + folkClaims.map(c => c.id).join(',') + ')&source_kind=eq.source&select=linked_claim_id,role'
+        );
+        const done = new Set(linked.map(r => r.linked_claim_id + '|' + r.role));
+        const out = [];
+        for (const c of folkClaims) {
+          const col = c.fuel_type === '92' ? 'fuel_92_status' : c.fuel_type === '95' ? 'fuel_95_status' : 'diesel_status';
+          const obs = await sbGet(
+            '/rest/v1/observations?station_id=eq.' + c.station_id +
+            '&timestamp=gt.' + c.created_at +
+            '&timestamp=lte.' + new Date(new Date(c.created_at).getTime() + 2 * 3600 * 1000).toISOString() +
+            '&order=timestamp.asc&limit=12&select=timestamp,' + col
+          );
+          const first = obs.find(o => o[col] !== null && o[col] !== undefined);
+          if (!first) continue; // источник молчал 2 часа после отметки — свидетеля нет
+          const role = (first[col] === c.claim) ? 'confirm' : 'refute';
+          if (done.has(c.id + '|' + role)) continue;
+          done.add(c.id + '|' + role);
+          out.push({
+            station_id: c.station_id,
+            fuel_type: c.fuel_type,
+            role: role,
+            claim: first[col],
+            source_kind: 'source',
+            device_id: null,
+            on_site: false,
+            distance_m: null,
+            linked_claim_id: c.id,
+            weight: 1,
+            created_at: first.timestamp
+          });
+        }
+        if (out.length) {
+          await sbPost('witness_journal', out);
+          console.log('   Непрерывность источника: ' + out.length);
+        } else {
+          console.log('   Непрерывность источника: новых свидетелей нет');
+        }
+      }
+    } catch (e) { console.log('   ! Журнал свидетеля (непрерывность): ' + e.message); }
   // === ШАГ УБОРКИ: удаляем наблюдения старше 30 дней, чтобы база не раздувалась ===
   console.log('7) Убираю старые наблюдения (старше 7 дней, порциями по суткам)...');
 // v5.4: хранение 30 дней съело весь бесплатный лимит базы (observations
