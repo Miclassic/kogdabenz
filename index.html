@@ -618,6 +618,19 @@ body { overflow:hidden; }
 .sc-cmp-row i { height:6px; border-radius:99px; min-width:3px; background:#397cff; }
 .sc-cmp-row b { margin-left:auto; font-size:9.5px; font-weight:800; color:#33445f; }
 .sc-meta { margin-top:6px; color:#7485a0; font-size:9px; font-weight:700; }
+/* вердикт-плашка: мгновенный ответ сверху карточки АЗС */
+.verdict { margin:0 0 10px; padding:12px 14px; border-radius:18px; }
+.verdict-t { font-size:15px; font-weight:900; letter-spacing:-.4px; line-height:1.25; }
+.verdict-s { margin-top:3px; font-size:10.5px; font-weight:700; opacity:.85; }
+.verdict.v-good { background:linear-gradient(135deg,#e5f8ef,#eefaf4); border:1px solid #bfe8d4; color:#12855c; }
+.verdict.v-wait { background:linear-gradient(135deg,#fff2e8,#fff8f2); border:1px solid #f5d3b8; color:#c26a2a; }
+.verdict.v-unknown { background:#f2f4f9; border:1px solid #e0e6ef; color:#5b6b86; }
+/* паспорт по-человечески: слово-вердикт + строки с точками вместо научных полос */
+.sc-word { margin-top:4px; font-size:12px; font-weight:900; letter-spacing:-.3px; }
+.sc-word.w0 { color:#7c89a0; } .sc-word.w1 { color:#c26a2a; } .sc-word.w2 { color:#2465ee; } .sc-word.w3 { color:#12855c; }
+.sc-line { display:flex; gap:7px; margin-top:5px; color:#33445f; font-size:10.5px; font-weight:700; line-height:1.4; }
+.sc-line .dot2 { flex:0 0 auto; width:8px; height:8px; border-radius:50%; margin-top:3px; background:#c9d3e3; }
+.sc-line .dot2.g { background:#19b77a; } .sc-line .dot2.y { background:#f5b82e; } .sc-line .dot2.r { background:#ef5350; }
 /* панель 2: блок со своей прокруткой. Раньше здесь был flex + overflow:hidden:
    высокая карточка «Пульс города» сжималась flex-ом до полоски и обрезалась,
    а прокрутка была запрещена. Блок не сжимает детей, скролл живой. */
@@ -1661,6 +1674,17 @@ function fuelConfLine(obs, status) {
   }
   return '≈ ' + (status ? c : Math.max(3, 100 - c)) + '%';
 }
+// === вердикт-плашка карточки АЗС: мгновенный ответ водителю ===
+function agoRu(min) {
+  if (min === null || min === undefined) return 'времени нет';
+  if (min < 60) return min + ' мин назад';
+  if (min < 1440) return Math.round(min / 60) + ' ч назад';
+  return Math.round(min / 1440) + ' дн назад';
+}
+function priceShort(id, col) {
+  const p = allLastPrice[id];
+  return p && p[col] !== null && p[col] !== undefined ? Number(p[col]).toFixed(1) + ' ₽' : 'цена —';
+}
 function createGraph(stationId) {
   const rows = allHourly.filter(h => h.station_id === stationId).sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-14);
   const points = rows.length ? rows : Array.from({ length: 14 }, (_, i) => ({ hour: new Date(Date.now() - (13 - i) * 3600000).toISOString(), total: 0, available_95: 0 }));
@@ -2562,7 +2586,7 @@ function workStrip(obs) {
 // Уровни доказательности: none — недостаточно данных (цифру НЕ показываем),
 // forming/stable/strong — растущая доказательность. Score не оценивает бензин
 // или честность владельца — только доверие к сведениям КогдаБенз по топливу.
-const SC_EV = { none: ['e0', 'недостаточно данных'], forming: ['e1', 'формируется'], stable: ['e2', 'устойчивый'], strong: ['e3', 'высокая доказательность'] };
+const SC_EV = { none: ['e0', 'данных ещё мало'], forming: ['e1', 'накапливается'], stable: ['e2', 'данных достаточно'], strong: ['e3', 'данных много'] };
 function scoreRow(stationId, fuel) { return scoreMap[stationId + '|' + fuel] || null; }
 function scoreTileHtml(stationId, fuel, label) {
   const r = scoreRow(stationId, fuel);
@@ -2576,36 +2600,54 @@ function scorePlateHtml(station) {
     scoreTileHtml(station.id, '95', 'АИ-95') + scoreTileHtml(station.id, '92', 'АИ-92') + scoreTileHtml(station.id, 'diesel', 'дизель') +
     '</div></div>';
 }
+function scWord(score, ev) {
+  if (ev === 'none') return ['Данные ещё накапливаются', 'w0'];
+  if (score >= 75) return ['Данным можно доверять', 'w3'];
+  if (score >= 50) return ['Данным в основном можно доверять', 'w2'];
+  if (score >= 30) return ['Доверяй с осторожностью', 'w1'];
+  return ['Надёжных данных пока мало', 'w0'];
+}
 function openScorePop(stationId, fuel) {
   const pop = document.getElementById('scorePop'); const back = document.getElementById('scoreBack');
   if (!pop || !back) return;
   const st = allStations.find(s => s.id === stationId);
-  const CMP = [
-    ['confirm', 'независимые подтверждения', 25],
-    ['match', 'совпадение с реальностью', 30],
-    ['fresh', 'актуальность', 20],
-    ['stable', 'стабильность данных', 15],
-    ['srcq', 'качество источника', 10]
-  ];
+  const line = (cls, txt) => '<div class="sc-line"><i class="dot2 ' + cls + '"></i><span>' + txt + '</span></div>';
   let body = '';
   for (const f of ['95', '92', 'diesel']) {
     const r = scoreRow(stationId, f);
     if (!r) continue;
-    const ev = SC_EV[r.evidence] || SC_EV.none;
     const c = r.comp || {};
-    const bars = CMP.map(m => {
-      const v = Number(c[m[0]]) || 0;
-      return '<div class="sc-cmp-row"><span>' + m[1] + '</span><i style="width:' + Math.round(100 * v / m[2]) + '%"></i><b>' + v + '/' + m[2] + '</b></div>';
-    }).join('');
+    const ev = SC_EV[r.evidence] || SC_EV.none;
+    const word = scWord(r.score, r.evidence);
+    const lines = [];
+    lines.push((c.n_confirm || 0) > 0
+      ? line('g', 'Водители подтверждали наши отметки: ' + c.n_confirm + ' раз(а)')
+      : line('n', 'Водители пока не подтверждали отметки — народных отметок мало'));
+    if ((c.n_verified || 0) > 0) {
+      const ratio = (c.match || 0) / 30;
+      lines.push(ratio >= 0.6 ? line('g', 'Прогноз возврата часто сбывается')
+        : ratio >= 0.3 ? line('y', 'Прогноз возврата сбывается примерно через раз')
+        : line('r', 'Прогноз возврата пока сбывается редко — модель учится'));
+    } else lines.push(line('n', 'Прогнозы возврата по этому топливу ещё не проверены'));
+    lines.push((c.fresh || 0) >= 20 ? line('g', 'Данные свежие: источник проверял станцию недавно')
+      : (c.fresh || 0) >= 10 ? line('y', 'Данные подсохли: источник давно не заглядывал')
+      : line('r', 'Данные несвежие: полностью полагаться нельзя'));
+    lines.push((c.stable || 0) >= 15 ? line('g', 'Источник не глючит: статусы не прыгают туда-сюда')
+      : (c.stable || 0) >= 10 ? line('y', 'Источник иногда глючит по этой станции')
+      : line('r', 'Источник часто глючит: статусы прыгают'));
+    lines.push((c.srcq || 0) >= 8 ? line('g', 'Источник обычно видит эту станцию')
+      : (c.srcq || 0) >= 5 ? line('y', 'Источник видит станцию примерно через раз')
+      : line('r', 'Источник часто теряет эту станцию'));
     body += '<div class="sc-row' + (f === fuel ? ' on' : '') + '"><div class="sc-row-t">' + fuelLabel(f) +
-      '<span class="sc-ev ' + ev[0] + '">' + ev[1] + '</span><b class="ml">' + (r.evidence === 'none' ? '—' : r.score) + '/100</b></div>' +
-      '<div class="sc-cmp">' + bars + '</div>' +
-      '<div class="sc-meta">' + r.events_n + ' событий за оценкой · подтверждений: ' + (c.n_confirm || 0) + ' · опровержений: ' + (c.n_refute || 0) + ' · прогнозов проверено: ' + (c.n_verified || 0) + '</div></div>';
+      '<span class="sc-ev ' + ev[0] + '">' + ev[1] + '</span><b class="ml">' + (r.evidence === 'none' ? '—' : r.score) + '</b></div>' +
+      '<div class="sc-word ' + word[1] + '">' + word[0] + '</div>' +
+      lines.join('') +
+      '<div class="sc-meta">За вердиктом: ' + r.events_n + ' событий и ' + (c.n_verified || 0) + ' проверок прогноза</div></div>';
   }
-  pop.innerHTML = '<div class="hello-title">Паспорт АЗС · ' + escapeHtml(st ? st.name || 'АЗС' : 'АЗС') + '</div>' +
-    '<div class="help-lead" style="margin:4px 0 8px">Score отвечает на один вопрос: насколько можно доверять сведениям КогдаБенз об этой станции по каждому топливу. Он не оценивает качество бензина и честность владельца.</div>' +
+  pop.innerHTML = '<div class="hello-title">Насколько можно доверять данным · ' + escapeHtml(st ? st.name || 'АЗС' : 'АЗС') + '</div>' +
+    '<div class="help-lead" style="margin:4px 0 8px">Мы проверяем сведения о станции пятью способами: подтверждают ли водители наши отметки, сбывается ли прогноз возврата, свежие ли данные, не глючит ли источник и как часто он вообще видит станцию. Каждая проверка добавляет баллы — вместе это доверие от 0 до 100.</div>' +
     body +
-    '<div class="recent">Score пересчитывается каждую ночь из пяти составляющих: независимые подтверждения водителей и источника (25), совпадение прогнозов с реальностью по верификатору (30), актуальность последнего факта (20), стабильность данных без «миганий» (15), надёжность источника (10). Уровень «недостаточно данных» — меньше 10 событий: цифру не показываем, чтобы не обманывать.</div>' +
+    '<div class="recent">Вердикт пересчитывается каждую ночь. Пока данных мало — говорим об этом прямо и не показываем красивую цифру. Оценка не про бензин и не про владельца: только про надёжность наших сведений.</div>' +
     '<button class="cta-btn" style="width:100%;margin-top:8px" onclick="closeScorePop()">Понятно</button>';
   pop.classList.add('open'); back.classList.add('open');
 }
@@ -2618,28 +2660,55 @@ function stationCard(station, obs, pred) {
   const graph = createGraph(station.id);
   const cw = prediction.confidence || 8;
   const hc = (allCounts.find(c => c.station_id === station.id) || {}).total || 0;
+  // === полка 1: вердикт — одно цветное предложение = решение за секунду ===
+  const trust = availTrustworthy(obs);
+  const has95 = trust && obs && obs.fuel_95_status === true;
+  const has92 = trust && obs && obs.fuel_92_status === true;
+  const hasDt = trust && obs && obs.diesel_status === true;
+  const availList = [];
+  if (has95) availList.push('АИ-95');
+  if (has92) availList.push('АИ-92');
+  if (hasDt) availList.push('дизель');
+  const lq = liveQueueCount(station.id);
+  const qAge = queueAgeMin(station.id);
+  const qHigh = obs && obs.queue_level === 'high';
+  let qTxt = 'очередей не видно';
+  if (lq) qTxt = lq + ' вод. в очереди сейчас';
+  else if (qHigh && qAge !== null) qTxt = 'очередь: стоят ' + ageRu(qAge);
+  else if (qHigh) qTxt = 'на станции очередь';
+  let vCls, vTitle, vSub;
+  if (availList.length) {
+    const priceCol = has95 ? 'price_95' : has92 ? 'price_92' : 'price_diesel';
+    const priceLbl = has95 ? 'АИ-95' : has92 ? 'АИ-92' : 'дизель';
+    vCls = 'v-good';
+    vTitle = 'Есть сейчас: ' + availList.join(', ');
+    vSub = qTxt + ' · ' + priceLbl + ' ' + priceShort(station.id, priceCol);
+  } else if (obs && (obs.fuel_95_status === false || obs.fuel_92_status === false || obs.diesel_status === false)) {
+    vCls = 'v-wait';
+    vTitle = pred ? 'Топлива нет · вернётся ' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) : 'Топлива нет · прогноз возврата ещё зреет';
+    vSub = pred ? qTxt + ' · уверенность прогноза ' + prediction.confidence + '%' : qTxt + ' · следим за станцией';
+  } else {
+    vCls = 'v-unknown';
+    vTitle = 'Свежих данных о топливе нет';
+    vSub = qTxt + ' · источник: ' + (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes !== undefined ? agoRu(obs.data_freshness_minutes) : 'молчит');
+  }
   return '<article class="station">' +
     '<div class="station-header"><div class="station-logo">' + stationLogo(station) + '</div>' +
     '<div class="station-info"><div class="station-name">' + escapeHtml(station.name || 'АЗС') + '</div>' +
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + ' · ' : '') + escapeHtml(station.address || '') + '</div></div>' +
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
-    '<div class="card-map-wrap"><div id="cardMapBox" class="card-map-box"><div class="status" style="padding:10px;font-size:10px">Карта места загрузится</div></div><div class="card-map-cap">' + icon('i-pin','ic-s') + 'обстановка места: лужа — очередь, поле — дефицит</div></div>' +
-    '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
-    tgStrip(station) +
-    workStrip(obs) +
-    scorePlateHtml(station) +
+    '<div class="verdict ' + vCls + '"><div class="verdict-t">' + escapeHtml(vTitle) + '</div><div class="verdict-s">' + escapeHtml(vSub) + '</div></div>' +
     '<div class="fuels">' +
     '<div class="fuel"><div class="fuel-name">АИ-92</div><div class="fuel-status">' + fuelHtml(obs?.fuel_92_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_92_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">АИ-95</div><div class="fuel-status">' + fuelHtml(obs?.fuel_95_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.fuel_95_status) + '</div></div>' +
     '<div class="fuel"><div class="fuel-name">Дизель</div><div class="fuel-status">' + fuelHtml(obs?.diesel_status, availTrustworthy(obs)) + '</div><div class="fuel-conf">' + fuelConfLine(obs, obs?.diesel_status) + '</div></div></div>' +
-    '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
-    '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
-    '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
     queueStrip(station.id, obs) +
     liveQueueStrip(station.id) +
     queueForecastStrip(station.id) +
     onSiteStrip(station.id) +
-    stationEventsHtml(station.id) +
+    '<div class="info-row"><div class="info"><div class="info-label">Цена АИ-92</div>' + priceCell(station.id, 'price_92', 'p92') + '</div>' +
+    '<div class="info"><div class="info-label">Цена АИ-95</div>' + priceCell(station.id, 'price_95', 'p95') + '</div>' +
+    '<div class="info"><div class="info-label">Цена ДТ</div><div class="info-value">' + priceCell(station.id, 'price_diesel', 'pdt') + '</div></div></div>' +
     '<section class="forecast"><div class="forecast-left"><div class="forecast-top"><div class="forecast-icon">' + icon('i-clock','ic-s') + '</div><div class="forecast-label">Прогноз</div></div>' +
     '<div class="forecast-title">' + (pred ? 'Пополнение: ' + fuelLabel(pred.fuel_type) : 'Когда лучше заехать') + '</div>' +
     '<div class="forecast-time">' + (prediction.eta ? '≈ ' + prediction.eta : prediction.time) + '</div>' +
@@ -2649,6 +2718,12 @@ function stationCard(station, obs, pred) {
     '<div class="forecast-right"><div class="graph-title">История АИ-95</div>' +
     '<div class="chart">' + graph + (pred && isSoon(pred) ? '<div class="soon-badge">' + icon('i-truck','ic-s') + 'Скоро</div>' : '') + '</div>' +
     '<div class="chart-axis"><span>06:00</span><span>12:00</span><span>18:00</span><span>00:00</span></div></div></section>' +
+    '<div class="card-map-wrap"><div id="cardMapBox" class="card-map-box"><div class="status" style="padding:10px;font-size:10px">Карта места загрузится</div></div><div class="card-map-cap">' + icon('i-pin','ic-s') + 'обстановка места: лужа — очередь, поле — дефицит</div></div>' +
+    '<div class="nowcard-cta" style="margin:0 0 10px"><button class="cta-btn ghost" onclick="showOnMap(\'' + station.id + '\')">' + icon('i-pin') + 'Показать на карте</button></div>' +
+    stationEventsHtml(station.id) +
+    scorePlateHtml(station) +
+    workStrip(obs) +
+    tgStrip(station) +
     '<div class="info-row"><div class="info tap why-tap" data-fact="' + (hc >= 10 ? hc + ' снимков источника за 30 дней.' : 'Мало данных для надёжного прогноза.') + '" onclick="openWhyChip(this,\'based\')"><div class="info-label">На основе</div><div class="info-value">' + (hc >= 10 ? hc + ' наблюдений' : 'мало данных') + '</div></div>' +
     '<div class="info tap why-tap" data-fact="' + lastRestoration(station.id) + '" onclick="openWhyChip(this,\'restore\')"><div class="info-label">Пополнение</div><div class="info-value">' + lastRestorationShort(station.id) + '</div></div>' +
     '<div class="info tap why-tap" data-fact="' + accuracyLabel(station.id) + ' по этой АЗС." onclick="openWhyChip(this,\'acc\')"><div class="info-label">Точность</div><div class="info-value">' + accuracyLabel(station.id) + '</div></div></div>' +
