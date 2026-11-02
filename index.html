@@ -397,21 +397,21 @@ body { overflow:hidden; }
 .lenti-val { display:block; font-size:15px; font-weight:900; letter-spacing:-.4px; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lenti-sub { display:block; font-size:9.5px; font-weight:600; color:#5b7ba6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 /* голограмма: мелкая штриховка линзы + блик, ползущий за углом наклона */
-.lenti-holo { position:absolute; inset:0; pointer-events:none; border-radius:20px; mix-blend-mode:soft-light; opacity:.5; transform:translateZ(34px); background:repeating-linear-gradient(105deg, rgba(255,255,255,0) 0 6px, rgba(255,255,255,.5) 6px 7px, rgba(255,255,255,0) 7px 12px); }
+.lenti-holo { position:absolute; inset:0; pointer-events:none; border-radius:20px; mix-blend-mode:soft-light; opacity:.5; transform:translateZ(18px); background:repeating-linear-gradient(105deg, rgba(255,255,255,0) 0 6px, rgba(255,255,255,.5) 6px 7px, rgba(255,255,255,0) 7px 12px); }
 /* блик ходит background-position внутри своих границ: ничего не торчит наружу,
    обрезка не нужна, 3D-параллакс слоёв не ломается */
-.lenti-glare { position:absolute; inset:0; pointer-events:none; transform:translateZ(40px); background:linear-gradient(100deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 70%) center / 300% 100% no-repeat; background-position-x:var(--gp,50%); }
+.lenti-glare { position:absolute; inset:0; pointer-events:none; border-radius:20px; transform:translateZ(18px); opacity:var(--gl,1); background:linear-gradient(100deg, rgba(255,255,255,0) 30%, rgba(255,255,255,.55) 50%, rgba(255,255,255,0) 70%) center / 300% 100% no-repeat; background-position-x:var(--gp,50%); }
 /* Голограмма как у коллекционных карточек: в анфас фольги почти не видно
    (--foil ≈ 0), при наклоне она «ловит свет»: прозрачность растёт с углом,
    радуга едет по карте, а блёстки-крошка — со своей скоростью (параллакс искр).
    Оба слоя чисто декоративные: pointer-events none, поверх сцен, под подсказкой. */
 /* Радуга обычным слоем: blend-режимы на светлой пастели давали «белое по белому».
    Насыщенные стопы + прозрачность до .5 от угла наклона — фойл видно реально. */
-.lenti-foil { position:absolute; inset:0; pointer-events:none; transform:translateZ(36px); border-radius:20px; opacity:var(--foil,0); background:linear-gradient(115deg, rgba(255,255,255,0) 4%, rgba(255,70,150,.75) 20%, rgba(255,180,50,.70) 35%, rgba(50,240,160,.70) 50%, rgba(70,150,255,.75) 65%, rgba(190,80,255,.70) 80%, rgba(255,255,255,0) 96%) center / 260% 100% no-repeat; background-position-x:var(--fp,50%); }
+.lenti-foil { position:absolute; inset:0; pointer-events:none; transform:translateZ(18px); border-radius:20px; opacity:var(--foil,0); background:linear-gradient(115deg, rgba(255,255,255,0) 4%, rgba(255,70,150,.75) 20%, rgba(255,180,50,.70) 35%, rgba(50,240,160,.70) 50%, rgba(70,150,255,.75) 65%, rgba(190,80,255,.70) 80%, rgba(255,255,255,0) 96%) center / 260% 100% no-repeat; background-position-x:var(--fp,50%); }
 /* Искры — не круглые точки, а тонкие диагональные штрихи-блики: форма читается
    как фольга под светом, а не как конфетти. Яркость приглушена: альфы .16–.22
    внутри и общий множитель .55 от силы наклона — мерцает, но не рябит. */
-.lenti-spark { position:absolute; inset:0; pointer-events:none; transform:translateZ(38px); border-radius:20px; opacity:calc(var(--foil,0) * .55); background:
+.lenti-spark { position:absolute; inset:0; pointer-events:none; transform:translateZ(18px); border-radius:20px; opacity:calc(var(--foil,0) * .55); background:
   repeating-linear-gradient(48deg, transparent 0 10px, rgba(255,255,255,.22) 10px 11px, transparent 11px 21px),
   repeating-linear-gradient(-42deg, transparent 0 14px, rgba(190,225,255,.18) 14px 15px, transparent 15px 29px),
   repeating-linear-gradient(52deg, transparent 0 23px, rgba(255,190,225,.16) 23px 24px, transparent 24px 47px);
@@ -420,7 +420,7 @@ body { overflow:hidden; }
    Узкие слаты + широкие полосы яркости дрейфуют с наклоном с разной
    скоростью — карточка «перелистывается» как лентикулярная печать.
    В анфас текстура видна слабо (.35), с наклоном разгорается вместе с фольгой */
-.lenti-slats { position:absolute; inset:0; pointer-events:none; border-radius:20px; transform:translateZ(37px); mix-blend-mode:soft-light; opacity:calc(.35 + var(--foil,0) * .45);
+.lenti-slats { position:absolute; inset:0; pointer-events:none; border-radius:20px; transform:translateZ(18px); mix-blend-mode:soft-light; opacity:calc(.35 + var(--foil,0) * .45);
   background:
     repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 2px, rgba(255,255,255,.5) 2px 3px, rgba(255,255,255,0) 3px 6px, rgba(10,20,40,.35) 6px 7px, rgba(255,255,255,0) 7px 10px),
     repeating-linear-gradient(90deg, rgba(255,255,255,.22) 0 14px, rgba(255,255,255,0) 14px 28px, rgba(10,20,40,.18) 28px 42px, rgba(255,255,255,0) 42px 56px);
@@ -4659,6 +4659,9 @@ function lentiApply() {
     lentiScenesCache.forEach((s, i) => s.classList.toggle('on', i === idx));
     const hint = document.getElementById('lentiHint');
     if (hint) hint.textContent = LENTI_SCENES[idx].cap;
+    // на тёмно-синей сцене блик тоньше: на насыщенном фоне белая полоса
+    // читалась как чужая плашка поверх иконки
+    card.style.setProperty('--gl', idx === 3 ? '0.45' : '1');
   }
 }
 // Арт сцены «город живёт»: 7-дневный ритм народных отметок столбиками +
