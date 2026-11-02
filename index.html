@@ -548,6 +548,30 @@ body { overflow:hidden; }
    Правило стоит в конце файла-блока, поэтому перебивает любые ранние .p1 */
 .p1 { display:block; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; }
 .pulse-card, .pulse-kpis, .pulse-d24, .pulse-peak, .pulse-grid, .pulse-feed, .pulse-side, .pulse-quote, .hm-wrap, .nowcard-cta { flex:0 0 auto; }
+/* === «Возможно есть топливо здесь»: цепкая плашка народного подтверждения свежих меток источника === */
+.mf-plate { margin:10px 0 0; padding:12px 12px 10px; border-radius:20px; background:linear-gradient(135deg,#fff6ea,#fef1ef 48%,#eef5ff); border:1.5px solid #f2c9a4; box-shadow:0 12px 30px rgba(194,106,42,.16); }
+.mf-head { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:900; letter-spacing:-.3px; color:#c26a2a; }
+.mf-head > .ic { width:16px; height:16px; }
+.mf-head small { margin-left:auto; font-size:8.5px; font-weight:800; color:#93a1b8; text-transform:uppercase; letter-spacing:.4px; }
+.mf-sub { margin-top:3px; color:#71809c; font-size:10px; font-weight:600; line-height:1.45; }
+.mf-row { display:flex; align-items:center; gap:8px; margin-top:8px; padding:8px 9px; border-radius:14px; background:rgba(255,255,255,.9); border:1px solid #f0e0cd; }
+.mf-row.confirmed { background:#eefaf3; border-color:#bfe8d4; }
+.mf-row.sunk { background:#f4f6fa; border-color:#e3e8f0; opacity:.65; }
+.mf-logo { flex:0 0 auto; width:30px; height:30px; border-radius:10px; background:#fff; border:1px solid #eef2f8; display:grid; place-items:center; padding:4px; color:#5b6b86; overflow:hidden; }
+.mf-logo img { width:100%; height:100%; object-fit:contain; }
+.mf-logo .ic { width:16px; height:16px; }
+.mf-main { flex:1; min-width:0; }
+.mf-main b { display:block; font-size:11.5px; font-weight:850; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mf-main small { display:block; color:#71809c; font-size:8.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mf-fuel { flex:0 0 auto; font-size:9px; font-weight:900; padding:3px 7px; border-radius:8px; background:#e7f0ff; color:#2465ee; }
+.mf-votes { flex:0 0 auto; display:flex; flex-direction:column; gap:4px; }
+.mf-btn { border:0; border-radius:10px; padding:6px 9px; font-size:9.5px; font-weight:850; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+.mf-btn .ic { width:11px; height:11px; }
+.mf-btn i { font-style:normal; font-weight:900; opacity:.7; }
+.mf-btn.yes { background:#e5f8ef; color:#12855c; border:1px solid #bfe8d4; }
+.mf-btn.no { background:#fdecec; color:#c2403f; border:1px solid #f3b7b3; }
+.mf-btn.struck { text-decoration:line-through; opacity:.55; cursor:default; }
+.mf-btn.mine { box-shadow:inset 0 0 0 2px currentColor; }
 /* === Топ-3 по ближайшему окну: свайп «сейчас / потом», тап — карточка АЗС === */
 .top3 { margin-top:8px; padding:10px 10px 8px; border-radius:18px; background:#fff; box-shadow:0 6px 18px rgba(38,69,120,.07); }
 .top3-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
@@ -1384,6 +1408,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
           </div>
         </div>
       </div>
+      <div class="mf-plate" id="maybeFuelPlate" style="display:none"></div>
       <div class="top3">
         <div class="top3-head">
           <span class="top3-title">Топ-3 по городу</span>
@@ -5230,6 +5255,98 @@ function renderTop3() {
     vp.addEventListener('pointercancel', finish);
   }
 }
+// === «Возможно есть топливо здесь»: народное подтверждение свежих меток источника ===
+// Кандидаты — станции, где источник за последние 24 ч отметил возврат топлива
+// (событие fuel_restored), но свежим наблюдением «есть» сейчас не подтверждено.
+// Голоса пишем обычными народными отметками в user_feedback: коллектор превратит
+// их в события, журнал свидетеля — в заявления, консенсус перекрасит пины.
+// Консенсус = ≥2 разных device_id за 24 ч: опция зачёркивается (голосование
+// закрыто), станция с консенсусом «нет» уезжает в конец сортировки.
+function maybeFuelVotes(stationId, fuel, since) {
+  const yes = new Set(), no = new Set();
+  let mine = null;
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || f.fuel_type !== fuel) continue;
+    const t = new Date(f.created_at).getTime();
+    if (t < since) continue;
+    if (f.feedback_type === 'available') { yes.add(f.device_id || '?'); if (f.device_id === deviceId) mine = 'yes'; }
+    else if (f.feedback_type === 'unavailable') { no.add(f.device_id || '?'); if (f.device_id === deviceId) mine = 'no'; }
+  }
+  return { yes: yes.size, no: no.size, mine: mine };
+}
+function maybeFuelCandidates() {
+  const since = Date.now() - 24 * 3600 * 1000;
+  const citySet = new Set(cityStationList().map(s => s.id));
+  const last = getLastObservations();
+  const latest = {};
+  for (const e of allWaveEvents) {
+    if (e.event_type !== 'fuel_restored') continue;
+    const t = new Date(e.detected_at).getTime();
+    if (t < since) continue;
+    if (!citySet.has(e.station_id)) continue;
+    const k = e.station_id + '|' + e.fuel_type;
+    if (!latest[k] || t > latest[k].t) latest[k] = { st: e.station_id, fuel: e.fuel_type, t: t };
+  }
+  const out = [];
+  for (const k of Object.keys(latest)) {
+    const c = latest[k];
+    const o = last[c.st];
+    const col = c.fuel === '92' ? 'fuel_92_status' : c.fuel === '95' ? 'fuel_95_status' : 'diesel_status';
+    if (o && obsFresh(o) && o[col] === true) continue; // свежее наблюдение уже подтверждает топливо — плашка не нужна
+    const st = allStations.find(s => s.id === c.st);
+    if (!st) continue;
+    const v = maybeFuelVotes(c.st, c.fuel, since);
+    out.push({ st: st, fuel: c.fuel, t: c.t, yes: v.yes, no: v.no, mine: v.mine });
+  }
+  out.sort((a, b) => ((a.no >= 2) - (b.no >= 2)) || (b.t - a.t));
+  return out.slice(0, 4);
+}
+function renderMaybeFuel() {
+  const wrap = document.getElementById('maybeFuelPlate');
+  if (!wrap) return;
+  const list = maybeFuelCandidates();
+  if (!list.length) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = '';
+  const rows = list.map(c => {
+    const d = new Date(c.t);
+    const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    const sunk = c.no >= 2, conf = c.yes >= 2;
+    return '<div class="mf-row' + (sunk ? ' sunk' : conf ? ' confirmed' : '') + '">' +
+      '<span class="mf-logo">' + stationLogo(c.st) + '</span>' +
+      '<span class="mf-main"><b>' + escapeHtml(c.st.name || 'АЗС') + '</b><small>' + escapeHtml(c.st.address || '') + ' · источник: топливо вернулось ' + hm + '</small></span>' +
+      '<span class="mf-fuel">' + fuelLabel(c.fuel) + '</span>' +
+      '<span class="mf-votes">' +
+      '<button class="mf-btn yes' + (c.yes >= 2 ? ' struck' : '') + (c.mine === 'yes' ? ' mine' : '') + '" onclick="maybeVote(\'' + c.st.id + '\',\'' + c.fuel + '\',true)">' + icon('i-check', 'ic-s') + 'Да, имеется' + (c.yes ? ' <i>' + c.yes + '</i>' : '') + '</button>' +
+      '<button class="mf-btn no' + (c.no >= 2 ? ' struck' : '') + (c.mine === 'no' ? ' mine' : '') + '" onclick="maybeVote(\'' + c.st.id + '\',\'' + c.fuel + '\',false)">' + icon('i-cross', 'ic-s') + 'Нет, отсутствует' + (c.no ? ' <i>' + c.no + '</i>' : '') + '</button>' +
+      '</span></div>';
+  }).join('');
+  wrap.innerHTML = '<div class="mf-head">' + icon('i-pump') + 'Возможно есть топливо здесь:<small>источник отметил за 24 ч</small></div>' +
+    '<div class="mf-sub">Подтвердите или опровергните метку источника — голос уходит в ленту города и в цвет пина. Консенсус двух водителей закрывает голосование.</div>' + rows;
+}
+async function maybeVote(stationId, fuel, yes) {
+  const since = Date.now() - 24 * 3600 * 1000;
+  const v = maybeFuelVotes(stationId, fuel, since);
+  if (v.mine) return; // один голос на водителя по паре за сутки
+  if (yes ? v.yes >= 2 : v.no >= 2) return; // по этой опции уже консенсус — голосование закрыто
+  const st = allStations.find(s => s.id === stationId);
+  const onSite = await onSiteFields(st);
+  const row = Object.assign({
+    station_id: stationId,
+    device_id: deviceId,
+    feedback_type: yes ? 'available' : 'unavailable',
+    fuel_type: fuel,
+    queue_size: null,
+    comment_text: null
+  }, onSite);
+  let ok = true;
+  try { await dbInsert('user_feedback', [row]); } catch (e) { ok = false; }
+  if (!ok) queueFeedbackLocally([row]); // нет связи: уйдёт автоматически, как обычные отметки
+  allFeedback.unshift(Object.assign({ created_at: new Date().toISOString(), id: 'local_' + Date.now() }, row));
+  track('feedback_submit');
+  bumpContrib();
+  renderMaybeFuel();
+  setTimeout(() => { if (mapObj) renderMap(); }, 1400); // консенсус мог перекрасить пин
+}
 function renderNow() {
   const cta = document.getElementById('ctaBest');
   if (!allStations.length) return;
@@ -5331,6 +5448,7 @@ function renderNow() {
   updateMapPlate();
   renderHero();
   renderPulse();
+  renderMaybeFuel();
   renderTop3();
   lentiRender();
   lentiBind();
