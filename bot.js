@@ -211,17 +211,20 @@ async function reportDigest() {
 
 // === подписчики: связка кода из сайта с чатом ===
 async function linkCode(code, chatId) {
-  const rows = await sbGet('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code) + '&select=device_id,created_at');
+  const rows = await sbGet('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code) + '&select=id,device_id,station_id,created_at');
   if (!rows.length) return null;
   if (Date.now() - new Date(rows[0].created_at).getTime() > CODE_TTL) {
     await sbDel('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code)).catch(() => {});
-    return 'expired';
+    return { expired: true };
   }
+  // Шаг 5 воронки: фиксируем момент /start с этим кодом
+  await sbPatch('/rest/v1/tg_link_codes?id=eq.' + rows[0].id, { started_at: new Date().toISOString() });
   await sbWrite('/rest/v1/tg_subscriptions',
     { device_id: rows[0].device_id, chat_id: Number(chatId), enabled: true },
     'return=minimal,resolution=merge-duplicates');
+  const res = { device_id: rows[0].device_id, station_id: rows[0].station_id || null };
   await sbDel('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code)).catch(() => {});
-  return rows[0].device_id;
+  return res;
 }
 
 async function subSetEnabled(chatId, enabled) {
@@ -433,17 +436,34 @@ async function main() {
       }
       continue;
     }
-    // --- 4) связка сайт→бот: /start kb… ---
+    // --- 4) связка сайт→бот: /start kb… — персональное приветствие по АЗС ---
+    // Если код пришёл из карточки конкретной станции (station_id есть),
+    // бот называет эту станцию по имени и обещает следить именно за ней.
+    // Подписка уже работает через user_favorites: index.html при подключении
+    // из карточки сам добавляет АЗС в избранное, коллектор начнёт присылать.
     const m = t.match(/^\/start\s+(kb[0-9a-z]+)$/i);
     if (m) {
       let res = null;
       try { res = await linkCode(m[1], chatId); } catch (e) { console.log('   ! связка: ' + e.message); }
-      if (res && res !== 'expired') {
-        await tgChat(chatId, '✅ Готово! Теперь я лично пишу вам, когда на избранных АЗС (сердечко на сайте) вернётся или кончится топливо, либо появится очередь.\nПауза: /quiet, отключить: /stop.\n\nА ещё сюда придёт ответ разработчика, если вы написали через «Написать нам» на сайте.');
-      } else if (res === 'expired') {
-        await tgChat(chatId, 'Код устарел (живёт 15 минут). Вернитесь на сайт и нажмите «Подключить Телеграм» ещё раз.');
+      let stName = null;
+      if (res && res.station_id) {
+        try {
+          const ss = await sbGet('/rest/v1/stations?id=eq.' + encodeURIComponent(res.station_id) + '&select=name,address&limit=1');
+          if (ss.length) stName = ss[0].name + (ss[0].address ? ', ' + ss[0].address : '');
+        } catch (e) {}
+      }
+      if (res && !res.expired) {
+        let msg;
+        if (stName) {
+          msg = 'Привет! 👋\n\nЯ буду следить за заправкой <b>' + escTg(stName) + '</b>.\n\nЧто буду присылать:\n🔔 Когда появится вероятность возвращения топлива\n⛽ Изменения ситуации на этой АЗС\n📍 Любые события по вашим избранным (добавляйте сердечком на сайте)\n\nУправление:\n/quiet — пауза\n/loud — снова уведомлять\n/stop — отключить совсем\n\nОтвет разработчика на «Написать нам» тоже приходит сюда.';
+        } else {
+          msg = '✅ Готово! Теперь я лично пишу вам, когда на избранных АЗС (сердечко на сайте) вернётся или кончится топливо, либо появится очередь.\nПауза: /quiet, отключить: /stop.\n\nА ещё сюда придёт ответ разработчика, если вы написали через «Написать нам» на сайте.';
+        }
+        await tgChat(chatId, msg, null, 'HTML');
+      } else if (res && res.expired) {
+        await tgChat(chatId, 'Код устарел (живёт 15 минут). Вернитесь на сайт и нажмите «Получать уведомления в Telegram» ещё раз.');
       } else {
-        await tgChat(chatId, 'Код не найден. Откройте карточку избранной АЗС на сайте и нажмите полоску «Подключить Телеграм» — получится новый код.');
+        await tgChat(chatId, 'Код не найден. Откройте карточку АЗС на сайте и нажмите «Получать уведомления в Telegram» — получится новый код.');
       }
       if (chatId === CHAT) await tgChat(CHAT, 'Этот чат связан с сайтом как устройство-подписчик. Кнопки владельца ниже.', KEYBOARD);
       continue;

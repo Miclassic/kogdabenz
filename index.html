@@ -577,6 +577,10 @@ body { overflow:hidden; }
 .mf-btn.no { background:#fdecec; color:#c2403f; border:1px solid #f3b7b3; }
 .mf-btn.struck { text-decoration:line-through; opacity:.55; cursor:default; }
 .mf-btn.mine { box-shadow:inset 0 0 0 2px currentColor; }
+/* окно «следи за своей заправкой»: продаём пользу, а не подписку */
+.to-row { display:flex; align-items:center; gap:8px; margin-top:7px; font-size:11.5px; font-weight:700; color:#33445f; }
+.to-row .ic { width:14px; height:14px; color:#2465ee; flex:0 0 auto; }
+.to-row.g .ic { color:#19b77a; }
 /* === Топ-3 по ближайшему окну: свайп «сейчас / потом», тап — карточка АЗС === */
 .top3 { margin-top:8px; padding:10px 10px 8px; border-radius:18px; background:#fff; box-shadow:0 6px 18px rgba(38,69,120,.07); }
 .top3-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
@@ -1619,6 +1623,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="hello-pop advice-pop" id="advicePop"></div>
   <div class="hello-back" id="scoreBack" onclick="closeScorePop()"></div>
   <div class="hello-pop sc-pop" id="scorePop"></div>
+  <div class="hello-back" id="tgOfferBack" onclick="closeTgOffer()"></div>
+  <div class="hello-pop" id="tgOfferPop" style="width:min(340px, calc(100vw - 32px))"></div>
   <div class="shadow-card" id="shadowCard"></div>
 </div>
 <script>
@@ -1735,11 +1741,16 @@ async function dbInsert(table, rows) {
   const ctrl = new AbortController();
   const tm = setTimeout(() => ctrl.abort(), 20000);
   try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+    const stId = arguments.length > 1 && arguments[1] ? arguments[1] : null;
+    const body = { code: code, device_id: deviceId };
+    if (stId) body.station_id = stId;
+    const r = await fetch(SUPABASE_URL + '/rest/v1/tg_link_codes', {
       method: 'POST',
-      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify(rows),
-      signal: ctrl.signal
+      headers: {
+        apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json', Prefer: 'return=minimal'
+      },
+      body: JSON.stringify(body)
     });
     if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
     return true;
@@ -2470,7 +2481,7 @@ async function refreshTgLink() {
   const mailPopEl = document.getElementById('mailPop');
   if (mailBackEl && mailPopEl && mailBackEl.classList.contains('open') && !mailPopEl.querySelector('.poll-thanks')) renderMailPop();
 }
-async function tgConnect() {
+async function tgConnect(fromStationId) {
   track('tg_connect');
   const code = 'kb' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
   let ok = true;
@@ -2911,6 +2922,22 @@ function closeScorePop() {
   const pop = document.getElementById('scorePop'); const back = document.getElementById('scoreBack');
   if (pop) pop.classList.remove('open'); if (back) back.classList.remove('open');
 }
+// === Правда с места: GPS-отметка водителя «с места» сильнее устаревшего источника ===
+// На 2 часа такая отметка перекрывает источнику «нет» и гистерезис машины
+// состояний («не подтверждён»): человек физически стоял у колонки, это факт.
+// Модель и прогнозы правило не трогает — меняется только витрина карточки.
+function sceneMark(stationId, fuel) {
+  const since = Date.now() - 2 * 3600 * 1000;
+  let best = null;
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || f.feedback_type !== 'available') continue;
+    if (f.fuel_type !== fuel || !f.verified_on_site) continue;
+    const t = new Date(f.created_at).getTime();
+    if (t < since) continue;
+    if (!best || t > best.t) best = { t: t };
+  }
+  return best;
+}
 // === карточка АЗС v2 по макету: вердикт → топлива → факты → кнопки →
 // карта-миниатюра → события за сутки → Score. Один экран, без скролла. ===
 function confPill(obs, stt, trust) {
@@ -2983,7 +3010,7 @@ function scoreGaugeHtml(station, focusFuel) {
 function tgButtonHtml(station) {
   const fav = isFavorite(station.id);
   if (fav && tgLinked) return '<button class="cta-btn ghost big tg-onbtn" data-tgbtn="' + station.id + '" onclick="tgOpen()">' + icon('i-check') + 'АЗС в избранном · уведомления включены' + icon('i-arrow') + '</button>';
-  if (fav) return '<button class="cta-btn ghost big" data-tgbtn="' + station.id + '" onclick="tgConnect()">' + icon('i-tg') + 'АЗС в избранном · включите уведомления' + icon('i-arrow') + '</button>';
+  if (fav) return '<button class="cta-btn ghost big" data-tgbtn="' + station.id + '" onclick="tgConnectStation(\'' + station.id + '\')">' + icon('i-tg') + 'АЗС в избранном · включите уведомления' + icon('i-arrow') + '</button>';
   return '<button class="cta-btn ghost big" data-tgbtn="' + station.id + '" onclick="tgNotifyTap(this,\'' + station.id + '\')">' + icon('i-tg') + 'Напомнить в Telegram' + icon('i-arrow') + '</button>';
 }
 function refreshTgButton(stationId) {
@@ -2991,6 +3018,71 @@ function refreshTgButton(stationId) {
   if (!btn) return;
   const st = allStations.find(s => s.id === stationId);
   if (st) btn.outerHTML = tgButtonHtml(st);
+}
+// === Цепочка подписки: польза → избранное → Телеграм (по стратегии 03.11) ===
+// Подключение уведомлений из карточки автоматически добавляет АЗС в избранное:
+// персональные уведомления бота живут на избранных связки, поэтому контекст
+// станции не теряется даже без изменений бота.
+function tgConnectStation(stId) {
+  if (stId && !isFavorite(stId)) {
+    const f = getFavorites();
+    f.push(stId);
+    localStorage.setItem('favorites', JSON.stringify(f));
+    syncFavorites();
+  }
+  tgConnect(stId);
+}
+// Окно-предложение: показываем в момент интереса (добавил в избранное) или на
+// повторном заходе с избранным, но без Телеграма. Кулдаун 3 дня, раз за сессию,
+// не поверх других окон, никогда в офлайне и никогда при включённой связке.
+function tgOfferAllowed() {
+  if (tgLinked || offlineMode) return false;
+  let last = 0;
+  try { last = Number(localStorage.getItem('kbTgOffer') || 0); } catch (e) {}
+  if (Date.now() - last < 3 * 86400000) return false;
+  try { if (sessionStorage.getItem('kbTgOfferSession')) return false; } catch (e) {}
+  return true;
+}
+function tgOfferShow(stId) {
+  const pop = document.getElementById('tgOfferPop'); const back = document.getElementById('tgOfferBack');
+  if (!pop || !back) return;
+  const st = stId ? allStations.find(s => s.id === stId) : null;
+  pop.innerHTML = '<div class="hello-title">⛽ Следи за своей заправкой</div>' +
+    '<div class="help-lead" style="margin:4px 0 8px">' + (st
+      ? 'По станции «' + escapeHtml(st.name || 'АЗС') + '» уведомления будут приходить прямо в Телеграм — не нужно постоянно проверять сайт.'
+      : 'Добавь АЗС в избранное и получай уведомления, когда появляется вероятность возвращения топлива.') + '</div>' +
+    '<div class="to-row g">' + icon('i-heart', 'ic-s') + 'Твои любимые АЗС всегда под рукой</div>' +
+    '<div class="to-row">' + icon('i-tg', 'ic-s') + 'Уведомления в Телеграм</div>' +
+    '<div class="to-row">' + icon('i-clock', 'ic-s') + 'Не нужно постоянно проверять сайт</div>' +
+    '<button class="cta-btn" style="width:100%;margin-top:10px" onclick="tgOfferGo(\'' + (stId || '') + '\')">' + icon('i-tg') + 'Получать уведомления в Telegram</button>' +
+    '<button class="cta-btn ghost" style="width:100%;margin-top:6px" onclick="closeTgOffer()">Позже</button>' +
+    '<div class="recent" style="margin-top:8px">Отключить можно в любой момент. Прогноз — это вероятность, а не гарантия фактического появления топлива.</div>';
+  pop.classList.add('open'); back.classList.add('open');
+}
+function tgOfferGo(stId) {
+  closeTgOffer();
+  tgConnectStation(stId || undefined);
+}
+function closeTgOffer() {
+  const pop = document.getElementById('tgOfferPop'); const back = document.getElementById('tgOfferBack');
+  if (pop) pop.classList.remove('open');
+  if (back) back.classList.remove('open');
+}
+function maybeTgOffer(stId) {
+  if (!tgOfferAllowed()) return;
+  let tries = 0;
+  const attempt = () => {
+    if (document.querySelector('.hello-back.open, .sheet.open')) {
+      if (++tries < 20) setTimeout(attempt, 1500);
+      return;
+    }
+    try {
+      sessionStorage.setItem('kbTgOfferSession', '1');
+      localStorage.setItem('kbTgOffer', String(Date.now()));
+    } catch (e) {}
+    tgOfferShow(stId);
+  };
+  setTimeout(attempt, 800);
 }
 function tgNotifyTap(btn, stationId) {
   if (tgLinked) { tgOpen(); return; }
@@ -3000,7 +3092,7 @@ function tgNotifyTap(btn, stationId) {
     setTimeout(() => { btn.innerHTML = old; }, 2500);
     return;
   }
-  tgConnect();
+  tgConnectStation(stationId);
 }
 function cardMapGo(id) {
   const st = allStations.find(s => s.id === id);
@@ -3050,9 +3142,10 @@ function folkCardHtml(stationId) {
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const trust = availTrustworthy(obs);
-  const has95 = trust && obs && obs.fuel_95_status === true;
-  const has92 = trust && obs && obs.fuel_92_status === true;
-  const hasDt = trust && obs && obs.diesel_status === true;
+  const scene = { '92': sceneMark(station.id, '92'), '95': sceneMark(station.id, '95'), 'diesel': sceneMark(station.id, 'diesel') };
+  const has95 = (trust && obs && obs.fuel_95_status === true) || !!scene['95'];
+  const has92 = (trust && obs && obs.fuel_92_status === true) || !!scene['92'];
+  const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'];
   const availList = [];
   if (has95) availList.push('АИ-95');
   if (has92) availList.push('АИ-92');
@@ -3082,7 +3175,14 @@ function stationCard(station, obs, pred) {
     vTitle = 'Свежих данных нет';
     vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes !== undefined ? 'источник был ' + agoRu(obs.data_freshness_minutes) : 'источник молчит') + ' · ' + qTxt;
   }
-  const tile = (label, col) => {
+  const tile = (label, col, fk) => {
+    const sc = scene[fk];
+    if (sc) {
+      const mins = Math.max(0, Math.round((Date.now() - sc.t) / 60000));
+      return '<div class="f-tile"><span class="f-drop">' + icon('i-drop') + '</span><b>' + label + '</b>' +
+        '<span class="f-st yes">есть · с места' + icon('i-check', 'ic-s') + '</span>' +
+        '<span class="f-pill yes">водитель был там ' + (mins < 60 ? mins + ' мин' : Math.round(mins / 60) + ' ч') + ' назад</span></div>';
+    }
     const stt = obs ? obs[col] : null;
     let stTxt, stIco, stCls;
     if (stt === true && trust) { stTxt = 'есть'; stIco = 'i-check'; stCls = 'yes'; }
@@ -3116,7 +3216,7 @@ function stationCard(station, obs, pred) {
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + ' · ' : '') + escapeHtml(station.address || '') + '</div></div>' +
     '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
     '<div class="verdict ' + vCls + '"><span class="v-ico">' + icon(vIco) + '</span><span class="v-txt"><span class="verdict-t">' + escapeHtml(vTitle) + '</span><span class="verdict-s">' + escapeHtml(vSub) + '</span></span></div>' +
-    '<div class="f-tiles">' + tile('АИ-92', 'fuel_92_status') + tile('АИ-95', 'fuel_95_status') + tile('Дизель', 'diesel_status') + '</div>' +
+    '<div class="f-tiles">' + tile('АИ-92', 'fuel_92_status', '92') + tile('АИ-95', 'fuel_95_status', '95') + tile('Дизель', 'diesel_status', 'diesel') + '</div>' +
     '<div class="card-facts">' +
     '<div class="cf"><div><small>' + icon('i-rub', 'ic-s') + 'Цены</small><span class="cf-prices">' +
     '<span class="pr-row"><i class="pr-ico f92">92</i><b>' + pr('price_92') + '</b></span>' +
@@ -5305,6 +5405,7 @@ function maybeFuelCandidates() {
     if (o && obsFresh(o) && o[col] === true) continue; // свежее наблюдение уже подтверждает топливо — плашка не нужна
     const st = allStations.find(s => s.id === c.st);
     if (!st) continue;
+    if (sceneMark(c.st, c.fuel)) continue; // водитель с места уже подтвердил топливо — голосование не нужно
     const v = maybeFuelVotes(c.st, c.fuel, since);
     out.push({ st: st, fuel: c.fuel, t: c.t, yes: v.yes, no: v.no, mine: v.mine });
   }
@@ -6409,7 +6510,7 @@ function closeRing() {
 function toggleFavoriteById(id) {
   let favs = getFavorites();
   if (favs.includes(id)) favs = favs.filter(x => x !== id);
-  else { favs.push(id); track('fav_add', null, id); }
+  else { favs.push(id); track('fav_add', null, id); maybeTgOffer(id); }
   localStorage.setItem('favorites', JSON.stringify(favs));
   syncFavorites();
   refreshTgButton(id);
@@ -6913,6 +7014,13 @@ async function start() {
     syncFavorites();   // довезти избранное до сервера (вдруг сердечки ставили до фичи)
     refreshTgLink();   // узнаём, подключён ли телеграм у этого устройства
     loadMyReliability(); // личная надёжность водителя из журнала свидетеля
+    // повторный заход с избранным, но без Телеграма — напомнить о уведомлениях
+    // (не на первом визите: сначала человек должен понять продукт)
+    try {
+      const vis = Number(localStorage.getItem('kbVisits') || 0) + 1;
+      localStorage.setItem('kbVisits', String(vis));
+      if (vis >= 2) setTimeout(() => { if (getFavorites().length) maybeTgOffer(null); }, 4000);
+    } catch (e) {}
     if (!stations.length) { window.__startErr = 'Источник вернул пустой список станций'; bootDataOk = false; app.innerHTML = '<div class="status">База подключена, но в ней пока нет АЗС.</div>'; return; }
     // весь юг: список показывает все станции, сортируются позже по геолокации
     renderStations(cityStationList());
@@ -7152,7 +7260,7 @@ function toggleFavorite(button) {
   const id = button.dataset.stationId;
   let favs = getFavorites();
   if (favs.includes(id)) { favs = favs.filter(x => x !== id); button.classList.remove('on'); }
-  else { favs.push(id); button.classList.add('on'); track('fav_add', null, id); }
+  else { favs.push(id); button.classList.add('on'); track('fav_add', null, id); maybeTgOffer(id); }
   localStorage.setItem('favorites', JSON.stringify(favs));
   syncFavorites();
 }

@@ -928,6 +928,30 @@ function renderHooks(hooks) {
     for (const t of tops) out += '<div class="bar-item"><div class="bar-label">' + t.name + '</div><div class="bar-track"><div class="bar-fill warning" style="width:' + Math.round(t.favs / max * 100) + '%"></div></div><div class="bar-value">' + t.favs + '</div></div>';
     out += '</div>';
   }
+  // === воронка подписки: код → /start → включён ===
+  const fn = hooks.funnel_codes || {};
+  const rec = hooks.codes_recent || [];
+  if (fn.created || fn.started || fn.linked) {
+    const pct = (n, d) => d ? Math.round(100 * n / d) : 0;
+    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Воронка подписки (за 7 дней)</div>';
+    out += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px">' +
+      '<div class="kpi-card" style="padding:10px"><div class="kpi-label">Код создан</div><div class="kpi-value" style="font-size:22px">' + (fn.created || 0) + '</div><div class="kpi-subtitle">100%</div></div>' +
+      '<div class="kpi-card" style="padding:10px"><div class="kpi-label">Нажали /start</div><div class="kpi-value" style="font-size:22px">' + (fn.started || 0) + '</div><div class="kpi-subtitle">' + pct(fn.started, fn.created) + '%</div></div>' +
+      '<div class="kpi-card" style="padding:10px"><div class="kpi-label">Включили уведомления</div><div class="kpi-value" style="font-size:22px">' + (fn.linked || 0) + '</div><div class="kpi-subtitle">' + pct(fn.linked, fn.started) + '%</div></div>' +
+      '</div>';
+  }
+  if (rec.length) {
+    out += '<table class="data-table"><tr><th>Код</th><th>Устройство</th><th>Станция</th><th>Статус</th><th>Создан</th></tr>';
+    for (const r of rec) {
+      const stName = r.station_id ? (allStations && (allStations.find(s => s.id === r.station_id) || {}).name) || r.station_id.slice(0, 8) : '—';
+      const stColor = r.status === 'linked' ? '#12855c' : r.status === 'started' ? '#c26a2a' : '#94a3b8';
+      const stLabel = r.status === 'linked' ? '✓ включён' : r.status === 'started' ? '/start без link' : 'ждёт';
+      const d = new Date(r.created_at);
+      const when = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+      out += '<tr><td><code style="font-size:10px">' + (r.code || '—').slice(0, 10) + '</code></td><td>#' + (r.dev || '—') + '</td><td>' + stName + '</td><td><b style="color:' + stColor + '">' + stLabel + '</b></td><td style="color:#94a3b8">' + when + '</td></tr>';
+    }
+    out += '</table>';
+  }
   const src = hooks.fav_by_source || [];
   if (src.length) {
     const max = Math.max(...src.map(s => s.adds));
