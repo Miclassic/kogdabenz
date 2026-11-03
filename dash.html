@@ -868,7 +868,16 @@ function renderEngagement(eng) {
     '<div class="kpi-card"><div class="kpi-label">Медиана времени в сайте</div><div class="kpi-value">' + fmtDur(d.p50) + '</div><div class="kpi-subtitle">75%: ' + fmtDur(d.p75) + ' · 90%: ' + fmtDur(d.p90) + '</div></div>' +
     '<div class="kpi-card"><div class="kpi-label">Сессии дольше 2 минут</div><div class="kpi-value">' + (d.share_long !== undefined ? d.share_long + '%' : '—') + '</div><div class="kpi-subtitle">из ' + (d.n || 0) + ' закрытий за 30 дней</div></div>' +
     '</div>';
-  const fd = eng.freq_dist || [];
+  const fdRaw = eng.freq_dist || [];
+  const fdMap = {};
+  for (const x of fdRaw) {
+    const m = fdMap[x.bucket] = fdMap[x.bucket] || { bucket: x.bucket, device_days: 0, ord: x.ord };
+    m.device_days += x.device_days;
+    m.ord = Math.min(m.ord, x.ord);
+  }
+  const fdTotal = fdRaw.reduce((s, x) => s + x.device_days, 0) || 1;
+  const fd = Object.values(fdMap).sort((a, b) => a.ord - b.ord);
+  for (const x of fd) x.pct = Math.round(100 * x.device_days / fdTotal);
   if (fd.length) {
     const max = Math.max(...fd.map(x => x.device_days));
     out += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Сколько раз в день заходят</div><div class="bar-chart">';
