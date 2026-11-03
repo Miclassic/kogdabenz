@@ -585,21 +585,26 @@ async function load() {
         method: 'POST',
         headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
       })
     ]);
 
-    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok) throw new Error('HTTP error');
+    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok) throw new Error('HTTP error');
 
-    const [stats, poll, advisor, hooks] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json()]);
+    const [stats, poll, advisor, hooks, eng] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json()]);
     if (stats.error) throw new Error('Invalid token');
 
-    render(stats, poll, advisor, hooks);
+    render(stats, poll, advisor, hooks, eng);
   } catch (e) {
     app.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
   }
 }
 
-function render(stats, poll, advisor, hooks) {
+function render(stats, poll, advisor, hooks, eng) {
   const app = document.getElementById('app');
   let html = '';
 
@@ -837,10 +842,55 @@ function render(stats, poll, advisor, hooks) {
   }
 
   html += renderHooks(hooks);
+  html += renderEngagement(eng);
   app.innerHTML = html;
   loadTraffic(trafficRange); // график трафика живёт своим запросом, не тормозит остальные блоки
 }
 
+// === Привычка: частота заходов в день и время в сайте до закрытия ===
+// Частота — по device_id: сколько разных сессий открывает один телефон за день.
+// Время — из session_end (duration_sec), сайт шлёт его при закрытии/сворачивании.
+function fmtDur(s) {
+  if (s === null || s === undefined) return '—';
+  s = Math.round(s);
+  if (s < 60) return s + ' с';
+  const m = Math.floor(s / 60), r = s % 60;
+  if (m < 60) return m + ' м ' + r + ' с';
+  return Math.floor(m / 60) + ' ч ' + (m % 60) + ' м';
+}
+function renderEngagement(eng) {
+  if (!eng || eng.error) return '';
+  const d = eng.dur || {};
+  const favg = (eng.freq_avg === null || eng.freq_avg === undefined) ? '—' : Number(eng.freq_avg).toFixed(2).replace('.', ',');
+  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">⏱️</span>Привычка: частота и время</div></div>';
+  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">' +
+    '<div class="kpi-card"><div class="kpi-label">Заходов в день на человека</div><div class="kpi-value">' + favg + '</div><div class="kpi-subtitle">среднее за 7 дней</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Медиана времени в сайте</div><div class="kpi-value">' + fmtDur(d.p50) + '</div><div class="kpi-subtitle">75%: ' + fmtDur(d.p75) + ' · 90%: ' + fmtDur(d.p90) + '</div></div>' +
+    '<div class="kpi-card"><div class="kpi-label">Сессии дольше 2 минут</div><div class="kpi-value">' + (d.share_long !== undefined ? d.share_long + '%' : '—') + '</div><div class="kpi-subtitle">из ' + (d.n || 0) + ' закрытий за 30 дней</div></div>' +
+    '</div>';
+  const fd = eng.freq_dist || [];
+  if (fd.length) {
+    const max = Math.max(...fd.map(x => x.device_days));
+    out += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Сколько раз в день заходят</div><div class="bar-chart">';
+    for (const x of fd) out += '<div class="bar-item"><div class="bar-label">' + x.bucket + ' раз(а) в день</div><div class="bar-track"><div class="bar-fill primary" style="width:' + Math.round(x.device_days / max * 100) + '%"></div></div><div class="bar-value">' + x.pct + '%</div></div>';
+    out += '</div>';
+  }
+  const db = eng.dur_buckets || [];
+  if (db.length) {
+    const max = Math.max(...db.map(x => x.cnt));
+    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Сколько времени до закрытия</div><div class="bar-chart">';
+    for (const x of db) out += '<div class="bar-item"><div class="bar-label">' + x.label + '</div><div class="bar-track"><div class="bar-fill success" style="width:' + Math.round(x.cnt / max * 100) + '%"></div></div><div class="bar-value">' + x.cnt + '</div></div>';
+    out += '</div>';
+  }
+  const days = eng.days || [];
+  if (days.length) {
+    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Последние 7 дней: сессии на человека</div><table class="data-table"><tr><th>День</th><th>Людей</th><th>Сессий</th><th>Сессий/чел</th></tr>';
+    for (const x of days) out += '<tr><td>' + x.d + '</td><td>' + x.devices + '</td><td>' + x.sessions + '</td><td><b>' + Number(x.per_dev).toFixed(2).replace('.', ',') + '</b></td></tr>';
+    out += '</table>';
+  }
+  out += '<div class="note">Частота считается по device_id: сколько разных сессий открывает один телефон за день (1 раз — зашёл и ушёл, 2+ — возвращается проверять в течение дня). Время — от открытия до закрытия вкладки, событие session_end.</div></div>';
+  return out;
+}
 // === Крючки привычки: PWA-установка, Телеграм-связка, избранное ===
 // Кто сколько добавил в избранное — из серверной таблицы user_favorites
 // (хвост device_id анонимный), а откуда приходили сердечки — из site_hits с utm.
