@@ -2432,6 +2432,7 @@ function openSheetAboveAdvice(id) {
 // Сердечко раньше жило только в localStorage — бот о нём не знал. Теперь
 // каждый чих избранного синхронизируется rpc fav_sync (debounce 0.8 сек).
 let tgLinked = false;
+let tgLinkSeen = null; // null = статус ещё не узнавали; переворот false→true трекаем один раз
 let favSyncTimer = null;
 function syncFavorites() {
   if (favSyncTimer) clearTimeout(favSyncTimer);
@@ -2452,6 +2453,9 @@ async function refreshTgLink() {
     });
     if (r.ok) tgLinked = !!(await r.json());
   } catch (e) {}
+  // крючок: связка с Телеграмом подтвердилась, пока сайт открыт (переворот false→true)
+  if (tgLinkSeen === false && tgLinked) track('tg_linked');
+  tgLinkSeen = tgLinked;
   // перекрашиваем открытую карточку сразу: подключено → зелёная плашка без перезагрузки
   document.querySelectorAll('[data-tgstrip]').forEach(el => {
     const st = allStations.find(s => s.id === el.getAttribute('data-tgstrip'));
@@ -2467,6 +2471,7 @@ async function refreshTgLink() {
   if (mailBackEl && mailPopEl && mailBackEl.classList.contains('open') && !mailPopEl.querySelector('.poll-thanks')) renderMailPop();
 }
 async function tgConnect() {
+  track('tg_connect');
   const code = 'kb' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
   let ok = true;
   try { await dbInsert('tg_link_codes', [{ code: code, device_id: deviceId }]); } catch (e) { ok = false; }
@@ -6404,7 +6409,7 @@ function closeRing() {
 function toggleFavoriteById(id) {
   let favs = getFavorites();
   if (favs.includes(id)) favs = favs.filter(x => x !== id);
-  else favs.push(id);
+  else { favs.push(id); track('fav_add', null, id); }
   localStorage.setItem('favorites', JSON.stringify(favs));
   syncFavorites();
   refreshTgButton(id);
@@ -7147,7 +7152,7 @@ function toggleFavorite(button) {
   const id = button.dataset.stationId;
   let favs = getFavorites();
   if (favs.includes(id)) { favs = favs.filter(x => x !== id); button.classList.remove('on'); }
-  else { favs.push(id); button.classList.add('on'); }
+  else { favs.push(id); button.classList.add('on'); track('fav_add', null, id); }
   localStorage.setItem('favorites', JSON.stringify(favs));
   syncFavorites();
 }
@@ -7351,7 +7356,7 @@ function maybeHello() {
 // приветствия и никогда в standalone (уже стоит как приложение).
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
-window.addEventListener('appinstalled', () => { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} closeInstallPop(false); });
+window.addEventListener('appinstalled', () => { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} track('pwa_install'); closeInstallPop(false); });
 function isStandalone() {
   return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 }

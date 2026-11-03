@@ -580,21 +580,26 @@ async function load() {
         method: 'POST',
         headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
       })
     ]);
 
-    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok) throw new Error('HTTP error');
+    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok) throw new Error('HTTP error');
 
-    const [stats, poll, advisor] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json()]);
+    const [stats, poll, advisor, hooks] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json()]);
     if (stats.error) throw new Error('Invalid token');
 
-    render(stats, poll, advisor);
+    render(stats, poll, advisor, hooks);
   } catch (e) {
     app.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
   }
 }
 
-function render(stats, poll, advisor) {
+function render(stats, poll, advisor, hooks) {
   const app = document.getElementById('app');
   let html = '';
 
@@ -831,10 +836,49 @@ function render(stats, poll, advisor) {
     html += '</div>';
   }
 
+  html += renderHooks(hooks);
   app.innerHTML = html;
   loadTraffic(trafficRange); // график трафика живёт своим запросом, не тормозит остальные блоки
 }
 
+// === Крючки привычки: PWA-установка, Телеграм-связка, избранное ===
+// Кто сколько добавил в избранное — из серверной таблицы user_favorites
+// (хвост device_id анонимный), а откуда приходили сердечки — из site_hits с utm.
+function renderHooks(hooks) {
+  if (!hooks || hooks.error) return '';
+  const H = {};
+  for (const r of (hooks.hooks || [])) H[r.event] = r;
+  const card = (label, sub, r) => '<div class="kpi-card"><div class="kpi-label">' + label + '</div><div class="kpi-value">' + (r ? r.sessions : 0) + '</div><div class="kpi-subtitle">' + sub + (r ? r.hits : 0) + '</div></div>';
+  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🪝</span>Крючки: установка · Телеграм · избранное</div></div>';
+  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">' +
+    card('Установили PWA', 'установок: ', H.pwa_install) +
+    card('Кнопка «Телеграм»', 'нажатий: ', H.tg_connect) +
+    card('Связка подтверждена', 'включений: ', H.tg_linked) +
+    card('Сердечко избранного', 'добавлений: ', H.fav_add) +
+    '</div>';
+  const devs = hooks.fav_by_device || [];
+  if (devs.length) {
+    out += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Кто сколько держит в избранном</div><table class="data-table"><tr><th>Водитель</th><th>АЗС в избранном</th></tr>';
+    for (const d of devs) out += '<tr><td>#' + d.dev + '</td><td><b>' + d.favs + '</b></td></tr>';
+    out += '</table>';
+  }
+  const tops = hooks.top_fav_stations || [];
+  if (tops.length) {
+    const max = Math.max(...tops.map(t => t.favs));
+    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Самые избранные АЗС</div><div class="bar-chart">';
+    for (const t of tops) out += '<div class="bar-item"><div class="bar-label">' + t.name + '</div><div class="bar-track"><div class="bar-fill warning" style="width:' + Math.round(t.favs / max * 100) + '%"></div></div><div class="bar-value">' + t.favs + '</div></div>';
+    out += '</div>';
+  }
+  const src = hooks.fav_by_source || [];
+  if (src.length) {
+    const max = Math.max(...src.map(s => s.adds));
+    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Откуда приходили сердечки</div><div class="bar-chart">';
+    for (const s of src) out += '<div class="bar-item"><div class="bar-label">' + sourceRu(s.source) + '</div><div class="bar-track"><div class="bar-fill success" style="width:' + Math.round(s.adds / max * 100) + '%"></div></div><div class="bar-value">' + s.adds + '</div></div>';
+    out += '</div>';
+  }
+  out += '<div class="note">Крючки пишутся с момента вставки трекинга (03.11.2026), раньше — нули, это норма. «Кто» — анонимный хвост device_id; сами избранники живут в серверной таблице user_favorites, поэтому счётчики «держит в избранном» видны и за прошлые дни.</div></div>';
+  return out;
+}
 // === Трафик: график пользователей с переключателем периодов (как на бирже) ===
 let trafficCache = {};
 let trafficRange = '24h';
