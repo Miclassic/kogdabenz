@@ -565,7 +565,7 @@ function formatNumber(n) {
 async function load() {
   const app = document.getElementById('app');
   try {
-    const [statsRes, pollRes, advisorRes, hooksRes] = await Promise.all([
+    const [statsRes, pollRes, advisorRes, hooksRes, engRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', {
         method: 'POST',
         headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
