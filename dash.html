@@ -590,21 +590,26 @@ async function load() {
         method: 'POST',
         headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
       })
     ]);
 
-    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok) throw new Error('HTTP error');
+    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok || !srcfRes.ok) throw new Error('HTTP error');
 
-    const [stats, poll, advisor, hooks, eng] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json()]);
+    const [stats, poll, advisor, hooks, eng, srcf] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json()]);
     if (stats.error) throw new Error('Invalid token');
 
-    render(stats, poll, advisor, hooks, eng);
+    render(stats, poll, advisor, hooks, eng, srcf);
   } catch (e) {
     app.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
   }
 }
 
-function render(stats, poll, advisor, hooks, eng) {
+function render(stats, poll, advisor, hooks, eng, srcf) {
   const app = document.getElementById('app');
   let html = '';
 
@@ -843,10 +848,26 @@ function render(stats, poll, advisor, hooks, eng) {
 
   html += renderHooks(hooks);
   html += renderEngagement(eng);
+  html += renderSourceFunnel(srcf);
   app.innerHTML = html;
   loadTraffic(trafficRange); // график трафика живёт своим запросом, не тормозит остальные блоки
 }
 
+// === Воронка по источникам за 7 дней: реклама против органики и прямых ===
+// Считаем уникальных session_id по строкам событий: каждая строка несёт
+// utm/referrer своего захода, поэтому сегментация честная по визитам.
+function renderSourceFunnel(list) {
+  if (!list || !list.length) return '';
+  const cell = (n, r) => r.visits ? n + ' <small style="color:#94a3b8">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
+  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Воронка по источникам · 7 дней</div></div>';
+  out += '<div style="overflow-x:auto"><table class="data-table"><tr><th>Источник</th><th>Открыли</th><th>Листали</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
+  for (const r of list) {
+    out += '<tr><td><b>' + r.source + '</b></td><td>' + r.visits + '</td><td>' + cell(r.panels, r) + '</td><td>' + cell(r.cards, r) + '</td><td>' + cell(r.advice, r) + '</td><td>' + cell(r.marks, r) + '</td><td>' + cell(r.installs, r) + '</td></tr>';
+  }
+  out += '</table></div>';
+  out += '<div class="note">Проценты — от открывших сайт из этого источника. Сравнивай строки между собой: если у «Реклама: yandex» доли листали/совет заметно ниже органики — холодный трафик не понимает первый экран, и чинить надо посадочную, а не кампанию. Устройство, заходившее с разными источниками, попадёт в обе строки — это честно.</div></div>';
+  return out;
+}
 // === Привычка: частота заходов в день и время в сайте до закрытия ===
 // Частота — по device_id: сколько разных сессий открывает один телефон за день.
 // Время — из session_end (duration_sec), сайт шлёт его при закрытии/сворачивании.
