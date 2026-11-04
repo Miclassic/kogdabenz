@@ -1323,6 +1323,14 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 .mn-item.on .mn-label { color:#2465ee; }
 .mn-item.on .mn-ico { box-shadow:0 8px 18px rgba(36,101,238,.35), inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 6px rgba(10,40,120,.16); }
 @media (max-width:380px){ .mn-ico { width:28px; height:28px; border-radius:10px; } .mn-ico .ic { width:14px; height:14px; } .mn-label { font-size:8.5px; } }
+  /* Стили для тепловой карты */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 10px; }
+  .heatmap { border-collapse: collapse; font-size: 10px; }
+  .heatmap th, .heatmap td { padding: 2px; text-align: center; }
+  .heatmap .hour-label { font-weight: 600; color: var(--text-secondary); width: 30px; }
+  .heatmap .day-label { font-weight: 600; color: var(--text-secondary); text-align: left; padding-right: 8px; }
+  .heat-cell { width: 24px; height: 20px; border-radius: 3px; display: inline-block; transition: opacity 0.2s; }
+  .heat-cell:hover { opacity: 0.7; outline: 1px solid #000; }
 </style>
 </head>
 <body>
@@ -7831,6 +7839,156 @@ async function flushPollQueue() {
     console.log('Ответы опроса из очереди отправлены: ' + q.length);
   } catch (e) { console.log('Очередь ответов опроса не ушла, попробуем в следующий раз'); }
 }
+// === НОВЫЕ БЛОКИ: Отказы, Когорты, Тепловая карта ===
+
+async function loadAdvancedStats() {
+  const app = document.getElementById('app');
+  
+  // 1. Запрашиваем данные из базы
+  try {
+    const [bounceRes, cohortRes, heatmapRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_bounce_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_retention_cohorts', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET })
+      })
+    ]);
+
+    const bounceData = await bounceRes.json();
+    const cohortData = await cohortRes.json();
+    const heatmapData = await heatmapRes.json();
+
+    let html = '';
+
+    // --- БЛОК 2: Отказы (Bounce Rate) ---
+    if (bounceData && bounceData.total_sessions > 0) {
+      const maxB = Math.max(...(bounceData.buckets || []).map(b => b.cnt));
+      html += `<div class="section">
+        <div class="section-header"><div class="section-title"><span class="section-icon">🚪</span>Уходы и глубина просмотра</div></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+          <div class="kpi-card" style="border-left: 3px solid var(--danger);">
+            <div class="kpi-label">Показатель отказов</div>
+            <div class="kpi-value">${bounceData.bounce_rate}%</div>
+            <div class="kpi-subtitle">Ушли за первые 10 секунд</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Всего сессий</div>
+            <div class="kpi-value">${bounceData.total_sessions}</div>
+          </div>
+        </div>
+        <div class="bar-chart">`;
+      
+      (bounceData.buckets || []).forEach(b => {
+        const width = (b.cnt / maxB * 100);
+        const isBad = b.label.includes('уход');
+        const colorClass = isBad ? 'danger' : (b.label.includes('1-3') ? 'success' : 'primary');
+        // Заменяем класс, если у вас нет .danger, используем красный цвет инлайном
+        const barStyle = isBad ? 'background: var(--danger);' : '';
+        html += `<div class="bar-item">
+          <div class="bar-label">${b.label}</div>
+          <div class="bar-track"><div class="bar-fill ${colorClass}" style="width: ${width}%; ${barStyle}"></div></div>
+          <div class="bar-value">${b.cnt}</div>
+        </div>`;
+      });
+      html += `</div><div class="note">Отказы — это сессии короче 10 секунд. Если этот показатель выше 40-50%, значит люди заходят, видят белый экран (сайт тормозит), и сразу уходят.</div></div>`;
+    }
+
+    // --- БЛОК 3: Когорты (Возвращаемость) ---
+    if (cohortData && cohortData.length > 0) {
+      html += `<div class="section">
+        <div class="section-header"><div class="section-title"><span class="section-icon">🔄</span>Возвращаемость (Когорты)</div></div>
+        <div style="overflow-x:auto"><table class="data-table">
+          <tr><th>Дата прихода</th><th>Пришло (чел)</th><th>Вернулись на сл. день</th><th>Вернулись через 7 дней</th></tr>`;
+      
+      cohortData.forEach(c => {
+        const d1Pct = Math.round(100 * c.day1 / c.total_users);
+        const d7Pct = Math.round(100 * c.day7 / c.total_users);
+        // Подсветка, если возвращаемость хорошая (>15%)
+        const d1Color = d1Pct >= 15 ? '#12855c' : '#c2403f';
+        
+        const dateStr = new Date(c.cohort_date).toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+        html += `<tr>
+          <td><b>${dateStr}</b></td>
+          <td>${c.total_users}</td>
+          <td><span style="color:${d1Color};font-weight:700">${c.day1} (${d1Pct}%)</span></td>
+          <td><span style="color:#2465ee;font-weight:700">${c.day7} (${d7Pct}%)</span></td>
+        </tr>`;
+      });
+      html += `</table></div><div class="note">Когорты показывают реальную лояльность. Если человек пришел 1 ноября, вернулся ли он 2 ноября или 8 ноября?</div></div>`;
+    }
+
+    // --- БОНУС: Тепловая карта по времени ---
+    if (heatmapData && heatmapData.length > 0) {
+      // Находим максимум для цветовой шкалы
+      let maxUsers = 1;
+      heatmapData.forEach(h => { if (h.users > maxUsers) maxUsers = h.users; });
+      
+      const daysNames = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      // Создаем матрицу 7x24 (дни x часы)
+      let matrix = Array(8).fill(0).map(() => Array(24).fill(0));
+      heatmapData.forEach(h => { matrix[h.day_num][h.hour_num] = h.users; });
+
+      html += `<div class="section">
+        <div class="section-header"><div class="section-title"><span class="section-icon">🔥</span>Активность по дням и часам</div></div>
+        <div class="heatmap-wrap"><table class="heatmap">`;
+      
+      // Заголовок с часами
+      html += `<tr><th></th>`;
+      for(let h = 0; h < 24; h++) html += `<th class="hour-label">${h}</th>`;
+      html += `</tr>`;
+
+      // Строки с днями
+      for (let d = 1; d <= 7; d++) {
+        html += `<tr><td class="day-label">${daysNames[d]}</td>`;
+        for (let h = 0; h < 24; h++) {
+          const val = matrix[d][h];
+          // Вычисляем прозрачность от 0 до 1 (минимум 0.05, чтобы пустые ячейки были видны)
+          const opacity = Math.max(0.05, val / maxUsers);
+          // Цвет: от светло-голубого до насыщенного синего
+          const bgColor = `rgba(36, 101, 238, ${opacity})`;
+          html += `<td><div class="heat-cell" style="background:${bgColor}" title="${val} польз."></div></td>`;
+        }
+        html += `</tr>`;
+      }
+      html += `</table></div><div class="note">Темные пятна — часы пик. Обычно это утро (8:00-9:00) и вечер (17:00-19:00), когда люди едут на работу и с работы. В это время сервер должен работать идеально.</div></div>`;
+    }
+
+    // Вставляем новые блоки перед блоком "Воронка по источникам"
+    const sourceFunnelSection = document.querySelectorAll('.section');
+    // Ищем последний блок с источниками, чтобы вставить перед ним. 
+    // Если не нашли, просто добавляем в конец app.
+    if (app) {
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+      // app.appendChild(tempDiv); // Если хотим просто в конец
+      
+      // Попробуем вставить красиво (перед последним блоком)
+      const allSections = app.querySelectorAll(':scope > .section');
+      if (allSections.length > 0) {
+          allSections[allSections.length - 1].before(...tempDiv.children);
+      } else {
+          app.appendChild(tempDiv);
+      }
+    }
+
+  } catch (e) {
+    console.error('Ошибка загрузки доп. статистики:', e);
+  }
+}
+
+// ВЫЗОВ: Добавьте loadAdvancedStats() в конец функции render() или load().
+// Найдите в вашем коде функцию render(stats, poll...) и в самом конце, перед закрывающей скобкой, добавьте:
+// setTimeout(loadAdvancedStats, 500); // Небольшая задержка, чтобы основной интерфейс отрисовался быстрее
 // === «Что нового»: карточки нововведений ===
 // Новое нововведение = добавить объект В НАЧАЛО массива (дата дд.мм.гг, чип).
 // Карточка дня всплывает раз в сутки и только 14 дней с даты нововведения;

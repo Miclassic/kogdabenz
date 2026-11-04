@@ -169,15 +169,6 @@
     font-weight: 600;
   }
 
-  .kpi-spark {
-    position: absolute;
-    bottom: 8px;
-    right: 12px;
-    width: 60px;
-    height: 24px;
-    opacity: 0.35;
-  }
-
   .section {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -205,13 +196,6 @@
 
   .section-icon {
     font-size: 17px;
-  }
-
-  .chart-container {
-    position: relative;
-    width: 100%;
-    height: 280px;
-    margin: 12px 0;
   }
 
   .bar-chart {
@@ -252,17 +236,9 @@
     position: relative;
   }
 
-  .bar-fill.primary {
-    background: linear-gradient(90deg, #2465ee, #397cff);
-  }
-
-  .bar-fill.success {
-    background: linear-gradient(90deg, #19b77a, #2fd39a);
-  }
-
-  .bar-fill.warning {
-    background: linear-gradient(90deg, #f5a05a, #ffb46a);
-  }
+  .bar-fill.primary { background: linear-gradient(90deg, #2465ee, #397cff); }
+  .bar-fill.success { background: linear-gradient(90deg, #19b77a, #2fd39a); }
+  .bar-fill.warning { background: linear-gradient(90deg, #f5a05a, #ffb46a); }
 
   .bar-value {
     font-size: 12px;
@@ -293,37 +269,8 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .data-table tr:last-child td {
-    border-bottom: none;
-  }
-
-  .data-table tr:hover {
-    background: #f8fafc;
-  }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    padding: 3px 8px;
-    border-radius: 5px;
-    font-size: 10px;
-    font-weight: 700;
-  }
-
-  .badge-primary {
-    background: #e7f0ff;
-    color: #2465ee;
-  }
-
-  .badge-success {
-    background: #e5f8ef;
-    color: #12855c;
-  }
-
-  .badge-warning {
-    background: #fff2e8;
-    color: #c26a2a;
-  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover { background: #f8fafc; }
 
   .note {
     margin-top: 12px;
@@ -337,151 +284,32 @@
     font-weight: 600;
   }
 
-  .tf-tabs {
-    display: flex;
-    gap: 3px;
-    background: #f2f4f9;
-    border-radius: 9px;
-    padding: 3px;
-  }
+  .tf-tabs { display: flex; gap: 3px; background: #f2f4f9; border-radius: 9px; padding: 3px; }
+  .tf-tab { border: 0; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: all 0.2s; }
+  .tf-tab.active { background: #fff; color: var(--text-primary); box-shadow: 0 2px 6px rgba(20,33,61,.1); }
+  .tf-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 3px 0 8px; }
+  .tf-num { font-size: 26px; font-weight: 800; letter-spacing: -0.8px; color: var(--text-primary); }
+  .tf-num small { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-left: 6px; letter-spacing: 0; }
+  .tf-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .tf-badge.up { background: #e5f8ef; color: #12855c; }
+  .tf-badge.down { background: #fdecec; color: #c2403f; }
+  .tf-badge.neutral { background: #f2f4f9; color: var(--text-secondary); }
+  .chart-wrap { position: relative; }
+  .tf-svg { display: block; width: 100%; }
+  .tf-tip { position: absolute; top: 6px; left: 0; background: #14213d; color: #fff; font-size: 10px; font-weight: 600; padding: 5px 9px; border-radius: 7px; pointer-events: none; white-space: nowrap; box-shadow: 0 6px 16px rgba(20,33,61,.25); z-index: 5; }
 
-  .tf-tab {
-    border: 0;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-weight: 700;
-    padding: 5px 11px;
-    border-radius: 7px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .tf-tab.active {
-    background: #fff;
-    color: var(--text-primary);
-    box-shadow: 0 2px 6px rgba(20,33,61,.1);
-  }
-
-  .tf-head {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin: 3px 0 8px;
-  }
-
-  .tf-num {
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: -0.8px;
-    color: var(--text-primary);
-  }
-
-  .tf-num small {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-left: 6px;
-    letter-spacing: 0;
-  }
-
-  .tf-badge {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 6px;
-  }
-
-  .tf-badge.up {
-    background: #e5f8ef;
-    color: #12855c;
-  }
-
-  .tf-badge.down {
-    background: #fdecec;
-    color: #c2403f;
-  }
-
-  .tf-badge.neutral {
-    background: #f2f4f9;
-    color: var(--text-secondary);
-  }
-
-  .chart-wrap {
-    position: relative;
-  }
-
-  .tf-svg {
-    display: block;
-    width: 100%;
-  }
-
-  .tf-tip {
-    position: absolute;
-    top: 6px;
-    left: 0;
-    background: #14213d;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 600;
-    padding: 5px 9px;
-    border-radius: 7px;
-    pointer-events: none;
-    white-space: nowrap;
-    box-shadow: 0 6px 16px rgba(20,33,61,.25);
-    z-index: 5;
-  }
-
-  .error {
-    padding: 20px;
-    background: #fdecec;
-    border: 1px solid #f3b7b3;
-    border-radius: 12px;
-    color: #c2403f;
-    font-weight: 700;
-    text-align: center;
-    font-size: 13px;
-  }
-
-  .grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
+  .error { padding: 20px; background: #fdecec; border: 1px solid #f3b7b3; border-radius: 12px; color: #c2403f; font-weight: 700; text-align: center; font-size: 13px; }
+  .loading { display: flex; align-items: center; justify-content: center; padding: 50px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; margin-right: 11px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   @media (max-width: 768px) {
     .container { padding: 14px; }
     .header h1 { font-size: 19px; }
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .grid-2 { grid-template-columns: 1fr; }
     .bar-item { grid-template-columns: 140px 1fr 60px; }
     .bar-label { font-size: 11px; }
     .section { padding: 14px; }
-  }
-
-  .loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 50px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .spinner {
-    width: 36px;
-    height: 36px;
-    border: 3px solid #e2e8f0;
-    border-top-color: var(--primary);
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-    margin-right: 11px;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
   }
 </style>
 </head>
@@ -546,16 +374,37 @@ const CITY_RU = {
 
 function cityRu(c) { return CITY_RU[c] || (c === 'unknown' ? 'Не определён' : c); }
 
+// === УМНАЯ ГРУППИРОВКА ИСТОЧНИКОВ ===
 function sourceRu(s) {
-  if (s === 'direct') return 'Напрямую';
-  if (s.indexOf('ref: ') === 0) {
-    const m = s.slice(5).match(/\/\/([^\/]+)/);
-    const host = (m ? m[1] : s.slice(5)).replace(/^www\./, '');
-    const known = [['vk.com','ВКонтакте'],['t.me','Телеграм'],['yandex','Яндекс'],['google','Google']];
-    for (const k of known) if (host.indexOf(k[0]) >= 0) return k[1];
-    return host;
+  if (!s) return 'Неизвестно';
+  const lowerS = s.toLowerCase();
+
+  if (lowerS === 'direct' || lowerS === 'напрямую') return 'Прямые заходы';
+
+  // Реклама (utm метки)
+  if (lowerS.startsWith('utm: ')) {
+    if (lowerS.includes('yandex') || lowerS.includes('ya')) return 'Яндекс (Реклама)';
+    if (lowerS.includes('google')) return 'Google (Реклама)';
+    const platform = s.slice(5).split(' / ')[0];
+    return 'Реклама: ' + platform;
   }
-  if (s.indexOf('utm: ') === 0) return 'Реклама: ' + s.slice(5).split(' / ')[0];
+
+  // Органика и рефералы (referrer)
+  if (lowerS.startsWith('ref: ')) {
+    let host = lowerS.slice(5);
+    // Убираем протоколы и www
+    host = host.replace(/^(https?:\/\/)?(www\.)?/, '');
+    
+    if (host.startsWith('yandex') || host.startsWith('ya.ru')) return 'Яндекс (Поиск)';
+    if (host.startsWith('google')) return 'Google (Поиск)';
+    if (host.includes('vk.com') || host.includes('vk.ru')) return 'ВКонтакте';
+    if (host.includes('t.me') || host.includes('telegram')) return 'Телеграм';
+    if (host.includes('dzen.ru')) return 'Дзен';
+    if (host.includes('mail.ru')) return 'Mail.ru';
+    
+    return host.split('/')[0]; // Возвращаем просто домен
+  }
+
   return s;
 }
 
@@ -626,35 +475,13 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   const dauChangeIcon = dauChange > 0 ? '↑' : dauChange < 0 ? '↓' : '→';
 
   html += '<div class="kpi-grid">';
-  
-  html += `<div class="kpi-card">
-    <div class="kpi-label">Пользователи за 30 дней</div>
-    <div class="kpi-value">${formatNumber(num(stats.mau_30d))}</div>
-    <div class="kpi-subtitle">Уникальных посетителей</div>
-  </div>`;
-
-  html += `<div class="kpi-card">
-    <div class="kpi-label">Активность сегодня</div>
-    <div class="kpi-value">${num(stats.dau_today)}</div>
-    <div class="kpi-change ${dauChangeClass}">${dauChangeIcon} ${Math.abs(dauChange)}% vs вчера</div>
-    <div class="kpi-subtitle">Вчера: ${num(stats.dau_yesterday)}</div>
-  </div>`;
-
-  html += `<div class="kpi-card">
-    <div class="kpi-label">Новые за неделю</div>
-    <div class="kpi-value">${formatNumber(num(ret.new_7d))}</div>
-    <div class="kpi-subtitle">Вернувшихся: ${formatNumber(num(ret.returning_7d))}</div>
-  </div>`;
-
-  html += `<div class="kpi-card">
-    <div class="kpi-label">Всего сессий</div>
-    <div class="kpi-value">${formatNumber(num(stats.total_sessions))}</div>
-    <div class="kpi-subtitle">Действий: ${formatNumber(num(stats.total_hits))}</div>
-  </div>`;
-
+  html += `<div class="kpi-card"><div class="kpi-label">Пользователи за 30 дней</div><div class="kpi-value">${formatNumber(num(stats.mau_30d))}</div><div class="kpi-subtitle">Уникальных ID</div></div>`;
+  html += `<div class="kpi-card"><div class="kpi-label">Пользователей сегодня</div><div class="kpi-value">${num(stats.dau_today)}</div><div class="kpi-change ${dauChangeClass}">${dauChangeIcon} ${Math.abs(dauChange)}% vs вчера</div><div class="kpi-subtitle">Вчера: ${num(stats.dau_yesterday)}</div></div>`;
+  html += `<div class="kpi-card"><div class="kpi-label">Новые (за 7 дней)</div><div class="kpi-value">${formatNumber(num(ret.new_7d))}</div><div class="kpi-subtitle">Вернувшихся: ${formatNumber(num(ret.returning_7d))}</div></div>`;
+  html += `<div class="kpi-card"><div class="kpi-label">Всего визитов</div><div class="kpi-value">${formatNumber(num(stats.total_sessions))}</div><div class="kpi-subtitle">Действий: ${formatNumber(num(stats.total_hits))}</div></div>`;
   html += '</div>';
 
-  // Трафик: график в стиле биржевого, периоды 24h / 1W / 1M (данные добирает loadTraffic)
+  // Трафик
   html += '<div class="section">' +
     '<div class="section-header"><div class="section-title"><span class="section-icon">📈</span>Пользователи по периодам</div>' +
     '<div class="tf-tabs">' +
@@ -664,94 +491,64 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     '</div></div>' +
     '<div class="tf-head" id="trafficHead"></div>' +
     '<div class="chart-wrap" id="trafficChart"><div class="loading" style="padding:30px"><div class="spinner"></div></div></div>' +
-    '<div class="note">Уникальные пользователи = разные session_id за час (24h) или за день (1W/1M). Дельта — к такому же предыдущему периоду: для 24h к прошлым суткам, для недели к прошлой неделе. Палец или курсор по графику показывает точку целиком.</div>' +
+    '<div class="note">В этой системе <b>session_id</b> выступает как анонимный ID устройства (уникальный пользователь), так как сохраняется между визитами. График показывает количество таких уникальных ID.</div>' +
     '</div>';
 
   // Funnel
   const funnel = stats.funnel || [];
   if (funnel.length > 0) {
-    html += '<div class="section">';
-    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🎯</span>Действия пользователей</div></div>';
-    html += '<div class="bar-chart">';
-    
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🎯</span>Действия пользователей</div></div><div class="bar-chart">';
     const maxFunnel = Math.max(...funnel.map(f => f.sessions));
     funnel.forEach(f => {
       const event = EVENT_RU[f.event] || ['•', f.event];
       const width = (f.sessions / maxFunnel * 100);
-      html += `<div class="bar-item">
-        <div class="bar-label">${event[0]} ${event[1]}</div>
-        <div class="bar-track"><div class="bar-fill primary" style="width: ${width}%"></div></div>
-        <div class="bar-value">${formatNumber(f.sessions)}</div>
-      </div>`;
+      html += `<div class="bar-item"><div class="bar-label">${event[0]} ${event[1]}</div><div class="bar-track"><div class="bar-fill primary" style="width: ${width}%"></div></div><div class="bar-value">${formatNumber(f.sessions)}</div></div>`;
     });
-    
-    html += '</div>';
-    html += '<div class="note">Сколько уникальных пользователей выполнили каждое действие хотя бы раз.</div>';
-    html += '</div>';
+    html += '</div><div class="note">Сколько уникальных пользователей выполнили каждое действие хотя бы раз.</div></div>';
   }
 
-  // Sources
-  const sources = stats.sources || [];
+  // === ИСТОЧНИКИ ТРАФИКА (С ГРУППИРОВКОЙ) ===
+  const rawSources = stats.sources || [];
+  const groupedSourcesMap = {};
+  rawSources.forEach(item => {
+    const ruName = sourceRu(item.source);
+    if (!groupedSourcesMap[ruName]) groupedSourcesMap[ruName] = 0;
+    groupedSourcesMap[ruName] += item.sessions;
+  });
+  // Превращаем обратно в массив и сортируем по убыванию
+  const sources = Object.keys(groupedSourcesMap)
+    .map(k => ({ source: k, sessions: groupedSourcesMap[k] }))
+    .sort((a, b) => b.sessions - a.sessions);
+
   if (sources.length > 0) {
-    html += '<div class="section">';
-    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🔗</span>Источники трафика</div></div>';
-    html += '<div class="bar-chart">';
-    
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🔗</span>Источники трафика</div></div><div class="bar-chart">';
     const maxSrc = Math.max(...sources.map(s => s.sessions));
     sources.slice(0, 10).forEach(s => {
       const width = (s.sessions / maxSrc * 100);
-      html += `<div class="bar-item">
-        <div class="bar-label">${sourceRu(s.source)}</div>
-        <div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div>
-        <div class="bar-value">${formatNumber(s.sessions)}</div>
-      </div>`;
+      html += `<div class="bar-item"><div class="bar-label">${s.source}</div><div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div><div class="bar-value">${formatNumber(s.sessions)}</div></div>`;
     });
-    
-    html += '</div>';
-    html += '<div class="note">Откуда пользователи приходят на сайт. «Напрямую» — закладки, иконки, прямые ссылки.</div>';
-    html += '</div>';
+    html += '</div><div class="note">Все переходы с Яндекса, ВКонтакте и других систем объединены в общие группы для удобства (Поиск / Реклама).</div></div>';
   }
 
   // Cities
   const cities = stats.cities || [];
   if (cities.length > 0) {
-    html += '<div class="section">';
-    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🏙️</span>География пользователей</div></div>';
-    html += '<div class="bar-chart">';
-    
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🏙️</span>География пользователей</div></div><div class="bar-chart">';
     const maxCity = Math.max(...cities.map(c => c.sessions));
     cities.forEach(c => {
       const width = (c.sessions / maxCity * 100);
-      html += `<div class="bar-item">
-        <div class="bar-label">${cityRu(c.city)}</div>
-        <div class="bar-track"><div class="bar-fill warning" style="width: ${width}%"></div></div>
-        <div class="bar-value">${formatNumber(c.sessions)}</div>
-      </div>`;
+      html += `<div class="bar-item"><div class="bar-label">${cityRu(c.city)}</div><div class="bar-track"><div class="bar-fill warning" style="width: ${width}%"></div></div><div class="bar-value">${formatNumber(c.sessions)}</div></div>`;
     });
-    
-    html += '</div>';
-    html += '<div class="note">Город определяется по координатам устройства. Тот же город, что показывается в списке АЗС.</div>';
-    html += '</div>';
+    html += '</div><div class="note">Город определяется по координатам устройства.</div></div>';
   }
 
   // Polls
   if (poll && !poll.error && poll.total_answers > 0) {
-    html += '<div class="section">';
-    html += '<div class="section-header"><div class="section-title"><span class="section-icon">💬</span>Опросы водителей</div></div>';
-    
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">💬</span>Опросы водителей</div></div>';
     html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
-      <div class="kpi-card">
-        <div class="kpi-label">Всего ответов</div>
-        <div class="kpi-value">${formatNumber(poll.total_answers)}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Уникальных респондентов</div>
-        <div class="kpi-value">${formatNumber(poll.unique_respondents)}</div>
-      </div>
-      ${poll.avg_stars !== null ? `<div class="kpi-card">
-        <div class="kpi-label">Средняя оценка</div>
-        <div class="kpi-value">${poll.avg_stars.toFixed(1)} ★</div>
-      </div>` : ''}
+      <div class="kpi-card"><div class="kpi-label">Всего ответов</div><div class="kpi-value">${formatNumber(poll.total_answers)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Уникальных респондентов</div><div class="kpi-value">${formatNumber(poll.unique_respondents)}</div></div>
+      ${poll.avg_stars !== null ? `<div class="kpi-card"><div class="kpi-label">Средняя оценка</div><div class="kpi-value">${poll.avg_stars.toFixed(1)} ★</div></div>` : ''}
     </div>`;
 
     if (poll.answers_by_question) {
@@ -759,109 +556,60 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
         const qText = POLL_Q[q.question_key] || q.question_key;
         const total = q.answers.reduce((s, a) => s + a.cnt, 0);
         const maxCnt = Math.max(...q.answers.map(a => a.cnt));
-        
-        html += `<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-          <div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">${qText}</div>
-          <div class="bar-chart">`;
-        
+        html += `<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);"><div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">${qText}</div><div class="bar-chart">`;
         q.answers.forEach(a => {
           let aText = q.question_key === 'stars' ? a.answer_key.replace('star', '').split('_')[0] + ' ★' : (POLL_A[a.answer_key] || a.answer_key);
           const pct = total > 0 ? Math.round(a.cnt / total * 100) : 0;
           const width = (a.cnt / maxCnt * 100);
           const barClass = pct >= 50 ? 'success' : pct >= 25 ? 'warning' : 'primary';
-          
-          html += `<div class="bar-item">
-            <div class="bar-label">${aText}</div>
-            <div class="bar-track"><div class="bar-fill ${barClass}" style="width: ${width}%"></div></div>
-            <div class="bar-value">${a.cnt} (${pct}%)</div>
-          </div>`;
+          html += `<div class="bar-item"><div class="bar-label">${aText}</div><div class="bar-track"><div class="bar-fill ${barClass}" style="width: ${width}%"></div></div><div class="bar-value">${a.cnt} (${pct}%)</div></div>`;
         });
-        
         html += '</div></div>';
       });
     }
-    
-    html += '<div class="note">Ответы полностью анонимны. Звёзды показывают распределение оценок от 1 до 5.</div>';
-    html += '</div>';
+    html += '<div class="note">Ответы полностью анонимны. Звёзды показывают распределение оценок от 1 до 5.</div></div>';
   }
 
   // Advisor
   if (advisor && !advisor.error && advisor.total_advice > 0) {
-    html += '<div class="section">';
-    html += '<div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник «Куда ехать»</div></div>';
-    
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник «Куда ехать»</div></div>';
     const acceptanceRate = advisor.acceptance_rate || 0;
-    
     html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
-      <div class="kpi-card">
-        <div class="kpi-label">Принятие советов</div>
-        <div class="kpi-value">${acceptanceRate.toFixed(1)}%</div>
-        <div class="kpi-subtitle">Маршрут к той же станции</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Всего советов</div>
-        <div class="kpi-value">${formatNumber(advisor.total_advice)}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Построено маршрутов</div>
-        <div class="kpi-value">${formatNumber(advisor.route_built_count)}</div>
-      </div>
-      ${advisor.avg_session_duration !== null ? `<div class="kpi-card">
-        <div class="kpi-label">Средняя сессия</div>
-        <div class="kpi-value">${Math.round(advisor.avg_session_duration / 60)}м ${Math.round(advisor.avg_session_duration % 60)}с</div>
-      </div>` : ''}
+      <div class="kpi-card"><div class="kpi-label">Принятие советов</div><div class="kpi-value">${acceptanceRate.toFixed(1)}%</div><div class="kpi-subtitle">Маршрут к той же станции</div></div>
+      <div class="kpi-card"><div class="kpi-label">Всего советов</div><div class="kpi-value">${formatNumber(advisor.total_advice)}</div></div>
+      <div class="kpi-card"><div class="kpi-label">Построено маршрутов</div><div class="kpi-value">${formatNumber(advisor.route_built_count)}</div></div>
+      ${advisor.avg_session_duration !== null ? `<div class="kpi-card"><div class="kpi-label">Средняя сессия</div><div class="kpi-value">${Math.round(advisor.avg_session_duration / 60)}м ${Math.round(advisor.avg_session_duration % 60)}с</div></div>` : ''}
     </div>`;
 
     if (advisor.top_advised_stations && advisor.top_advised_stations.length > 0) {
-      html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">';
-      html += '<div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">Топ станций по советам</div>';
-      html += '<div class="bar-chart">';
-      
+      html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);"><div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">Топ станций по советам</div><div class="bar-chart">';
       const maxAdv = Math.max(...advisor.top_advised_stations.map(s => s.advice_count));
       advisor.top_advised_stations.slice(0, 5).forEach(s => {
         const width = (s.advice_count / maxAdv * 100);
-        html += `<div class="bar-item">
-          <div class="bar-label">${s.name}</div>
-          <div class="bar-track"><div class="bar-fill primary" style="width: ${width}%"></div></div>
-          <div class="bar-value">${s.advice_count}</div>
-        </div>`;
+        html += `<div class="bar-item"><div class="bar-label">${s.name}</div><div class="bar-track"><div class="bar-fill primary" style="width: ${width}%"></div></div><div class="bar-value">${s.advice_count}</div></div>`;
       });
-      
       html += '</div></div>';
     }
     
     if (advisor.top_routed_stations && advisor.top_routed_stations.length > 0) {
-      html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">';
-      html += '<div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">Топ станций по маршрутам</div>';
-      html += '<div class="bar-chart">';
-      
+      html += '<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);"><div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">Топ станций по маршрутам</div><div class="bar-chart">';
       const maxRoute = Math.max(...advisor.top_routed_stations.map(s => s.route_count));
       advisor.top_routed_stations.slice(0, 5).forEach(s => {
         const width = (s.route_count / maxRoute * 100);
-        html += `<div class="bar-item">
-          <div class="bar-label">${s.name}</div>
-          <div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div>
-          <div class="bar-value">${s.route_count}</div>
-        </div>`;
+        html += `<div class="bar-item"><div class="bar-label">${s.name}</div><div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div><div class="bar-value">${s.route_count}</div></div>`;
       });
-      
       html += '</div></div>';
     }
-    
-    html += '<div class="note">Доля принятия показывает, насколько точно советник попадает в потребности пользователей.</div>';
-    html += '</div>';
+    html += '<div class="note">Доля принятия показывает, насколько точно советник попадает в потребности пользователей.</div></div>';
   }
 
   html += renderHooks(hooks);
   html += renderEngagement(eng);
   html += renderSourceFunnel(srcf);
   app.innerHTML = html;
-  loadTraffic(trafficRange); // график трафика живёт своим запросом, не тормозит остальные блоки
+  loadTraffic(trafficRange);
 }
 
-// === Воронка по источникам за 7 дней: реклама против органики и прямых ===
-// Считаем уникальных session_id по строкам событий: каждая строка несёт
-// utm/referrer своего захода, поэтому сегментация честная по визитам.
 function renderSourceFunnel(list) {
   if (!list || !list.length) return '';
   const cell = (n, r) => r.visits ? n + ' <small style="color:#94a3b8">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
@@ -871,11 +619,10 @@ function renderSourceFunnel(list) {
     out += '<tr><td><b>' + r.source + '</b></td><td>' + r.visits + '</td><td>' + cell(r.panels, r) + '</td><td>' + cell(r.cards, r) + '</td><td>' + cell(r.advice, r) + '</td><td>' + cell(r.marks, r) + '</td><td>' + cell(r.installs, r) + '</td></tr>';
   }
   out += '</table></div>';
-  out += '<div class="note">Проценты — от открывших сайт из этого источника. Сравнивай строки между собой: если у «Реклама: yandex» доли листали/совет заметно ниже органики — холодный трафик не понимает первый экран, и чинить надо посадочную, а не кампанию. Устройство, заходившее с разными источниками, попадёт в обе строки — это честно.</div></div>';
+  out += '<div class="note">Проценты — от открывших сайт из этого источника. Сравнивай строки между собой: если у «Реклама: yandex» доли листали/совет заметно ниже органики — холодный трафик не понимает первый экран.</div></div>';
   return out;
 }
-// === «Скачать отчёт»: все секции дашборда одним текстовым файлом ===
-// BOM + \r\n, чтобы кириллица корректно открывалась в блокноте и Excel.
+
 function downloadReport() {
   const R = REPORT;
   if (!R.stats) { alert('Данные ещё не загрузились — подожди секунду и повтори.'); return; }
@@ -890,7 +637,7 @@ function downloadReport() {
   L.push('Пользователей за 30 дней: ' + num(s.mau_30d));
   L.push('Сегодня: ' + num(s.dau_today) + ' (вчера ' + num(s.dau_yesterday) + ')');
   L.push('Новых за 7 дней: ' + num(ret.new_7d) + ', вернувшихся: ' + num(ret.returning_7d));
-  L.push('Всего сессий: ' + num(s.total_sessions) + ', действий: ' + num(s.total_hits));
+  L.push('Всего визитов: ' + num(s.total_sessions) + ', действий: ' + num(s.total_hits));
   L.push('');
   L.push('== ТРАФИК ==');
   for (const rg of ['24h', '7d', '30d']) {
@@ -910,12 +657,25 @@ function downloadReport() {
       L.push(e + ': ' + x.sessions + (base ? ' (' + Math.round(100 * x.sessions / base) + '%)' : ''));
     }
   }
-  const src = s.sources || [];
-  if (src.length) {
+  
+  // ИСПРАВЛЕНО: Выводим сгруппированные источники в отчет
+  const rawSources = s.sources || [];
+  const groupedSourcesMap = {};
+  rawSources.forEach(item => {
+    const ruName = sourceRu(item.source);
+    if (!groupedSourcesMap[ruName]) groupedSourcesMap[ruName] = 0;
+    groupedSourcesMap[ruName] += item.sessions;
+  });
+  const sources = Object.keys(groupedSourcesMap)
+    .map(k => ({ source: k, sessions: groupedSourcesMap[k] }))
+    .sort((a, b) => b.sessions - a.sessions);
+
+  if (sources.length) {
     L.push('');
     L.push('== ИСТОЧНИКИ ==');
-    for (const x of src.slice(0, 10)) L.push(sourceRu(x.source) + ': ' + x.sessions);
+    for (const x of sources.slice(0, 10)) L.push(x.source + ': ' + x.sessions);
   }
+
   const sf = R.srcf || [];
   if (sf.length) {
     L.push('');
@@ -950,13 +710,13 @@ function downloadReport() {
     for (const x of (h.hooks || [])) H[x.event] = x;
     L.push('PWA установок: ' + (H.pwa_install ? H.pwa_install.sessions : 0));
     L.push('Кнопка Телеграм: ' + (H.tg_connect ? H.tg_connect.sessions : 0) + ', связок подтверждено: ' + (H.tg_linked ? H.tg_linked.sessions : 0));
-    L.push('Сердечек избранного: ' + (H.fav_add ? H.fav_add.hits : 0));
+    L.push('Сердечек избранного (события): ' + (H.fav_add ? H.fav_add.hits : 0));
     const fc = h.funnel_codes || {};
     L.push('Воронка подписки (7д): кодов ' + (fc.created || 0) + ' → /start ' + (fc.started || 0) + ' → включено ' + (fc.linked || 0));
     const fdv = h.fav_by_device || [];
-    if (fdv.length) L.push('Избранное по водителям: ' + fdv.map(x => '#' + x.dev + '=' + x.favs).join(', '));
+    if (fdv.length) L.push('Избранное по водителям (состояние базы): ' + fdv.map(x => '#' + x.dev + '=' + x.favs).join(', '));
     const tf = h.top_fav_stations || [];
-    if (tf.length) L.push('Топ избранных АЗС: ' + tf.map(x => x.name + ' (' + x.favs + ')').join(', '));
+    if (tf.length) L.push('Топ избранных АЗС (состояние базы): ' + tf.map(x => x.name + ' (' + x.favs + ')').join(', '));
   }
   const eg = R.eng;
   if (eg && !eg.error) {
@@ -965,6 +725,7 @@ function downloadReport() {
     L.push('Заходов в день на человека: ' + (eg.freq_avg != null ? eg.freq_avg : '—'));
     const d = eg.dur || {};
     L.push('Время до закрытия: медиана ' + fmtDur(d.p50) + ', 75% ' + fmtDur(d.p75) + ', 90% ' + fmtDur(d.p90) + ', дольше 2 мин ' + (d.share_long != null ? d.share_long + '%' : '—'));
+    
     const fdRaw = eg.freq_dist || [];
     const fdMap = {};
     for (const x of fdRaw) {
@@ -1001,12 +762,10 @@ function downloadReport() {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.createObjectURL && URL.revokeObjectURL(url), 4000);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 function p2(n) { return String(n).padStart(2, '0'); }
-// === Привычка: частота заходов в день и время в сайте до закрытия ===
-// Частота — по device_id: сколько разных сессий открывает один телефон за день.
-// Время — из session_end (duration_sec), сайт шлёт его при закрытии/сворачивании.
+
 function fmtDur(s) {
   if (s === null || s === undefined) return '—';
   s = Math.round(s);
@@ -1015,6 +774,7 @@ function fmtDur(s) {
   if (m < 60) return m + ' м ' + r + ' с';
   return Math.floor(m / 60) + ' ч ' + (m % 60) + ' м';
 }
+
 function renderEngagement(eng) {
   if (!eng || eng.error) return '';
   const d = eng.dur || {};
@@ -1054,38 +814,38 @@ function renderEngagement(eng) {
     for (const x of days) out += '<tr><td>' + x.d + '</td><td>' + x.devices + '</td><td>' + x.sessions + '</td><td><b>' + Number(x.per_dev).toFixed(2).replace('.', ',') + '</b></td></tr>';
     out += '</table>';
   }
-  out += '<div class="note">Частота считается по device_id: сколько разных сессий открывает один телефон за день (1 раз — зашёл и ушёл, 2+ — возвращается проверять в течение дня). Время — от открытия до закрытия вкладки, событие session_end.</div></div>';
+  out += '<div class="note">Частота считается по session_id (который выступает как уникальный ID устройства): сколько раз в день он заходит. 1 раз — зашёл и ушёл, 2+ — возвращается проверять в течение дня.</div></div>';
   return out;
 }
-// === Крючки привычки: PWA-установка, Телеграм-связка, избранное ===
-// Кто сколько добавил в избранное — из серверной таблицы user_favorites
-// (хвост device_id анонимный), а откуда приходили сердечки — из site_hits с utm.
+
 function renderHooks(hooks) {
   if (!hooks || hooks.error) return '';
   const H = {};
   for (const r of (hooks.hooks || [])) H[r.event] = r;
   const card = (label, sub, r) => '<div class="kpi-card"><div class="kpi-label">' + label + '</div><div class="kpi-value">' + (r ? r.sessions : 0) + '</div><div class="kpi-subtitle">' + sub + (r ? r.hits : 0) + '</div></div>';
+  
   let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🪝</span>Крючки: установка · Телеграм · избранное</div></div>';
   out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">' +
-    card('Установили PWA', 'установок: ', H.pwa_install) +
+    card('Установили PWA', 'событий: ', H.pwa_install) +
     card('Кнопка «Телеграм»', 'нажатий: ', H.tg_connect) +
     card('Связка подтверждена', 'включений: ', H.tg_linked) +
-    card('Сердечко избранного', 'добавлений: ', H.fav_add) +
+    card('Нажали «В избранное»', 'событий: ', H.fav_add) +
     '</div>';
+    
   const devs = hooks.fav_by_device || [];
   if (devs.length) {
-    out += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Кто сколько держит в избранном</div><table class="data-table"><tr><th>Водитель</th><th>АЗС в избранном</th></tr>';
+    out += '<div style="font-size:14px;font-weight:700;margin-bottom:8px">Кто сколько держит в избранном (состояние БД)</div><table class="data-table"><tr><th>Водитель</th><th>АЗС в избранном</th></tr>';
     for (const d of devs) out += '<tr><td>#' + d.dev + '</td><td><b>' + d.favs + '</b></td></tr>';
     out += '</table>';
   }
   const tops = hooks.top_fav_stations || [];
   if (tops.length) {
     const max = Math.max(...tops.map(t => t.favs));
-    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Самые избранные АЗС</div><div class="bar-chart">';
+    out += '<div style="font-size:14px;font-weight:700;margin:14px 0 8px">Самые избранные АЗС (состояние БД)</div><div class="bar-chart">';
     for (const t of tops) out += '<div class="bar-item"><div class="bar-label">' + t.name + '</div><div class="bar-track"><div class="bar-fill warning" style="width:' + Math.round(t.favs / max * 100) + '%"></div></div><div class="bar-value">' + t.favs + '</div></div>';
     out += '</div>';
   }
-  // === воронка подписки: код → /start → включён ===
+  
   const fn = hooks.funnel_codes || {};
   const rec = hooks.codes_recent || [];
   if (fn.created || fn.started || fn.linked) {
@@ -1116,13 +876,14 @@ function renderHooks(hooks) {
     for (const s of src) out += '<div class="bar-item"><div class="bar-label">' + sourceRu(s.source) + '</div><div class="bar-track"><div class="bar-fill success" style="width:' + Math.round(s.adds / max * 100) + '%"></div></div><div class="bar-value">' + s.adds + '</div></div>';
     out += '</div>';
   }
-  out += '<div class="note">Крючки пишутся с момента вставки трекинга (03.11.2026), раньше — нули, это норма. «Кто» — анонимный хвост device_id; сами избранники живут в серверной таблице user_favorites, поэтому счётчики «держит в избранном» видны и за прошлые дни.</div></div>';
+  out += '<div class="note"><b>Внимание:</b> Верхние карточки («Нажали...») показывают <i>события</i> только с момента включения трекинга (03.11). Таблицы ниже показывают <i>фактическое состояние базы</i> (сохраненные АЗС), поэтому там цифры могут отличаться в большую сторону (там есть данные за прошлые дни).</div></div>';
   return out;
 }
-// === Трафик: график пользователей с переключателем периодов (как на бирже) ===
+
 let trafficCache = {};
-let REPORT = {}; // снапшот всех секций для «Скачать отчёт»
+let REPORT = {};
 let trafficRange = '24h';
+let allStations = []; // Заглушка
 
 async function loadTraffic(range) {
   trafficRange = range;
@@ -1147,7 +908,6 @@ async function loadTraffic(range) {
   }
 }
 
-// полная ось без дыр: часы за сутки или дни за неделю/месяц, UTC-бакеты как в SQL
 function trafficAxis(range) {
   const out = [];
   const now = new Date();
@@ -1181,7 +941,6 @@ function drawTraffic(d) {
     const b = byKey[bucketKey(p.t, range)];
     if (b) { p.users = Number(b.users) || 0; p.hits = Number(b.hits) || 0; }
   }
-  // шапка: итог за период + дельта к прошлому периоду того же размера
   const head = document.getElementById('trafficHead');
   if (head) {
     const cur = num(d.cur_users), prev = num(d.prev_users);
@@ -1212,7 +971,7 @@ function drawTraffic(d) {
   let xl = '';
   const stepLbl = Math.max(1, Math.round(axis.length / 4));
   for (let i = 0; i < axis.length; i += stepLbl) {
-    const dt = new Date(axis[i].t.getTime() + 3 * 3600000); // подписи по Москве
+    const dt = new Date(axis[i].t.getTime() + 3 * 3600000);
     const s = range === '24h'
       ? String(dt.getUTCHours()).padStart(2, '0') + ':00'
       : String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0');
@@ -1232,7 +991,6 @@ function drawTraffic(d) {
     '<circle id="tfDot" r="4" fill="#fff" stroke="#3b82f6" stroke-width="2.5" style="display:none"/>' +
     '</svg>' +
     '<div class="tf-tip" id="tfTip" style="display:none"></div>';
-  // кроссхэйр: палец/курсор → ближайшая точка → тултип с пользователям и действиями
   const svg = box.querySelector('svg');
   const tip = box.querySelector('#tfTip');
   const cross = box.querySelector('#tfCross');
@@ -1261,7 +1019,6 @@ function drawTraffic(d) {
   svg.addEventListener('pointerleave', hide);
 }
 
-// повернули телефон — перерисовываем график под новую ширину
 let tfResizeT = null;
 window.addEventListener('resize', () => {
   clearTimeout(tfResizeT);
