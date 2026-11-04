@@ -433,7 +433,6 @@ body { overflow:hidden; }
    кардиограмма) идёт лёгкой вертикальной волной через SVG-фильтр; текст и
    иконки не тронуты. Safari игнорирует url(#) на HTML-элементах — там эффект
    деградирует до одних слатов, ничего не ломается */
-.lenti-art { filter:url(#lentiMelt); }
 .lenti-hint { position:absolute; right:10px; bottom:7px; z-index:3; font-size:8px; font-weight:800; color:rgba(20,33,61,.42); letter-spacing:.4px; pointer-events:none; text-transform:uppercase; }
 /* арт сцен живёт ПОЗАДИ текста и приглушён: текст — акцент, картинки — фон.
    Никаких новых ассетов: штамп бренда, картинка обновления и ритм отметок. */
@@ -7464,7 +7463,7 @@ function maybeHello() {
 // приветствия и никогда в standalone (уже стоит как приложение).
 let deferredInstall = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; });
-window.addEventListener('appinstalled', () => { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} track('pwa_install'); closeInstallPop(false); });
+window.addEventListener('appinstalled', () => { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} track('pwa_install'); closeInstallPop(false); setTimeout(() => maybeTgOffer(null), 1200); });
 function isStandalone() {
   return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
 }
