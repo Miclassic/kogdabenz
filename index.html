@@ -3870,11 +3870,16 @@ function ensureMapLibre() {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+    link.onerror = () => { console.error('MapLibre CSS не загрузился'); };
     document.head.appendChild(link);
     const s = document.createElement('script');
     s.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
-    s.onload = () => res();
-    s.onerror = () => { maplibrePromise = null; rej(new Error('maplibre не загрузился')); };
+    s.onload = () => { console.log('MapLibre загружен'); res(); };
+    s.onerror = (e) => { 
+      console.error('MapLibre JS не загрузился', e); 
+      maplibrePromise = null; 
+      rej(new Error('maplibre не загрузился')); 
+    };
     document.head.appendChild(s);
   });
   return maplibrePromise;
@@ -3898,10 +3903,17 @@ function ensureMiniMap() {
 function buildMiniMap() {
   const box = document.getElementById('miniMapBox');
   if (!box || miniMapObj) return;
+  
+  box.innerHTML = '<div class="status" style="display:flex;align-items:center;justify-content:center;height:100%;font-size:11px"><span class="ob-spin"></span>Загрузка...</div>';
+  
+  if (!window.maplibregl) { 
+    box.innerHTML = '<div class="status" style="color:#c26a2a;font-size:11px">❌ Карта не загрузилась</div>';
+    return; 
+  }
   box.innerHTML = '';
   miniMapObj = new maplibregl.Map({
     container: 'miniMapBox',
-    style: 'https://tiles.openfreemap.org/styles/positron',
+    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     center: [37.77, 44.72],
     zoom: 9,
     attributionControl: false,
@@ -4136,6 +4148,11 @@ function mountCardMap(st) {
 function mountCardMapNow(st) {
   const box = document.getElementById('cardMapBox');
   if (!box) return;
+  
+  if (!window.maplibregl) { 
+    box.innerHTML = '<div class="status" style="color:#c26a2a;font-size:11px;padding:10px">❌ Карта не загрузилась</div>';
+    return; 
+  }
   const lon = Number(st.lon), lat = Number(st.lat);
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
   // шторка пересобирает DOM при каждом открытии, поэтому переиспользовать карту
@@ -6022,21 +6039,32 @@ function ensureMap() {
   if (!box || mapObj) return;
   ensureMapLibre().then(buildMap).catch(() => {});
 }
+function mapLoadFail(e) {
+  const box = document.getElementById('mapBox');
+  if (box) box.innerHTML = '<div class="status" style="color:#c26a2a">Карта не смогла построиться: ' + (e && e.message ? e.message : 'неизвестная ошибка') + '<br><small style="margin-top:6px;display:block">Обнови страницу; если повторится — пришли фото этой надписи</small></div>';
+}
 function buildMap() {
   const box = document.getElementById('mapBox');
   if (!box || mapObj) return;
+  
+  box.innerHTML = '<div class="status" style="display:flex;align-items:center;justify-content:center;height:100%"><span class="ob-spin"></span>Загружаю карту...</div>';
+  
+  if (!window.maplibregl) { 
+    box.innerHTML = '<div class="status" style="color:#c26a2a">❌ Библиотека карты не загрузилась<br><small style="margin-top:8px;display:block">Проверь интернет и обнови страницу</small></div>';
+    return; 
+  }
 const savedLoc = loadUserLocation();
 const startCenter = savedLoc ? [savedLoc.lon, savedLoc.lat] : [37.77, 44.72];
 const startZoom = savedLoc ? 12 : 10;
 mapObj = new maplibregl.Map({
   container: 'mapBox',
-  style: 'https://tiles.openfreemap.org/styles/positron',
+  style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
   center: startCenter,
   zoom: startZoom,
   attributionControl: false
 });
   mapObj.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-left');
-  mapObj.on('load', () => {
+  mapObj.on('load', () => { try {
     for (const layer of mapObj.getStyle().layers || []) {
       if (layer.type === 'symbol') mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
       else if (layer.id.indexOf('building') >= 0) mapObj.setLayoutProperty(layer.id, 'visibility', 'none');
@@ -6088,12 +6116,10 @@ mapObj = new maplibregl.Map({
     mapObj.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.16 } });
     mapObj.addLayer({ id: 'zones-core', type: 'fill', source: 'zones', filter: ['==', ['get', 'kind'], 'core'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': 0.24 } });
     mapObj.addLayer({ id: 'zones-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'main'], paint: { 'line-color': ['get', 'color'], 'line-opacity': 0.24, 'line-width': 1.2, 'line-dasharray': [1, 1.8] } });
-    if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
-    if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
-    // линия маршрута едет на том же (рабочем) источнике zones отдельным kind:
-    // белая подложка + сплошная синяя сверху; пульс зон её не трогает
-    if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1, 'line-cap': 'round', 'line-join': 'round' } });
-    if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95, 'line-cap': 'round', 'line-join': 'round' } });
+    // линия маршрута: line-cap/line-join в MapLibre живут в layout, не в paint —
+    // из-за paint слой не создавался и обрывал всю загрузку карты
+    if (!mapObj.getLayer('route-casing')) mapObj.addLayer({ id: 'route-casing', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': .8, 'line-blur': 1 } });
+    if (!mapObj.getLayer('route-line')) mapObj.addLayer({ id: 'route-line', type: 'line', source: 'zones', filter: ['==', ['get', 'kind'], 'route'], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#2465ee', 'line-width': 5, 'line-opacity': .95 } });
     // область обслуживания: границу рисуем на канвасе (drawRouteCanvas) —
     // GL-линия на этом устройстве не отрисовалась, канвас рисуется гарантированно.
     // Запоминаем точки кольца и сразу рисуем границу.
@@ -6105,6 +6131,7 @@ mapObj = new maplibregl.Map({
     renderMap();
     const saved = loadUserLocation();
     if (saved) showUserMarker(saved.lat, saved.lon);
+    } catch (e) { mapLoadFail(e); }
   });
   mapObj.on('zoomend', () => applyLabelZoom());
   mapObj.on('zoom', applyZoneBadgesZoom);
