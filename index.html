@@ -14,8 +14,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link rel="preconnect" href="https://api.kogdabenz.ru" crossorigin>
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
 <style>
 :root { --text:#14213d; --muted:#71809c; --blue:#397cff; --green:#19b77a; --red:#ef5350; --border:#e6ebf4; --shadow:0 12px 35px rgba(38,69,120,.09); }
 * { box-sizing:border-box; }
@@ -251,7 +252,7 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 /* карточки «что нового»: ежедневное окошко и панель обновлений */
 .wn-pop { width:min(340px, calc(100vw - 32px)); max-height:86dvh; }
 .wn-card { margin-top:10px; padding:10px; border-radius:20px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); }
-.wn-img { width:100%; border-radius:14px; display:block; }
+.wn-img { width:100%; border-radius:14px; display:block; aspect-ratio:16/10; object-fit:cover; object-position:top center; background:#eef2f8; }
 .wn-title { margin-top:8px; font-size:15px; font-weight:900; letter-spacing:-.4px; }
 .wn-lead { margin-top:4px; color:#5b6b86; font-size:11px; line-height:1.5; font-weight:600; }
 .wn-step { min-width:0; color:#71809c; font-weight:400; }
@@ -3858,10 +3859,45 @@ let pulseRaw = [], pulseEv = [];
    карты — картинка та же, просто окно меньше. */
 const PIN_COL = { yes: '#1bb978', part: '#f5a05a', diesel: '#6ea8ff', no: '#ef5350', conflict: '#f5a05a', unknown: '#a7b1c1' };
 let miniMapObj = null, miniMarkers = [], miniReady = false, miniFittedCity = null, miniUserMarker = null, miniLabelCtrls = [];
+// MapLibre приезжает лениво: раньше ~800 КБ стояли в <head> и блокировали
+// отрисовку страницы. Теперь библиотека грузится в момент, когда карта
+// реально понадобилась, а preconnect в шапке греет соединение заранее.
+let maplibrePromise = null;
+function ensureMapLibre() {
+  if (window.maplibregl) return Promise.resolve();
+  if (maplibrePromise) return maplibrePromise;
+  maplibrePromise = new Promise((res, rej) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+    document.head.appendChild(link);
+    const s = document.createElement('script');
+    s.src = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+    s.onload = () => res();
+    s.onerror = () => { maplibrePromise = null; rej(new Error('maplibre не загрузился')); };
+    document.head.appendChild(s);
+  });
+  return maplibrePromise;
+}
+// Мини-карта ниже сгиба экрана: строим её только когда водитель доскроллил.
+// Второй WebGL-контекст и тайлы больше не тормозят вход.
+let miniMapQueued = false;
 function ensureMiniMap() {
   const box = document.getElementById('miniMapBox');
+  if (!box || miniMapObj || miniMapQueued) return;
+  miniMapQueued = true;
+  const run = () => ensureMapLibre().then(buildMiniMap).catch(() => { miniMapQueued = false; });
+  if (!('IntersectionObserver' in window)) { run(); return; }
+  const io = new IntersectionObserver(es => {
+    if (!es[0].isIntersecting) return;
+    io.disconnect();
+    run();
+  }, { rootMargin: '240px' });
+  io.observe(box);
+}
+function buildMiniMap() {
+  const box = document.getElementById('miniMapBox');
   if (!box || miniMapObj) return;
-  if (typeof maplibregl === 'undefined') return;
   box.innerHTML = '';
   miniMapObj = new maplibregl.Map({
     container: 'miniMapBox',
@@ -4094,7 +4130,12 @@ function disposeCardMap() {
 }
 function mountCardMap(st) {
   const box = document.getElementById('cardMapBox');
-  if (!box || typeof maplibregl === 'undefined') return; // maplibre не доехал — честная плашка остаётся
+  if (!box) return; // контейнер не живой — честная плашка остаётся
+  ensureMapLibre().then(() => mountCardMapNow(st)).catch(() => {});
+}
+function mountCardMapNow(st) {
+  const box = document.getElementById('cardMapBox');
+  if (!box) return;
   const lon = Number(st.lon), lat = Number(st.lat);
   if (!Number.isFinite(lon) || !Number.isFinite(lat)) return;
   // шторка пересобирает DOM при каждом открытии, поэтому переиспользовать карту
@@ -5979,6 +6020,11 @@ function applyServiceZoom() {
 function ensureMap() {
   const box = document.getElementById('mapBox');
   if (!box || mapObj) return;
+  ensureMapLibre().then(buildMap).catch(() => {});
+}
+function buildMap() {
+  const box = document.getElementById('mapBox');
+  if (!box || mapObj) return;
 const savedLoc = loadUserLocation();
 const startCenter = savedLoc ? [savedLoc.lon, savedLoc.lat] : [37.77, 44.72];
 const startZoom = savedLoc ? 12 : 10;
@@ -7075,8 +7121,12 @@ async function start() {
     // подписи строк тепла зависят от снимка последних отметок: первая отрисовка
     // из loadPulse может случиться раньше загрузки и нарисовать «—» — перерисовываем
     renderHeat();
-    // карта и кэш тайлов греются сразу при входе, свайп на панель уже мгновенный
-    ensureMap();
+    // карта греется вне критического пути: после первого экрана и в простое —
+    // свайп на панель остаётся быстрым, но вход не платит за WebGL и тайлы
+    setTimeout(() => {
+      if ('requestIdleCallback' in window) requestIdleCallback(() => ensureMap(), { timeout: 8000 });
+      else ensureMap();
+    }, 3500);
     // отложенный опрос про «Куда ехать»: если с совета прошло 45 минут — 3 суток,
     // спрашиваем, чем закончилась поездка (сразу в момент клика человек ещё не доехал)
     checkAdvicePoll();
@@ -7765,7 +7815,7 @@ const WHATS_NEW = [
   date: '12.10.26',
   tag: 'подбор',
   title: 'Куда ехать прямо сейчас',
-  img: 'whatsnew-advice.png',
+  img: 'whatsnew-advice.webp',
   lead: 'При входе сайт сам подбирает, куда ехать заправиться прямо сейчас: показывает лучшие заправки твоего города с топливом, ценой, расстоянием и окном привоза — и отмечает золотом лучший вариант.',
   steps: [
     ['Откроется само при заходе', 'Сайт сам покажет окно при входе: лучшие заправки твоего города по свежим данным. Если достоверных сейчас одна — покажем одну, пустые рисовать не будем.'],
@@ -7779,7 +7829,7 @@ const WHATS_NEW = [
     date: '08.10.26',
     tag: 'связь',
     title: 'Прямая линия с разработчиком',
-    img: 'whatsnew-mail.png',
+    img: 'whatsnew-mail.webp',
     lead: 'Кнопка «Написать нам / сообщить об ошибке» на главной панели: причина, до 350 символов — и сообщение ушло разработчику как «Водитель #N». Ответ придёт в Телеграм, там же можно продолжить диалог.',
     steps: [
       ['Откройте окно «Написать нам»', 'Полоска на главной панели или кнопка в «Помощи»; окно сразу предложит привязаться к боту — чтобы было куда отвечать.'],
@@ -7793,7 +7843,7 @@ const WHATS_NEW = [
     date: '04.10.26',
     tag: 'уведомления',
     title: 'Уведомления в Телеграм по выбранным АЗС',
-    img: 'whatsnew-tg.png',
+    img: 'whatsnew-tg.webp',
     lead: 'Добавьте любимые АЗС в избранное — и не пропустите, когда на них появится бензин. Бот следит сам и пишет лично вам.',
     steps: [
       ['Откройте детальную карточку АЗС', 'В списке «АЗС города» или на карте тапните строку или каплю и нажмите сердечко.'],
@@ -7810,7 +7860,7 @@ function wnAgeDays(w) {
 }
 function wnCardHtml(w) {
   return '<div class="wn-card">' +
-    (w.img ? '<img class="wn-img" src="' + w.img + '" alt="" onerror="this.style.display=\'none\'" onclick="openWnZoom(this.src)">' : '') +
+    (w.img ? '<img class="wn-img" src="' + w.img + '" alt="" loading="lazy" decoding="async" onerror="this.style.display=\'none\'" onclick="openWnZoom(this.src)">' : '') +
     '<div class="rc-chips" style="margin-top:8px"><span class="rc-chip info">' + icon('i-spark', 'ic-s') + w.date + '</span>' +
     (w.tag ? '<span class="rc-chip yes">' + icon('i-check', 'ic-s') + w.tag + '</span>' : '') + '</div>' +
     '<div class="wn-title">' + w.title + '</div>' +
