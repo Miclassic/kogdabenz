@@ -126,7 +126,11 @@ body { overflow:hidden; }
 .tagline-slogan span { color:var(--blue); }
 .tagline-text { margin-top:2px; color:#71809c; font-size:10.5px; line-height:1.4; min-height:2.8em; transition:opacity .18s ease; }
 .tagline-text.swap { opacity:0; }
-.pager { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:10px; min-height:0; }
+.pager { flex:1; display:flex; overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none; gap:10px; min-height:0; overscroll-behavior-x:contain; }
+/* пока палец ведёт пейджер, все фоновые перерисовки ставим на паузу:
+   свайп получает все кадры GPU и идёт плавно, без подёргиваний */
+body.is-swiping .why-tap::after, body.is-swiping .why-tap::before { animation-play-state:paused; }
+body.is-swiping .panel::before { animation-play-state:paused; }
 .pager::-webkit-scrollbar { display:none; }
 .panel { flex:0 0 100%; min-width:100%; scroll-snap-align:center; display:flex; flex-direction:column; border-radius:28px; background:#fff; border:1px solid #eceff5; box-shadow:0 10px 30px rgba(38,69,120,.08); padding:12px; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
 .panel-scroll { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; scroll-snap-type:y proximity; scroll-behavior:smooth; padding-bottom:calc(20px + env(safe-area-inset-bottom)); -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 calc(100% - 34px),transparent 100%); mask-image:linear-gradient(180deg,#000 0%,#000 calc(100% - 34px),transparent 100%); }
@@ -1278,6 +1282,47 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   .pager-arrow.left { left:calc(50% - 520px); }
   .pager-arrow.right { right:calc(50% - 520px); }
 }
+/* === мини-навигация: ЕДИНАЯ строка-«линза» внизу над точками: не прыгает
+   между страницами, крутится и блестит тем же углом, что линза выше === */
+.mn-wrap { flex:0 0 auto; display:flex; gap:6px; margin:0 0 8px; padding:0 2px; }
+.mn-item { position:relative; overflow:hidden; flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:10px 4px 8px; border:0; border-radius:18px; cursor:pointer; background-color:rgba(246,248,253,.9); box-shadow:0 6px 16px rgba(38,69,120,.08), inset 0 1px 0 rgba(255,255,255,.8), inset 0 0 0 1px rgba(255,255,255,.5), inset 0 -8px 14px rgba(38,69,120,.04); transition:box-shadow .25s ease, transform .15s ease; }
+.mn-item:active { transform:scale(.96); }
+/* цветнойスポット-свет сверху: плитка получает глубину и «лампу» своего цвета */
+.mn-item::before { content:''; position:absolute; left:50%; top:-46px; width:96px; height:96px; transform:translateX(-50%); border-radius:50%; background:radial-gradient(circle at 50% 40%, var(--mn-glow, rgba(57,124,255,.18)), rgba(255,255,255,0) 70%); pointer-events:none; z-index:0; }
+/* фоны сцен — пастель линзы; у АЗС и Новинок свои оттенки в том же духе */
+/* матовая гладкая полупрозрачная подложка: свой оттенок, без блеска и текстур */
+.mn-item.s0 { --mn-glow:rgba(25,183,122,.20); background-image:linear-gradient(180deg, rgba(25,183,122,.17), rgba(25,183,122,.06)); }
+.mn-item.s1 { --mn-glow:rgba(57,124,255,.20); background-image:linear-gradient(180deg, rgba(57,124,255,.17), rgba(57,124,255,.06)); }
+.mn-item.s2 { --mn-glow:rgba(124,109,255,.20); background-image:linear-gradient(180deg, rgba(124,109,255,.17), rgba(124,109,255,.06)); }
+.mn-item.s3 { --mn-glow:rgba(245,160,90,.22); background-image:linear-gradient(180deg, rgba(245,160,90,.19), rgba(245,160,90,.07)); }
+.mn-item.s4 { --mn-glow:rgba(224,85,122,.20); background-image:linear-gradient(180deg, rgba(224,85,122,.17), rgba(224,85,122,.06)); }
+/* иконка-плашка — градиент и тень как у .lenti-ico */
+.mn-ico { position:relative; z-index:1; width:34px; height:34px; border-radius:12px; display:grid; place-items:center; color:#fff; flex:0 0 auto; box-shadow:0 6px 14px rgba(38,69,120,.24), inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 6px rgba(10,40,120,.16); }
+.mn-ico::after { content:''; position:absolute; inset:0; border-radius:inherit; box-shadow:inset 0 0 0 1px rgba(255,255,255,.3); pointer-events:none; }
+.mn-ico .ic { width:17px; height:17px; }
+.s0 .mn-ico { background:linear-gradient(140deg,#2fd39a,#19b77a); }
+.s1 .mn-ico { background:linear-gradient(140deg,#8ab6ff,#397cff); }
+.s2 .mn-ico { background:linear-gradient(140deg,#a78bfa,#7c6dff); }
+.s3 .mn-ico { background:linear-gradient(140deg,#ffb46a,#f5a05a); }
+.s4 .mn-ico { background:linear-gradient(140deg,#ff8aa8,#e0557a); }
+/* подпись — шрифт как у lenti-val, только мельче */
+.mn-label { position:relative; z-index:1; font-size:9.5px; font-weight:850; letter-spacing:.15px; color:#33445f; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; text-shadow:0 1px 0 rgba(255,255,255,.6); }
+/* голография линзы статично: штриховка, слаты и блик поверх сцены */
+/* голография (штриховка, слаты, блик, фольга, искры) в мини-панелях выключена:
+   поверхность матовая и гладкая, ничего не перерисовывается при свайпе */
+/* все оверлеи линзы на мини-панелях выключены: переливание перерисовывало
+   градиенты каждый кадр и лагало на слабых телефонах. Ряд статичный и матовый */
+.mn-item .lenti-holo, .mn-item .lenti-slats, .mn-item .lenti-glare, .mn-item .lenti-foil, .mn-item .lenti-spark { display:none; }
+/* чужие страницы: иконки чуть в ч/б и мягче по контрасту, активная — как всегда */
+.mn-ico { transition:filter .3s ease; }
+.mn-item:not(.on) .mn-ico { filter:grayscale(.55) contrast(.88); }
+/* строка навигации снова в потоке сверху: компенсации нижней плашки не нужны */
+@media (min-width:900px){ .mn-wrap { max-width:560px; margin:0 auto; } }
+/* текущая страница — синее кольцо фокуса */
+.mn-item.on { box-shadow:0 0 0 2px #2465ee, 0 10px 26px rgba(36,101,238,.30), inset 0 1px 0 rgba(255,255,255,.85), inset 0 0 0 1px rgba(255,255,255,.6); }
+.mn-item.on .mn-label { color:#2465ee; }
+.mn-item.on .mn-ico { box-shadow:0 8px 18px rgba(36,101,238,.35), inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 6px rgba(10,40,120,.16); }
+@media (max-width:380px){ .mn-ico { width:28px; height:28px; border-radius:10px; } .mn-ico .ic { width:14px; height:14px; } .mn-label { font-size:8.5px; } }
 </style>
 </head>
 <body>
@@ -1330,6 +1375,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
     <div class="tagline-slogan" id="tagSlogan">Данными. <span>Не догадками.</span></div>
     <div class="tagline-text" id="tagText">Каждые 10 минут — отметки АЗС и голоса водителей: алгоритм предсказывает окна возврата.</div>
   </div>
+  <div class="mn-wrap" id="mnWrap"></div>
   <div class="pager" id="pager">
     <section class="panel">
       <div class="p1-head">
@@ -4789,6 +4835,8 @@ function lentiApply() {
   // слаты: узкие быстрее, широкие медленнее — тот же параллакс, что у искр
   card.style.setProperty('--sl1', (50 - (lentiAngle / 28) * 60).toFixed(0) + '%');
   card.style.setProperty('--sl2', (50 + (lentiAngle / 28) * 35).toFixed(0) + '%');
+  // переливание мини-панелей отключено совсем: перерисовка градиентов каждый
+  // кадр лагала на слабых телефонах. Блестит только линза — она одна и большая
   // сцены и подсказку трогаем ТОЛЬКО при смене угловой зоны, список сцен закэширован
   const idx = lentiIdx(lentiAngle);
   if (idx !== lentiLastIdx) {
@@ -4951,7 +4999,7 @@ function lentiBind() {
     new IntersectionObserver(es => { lentiInView = es[0].isIntersecting; }, { threshold: 0.25 }).observe(box);
   }
   const loop = t => {
-    if (lentiIdle && lentiInView && document.visibilityState === 'visible') {
+    if (lentiIdle && document.visibilityState === 'visible' && !pagerTouching) {
       lentiAngle = 24 * Math.sin(t / 1900);
       lentiApply();
     }
@@ -5817,6 +5865,7 @@ function startZonePulse() {
   zonePulseTimer = setInterval(() => {
     if (!mapObj || !zoneReady) return;
     if (currentPanel !== 2) return;
+    if (pagerTouching) return; // свайп: WebGL-перерисовки не отнимают кадры у жеста
     const shEl = document.getElementById('sheet');
     if (shEl && shEl.classList.contains('open')) return;
     const hbEl = document.getElementById('helloBack');
@@ -8187,7 +8236,7 @@ setInterval(tickClock, 30000);
   const tick = now => {
     const dt = Math.min(50, now - last); last = now;
     const max = el.scrollWidth - el.clientWidth;
-    if (currentPanel === 2 && max > 4 && now > pauseUntil && now >= holdUntil) {
+    if (currentPanel === 2 && max > 4 && now > pauseUntil && now >= holdUntil && !pagerTouching) {
       let x = el.scrollLeft + dir * SPEED * dt;
       if (x >= max) { x = max; dir = -1; holdUntil = now + HOLD; }
       else if (x <= 0) { x = 0; dir = 1; holdUntil = now + HOLD; }
@@ -8209,10 +8258,17 @@ if (pagerEl) pagerEl.addEventListener('scroll', () => {
 // лечение «половинчатого» сдвига: скролл остановился между панелями —
 // через 140 мс мягко доводим до ближайшей. Снап мог быть снят подсказкой
 // пейджера в первые секунды, теперь залипание чинится само навсегда.
-let pagerSettleT = null;
+let pagerSettleT = null, pagerTouching = false;
+if (pagerEl) {
+  pagerEl.addEventListener('pointerdown', () => { pagerTouching = true; document.body.classList.add('is-swiping'); }, { passive: true });
+  const endSwipe = () => { pagerTouching = false; document.body.classList.remove('is-swiping'); };
+  window.addEventListener('pointerup', endSwipe, { passive: true });
+  window.addEventListener('pointercancel', endSwipe, { passive: true });
+}
 if (pagerEl) pagerEl.addEventListener('scroll', () => {
   clearTimeout(pagerSettleT);
   pagerSettleT = setTimeout(() => {
+    if (pagerTouching) return; // палец ещё держит экран: доводчик молчит, snap-back исчез
     const w = pagerEl.clientWidth;
     if (!w) return;
     const i = Math.round(pagerEl.scrollLeft / w);
@@ -8235,6 +8291,37 @@ let hintCancelled = false;
     }, 600);
   }, 900);
 })();
+// === мини-навигация: 5 плиток «как линза», тап = переход, текущая подсвечена ===
+const MINI_NAV = [
+  { ico:'i-check', label:'Точность', s:'s0' },
+  { ico:'i-chart', label:'Главная',  s:'s1' },
+  { ico:'i-pin',   label:'Карта',    s:'s2' },
+  { ico:'i-pump',  label:'АЗС',      s:'s3' },
+  { ico:'i-star',  label:'Новинки',  s:'s4' }
+];
+function renderMiniNav() {
+  const wrap = document.getElementById('mnWrap');
+  if (!wrap || wrap.dataset.built) return;
+  wrap.dataset.built = '1';
+  wrap.innerHTML = MINI_NAV.map((m, i) =>
+    '<button class="mn-item ' + m.s + '" data-mn="' + i + '" onclick="pagerGo(' + i + ')">' +
+    '<span class="mn-ico"><svg class="ic"><use href="#' + m.ico + '"/></svg></span>' +
+    '<span class="mn-label">' + m.label + '</span>' +
+    '<span class="lenti-holo"></span><span class="lenti-slats"></span><span class="lenti-glare"></span><span class="lenti-foil"></span><span class="lenti-spark"></span>' +
+    '</button>').join('');
+  updateMiniNav(currentPanel);
+  const pg = document.getElementById('pager');
+  if (pg && !pg.dataset.mnBound) {
+    pg.dataset.mnBound = '1';
+    pg.addEventListener('scroll', () => {
+      updateMiniNav(Math.round(pg.scrollLeft / pg.clientWidth));
+    }, { passive: true });
+  }
+}
+function updateMiniNav(i) {
+  document.querySelectorAll('.mn-item').forEach(b => b.classList.toggle('on', Number(b.dataset.mn) === i));
+}
+renderMiniNav();
 </script>
 <script>
 // Регистрация service worker для PWA
