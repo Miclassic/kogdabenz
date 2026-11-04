@@ -965,8 +965,17 @@ function downloadReport() {
     L.push('Заходов в день на человека: ' + (eg.freq_avg != null ? eg.freq_avg : '—'));
     const d = eg.dur || {};
     L.push('Время до закрытия: медиана ' + fmtDur(d.p50) + ', 75% ' + fmtDur(d.p75) + ', 90% ' + fmtDur(d.p90) + ', дольше 2 мин ' + (d.share_long != null ? d.share_long + '%' : '—'));
-    const fdist = eg.freq_dist || [];
-    if (fdist.length) L.push('Частота: ' + fdist.map(x => x.bucket + ' р/день ' + x.pct + '%').join(', '));
+    const fdRaw = eg.freq_dist || [];
+    const fdMap = {};
+    for (const x of fdRaw) {
+      const m = fdMap[x.bucket] = fdMap[x.bucket] || { bucket: x.bucket, device_days: 0, ord: x.ord };
+      m.device_days += x.device_days;
+      m.ord = Math.min(m.ord, x.ord);
+    }
+    const fdTotal = fdRaw.reduce((s, x) => s + x.device_days, 0) || 1;
+    const fd = Object.values(fdMap).sort((a, b) => a.ord - b.ord);
+    for (const x of fd) x.pct = Math.round(100 * x.device_days / fdTotal);
+    if (fd.length) L.push('Частота: ' + fd.map(x => x.bucket + ' р/день ' + x.pct + '%').join(', '));
   }
   const p = R.poll;
   if (p && !p.error && p.total_answers) {
