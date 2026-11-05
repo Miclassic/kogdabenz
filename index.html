@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
 <style>
 :root { --text:#14213d; --muted:#71809c; --blue:#397cff; --green:#19b77a; --red:#ef5350; --border:#e6ebf4; --shadow:0 12px 35px rgba(38,69,120,.09); }
 * { box-sizing:border-box; }
@@ -317,33 +317,23 @@ body.is-swiping .panel::before { animation-play-state:paused; }
   height: 216px; /* Жесткая высота вместо min-height */
   overflow: hidden; /* Чтобы ничего не вылезало */
 }
-@keyframes bootPulse {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 0.3; }
-}
 @keyframes bootShimmer {
   100% { transform: translateX(100%); }
+}
+@keyframes bootPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 .boot-skeleton-pulse {
   position: relative;
   overflow: hidden;
-  animation: bootPulse 1.8s ease-in-out infinite;
+  animation: bootPulse 2.5s ease-in-out infinite;
   pointer-events: none;
 }
 .boot-skeleton-pulse::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; bottom: 0; right: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 50%, transparent);
-  animation: bootShimmer 1.8s infinite;
+  display: none;
 }
-.boot-skeleton-pulse .boot-st-logo { animation: bootPulse 1.8s ease-in-out infinite; }
-.boot-skeleton-pulse .boot-st-name { animation: bootPulse 1.8s ease-in-out infinite; }
-.boot-skeleton-pulse .boot-st-desc { animation: bootPulse 1.8s ease-in-out infinite; }
-.boot-st-card { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:12px 14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.15); animation: bootCardIn .4s cubic-bezier(.2,.8,.2,1) both; height: 64px; /* Фиксированная высота карточки */
-  box-sizing: border-box;
-}
+.boot-st-card { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:12px 14px; box-shadow:0 8px 24px rgba(0,0,0,.15); animation: bootCardIn .4s cubic-bezier(.2,.8,.2,1) both; height: 64px; box-sizing: border-box; }
 @keyframes bootCardIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 .boot-st-logo { width:36px; height:36px; border-radius:10px; background:#fff; display:grid; place-items:center; padding:4px; flex:0 0 auto; }
 .boot-st-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
@@ -948,7 +938,8 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .cta-btn { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; border:0; border-radius:16px; padding:8px 9px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:10.5px; font-weight:850; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.25); }
 .cta-btn.ghost { background:#f2f4f9; color:#33445f; box-shadow:none; }
 /* строки */
-.srow { width:100%; display:flex; text-align:left; padding:0; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:18px; box-shadow:var(--shadow); cursor:pointer; overflow:hidden; }
+.srow { width:100%; display:flex; text-align:left; padding:0; background:rgba(255,255,255,.96); border:1px solid rgba(228,234,245,.95); border-radius:18px; box-shadow:var(--shadow); cursor:pointer; overflow:hidden; height: 94px; /* Фиксируем высоту строки списка */
+  box-sizing: border-box; }
 .sbar { width:10px; align-self:stretch; flex:0 0 auto; }
 .srow-main { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; padding:10px 12px 9px 10px; }
 .srow-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
