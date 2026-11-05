@@ -8006,77 +8006,104 @@ function renderBootLiveStations() {
 
   const loc = loadUserLocation();
   const lastObs = getLastObservations();
-  
-  // Берем станции ТОЛЬКО из текущего города пользователя! (по умолчанию Новороссийск)
   const localStations = cityStationList();
   
-  const candidates = [];
+  const withFuel = [];
+  const recentlyUpdated = [];
+  
   for (const st of localStations) {
     const o = lastObs[st.id];
     if (!o) continue;
     
-    // Проверяем, что данные свежие (не старше 6 часов)
-    const isFresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
-    if (!isFresh) continue;
-
-    // Проверяем наличие топлива (95, 92 или дизель)
-    const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
-    if (!hasFuel) continue;
-
-    // Считаем расстояние
-    let dist = null;
-    if (loc && Number.isFinite(Number(st.lat))) {
-      const dLat = (Number(st.lat) - loc.lat) * 111;
-      const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
-      dist = Math.sqrt(dLat * dLat + dLon * dLon);
+    // Собираем ВСЕ недавно обновленные станции (для запасного варианта)
+    if (o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined) {
+      recentlyUpdated.push({ st, o });
     }
-    candidates.push({ st, o, dist });
+
+    // Собираем станции с топливом (не старше 6 часов)
+    const isFresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
+    
+    if (isFresh && hasFuel) {
+      let dist = null;
+      if (loc && Number.isFinite(Number(st.lat))) {
+        const dLat = (Number(st.lat) - loc.lat) * 111;
+        const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+        dist = Math.sqrt(dLat * dLat + dLon * dLon);
+      }
+      withFuel.push({ st, o, dist });
+    }
   }
 
-  // Сортируем: сначала по расстоянию, если есть
-  candidates.sort((a, b) => {
+  // Сортируем те, что с топливом (по дистанции)
+  withFuel.sort((a, b) => {
     if (a.dist !== null && b.dist !== null) return a.dist - b.dist;
     return a.o.data_freshness_minutes - b.o.data_freshness_minutes;
   });
 
-  // Берем топ-3
-  let top = candidates.slice(0, 3);
-  
-  // Страховка: если вдруг ближайшая АЗС дальше 50 км, значит либо GPS врет, либо мы за городом.
-  // В таком случае убираем расстояние с экрана, чтобы не пугать водителя цифрами в 300 км.
-  if (loc && top.length && top[0].dist > 50) {
-    top = top.map(c => ({ ...c, dist: null }));
+  let top = withFuel.slice(0, 3);
+  let isFallback = false;
+
+  // ЗАПАСНОЙ ВАРИАНТ: если с топливом никого нет, показываем недавно обновленные
+  if (top.length === 0) {
+    isFallback = true;
+    recentlyUpdated.sort((a, b) => a.o.data_freshness_minutes - b.o.data_freshness_minutes);
+    top = recentlyUpdated.slice(0, 3).map(item => {
+      let dist = null;
+      if (loc && Number.isFinite(Number(item.st.lat))) {
+        const dLat = (Number(item.st.lat) - loc.lat) * 111;
+        const dLon = (Number(item.st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+        dist = Math.sqrt(dLat * dLat + dLon * dLon);
+      }
+      return { ...item, dist };
+    });
   }
-  
+
+  // Если вообще ничего нет (пустая база)
   if (!top.length) {
-    titleEl.textContent = 'Ищем свободные АЗС...';
-    listEl.innerHTML = '<div style="color:rgba(255,255,255,.7);font-size:12px;text-align:center;padding:20px;">Пока нет свежих отметок о топливе</div>';
+    titleEl.textContent = 'Собираем данные...';
+    listEl.innerHTML = '<div style="color:rgba(255,255,255,.7);font-size:12px;text-align:center;padding:20px;">Секунду, подключаемся к базе...</div>';
     return;
   }
 
-  titleEl.textContent = (loc && top[0].dist !== null) ? 'Топливо есть рядом' : 'Топливо есть в городе';
+  // Формируем заголовок
+  titleEl.textContent = isFallback ? 'Недавно обновляли' : ((loc && top[0].dist !== null) ? 'Топливо есть рядом' : 'Топливо есть в городе');
 
   listEl.innerHTML = top.map((it, i) => {
     const st = it.st;
     const o = it.o;
     const distTxt = it.dist !== null ? (it.dist < 1 ? Math.round(it.dist * 1000) + ' м' : it.dist.toFixed(1) + ' км') : '';
     
-    // Чипы топлива
-    const fuels = [];
-    if (o.fuel_95_status === true) fuels.push('95');
-    if (o.fuel_92_status === true) fuels.push('92');
-    if (o.diesel_status === true) fuels.push('ДТ');
+    let descHtml = '';
+    let fuelsHtml = '';
+
+    if (isFallback) {
+      // В запасном варианте пишем, когда обновляли, и не показываем зеленые чипы, если топлива нет
+      const min = o.data_freshness_minutes;
+      const timeTxt = min < 60 ? min + ' мин назад' : Math.round(min / 60) + ' ч назад';
+      descHtml = `Обновлено ${timeTxt}`;
+      
+      const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
+      if (!hasFuel) {
+        fuelsHtml = `<span class="boot-fuel-chip" style="background:rgba(255,255,255,.1); color:rgba(255,255,255,.6); border-color:transparent">без топлива</span>`;
+      }
+    } else {
+      descHtml = escapeHtml(st.address || '');
+      const fuels = [];
+      if (o.fuel_95_status === true) fuels.push('95');
+      if (o.fuel_92_status === true) fuels.push('92');
+      if (o.diesel_status === true) fuels.push('ДТ');
+      fuelsHtml = fuels.map(f => `<span class="boot-fuel-chip">${f}</span>`).join('');
+    }
 
     return `
       <div class="boot-st-card" style="animation-delay: ${i * 0.1}s">
         <div class="boot-st-logo">${stationLogo(st)}</div>
         <div class="boot-st-info">
           <div class="boot-st-name">${escapeHtml(st.name || 'АЗС')}</div>
-          <div class="boot-st-desc">${escapeHtml(st.address || '')}</div>
+          <div class="boot-st-desc">${descHtml}</div>
         </div>
-        <div class="boot-st-fuels">
-          ${fuels.map(f => `<span class="boot-fuel-chip">${f}</span>`).join('')}
-        </div>
+        <div class="boot-st-fuels">${fuelsHtml}</div>
         ${distTxt ? `<div class="boot-st-dist">${distTxt}</div>` : ''}
       </div>
     `;
@@ -8328,6 +8355,7 @@ function tickClock() {
     updateMapPlate();
     renderHero();
     setTagline(currentPanel);
+    renderBootLiveStations();
   } catch (e) { console.log('мгновенный снимок: ' + e.message); }
   // плашку «данные на ЧЧ:ММ» показываем только если сеть не успела за 4 сек
   setTimeout(() => { if (!window.__netOk && !offlineMode) showOfflineBar(c.t); }, 4000);
