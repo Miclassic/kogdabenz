@@ -745,16 +745,23 @@ function adviceReasons(it) {
 // Получаем последнее событие по станции для карточки "Куда ехать"
 function getLatestEventHtml(stId) {
   let events = [];
+  
   // События источника
   for (const e of allWaveEvents) {
     if (e.station_id !== stId) continue;
+    
+    const isDiesel = e.fuel_type === 'diesel';
+    const verbRestored = isDiesel ? ' вернулся' : ' вернулось';
+    const verbGone = isDiesel ? ' пропал' : ' пропало';
+    
     events.push({
       t: new Date(e.detected_at).getTime(),
-      text: fuelLabel(e.fuel_type) + (e.event_type === 'fuel_restored' ? ' вернулось' : ' пропало'),
+      text: fuelLabel(e.fuel_type) + (e.event_type === 'fuel_restored' ? verbRestored : verbGone),
       icon: e.event_type === 'fuel_restored' ? 'i-check' : 'i-cross',
       cls: e.event_type === 'fuel_restored' ? 'g' : 'r'
     });
   }
+  
   // События от водителей (народ)
   for (const f of allFeedback) {
     if (f.station_id !== stId) continue;
@@ -766,6 +773,7 @@ function getLatestEventHtml(stId) {
     else continue;
     events.push({ t: new Date(f.created_at).getTime(), text: text, icon: icon, cls: cls });
   }
+  
   if (!events.length) return '';
   events.sort((a, b) => b.t - a.t); // Берем самое свежее
   const last = events[0];
@@ -825,9 +833,9 @@ function renderAdvicePop() {
     const reasons = adviceReasons(it);
     const our = it.ourChoice ? '<span class="adv-our">' + icon('i-star', 'ic-s') + 'наш выбор</span>' : '';
     
-    // НОВАЯ ПЛАШКА: если АЗС ближе 1 км и это не "наш выбор"
+        // НОВАЯ ПЛАШКА: перебиваем желтое свечение синим
     const near = (it.km != null && it.km < 1 && !it.ourChoice) 
-      ? '<span class="adv-our" style="background:#eef4ff; color:#2465ee; border-color:#bcd4ff; box-shadow:0 2px 8px rgba(36,101,238,.15)">' + icon('i-pin', 'ic-s') + 'рядом с тобой</span>' 
+      ? '<span class="adv-our" style="background:#eef4ff !important; color:#2465ee !important; border:1px solid #bcd4ff !important; box-shadow:0 2px 12px rgba(36,101,238,.3) !important; background-image:none !important;">' + icon('i-pin', 'ic-s') + 'рядом с тобой</span>' 
       : '';
     const bk = brandKey(st);
     const wm = (bk && BRAND_LOGOS[bk]) ? '<div class="adv-wm" aria-hidden="true"><img src="' + BRAND_LOGOS[bk] + '" alt=""></div>' : '';
@@ -1892,27 +1900,37 @@ function stationRow(station, obs, pred) {
   const stCls = st === true ? 'yes' : st === false ? 'no' : 'unknown';
   const conf = pred ? Math.round((pred.confidence || 0) * 100) : null;
   
-  return '<div class="srow-wrap"><button class="srow" onclick="toggleRow(\'' + station.id + '\', this)">' +
+  // Используем div вместо button, чтобы избежать багов обрезки текста в iOS/Android
+  return '<div class="srow-wrap" onclick="toggleRow(\'' + station.id + '\', this)" style="cursor:pointer;">' +
     '<span class="sbar" style="background:' + color + '"></span>' +
-    // Добавляем flex-column для главного контейнера
-    '<span class="srow-main" style="display:flex; flex-direction:column; width:100%; overflow:hidden;">' +
-      // Верхняя строка с названием и бейджем
-      '<span class="srow-top" style="display:flex; justify-content:space-between; align-items:center; width:100%;">' +
-        '<span class="srow-name">' + escapeHtml(station.name || 'АЗС') + '</span>' +
-        '<span class="sbadge ' + b.cls + '">' + b.text + '</span>' +
-      '</span>' +
-      // Строка с адресом: даем ей место и обрезаем с троеточием, если не влезает
-      '<span class="srow-addr" style="display:block; width:100%; font-size:11px; color:#71809c; margin:2px 0 6px 0; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + 
+    '<div class="srow-main" style="display:flex; flex-direction:column; width:100%; overflow:hidden; padding:12px 10px 12px 16px;">' +
+      // Верхняя строка: название и бейдж окна
+      '<div class="srow-top" style="display:flex; justify-content:space-between; align-items:center; width:100%; gap:8px;">' +
+        '<span class="srow-name" style="font-size:16px; font-weight:800; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + escapeHtml(station.name || 'АЗС') + '</span>' +
+        '<span class="sbadge ' + b.cls + '" style="white-space:nowrap; flex-shrink:0;">' + b.text + '</span>' +
+      '</div>' +
+      // Адрес: явно задаем отступы, чтобы он не слипался с прогнозом
+      '<div class="srow-addr" style="display:block; width:100%; font-size:12px; color:#71809c; margin:4px 0 10px 0; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + 
         escapeHtml(station.address || '') + 
-      '</span>' +
-      // Нижняя строка с колонками фактов и прогноза
-      '<span class="srow-cols" style="display:flex; justify-content:space-between; width:100%; align-items:flex-end;">' +
-        '<span class="scol"><span class="scol-l">факт</span><span class="scol-v ' + stCls + '">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span></span>' +
-        '<span class="scol"><span class="scol-l">прогноз</span><span class="scol-v">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + (conf !== null ? '<span class="scol-s">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') + '</span>' +
-        '<span class="scol scol-r">' + sparkline(station.id) + '<span class="scol-s">' + accuracyShort(station.id) + '</span></span>' +
-      '</span>' +
-    '</span>' +
-  '</button></div>';
+      '</div>' +
+      // Нижняя строка: колонки с фактами
+      '<div class="srow-cols" style="display:flex; justify-content:space-between; width:100%; align-items:flex-end;">' +
+        '<div class="scol" style="display:flex; flex-direction:column;">' +
+          '<span class="scol-l" style="font-size:9px; color:#a7b1c1; text-transform:uppercase; margin-bottom:2px; font-weight:700;">факт</span>' +
+          '<span class="scol-v ' + stCls + '" style="font-size:13px; font-weight:800;">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span>' +
+        '</div>' +
+        '<div class="scol" style="display:flex; flex-direction:column;">' +
+          '<span class="scol-l" style="font-size:9px; color:#a7b1c1; text-transform:uppercase; margin-bottom:2px; font-weight:700;">прогноз</span>' +
+          '<span class="scol-v" style="font-size:13px; font-weight:800; color:#14213d;">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + 
+          (conf !== null ? '<span class="scol-s" style="font-size:10px; color:#71809c; margin-top:2px;">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') + 
+        '</div>' +
+        '<div class="scol scol-r" style="display:flex; flex-direction:column; align-items:flex-end;">' + 
+          sparkline(station.id) + 
+          '<span class="scol-s" style="font-size:10px; color:#71809c; margin-top:2px;">' + accuracyShort(station.id) + '</span>' + 
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 function toggleRow(id, btn) { openSheet(id); }
 function openSheet(id) {
