@@ -200,6 +200,18 @@ function getLastObservations() {
   if (Object.keys(allLastObs).length) return allLastObs;
   const r = {}; for (const o of allObservations) if (!r[o.station_id]) r[o.station_id] = o; return r;
 }
+function getFreshnessMin(o) {
+  if (!o) return null;
+  // Если есть готовое поле, используем его
+  if (o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined) {
+    return Number(o.data_freshness_minutes);
+  }
+  // Если его нет, но есть timestamp — считаем разницу в минутах прямо в JS
+  if (o.timestamp) {
+    return Math.max(0, Math.round((Date.now() - new Date(o.timestamp).getTime()) / 60000));
+  }
+  return null;
+}
 function pickPrediction(stationId, obs) {
   const preds = allPredictions.filter(p => p.station_id === stationId && p.result === 'PENDING');
   if (!preds.length) return null;
@@ -211,14 +223,15 @@ function pickPrediction(stationId, obs) {
   return preds.find(x => x.fuel_type === '95') || preds[0];
 }
 function confPercent(obs) {
-  if (!obs || obs.data_freshness_minutes === null || obs.data_freshness_minutes === undefined) return null;
-  return Math.max(8, Math.round(95 * Math.exp(-obs.data_freshness_minutes / 720)));
+  const m = getFreshnessMin(obs);
+  if (m === null) return null;
+  return Math.max(8, Math.round(95 * Math.exp(-m / 720)));
 }
 function fuelConfLine(obs, status) {
   const c = confPercent(obs);
   if (status === null || status === undefined) {
-    if (!obs || obs.data_freshness_minutes === null || obs.data_freshness_minutes === undefined) return '—';
-    const m = obs.data_freshness_minutes;
+    const m = getFreshnessMin(obs);
+    if (m === null) return '—';
     const t = m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн';
     return 'данные источника: ' + t + ' назад';
   }
@@ -628,8 +641,8 @@ function advicePriceMeta(st, it) {
 }
 // когда источник последний раз видел станцию (10-мин цикл коллектора)
 function adviceFreshMeta(o) {
-  const m = o ? o.data_freshness_minutes : null;
-  if (m === null || m === undefined) return '<span class="adv-meta">' + icon('i-clock', 'ic-s') + 'отметка: нет времени</span>';
+  const m = getFreshnessMin(o); // <-- ИЗМЕНЕНО ТУТ
+  if (m === null) return '<span class="adv-meta">' + icon('i-clock', 'ic-s') + 'отметка: нет времени</span>';
   const t = m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн';
   const cls = m <= 30 ? ' fresh-ok' : '';
   return '<span class="adv-meta' + cls + '">' + icon('i-clock', 'ic-s') + 'отметка ' + t + ' назад</span>';
@@ -641,7 +654,7 @@ function fullChoiceScore(it) {
   const cl = (x, a, b) => Math.max(a, Math.min(b, x));
   const fuel = it.kind === 'forecast' ? 0 : it.f === 'yes' ? 1 : it.f === 'part' ? 0.6 : 0.3;
   const conf = it.pred ? cl(getPrediction(it.pred).confidence / 100, 0, 1) : 0;
-  const m = it.o && it.o.data_freshness_minutes != null ? it.o.data_freshness_minutes : null;
+  const m = getFreshnessMin(it.o);
   const fresh = m === null ? 0.5 : cl(1 - m / 360, 0, 1);
   const fl = adviceFocusFuel(it);
   const col = fl === '92' ? 'price_92' : fl === '95' ? 'price_95' : 'price_diesel';
@@ -668,7 +681,8 @@ function adviceCoreScore(st, o, km, pred) {
   const sc = demandOf(st.id);
   s -= sc >= 50 ? 40 : sc >= 30 ? 20 : sc >= 12 ? 8 : 0;
   s -= liveQueueCount(st.id) * 3;
-  if (o && o.data_freshness_minutes != null) s += Math.max(0, 30 - Math.round(o.data_freshness_minutes / 12));
+  const fmCore = getFreshnessMin(o); 
+  if (fmCore !== null) s += Math.max(0, 30 - Math.round(fmCore / 12));
   if (pred) { const ws = adviceWinState(pred); if (ws === 'open') s += 15; else if (ws === 'soon') s += 8; }
   if (getDriverTrips().length >= MIN_TRIPS_FOR_ADVICE) {
     const brand = brandKey(st); const pr = getDriverPrefs();
@@ -3122,8 +3136,8 @@ function freshStats() {
   for (const s of cityStationList()) {
     tot++;
     const o = last[s.id];
-    if (!o || o.data_freshness_minutes === null || o.data_freshness_minutes === undefined) continue;
-    if (o.data_freshness_minutes <= 360) fresh++;
+    const m = getFreshnessMin(o); // <-- ИЗМЕНЕНО ТУТ
+    if (m !== null && m <= 360) fresh++;
   }
   return { tot: tot, fresh: fresh };
 }
@@ -3311,7 +3325,7 @@ function getPersonalAdvice() {
     if (!citySet.has(s.id)) continue;
     const o = last[s.id];
     if (!o) continue;
-    const fresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    const fresh = obsFresh(o);
     if (!fresh) continue;
     const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
     if (!hasFuel) continue;
@@ -4362,8 +4376,8 @@ function renderStations(stations, keepOrder) {
   const scored = stations.map(station => {
     const obs = lastObs[station.id];
     const pred = pickPrediction(station.id, obs);
-    const freshMin = obs?.data_freshness_minutes;
-    const trusted = freshMin !== null && freshMin !== undefined && freshMin <= 360;
+    const freshMin = getFreshnessMin(obs);
+const trusted = freshMin !== null && freshMin <= 360;
     const f95 = trusted ? obs.fuel_95_status : null;
     let score = 1;
     if (pred && f95 === false) score = 4; else if (pred) score = 3; else if (f95 === true) score = 2;
@@ -5058,7 +5072,8 @@ function pinKey(o) {
 // «Куда ехать» и индикатора свежести). Отметка старше — рисуется тускло,
 // чтобы глаз не принимал вчерашнее топливо за сегодняшнее
 function obsFresh(o) {
-  return !!o && o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+  const m = getFreshnessMin(o);
+  return m !== null && m <= 360;
 }
 function fuelChip(label, status) {
   if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
@@ -6714,7 +6729,7 @@ function renderBootLiveStations() {
       recentlyUpdated.push({ st, o });
     }
 
-    const isFresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    const isFresh = obsFresh(o);
     const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
     
     if (isFresh && hasFuel) {
