@@ -147,20 +147,9 @@
     border-radius: 5px;
   }
 
-  .kpi-change.positive {
-    background: #e5f8ef;
-    color: #12855c;
-  }
-
-  .kpi-change.negative {
-    background: #fdecec;
-    color: #c2403f;
-  }
-
-  .kpi-change.neutral {
-    background: #f2f4f9;
-    color: var(--text-secondary);
-  }
+  .kpi-change.positive { background: #e5f8ef; color: #12855c; }
+  .kpi-change.negative { background: #fdecec; color: #c2403f; }
+  .kpi-change.neutral { background: #f2f4f9; color: var(--text-secondary); }
 
   .kpi-subtitle {
     font-size: 10px;
@@ -194,15 +183,9 @@
     gap: 7px;
   }
 
-  .section-icon {
-    font-size: 17px;
-  }
+  .section-icon { font-size: 17px; }
 
-  .bar-chart {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
 
   .bar-item {
     display: grid;
@@ -303,6 +286,15 @@
   .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; margin-right: 11px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* === Стили для тепловой карты === */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 10px; }
+  .heatmap { border-collapse: collapse; font-size: 10px; }
+  .heatmap th, .heatmap td { padding: 2px; text-align: center; }
+  .heatmap .hour-label { font-weight: 600; color: var(--text-secondary); width: 30px; }
+  .heatmap .day-label { font-weight: 600; color: var(--text-secondary); text-align: left; padding-right: 8px; }
+  .heat-cell { width: 24px; height: 20px; border-radius: 3px; display: inline-block; transition: opacity 0.2s; }
+  .heat-cell:hover { opacity: 0.7; outline: 1px solid #000; }
+
   @media (max-width: 768px) {
     .container { padding: 14px; }
     .header h1 { font-size: 19px; }
@@ -338,6 +330,12 @@
 const SUPABASE_URL = 'https://api.kogdabenz.ru';
 const SUPABASE_KEY = 'eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
 const DASH_SECRET = 'kb-dash-2026-x9f3k';
+
+// Глобальные переменные для отчета
+let REPORT = {};
+let ADVANCED_REPORT = {}; 
+let trafficCache = {};
+let trafficRange = '24h';
 
 const POLL_Q = {
   arrive_truth: 'Подъехали к заправке — информация совпала?',
@@ -380,31 +378,22 @@ function sourceRu(s) {
   const lowerS = s.toLowerCase();
 
   if (lowerS === 'direct' || lowerS === 'напрямую') return 'Прямые заходы';
-
-  // Реклама (utm метки)
   if (lowerS.startsWith('utm: ')) {
     if (lowerS.includes('yandex') || lowerS.includes('ya')) return 'Яндекс (Реклама)';
     if (lowerS.includes('google')) return 'Google (Реклама)';
     const platform = s.slice(5).split(' / ')[0];
     return 'Реклама: ' + platform;
   }
-
-  // Органика и рефералы (referrer)
   if (lowerS.startsWith('ref: ')) {
-    let host = lowerS.slice(5);
-    // Убираем протоколы и www
-    host = host.replace(/^(https?:\/\/)?(www\.)?/, '');
-    
+    let host = lowerS.slice(5).replace(/^(https?:\/\/)?(www\.)?/, '');
     if (host.startsWith('yandex') || host.startsWith('ya.ru')) return 'Яндекс (Поиск)';
     if (host.startsWith('google')) return 'Google (Поиск)';
     if (host.includes('vk.com') || host.includes('vk.ru')) return 'ВКонтакте';
     if (host.includes('t.me') || host.includes('telegram')) return 'Телеграм';
     if (host.includes('dzen.ru')) return 'Дзен';
     if (host.includes('mail.ru')) return 'Mail.ru';
-    
-    return host.split('/')[0]; // Возвращаем просто домен
+    return host.split('/')[0];
   }
-
   return s;
 }
 
@@ -421,34 +410,22 @@ async function load() {
   try {
     const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET })
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
       }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET })
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
       }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET })
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
       }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET })
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
       }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET })
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
       }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET })
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
       })
     ]);
 
@@ -491,7 +468,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     '</div></div>' +
     '<div class="tf-head" id="trafficHead"></div>' +
     '<div class="chart-wrap" id="trafficChart"><div class="loading" style="padding:30px"><div class="spinner"></div></div></div>' +
-    '<div class="note">В этой системе <b>session_id</b> выступает как анонимный ID устройства (уникальный пользователь), так как сохраняется между визитами. График показывает количество таких уникальных ID.</div>' +
+    '<div class="note">В этой системе <b>session_id</b> выступает как анонимный ID устройства (уникальный пользователь).</div>' +
     '</div>';
 
   // Funnel
@@ -507,7 +484,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     html += '</div><div class="note">Сколько уникальных пользователей выполнили каждое действие хотя бы раз.</div></div>';
   }
 
-  // === ИСТОЧНИКИ ТРАФИКА (С ГРУППИРОВКОЙ) ===
+  // Источники
   const rawSources = stats.sources || [];
   const groupedSourcesMap = {};
   rawSources.forEach(item => {
@@ -515,7 +492,6 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     if (!groupedSourcesMap[ruName]) groupedSourcesMap[ruName] = 0;
     groupedSourcesMap[ruName] += item.sessions;
   });
-  // Превращаем обратно в массив и сортируем по убыванию
   const sources = Object.keys(groupedSourcesMap)
     .map(k => ({ source: k, sessions: groupedSourcesMap[k] }))
     .sort((a, b) => b.sessions - a.sessions);
@@ -527,10 +503,10 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
       const width = (s.sessions / maxSrc * 100);
       html += `<div class="bar-item"><div class="bar-label">${s.source}</div><div class="bar-track"><div class="bar-fill success" style="width: ${width}%"></div></div><div class="bar-value">${formatNumber(s.sessions)}</div></div>`;
     });
-    html += '</div><div class="note">Все переходы с Яндекса, ВКонтакте и других систем объединены в общие группы для удобства (Поиск / Реклама).</div></div>';
+    html += '</div><div class="note">Все переходы с Яндекса, ВКонтакте и других систем объединены в общие группы для удобства.</div></div>';
   }
 
-  // Cities
+  // Города
   const cities = stats.cities || [];
   if (cities.length > 0) {
     html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🏙️</span>География пользователей</div></div><div class="bar-chart">';
@@ -542,7 +518,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     html += '</div><div class="note">Город определяется по координатам устройства.</div></div>';
   }
 
-  // Polls
+  // Опросы
   if (poll && !poll.error && poll.total_answers > 0) {
     html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">💬</span>Опросы водителей</div></div>';
     html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
@@ -570,7 +546,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     html += '<div class="note">Ответы полностью анонимны. Звёзды показывают распределение оценок от 1 до 5.</div></div>';
   }
 
-  // Advisor
+  // Советник
   if (advisor && !advisor.error && advisor.total_advice > 0) {
     html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник «Куда ехать»</div></div>';
     const acceptanceRate = advisor.acceptance_rate || 0;
@@ -606,8 +582,141 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   html += renderHooks(hooks);
   html += renderEngagement(eng);
   html += renderSourceFunnel(srcf);
+
+  // КОНТЕЙНЕР ДЛЯ НОВЫХ БЛОКОВ (Отказы, Когорты, Тепловая карта)
+  html += '<div id="advanced-stats-container"></div>';
+
   app.innerHTML = html;
   loadTraffic(trafficRange);
+  
+  // Запускаем загрузку новых блоков
+  loadAdvancedStats();
+}
+
+// === ФУНКЦИЯ ЗАГРУЗКИ ДОП. СТАТИСТИКИ ===
+async function loadAdvancedStats() {
+  const container = document.getElementById('advanced-stats-container');
+  if (!container) return;
+
+  container.innerHTML = '<div class="loading"><div class="spinner"></div><span>Загрузка доп. статистики...</span></div>';
+
+  try {
+    const [bounceRes, cohortRes, heatmapRes] = await Promise.all([
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_bounce_stats', {
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_retention_cohorts', {
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
+      }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', {
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
+      })
+    ]);
+
+    const bounceData = await bounceRes.json();
+    const cohortData = await cohortRes.json();
+    const heatmapData = await heatmapRes.json();
+    
+    // Сохраняем в глобальную переменную для отчета
+    ADVANCED_REPORT = { bounce: bounceData, cohort: cohortData, heatmap: heatmapData };
+
+    if (bounceData.error || cohortData.error || heatmapData.error) {
+        console.error("SQL Errors:", bounceData.error, cohortData.error, heatmapData.error);
+        container.innerHTML = '<div class="error">Ошибка SQL: проверьте консоль (F12). Убедитесь, что функции созданы в базе.</div>';
+        return;
+    }
+
+    let html = '';
+
+    // --- БЛОК ОТКАЗОВ ---
+    if (bounceData && bounceData.total_sessions > 0) {
+      const maxB = Math.max(...(bounceData.buckets || []).map(b => b.cnt), 1);
+      html += `<div class="section">
+        <div class="section-header"><div class="section-title"><span class="section-icon">🚪</span>Уходы и глубина просмотра</div></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+          <div class="kpi-card" style="border-left: 3px solid var(--danger);">
+            <div class="kpi-label">Показатель отказов</div>
+            <div class="kpi-value">${bounceData.bounce_rate}%</div>
+            <div class="kpi-subtitle">Ушли за первые 10 секунд</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Всего сессий</div>
+            <div class="kpi-value">${bounceData.total_sessions}</div>
+          </div>
+        </div>
+        <div class="bar-chart">`;
+      
+      (bounceData.buckets || []).forEach(b => {
+        const width = (b.cnt / maxB * 100);
+        const isBad = b.label.includes('уход');
+        const barStyle = isBad ? 'background: #ef5350;' : '';
+        html += `<div class="bar-item">
+          <div class="bar-label">${b.label}</div>
+          <div class="bar-track"><div class="bar-fill" style="width: ${width}%; ${barStyle}"></div></div>
+          <div class="bar-value">${b.cnt}</div>
+        </div>`;
+      });
+      html += `</div><div class="note">Отказы — это сессии короче 10 секунд (человек зашел и сразу закрыл вкладку). Если этот показатель высокий, значит сайт тормозит или не отвечает на ожидания.</div></div>`;
+    }
+
+    // --- БЛОК КОГОРТ ---
+    if (cohortData && cohortData.length > 0) {
+      html += `<div class="section">
+        <div class="section-header"><div class="section-title"><span class="section-icon">🔄</span>Возвращаемость (Когорты)</div></div>
+        <div style="overflow-x:auto"><table class="data-table">
+          <tr><th>Дата прихода</th><th>Пришло (чел)</th><th>Вернулись на сл. день</th><th>Вернулись через 7 дней</th></tr>`;
+      
+      cohortData.forEach(c => {
+        const d1Pct = Math.round(100 * c.day1 / c.total_users);
+        const d7Pct = Math.round(100 * c.day7 / c.total_users);
+        const d1Color = d1Pct >= 15 ? '#12855c' : '#c2403f';
+        const dateStr = new Date(c.cohort_date).toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'});
+        html += `<tr>
+          <td><b>${dateStr}</b></td>
+          <td>${c.total_users}</td>
+          <td><span style="color:${d1Color};font-weight:700">${c.day1} (${d1Pct}%)</span></td>
+          <td><span style="color:#2465ee;font-weight:700">${c.day7} (${d7Pct}%)</span></td>
+        </tr>`;
+      });
+      html += `</table></div><div class="note">Показывает реальную лояльность. Если человек пришел 1 ноября, вернулся ли он 2 ноября или 8 ноября?</div></div>`;
+    }
+
+    // --- БЛОК ТЕПЛОВОЙ КАРТЫ ---
+    if (heatmapData && heatmapData.length > 0) {
+      let maxUsers = 1;
+      heatmapData.forEach(h => { if (h.users > maxUsers) maxUsers = h.users; });
+      
+      const daysNames = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      let matrix = Array(8).fill(0).map(() => Array(24).fill(0));
+      heatmapData.forEach(h => { matrix[h.day_num][h.hour_num] = h.users; });
+
+      html += `<div class="section">
+        <div class="section-header"><div class="section-title"><span class="section-icon">🔥</span>Активность по дням и часам</div></div>
+        <div class="heatmap-wrap"><table class="heatmap">`;
+      
+      html += `<tr><th></th>`;
+      for(let h = 0; h < 24; h++) html += `<th class="hour-label">${h}</th>`;
+      html += `</tr>`;
+
+      for (let d = 1; d <= 7; d++) {
+        html += `<tr><td class="day-label">${daysNames[d]}</td>`;
+        for (let h = 0; h < 24; h++) {
+          const val = matrix[d][h];
+          const opacity = Math.max(0.05, val / maxUsers);
+          const bgColor = `rgba(36, 101, 238, ${opacity})`;
+          html += `<td><div class="heat-cell" style="background:${bgColor}" title="${val} польз."></div></td>`;
+        }
+        html += `</tr>`;
+      }
+      html += `</table></div><div class="note">Темные пятна — часы пик. Обычно это утро (8:00-9:00) и вечер (17:00-19:00), когда люди едут на работу и с работы.</div></div>`;
+    }
+
+    container.innerHTML = html;
+
+  } catch (e) {
+    console.error('Ошибка загрузки доп. статистики:', e);
+    container.innerHTML = '<div class="error">Не удалось загрузить доп. статистику: ' + e.message + '</div>';
+  }
 }
 
 function renderSourceFunnel(list) {
@@ -619,7 +728,7 @@ function renderSourceFunnel(list) {
     out += '<tr><td><b>' + r.source + '</b></td><td>' + r.visits + '</td><td>' + cell(r.panels, r) + '</td><td>' + cell(r.cards, r) + '</td><td>' + cell(r.advice, r) + '</td><td>' + cell(r.marks, r) + '</td><td>' + cell(r.installs, r) + '</td></tr>';
   }
   out += '</table></div>';
-  out += '<div class="note">Проценты — от открывших сайт из этого источника. Сравнивай строки между собой: если у «Реклама: yandex» доли листали/совет заметно ниже органики — холодный трафик не понимает первый экран.</div></div>';
+  out += '<div class="note">Проценты — от открывших сайт из этого источника. Если у «Реклама: yandex» доли листали/совет заметно ниже органики — холодный трафик не понимает первый экран.</div></div>';
   return out;
 }
 
@@ -658,7 +767,6 @@ function downloadReport() {
     }
   }
   
-  // ИСПРАВЛЕНО: Выводим сгруппированные источники в отчет
   const rawSources = s.sources || [];
   const groupedSourcesMap = {};
   rawSources.forEach(item => {
@@ -738,6 +846,24 @@ function downloadReport() {
     for (const x of fd) x.pct = Math.round(100 * x.device_days / fdTotal);
     if (fd.length) L.push('Частота: ' + fd.map(x => x.bucket + ' р/день ' + x.pct + '%').join(', '));
   }
+
+  // === ВЫВОДИМ НОВУЮ СТАТИСТИКУ В ОТЧЕТ ===
+  const adv = ADVANCED_REPORT;
+  if (adv && adv.bounce && !adv.bounce.error) {
+    L.push('');
+    L.push('== УХОДЫ И ГЛУБИНА ПРОСМОТРА ==');
+    L.push('Показатель отказов: ' + adv.bounce.bounce_rate + '% (ушли за 10 сек)');
+    L.push('Всего сессий: ' + adv.bounce.total_sessions);
+  }
+  if (adv && adv.cohort && adv.cohort.length) {
+    L.push('');
+    L.push('== ВОЗВРАЩАЕМОСТЬ (КОГОРТЫ) ==');
+    for (const c of adv.cohort) {
+      const dateStr = new Date(c.cohort_date).toLocaleDateString('ru-RU');
+      L.push(dateStr + ': пришло ' + c.total_users + ' | вернулись на 1-й день ' + c.day1 + ' | на 7-й день ' + c.day7);
+    }
+  }
+
   const p = R.poll;
   if (p && !p.error && p.total_answers) {
     L.push('');
@@ -814,7 +940,7 @@ function renderEngagement(eng) {
     for (const x of days) out += '<tr><td>' + x.d + '</td><td>' + x.devices + '</td><td>' + x.sessions + '</td><td><b>' + Number(x.per_dev).toFixed(2).replace('.', ',') + '</b></td></tr>';
     out += '</table>';
   }
-  out += '<div class="note">Частота считается по session_id (который выступает как уникальный ID устройства): сколько раз в день он заходит. 1 раз — зашёл и ушёл, 2+ — возвращается проверять в течение дня.</div></div>';
+  out += '<div class="note">Частота считается по session_id (который выступает как уникальный ID устройства): сколько раз в день он заходит.</div></div>';
   return out;
 }
 
@@ -879,11 +1005,6 @@ function renderHooks(hooks) {
   out += '<div class="note"><b>Внимание:</b> Верхние карточки («Нажали...») показывают <i>события</i> только с момента включения трекинга (03.11). Таблицы ниже показывают <i>фактическое состояние базы</i> (сохраненные АЗС), поэтому там цифры могут отличаться в большую сторону (там есть данные за прошлые дни).</div></div>';
   return out;
 }
-
-let trafficCache = {};
-let REPORT = {};
-let trafficRange = '24h';
-let allStations = []; // Заглушка
 
 async function loadTraffic(range) {
   trafficRange = range;
