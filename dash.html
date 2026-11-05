@@ -42,230 +42,107 @@
     border-bottom: 2px solid var(--border);
   }
 
-  .header h1 {
-    font-size: 22px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    color: var(--text-primary);
-  }
-
-  .header .subtitle {
-    color: var(--text-secondary);
-    font-size: 12px;
-    margin-top: 3px;
-    font-weight: 600;
-  }
+  .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: var(--text-primary); }
+  .header .subtitle { color: var(--text-secondary); font-size: 12px; margin-top: 3px; font-weight: 600; }
 
   .header-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 11px;
-    background: linear-gradient(135deg, #e5f8ef, #dff5e9);
-    border: 1px solid #bfe8d4;
-    border-radius: 18px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #12855c;
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px;
+    background: linear-gradient(135deg, #e5f8ef, #dff5e9); border: 1px solid #bfe8d4;
+    border-radius: 18px; font-size: 11px; font-weight: 700; color: #12855c;
   }
-
-  .header-badge::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--success);
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(1.2); }
-  }
+  .header-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
+  
   .report-btn { border:0; border-radius:10px; padding:8px 12px; background:linear-gradient(135deg,#2465ee,#397cff); color:#fff; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(36,101,238,.3); }
   .report-btn:active { transform:scale(.97); }
 
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 12px;
+  /* === ПЛАШКА ВЕРДИКТА === */
+  .verdict-panel {
+    background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
+    border: 1px solid #dce4f0;
+    border-radius: 20px;
+    padding: 24px;
     margin-bottom: 20px;
-  }
-
-  .kpi-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 16px;
-    box-shadow: var(--shadow-sm);
-    transition: all 0.2s;
+    box-shadow: 0 8px 24px rgba(20, 33, 61, 0.08);
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 24px;
+    align-items: center;
     position: relative;
     overflow: hidden;
   }
-
-  .kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--primary), var(--primary-light));
-    opacity: 0.6;
+  .verdict-panel::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--primary);
   }
-
-  .kpi-card:hover {
-    box-shadow: var(--shadow);
-    transform: translateY(-1px);
+  .verdict-panel.good::before { background: var(--success); }
+  .verdict-panel.warn::before { background: var(--warning); }
+  .verdict-panel.bad::before { background: var(--danger); }
+  
+  .score-box { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .score-ring {
+    width: 100px; height: 100px; border-radius: 50%;
+    background: conic-gradient(var(--primary) var(--score-deg, 70%), #e2e8f0 0);
+    display: grid; place-items: center; position: relative;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.1);
   }
+  .score-ring::before { content: ''; position: absolute; inset: 8px; background: #fff; border-radius: 50%; }
+  .score-val { position: relative; z-index: 1; font-size: 28px; font-weight: 900; color: var(--text-primary); line-height: 1; }
+  .score-val small { font-size: 12px; color: var(--text-secondary); }
+  .score-label { margin-top: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
 
-  .kpi-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    margin-bottom: 6px;
+  .verdict-content h3 { font-size: 18px; font-weight: 900; margin-bottom: 12px; color: var(--text-primary); letter-spacing: -0.3px; }
+  .verdict-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .v-list-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+  .v-list-col li { font-size: 12px; font-weight: 600; line-height: 1.4; display: flex; align-items: flex-start; gap: 6px; }
+  .v-list-col li::before { content: '•'; font-size: 16px; line-height: 1; }
+  .v-good li::before { color: var(--success); }
+  .v-bad li::before { color: var(--danger); }
+  .v-warn li::before { color: var(--warning); }
+  
+  .v-list-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; color: var(--text-tertiary); }
+
+  @media (max-width: 768px) {
+    .verdict-panel { grid-template-columns: 1fr; gap: 16px; text-align: center; }
+    .verdict-lists { grid-template-columns: 1fr; text-align: left; }
+    .score-box { flex-direction: row; gap: 16px; justify-content: center; }
+    .score-label { margin-top: 0; }
   }
+  /* ===================== */
 
-  .kpi-value {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--text-primary);
-    letter-spacing: -0.8px;
-    line-height: 1;
-    margin-bottom: 4px;
-  }
-
-  .kpi-change {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 7px;
-    border-radius: 5px;
-  }
-
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow-sm); transition: all 0.2s; position: relative; overflow: hidden; }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--primary-light)); opacity: 0.6; }
+  .kpi-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+  .kpi-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 800; color: var(--text-primary); letter-spacing: -0.8px; line-height: 1; margin-bottom: 4px; }
+  .kpi-change { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; }
   .kpi-change.positive { background: #e5f8ef; color: #12855c; }
   .kpi-change.negative { background: #fdecec; color: #c2403f; }
   .kpi-change.neutral { background: #f2f4f9; color: var(--text-secondary); }
+  .kpi-subtitle { font-size: 10px; color: var(--text-tertiary); margin-top: 5px; font-weight: 600; }
 
-  .kpi-subtitle {
-    font-size: 10px;
-    color: var(--text-tertiary);
-    margin-top: 5px;
-    font-weight: 600;
-  }
-
-  .section {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px;
-    margin-bottom: 16px;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 14px;
-  }
-
-  .section-title {
-    font-size: 15px;
-    font-weight: 800;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
-
+  .section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
+  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .section-title { font-size: 15px; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 7px; }
   .section-icon { font-size: 17px; }
 
   .bar-chart { display: flex; flex-direction: column; gap: 8px; }
-
-  .bar-item {
-    display: grid;
-    grid-template-columns: 180px 1fr 70px;
-    gap: 10px;
-    align-items: center;
-    padding: 6px 0;
-  }
-
-  .bar-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .bar-track {
-    height: 26px;
-    background: #f7f9fc;
-    border-radius: 7px;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .bar-fill {
-    height: 100%;
-    border-radius: 7px;
-    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-  }
-
+  .bar-item { display: grid; grid-template-columns: 180px 1fr 70px; gap: 10px; align-items: center; padding: 6px 0; }
+  .bar-label { font-size: 12px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { height: 26px; background: #f7f9fc; border-radius: 7px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 7px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); position: relative; }
   .bar-fill.primary { background: linear-gradient(90deg, #2465ee, #397cff); }
   .bar-fill.success { background: linear-gradient(90deg, #19b77a, #2fd39a); }
   .bar-fill.warning { background: linear-gradient(90deg, #f5a05a, #ffb46a); }
+  .bar-value { font-size: 12px; font-weight: 800; color: var(--text-primary); text-align: right; }
 
-  .bar-value {
-    font-size: 12px;
-    font-weight: 800;
-    color: var(--text-primary);
-    text-align: right;
-  }
-
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-
-  .data-table th {
-    text-align: left;
-    padding: 10px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    border-bottom: 2px solid var(--border);
-  }
-
-  .data-table td {
-    padding: 9px 8px;
-    border-bottom: 1px solid var(--border);
-  }
-
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { text-align: left; padding: 10px 8px; font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid var(--border); }
+  .data-table td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
   .data-table tr:last-child td { border-bottom: none; }
   .data-table tr:hover { background: #f8fafc; }
 
-  .note {
-    margin-top: 12px;
-    padding: 10px 12px;
-    background: #f7f9fc;
-    border-left: 3px solid var(--primary);
-    border-radius: 7px;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    font-weight: 600;
-  }
+  .note { margin-top: 12px; padding: 10px 12px; background: #f7f9fc; border-left: 3px solid var(--primary); border-radius: 7px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; font-weight: 600; }
 
   .tf-tabs { display: flex; gap: 3px; background: #f2f4f9; border-radius: 9px; padding: 3px; }
   .tf-tab { border: 0; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: all 0.2s; }
@@ -286,7 +163,6 @@
   .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; margin-right: 11px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* === Стили для тепловой карты === */
   .heatmap-wrap { overflow-x: auto; padding-bottom: 10px; }
   .heatmap { border-collapse: collapse; font-size: 10px; }
   .heatmap th, .heatmap td { padding: 2px; text-align: center; }
@@ -331,7 +207,6 @@ const SUPABASE_URL = 'https://api.kogdabenz.ru';
 const SUPABASE_KEY = 'eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
 const DASH_SECRET = 'kb-dash-2026-x9f3k';
 
-// Глобальные переменные для отчета
 let REPORT = {};
 let ADVANCED_REPORT = {}; 
 let trafficCache = {};
@@ -372,17 +247,14 @@ const CITY_RU = {
 
 function cityRu(c) { return CITY_RU[c] || (c === 'unknown' ? 'Не определён' : c); }
 
-// === УМНАЯ ГРУППИРОВКА ИСТОЧНИКОВ ===
 function sourceRu(s) {
   if (!s) return 'Неизвестно';
   const lowerS = s.toLowerCase();
-
   if (lowerS === 'direct' || lowerS === 'напрямую') return 'Прямые заходы';
   if (lowerS.startsWith('utm: ')) {
     if (lowerS.includes('yandex') || lowerS.includes('ya')) return 'Яндекс (Реклама)';
     if (lowerS.includes('google')) return 'Google (Реклама)';
-    const platform = s.slice(5).split(' / ')[0];
-    return 'Реклама: ' + platform;
+    return 'Реклама: ' + s.slice(5).split(' / ')[0];
   }
   if (lowerS.startsWith('ref: ')) {
     let host = lowerS.slice(5).replace(/^(https?:\/\/)?(www\.)?/, '');
@@ -409,24 +281,12 @@ async function load() {
   const app = document.getElementById('app');
   try {
     const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      })
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) })
     ]);
 
     if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok || !srcfRes.ok) throw new Error('HTTP error');
@@ -444,6 +304,9 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   REPORT = { stats: stats, poll: poll, advisor: advisor, hooks: hooks, eng: eng, srcf: srcf };
   const app = document.getElementById('app');
   let html = '';
+
+  // Контейнер для умной плашки в самом начале
+  html += '<div id="verdict-container"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>';
 
   // KPI Cards
   const ret = stats.retention || {};
@@ -582,15 +445,118 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   html += renderHooks(hooks);
   html += renderEngagement(eng);
   html += renderSourceFunnel(srcf);
-
-  // КОНТЕЙНЕР ДЛЯ НОВЫХ БЛОКОВ (Отказы, Когорты, Тепловая карта)
   html += '<div id="advanced-stats-container"></div>';
 
   app.innerHTML = html;
   loadTraffic(trafficRange);
   
-  // Запускаем загрузку новых блоков
+  // Первичный вердикт по основным данным (пока грузятся тяжелые запросы)
+  renderVerdict();
+  
   loadAdvancedStats();
+}
+
+// === УМНАЯ ПЛАШКА ВЕРДИКТА ===
+function renderVerdict() {
+  const container = document.getElementById('verdict-container');
+  if (!container || !REPORT.stats) return;
+
+  const s = REPORT.stats;
+  const adv = ADVANCED_REPORT;
+  const f = s.funnel || [];
+  const src = s.sources || [];
+  
+  let score = 6.0; // Базовый балл (нейтрально)
+  let pros = [];
+  let cons = [];
+  let statusClass = 'warn';
+
+  // 1. Анализ удержания (Отказы)
+  if (adv.bounce && adv.bounce.total_sessions) {
+    const br = adv.bounce.bounce_rate;
+    if (br <= 12) { score += 2.0; pros.push(`Отличное удержание: отказы ${br}%. Люди изучают сайт, а не закрывают его сразу.`); }
+    else if (br <= 25) { score += 1.0; pros.push(`Хорошее удержание: отказы ${br}%.`); }
+    else if (br <= 40) { score -= 0.5; cons.push(`Средние отказы (${br}%). Есть над чем работать.`); }
+    else { score -= 1.5; cons.push(`Высокие отказы (${br}%). Сайт может тормозить или пугать пользователей.`); }
+  }
+
+  // 2. Анализ воронки (Глубина просмотра)
+  const pv = f.find(x => x.event === 'pageview')?.sessions || 0;
+  const panel = f.find(x => x.event === 'panel_view')?.sessions || 0;
+  const card = f.find(x => x.event === 'open_station_card')?.sessions || 0;
+  if (pv > 0) {
+    const panelConv = Math.round(panel / pv * 100);
+    const cardConv = Math.round(card / pv * 100);
+    if (cardConv >= 8) { score += 0.5; pros.push(`Хорошая конверсия: ${cardConv}% пользователей доходят до карточки АЗС.`); }
+    else { score -= 0.5; cons.push(`Воронка теряет людей: только ${panelConv}% листают панели и ${cardConv}% смотрят карточки.`); }
+  }
+
+  // 3. Анализ возвращаемости (Когорты)
+  if (adv.cohort && adv.cohort.length > 1) {
+    // Берем когорту не сегодняшнюю, а вчерашнюю/позавчерашнюю
+    const matureCohort = adv.cohort[1]; 
+    if (matureCohort && matureCohort.total_users > 10) {
+      const retRate = Math.round(100 * matureCohort.day1 / matureCohort.total_users);
+      if (retRate >= 10) { score += 1.5; pros.push(`Лояльная аудитория: ${retRate}% возвращаются на следующий день.`); }
+      else if (retRate >= 5) { score += 0.5; pros.push(`Нормальная возвращаемость: ${retRate}% на след. день.`); }
+      else { score -= 1.0; cons.push(`Мало возвратов: ${retRate}% на след. день. Водители заходят разово (нужен Telegram-бот).`); }
+    } else {
+      cons.push(`Когорты еще маленькие, возвращаемость оценим позже.`);
+    }
+  }
+
+  // 4. Анализ источников (Окупаемость рекламы)
+  const yaOrg = src.find(x => x.source.toLowerCase().includes('yandex') && !x.source.toLowerCase().includes('utm'))?.sessions || 0;
+  const yaAds = src.find(x => x.source.toLowerCase().includes('utm') && x.source.toLowerCase().includes('yandex'))?.sessions || 0;
+  if (yaAds > 0) {
+    if (yaAds >= yaOrg * 0.5) { score += 1.0; pros.push(`Реклама работает отлично: дает ${yaAds} визитов (органика Яндекса: ${yaOrg}).`); }
+    else { score += 0.5; pros.push(`Реклама приводит трафик (${yaAds} визитов).`); }
+  }
+
+  // 5. Анализ привычки (Время на сайте)
+  if (s.engagement && s.engagement.dur) {
+    const medianMin = s.engagement.dur.p50 / 60;
+    if (medianMin >= 1.5) { score += 0.5; pros.push(`Водители задерживаются: медиана сессии ${Math.round(medianMin)} мин.`); }
+    else if (medianMin < 0.5) { score -= 0.5; cons.push(`Очень короткие сессии (${Math.round(medianMin*60)} сек). Люди не успевают разобраться.`); }
+  }
+
+  // Ограничиваем балл от 1 до 10
+  score = Math.max(1.0, Math.min(10.0, score));
+  
+  if (score >= 8.0) { statusClass = 'good'; }
+  else if (score >= 5.0) { statusClass = 'warn'; }
+  else { statusClass = 'bad'; }
+
+  const finalScore = score.toFixed(1).replace('.', ',');
+  const scoreDeg = (score / 10) * 100;
+
+  let statusWord = statusClass === 'good' ? 'Отличный старт' : statusClass === 'warn' ? 'Есть над чем работать' : 'Критическая ситуация';
+
+  // Формируем HTML
+  let html = `
+    <div class="verdict-panel ${statusClass}">
+      <div class="score-box">
+        <div class="score-ring" style="--score-deg: ${scoreDeg}%">
+          <div class="score-val">${finalScore}<small>/10</small></div>
+        </div>
+        <div class="score-label">${statusWord}</div>
+      </div>
+      <div class="verdict-content">
+        <h3>Вердикт аналитики: сводка по проекту</h3>
+        <div class="verdict-lists">
+          <div class="v-list-col v-good">
+            <div class="v-list-title">Что работает отлично</div>
+            <ul>${pros.length ? pros.map(p => `<li>${p}</li>`).join('') : '<li>Пока нет явных успехов, копим данные.</li>'}</ul>
+          </div>
+          <div class="v-list-col v-bad">
+            <div class="v-list-title">На что обратить внимание</div>
+            <ul>${cons.length ? cons.map(c => `<li>${c}</li>`).join('') : '<li>Все показатели в норме, проблем не найдено!</li>'}</ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  container.innerHTML = html;
 }
 
 // === ФУНКЦИЯ ЗАГРУЗКИ ДОП. СТАТИСТИКИ ===
@@ -602,22 +568,15 @@ async function loadAdvancedStats() {
 
   try {
     const [bounceRes, cohortRes, heatmapRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_bounce_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_retention_cohorts', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET })
-      })
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_bounce_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_retention_cohorts', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) })
     ]);
 
     const bounceData = await bounceRes.json();
     const cohortData = await cohortRes.json();
     const heatmapData = await heatmapRes.json();
     
-    // Сохраняем в глобальную переменную для отчета
     ADVANCED_REPORT = { bounce: bounceData, cohort: cohortData, heatmap: heatmapData };
 
     if (bounceData.error || cohortData.error || heatmapData.error) {
@@ -712,6 +671,9 @@ async function loadAdvancedStats() {
     }
 
     container.innerHTML = html;
+    
+    // ОБНОВЛЯЕМ ВЕРДИКТ С УЧЕТОМ НОВЫХ ДАННЫХ (Отказы и Когорты)
+    renderVerdict();
 
   } catch (e) {
     console.error('Ошибка загрузки доп. статистики:', e);
@@ -741,6 +703,19 @@ function downloadReport() {
   L.push('КОГДАБЕНЗ · ОТЧЁТ ВЛАДЕЛЬЦА');
   L.push('Сформирован: ' + p2(now.getUTCDate()) + '.' + p2(now.getUTCMonth() + 1) + '.' + now.getUTCFullYear() + ' ' + p2(now.getUTCHours()) + ':' + p2(now.getUTCMinutes()) + ' МСК');
   L.push('');
+  
+  // Добавляем вердикт в отчет
+  const verdictEl = document.querySelector('.verdict-panel');
+  if (verdictEl) {
+    L.push('== ОБЩИЙ ВЕРДИКТ ==');
+    const score = verdictEl.querySelector('.score-val').textContent.replace('/10', '');
+    const label = verdictEl.querySelector('.score-label').textContent;
+    L.push('Оценка: ' + score + '/10 (' + label + ')');
+    verdictEl.querySelectorAll('.v-good li').forEach(li => L.push('  + ' + li.textContent));
+    verdictEl.querySelectorAll('.v-bad li').forEach(li => L.push('  - ' + li.textContent));
+    L.push('');
+  }
+
   const s = R.stats, ret = s.retention || {};
   L.push('== ПОКАЗАТЕЛИ ==');
   L.push('Пользователей за 30 дней: ' + num(s.mau_30d));
@@ -847,7 +822,6 @@ function downloadReport() {
     if (fd.length) L.push('Частота: ' + fd.map(x => x.bucket + ' р/день ' + x.pct + '%').join(', '));
   }
 
-  // === ВЫВОДИМ НОВУЮ СТАТИСТИКУ В ОТЧЕТ ===
   const adv = ADVANCED_REPORT;
   if (adv && adv.bounce && !adv.bounce.error) {
     L.push('');
