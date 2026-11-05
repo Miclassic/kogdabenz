@@ -677,16 +677,20 @@ function adviceCoreScore(st, o, km, pred) {
   }
   return s;
 }
-function buildAdviceList() {
-  const last = getLastObservations(); const loc = loadUserLocation(); const city = cityStationList();
+function buildAdviceList(){
+  const e = getLastObservations(),
+        uLoc = loadUserLocation(),
+        t = cityStationList(),
+        n = [],
+        s = [];
   const nows = [], fcs = [];
-  for (const st of city) {
+  for (const st of t) {                          // было city
     if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
-    const o = last[st.id];
-    
+    const o = e[st.id];                          // было last[st.id]
+
     const trust = o ? availTrustworthy(o) : false;
     let fpk = o && pinKey(o) !== 'unknown' ? pinKey(o) : 'unknown';
-    
+
     // ЕСЛИ ИСТОЧНИК МОЛЧИТ/ВРЕТ, СМОТРИМ НАРОД ЗА 24 ЧАСА
     if (!trust) {
       const fc95 = folkConsensus24(st.id, '95');
@@ -696,28 +700,35 @@ function buildAdviceList() {
       else if (fc92?.verdict === 'yes') fpk = 'part';
       else if (fcdt?.verdict === 'yes') fpk = 'diesel';
     }
-    
+
     if (fpk === 'unknown' || fpk === 'no') continue;
 
     let km = null;
-    if (loc) { /* ... расчет км ... */ }
-    
-    const f = fpk; 
+    if (uLoc) {
+      const dLat = 111 * (Number(st.lat) - uLoc.lat);
+      const dLon = 111 * (Number(st.lon) - uLoc.lon) * Math.cos(uLoc.lat * Math.PI / 180);
+      km = Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+
+    const f = fpk;
     const pred = pickPrediction(st.id, o);
-    
+
     if (f === 'yes' || f === 'part' || f === 'diesel') {
       nows.push({ kind: 'now', st, o, pred, km, f, score: 1000 + adviceCoreScore(st, o, km, pred) });
     } else if (pred) {
-
       const g = getPrediction(pred);
       if (g.confidence >= 35) {
-        let s = g.confidence; if (km != null) s -= Math.min(15, km);
-        const sc = demandOf(st.id); s -= sc >= 50 ? 20 : sc >= 30 ? 10 : 0; s -= liveQueueCount(st.id) * 2;
-        fcs.push({ kind: 'forecast', st, o, pred, km, f, score: s });
+        let score = g.confidence;
+        if (km != null) score -= Math.min(15, km);
+        const sc = demandOf(st.id);
+        score -= sc >= 50 ? 20 : sc >= 30 ? 10 : 0;
+        score -= liveQueueCount(st.id) * 2;
+        fcs.push({ kind: 'forecast', st, o, pred, km, f, score });
       }
     }
   }
-  nows.sort((a, b) => b.score - a.score); fcs.sort((a, b) => b.score - a.score);
+  nows.sort((a, b) => b.score - a.score);
+  fcs.sort((a, b) => b.score - a.score);
   const out = nows.slice(0, 3);
   if (out.length < 3) out.push(...fcs.slice(0, 3 - out.length));
   return rankByFinalMetrics(out.slice(0, 3));
