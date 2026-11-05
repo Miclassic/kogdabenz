@@ -311,13 +311,29 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .boot-title-new { font-size:20px; font-weight:900; letter-spacing:-.5px; text-shadow:0 2px 10px rgba(0,0,0,.3); }
 .boot-live-list { width:min(340px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:10px; min-height: 200px; }
 @keyframes bootPulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.2; }
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.3; }
+}
+@keyframes bootShimmer {
+  100% { transform: translateX(100%); }
 }
 .boot-skeleton-pulse {
-  animation: bootPulse 1.5s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  animation: bootPulse 1.8s ease-in-out infinite;
   pointer-events: none;
 }
+.boot-skeleton-pulse::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15) 50%, transparent);
+  animation: bootShimmer 1.8s infinite;
+}
+.boot-skeleton-pulse .boot-st-logo { animation: bootPulse 1.8s ease-in-out infinite; }
+.boot-skeleton-pulse .boot-st-name { animation: bootPulse 1.8s ease-in-out infinite; }
+.boot-skeleton-pulse .boot-st-desc { animation: bootPulse 1.8s ease-in-out infinite; }
 .boot-st-card { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:12px 14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.15); animation: bootCardIn .4s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes bootCardIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 .boot-st-logo { width:36px; height:36px; border-radius:10px; background:#fff; display:grid; place-items:center; padding:4px; flex:0 0 auto; }
@@ -7162,7 +7178,6 @@ async function start() {
     // спрашиваем, чем закончилась поездка (сразу в момент клика человек ещё не доехал)
     checkAdvicePoll();
     setTimeout(maybeAdvicePop, 900);
-    setTimeout(maybeLifePop, 1500);
 setTimeout(maybeWhatsNew, 2600);
 renderWhatsNewPanel();
     if (pendingLoads.length) scheduleDrainAgain(2500 + Math.random() * 3000); // добрать дыры фоном, без перезагрузки
@@ -7575,7 +7590,6 @@ function closeHello(more) {
   try { localStorage.setItem('seenHello', '1'); } catch (e) {}
   if (more) openHelp(); else setTimeout(maybeInstallPop, 500);
   setTimeout(maybeAdvicePop, 400);
-  setTimeout(maybeLifePop, 800);
 }
 function maybeHello() {
   let seen = false;
@@ -7636,7 +7650,6 @@ function closeInstallPop(markSeen) {
   if (pop) pop.classList.remove('open');
   if (back) back.classList.remove('open');
   if (markSeen) { try { localStorage.setItem('seenInstall', '1'); } catch (e) {} }
-  setTimeout(maybeLifePop, 700);
   setTimeout(maybeWhatsNew, 900);
 }
 async function installRun() {
@@ -7997,10 +8010,20 @@ function closeWnZoom() {
 const BOOT_TARGETS = [16, 34, 52, 70, 86, 95];
 const BOOT_LINES = [
   'Слушаем, где сейчас топливо течёт, а где высохло…',
-  'Ищем ближайшие заправки с бензином…',
   'Считаем очереди, чтобы вам в них не стоять…',
   'Примеряем заправки к вашим маршрутам…',
   'Раскладываем по полочкам — почти готово…'
+];
+
+// Полезные факты из раздела «Помощь» для показа во время загрузки
+const BOOT_TIPS = [
+  '💡 Зелёная капля на карте — есть АИ-95. Оранжевая — только 92-й.',
+  '💡 Лужи вокруг заправок — это очереди. Чем краснее, тем дольше ждать.',
+  '💡 Добавьте АЗС в избранное, и бот в Телеграме напишет, когда туда привезут бензин.',
+  '💡 Нет топлива? Нажмите на «Куда ехать» — покажем ближайшее окно возврата.',
+  '💡 GPS глушат? Нажмите чип «Указать своё местоположение» на карте.',
+  '💡 Ваши отметки о топливе и очередях делают прогнозы точнее для всего города.',
+  '💡 Каждую ночь мы сверяем прогнозы с фактами и показываем честную ошибку.'
 ];
 let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTimer = null, bootOver = false, bootT0 = 0;
 // загрузка не должна выглядеть муляжом: оверлей не имеет права показать
@@ -8160,8 +8183,18 @@ function applyBootStage(i) {
   bootTarget = BOOT_TARGETS[i];
   const el = document.getElementById('bootLine');
   if (!el) return;
-    const txt = BOOT_LINES[i] || BOOT_LINES[BOOT_LINES.length - 1];
+
+  // Чередуем: на четных этапах показываем процесс загрузки, на нечетных — полезный совет
+  let txt = '';
+  if (i % 2 === 0) {
+    const lineIdx = Math.floor(i / 2);
+    txt = BOOT_LINES[lineIdx] || BOOT_LINES[BOOT_LINES.length - 1];
+  } else {
+    txt = BOOT_TIPS[Math.floor(Math.random() * BOOT_TIPS.length)];
+  }
+
   if (el.textContent === txt) return;
+  
   el.classList.remove('boot-woosh-in');
   el.classList.add('boot-woosh-out');
   setTimeout(() => {
