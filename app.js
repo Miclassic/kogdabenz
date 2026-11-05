@@ -1899,34 +1899,31 @@ function stationRow(station, obs, pred) {
   const stTxt = st === true ? 'есть' : st === false ? 'нет' : 'нет данных';
   const stCls = st === true ? 'yes' : st === false ? 'no' : 'unknown';
   const conf = pred ? Math.round((pred.confidence || 0) * 100) : null;
-  
-  return '<div class="srow-wrap" onclick="toggleRow(\'' + station.id + '\', this)" style="cursor:pointer; display:block; width:100%;">' +
-    '<span class="sbar" style="background:' + color + '"></span>' +
-    // Форсируем flex-column и добавляем min-height, чтобы контейнер не сжимал контент
-    '<div class="srow-main" style="display:flex !important; flex-direction:column !important; width:100%; padding:12px 10px 12px 16px !important; box-sizing:border-box !important; min-height:110px !important; justify-content:flex-start !important;">' +
-      // Название и бейдж
-      '<div class="srow-top" style="display:flex !important; justify-content:space-between !important; align-items:center !important; width:100% !important; gap:8px !important; flex-shrink:0 !important; margin-bottom:2px !important;">' +
-        '<span class="srow-name" style="font-size:16px !important; font-weight:800 !important; color:#14213d !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; line-height:1.2 !important;">' + escapeHtml(station.name || 'АЗС') + '</span>' +
-        '<span class="sbadge ' + b.cls + '" style="white-space:nowrap !important; flex-shrink:0 !important; padding:4px 8px !important;">' + b.text + '</span>' +
+
+  return '<div class="srow-wrap" onclick="toggleRow(\'' + station.id + '\', this)" style="cursor:pointer; display:flex; align-items:stretch; background:#fff; border-radius:16px; margin:8px 0; box-shadow:0 2px 8px rgba(20,33,61,.04); overflow:hidden; border:1px solid #eef2f8;">' +
+    '<div style="width:6px; background:' + color + '; flex-shrink:0;"></div>' +
+    '<div style="flex:1; min-width:0; padding:14px; display:flex; flex-direction:column;">' +
+      // Верхняя строка: Название и бейдж
+      '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:4px;">' +
+        '<div style="font-size:16px; font-weight:800; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + escapeHtml(station.name || 'АЗС') + '</div>' +
+        '<div class="sbadge ' + b.cls + '" style="flex-shrink:0; white-space:nowrap;">' + b.text + '</div>' +
       '</div>' +
-      // Адрес: жестко задаем высоту 16px и запрещаем сжатие (flex-shrink:0)
-      '<div class="srow-addr" style="display:block !important; width:100% !important; font-size:12px !important; color:#71809c !important; line-height:16px !important; height:16px !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; flex-shrink:0 !important; margin-bottom:8px !important; padding:0 !important; font-weight:400 !important;">' + 
-        escapeHtml(station.address || '') + 
-      '</div>' +
-      // Нижняя строка (колонки фактов)
-      '<div class="srow-cols" style="display:flex !important; justify-content:space-between !important; width:100% !important; align-items:flex-end !important; flex-shrink:0 !important; margin-top:auto !important;">' +
-        '<div class="scol" style="display:flex !important; flex-direction:column !important; flex:1 !important;">' +
-          '<span class="scol-l" style="font-size:9px !important; color:#a7b1c1 !important; text-transform:uppercase !important; margin-bottom:2px !important; font-weight:700 !important; line-height:1 !important;">факт</span>' +
-          '<span class="scol-v ' + stCls + '" style="font-size:13px !important; font-weight:800 !important; line-height:1.2 !important;">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span>' +
+      // Адрес: жестко изолирован
+      '<div style="font-size:12px; color:#71809c; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:12px;">' + escapeHtml(station.address || '') + '</div>' +
+      // Нижняя сетка: 3 колонки
+      '<div style="display:grid; grid-template-columns: 1fr 1.5fr auto; gap:12px; align-items:end; margin-top:auto;">' +
+        '<div style="display:flex; flex-direction:column; min-width:0;">' +
+          '<span style="font-size:9px; color:#a7b1c1; text-transform:uppercase; margin-bottom:3px; font-weight:700; line-height:1;">факт</span>' +
+          '<span class="scol-v ' + stCls + '" style="font-size:13px; font-weight:800; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span>' +
         '</div>' +
-        '<div class="scol" style="display:flex !important; flex-direction:column !important; flex:1.5 !important; padding:0 4px !important;">' +
-          '<span class="scol-l" style="font-size:9px !important; color:#a7b1c1 !important; text-transform:uppercase !important; margin-bottom:2px !important; font-weight:700 !important; line-height:1 !important;">прогноз</span>' +
-          '<span class="scol-v" style="font-size:13px !important; font-weight:800 !important; color:#14213d !important; line-height:1.2 !important;">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + 
-          (conf !== null ? '<span class="scol-s" style="font-size:10px !important; color:#71809c !important; margin-top:2px !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important; line-height:1 !important;">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') + 
+        '<div style="display:flex; flex-direction:column; min-width:0;">' +
+          '<span style="font-size:9px; color:#a7b1c1; text-transform:uppercase; margin-bottom:3px; font-weight:700; line-height:1;">прогноз</span>' +
+          '<span style="font-size:13px; font-weight:800; color:#14213d; line-height:1.2; white-space:nowrap;">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' +
+          (conf !== null ? '<span style="font-size:10px; color:#71809c; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1;">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') +
         '</div>' +
-        '<div class="scol scol-r" style="display:flex !important; flex-direction:column !important; align-items:flex-end !important; flex-shrink:0 !important;">' + 
-          sparkline(station.id) + 
-          '<span class="scol-s" style="font-size:10px !important; color:#71809c !important; margin-top:2px !important; line-height:1 !important;">' + accuracyShort(station.id) + '</span>' + 
+        '<div style="display:flex; flex-direction:column; align-items:flex-end; flex-shrink:0;">' +
+          sparkline(station.id) +
+          '<span style="font-size:10px; color:#71809c; margin-top:2px; line-height:1;">' + accuracyShort(station.id) + '</span>' +
         '</div>' +
       '</div>' +
     '</div>' +
