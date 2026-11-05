@@ -310,6 +310,14 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .boot-top .logo { width:56px; height:56px; border-radius:18px; box-shadow: 0 12px 30px rgba(36,101,238,.4); }
 .boot-title-new { font-size:20px; font-weight:900; letter-spacing:-.5px; text-shadow:0 2px 10px rgba(0,0,0,.3); }
 .boot-live-list { width:min(340px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:10px; min-height: 200px; }
+@keyframes bootPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.2; }
+}
+.boot-skeleton-pulse {
+  animation: bootPulse 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
 .boot-st-card { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:12px 14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.15); animation: bootCardIn .4s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes bootCardIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 .boot-st-logo { width:36px; height:36px; border-radius:10px; background:#fff; display:grid; place-items:center; padding:4px; flex:0 0 auto; }
@@ -8002,7 +8010,22 @@ let bootDataOk = true, bootFailed = false;
 function renderBootLiveStations() {
   const listEl = document.getElementById('bootLiveList');
   const titleEl = document.getElementById('bootTitle');
-  if (!listEl || !allStations.length) return;
+  if (!listEl) return;
+
+  // Если станции еще не загрузились, показываем красивые пульсирующие заглушки
+  if (!allStations.length || !Object.keys(getLastObservations()).length) {
+    if (titleEl) titleEl.textContent = 'Подключаемся к базе...';
+    listEl.innerHTML = Array(3).fill(0).map(() => `
+      <div class="boot-st-card boot-skeleton-pulse">
+        <div class="boot-st-logo" style="background:rgba(255,255,255,.15)"></div>
+        <div class="boot-st-info">
+           <div class="boot-st-name" style="background:rgba(255,255,255,.25); width:120px; height:14px; border-radius:4px;"></div>
+           <div class="boot-st-desc" style="background:rgba(255,255,255,.15); width:80px; height:10px; border-radius:4px; margin-top:6px;"></div>
+        </div>
+      </div>
+    `).join('');
+    return;
+  }
 
   const loc = loadUserLocation();
   const lastObs = getLastObservations();
@@ -8365,6 +8388,7 @@ function tickClock() {
   bootOver = true;
 })();
 if (!bootOver) bootStart();
+renderBootLiveStations();
 const g0 = ++startGen;
 start().then(() => {
   if (g0 !== startGen) return;
