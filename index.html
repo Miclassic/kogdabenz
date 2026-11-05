@@ -303,6 +303,27 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 @media(min-width:900px){ .advice-pop { width:min(1040px, calc(100vw - 40px)); } .adv-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .adv-card { margin-top:0; } }
 /* === загрузочный оверлей: фирменная загрузка с этапами поверх заблюренной страницы === */
 .boot-back { position:fixed; inset:0; z-index:96; display:flex; align-items:center; justify-content:center; background:rgba(13,24,46,.62); backdrop-filter:blur(16px) saturate(.75); -webkit-backdrop-filter:blur(16px) saturate(.75); opacity:1; transition:opacity .45s ease; }
+/* Новый загрузочный экран с живыми данными */
+.boot-back { position:fixed; inset:0; z-index:96; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(13,24,46,.75); backdrop-filter:blur(12px) saturate(.8); -webkit-backdrop-filter:blur(12px) saturate(.8); opacity:1; transition:opacity .45s ease; }
+.boot-back.off { opacity:0; pointer-events:none; }
+.boot-top { display:flex; flex-direction:column; align-items:center; gap:12px; margin-bottom:24px; text-align:center; color:#fff; }
+.boot-top .logo { width:56px; height:56px; border-radius:18px; box-shadow: 0 12px 30px rgba(36,101,238,.4); }
+.boot-title-new { font-size:20px; font-weight:900; letter-spacing:-.5px; text-shadow:0 2px 10px rgba(0,0,0,.3); }
+.boot-live-list { width:min(340px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:10px; }
+.boot-st-card { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:12px 14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.15); animation: bootCardIn .4s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes bootCardIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+.boot-st-logo { width:36px; height:36px; border-radius:10px; background:#fff; display:grid; place-items:center; padding:4px; flex:0 0 auto; }
+.boot-st-logo img { width:100%; height:100%; object-fit:contain; }
+.boot-st-logo .ic { width:20px; height:20px; color:#2465ee; }
+.boot-st-info { flex:1; min-width:0; text-align:left; }
+.boot-st-name { font-size:13px; font-weight:850; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.boot-st-desc { font-size:10px; font-weight:600; color:rgba(235,243,255,.7); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+.boot-st-fuels { display:flex; gap:4px; flex:0 0 auto; }
+.boot-fuel-chip { font-size:9px; font-weight:900; padding:4px 8px; border-radius:8px; background:rgba(33,185,134,.2); color:#5eead4; border:1px solid rgba(33,185,134,.3); }
+.boot-st-dist { font-size:11px; font-weight:800; color:#fff; flex:0 0 auto; background:rgba(255,255,255,.15); padding:4px 8px; border-radius:8px; }
+.boot-loading-bar { margin-top:24px; width:min(240px, 60vw); height:4px; border-radius:99px; background:rgba(255,255,255,.2); overflow:hidden; position:relative; }
+.boot-loading-bar span { display:block; height:100%; background:linear-gradient(90deg,#4b93ff,#2465ee); border-radius:99px; width:0%; transition:width .3s ease; }
+.boot-line { height:20px; margin-top:12px; color:rgba(235,243,255,.8); font-size:12px; font-weight:600; text-shadow:0 2px 10px rgba(0,0,0,.3); }
 .boot-back.off { opacity:0; pointer-events:none; }
 .boot-col { display:flex; flex-direction:column; align-items:center; gap:14px; width:min(360px, calc(100vw - 40px)); text-align:center; color:#fff; text-shadow:0 2px 12px rgba(8,18,40,.45); }
 /* вуш: уходящий этап уезжает влево с размытием, новый прилетает справа */
@@ -1626,39 +1647,23 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="hello-back" id="wnBack" onclick="closeWhatsNew()"></div>
   <div class="hello-pop wn-pop" id="wnPop"></div>
   <div class="wn-zoom" id="wnZoom" onclick="closeWnZoom()"><img id="wnZoomImg" alt=""></div>
-  <div class="boot-back" id="bootBack">
-    <div class="boot-col">
-      <div class="boot-drop-wrap" aria-hidden="true">
-        <div class="boot-drop-orb-wrap">
-          <div class="boot-drop-orb">
-            <svg class="boot-drop" viewBox="0 0 24 24">
-            <defs>
-              <clipPath id="bootDropClip"><path d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/></clipPath>
-            </defs>
-            <path class="bd-body" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/>
-            <g clip-path="url(#bootDropClip)">
-              <g id="bootFuelG" transform="translate(0 22)">
-                <path class="bd-wave back" d="M-24 0 q3 -1.6 6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 V24 H-24 Z"/>
-                <path class="bd-wave front" d="M-24 0 q3 -1.6 6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 t6 0 V24 H-24 Z"/>
-              </g>
-            </g>
-            <g class="bd-hands" stroke="#2465ee" stroke-width="1.1" stroke-linecap="round" fill="none">
-            <path class="bd-hand bd-hand-h" d="M12 14.6 L13.3 15.4"/>
-            <path class="bd-hand bd-hand-m" d="M12 14.6 L12 11.9"/>
-          </g>
-          <circle class="bd-hub" cx="12" cy="14.6" r="0.7" fill="#2465ee"/>
-          <path class="bd-line" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/>
-        </svg>
-        </div>
-        </div>
-      </div>
-      <div class="boot-line" id="bootLine">Будим заправки города…</div>
-      <div class="boot-fail" id="bootFailBox" style="display:none">
-        <div class="boot-fail-t">Данные не загрузились</div>
-        <div class="boot-fail-s">Сеть или база не ответили вовремя. Обычно помогает ещё одна попытка.</div>
-        <button class="cta-btn" style="width:100%;margin-top:10px" onclick="retryStart()">Попробовать снова</button>
+    <div class="boot-back" id="bootBack">
+    <div class="boot-top">
+      <div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
+      <div class="boot-title-new" id="bootTitle">Ищем топливо рядом</div>
+    </div>
+    
+    <div class="boot-live-list" id="bootLiveList">
+      <!-- Сюда будут динамически вставляться карточки АЗС -->
+      <div class="boot-st-card" style="opacity:0.6; animation:none">
+        <div class="boot-st-logo" style="background:rgba(255,255,255,.1)"></div>
+        <div class="boot-st-info"><div class="boot-st-name" style="background:rgba(255,255,255,.2); width:100px; height:14px; border-radius:4px;"></div></div>
       </div>
     </div>
+
+    <div class="boot-loading-bar"><span id="bootBarFill"></span></div>
+    <div class="boot-line" id="bootLine">Подключаемся к базе данных...</div>
+  </div>
   </div>
   <div class="poll-back" id="pollBack" onclick="pollBackClick()"></div>
   <div class="poll-pop" id="pollPop"></div>
@@ -7092,7 +7097,7 @@ async function start() {
       { all: false, path: '/rest/v1/user_feedback?order=created_at.desc&limit=300', set: r => { allFeedback = r || []; } },
       { all: false, path: '/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allHourly = r || []; } },
       { all: true, orderCol: 'station_id', path: '/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', set: r => { allQueue = r || []; queueById = {}; for (const x of allQueue) queueById[x.station_id] = x; } },
-      { all: true, orderCol: 'station_id', path: '/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allLastObs = {}; for (const o of (r || [])) allLastObs[o.station_id] = o; firstPaint(); } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allLastObs = {}; for (const o of (r || [])) allLastObs[o.station_id] = o; firstPaint(); renderBootLiveStations(); } },
       { all: false, path: '/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allLastPrice = {}; for (const x of (r || [])) allLastPrice[x.station_id] = x; } },
       { all: false, path: '/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168', set: r => { priceHourly = r || []; } },
       { all: false, path: '/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000', set: r => { queueEpisodes = r || []; } },
@@ -7991,9 +7996,8 @@ function closeWnZoom() {
 // готовности — честные «100%» при пустых панелях не показываем.
 const BOOT_TARGETS = [16, 34, 52, 70, 86, 95];
 const BOOT_LINES = [
-  'Будим заправки города…',
   'Слушаем, где сейчас топливо течёт, а где высохло…',
-  'Проверяем, какие колонки не молчат…',
+  'Ищем ближайшие заправки с бензином…',
   'Считаем очереди, чтобы вам в них не стоять…',
   'Примеряем заправки к вашим маршрутам…',
   'Раскладываем по полочкам — почти готово…'
@@ -8003,6 +8007,82 @@ let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTime
 // «всё готово», пока start() реально не привёз данные. bootDataOk — флаг
 // настоящего успеха, bootFailed — оверлей уже показал честную ошибку
 let bootDataOk = true, bootFailed = false;
+function renderBootLiveStations() {
+  const listEl = document.getElementById('bootLiveList');
+  const titleEl = document.getElementById('bootTitle');
+  if (!listEl || !allStations.length) return;
+
+  // Проверяем, есть ли геолокация
+  const loc = loadUserLocation();
+  const lastObs = getLastObservations();
+  
+  // Собираем АЗС, где есть топливо
+  const candidates = [];
+  for (const st of allStations) {
+    const o = lastObs[st.id];
+    if (!o) continue;
+    
+    // Проверяем, что данные свежие (не старше 6 часов)
+    const isFresh = o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined && o.data_freshness_minutes <= 360;
+    if (!isFresh) continue;
+
+    // Проверяем наличие топлива (95, 92 или дизель)
+    const hasFuel = o.fuel_95_status === true || o.fuel_92_status === true || o.diesel_status === true;
+    if (!hasFuel) continue;
+
+    // Считаем расстояние
+    let dist = null;
+    if (loc && Number.isFinite(Number(st.lat))) {
+      const dLat = (Number(st.lat) - loc.lat) * 111;
+      const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+      dist = Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+    candidates.push({ st, o, dist });
+  }
+
+  // Сортируем: сначала по расстоянию, если есть, иначе по свежести
+  candidates.sort((a, b) => {
+    if (a.dist !== null && b.dist !== null) return a.dist - b.dist;
+    return a.o.data_freshness_minutes - b.o.data_freshness_minutes;
+  });
+
+  // Берем топ-3
+  const top = candidates.slice(0, 3);
+  
+  if (!top.length) {
+    titleEl.textContent = 'Ищем свободные АЗС...';
+    listEl.innerHTML = '<div style="color:rgba(255,255,255,.7);font-size:12px;text-align:center;padding:20px;">Пока нет свежих отметок о топливе рядом с вами</div>';
+    return;
+  }
+
+  titleEl.textContent = loc ? 'Топливо есть рядом' : 'Топливо есть в городе';
+
+  listEl.innerHTML = top.map((it, i) => {
+    const st = it.st;
+    const o = it.o;
+    const distTxt = it.dist !== null ? (it.dist < 1 ? Math.round(it.dist * 1000) + ' м' : it.dist.toFixed(1) + ' км') : '';
+    
+    // Чипы топлива
+    const fuels = [];
+    if (o.fuel_95_status === true) fuels.push('95');
+    if (o.fuel_92_status === true) fuels.push('92');
+    if (o.diesel_status === true) fuels.push('ДТ');
+
+    return `
+      <div class="boot-st-card" style="animation-delay: ${i * 0.1}s">
+        <div class="boot-st-logo">${stationLogo(st)}</div>
+        <div class="boot-st-info">
+          <div class="boot-st-name">${escapeHtml(st.name || 'АЗС')}</div>
+          <div class="boot-st-desc">${escapeHtml(st.address || '')}</div>
+        </div>
+        <div class="boot-st-fuels">
+          ${fuels.map(f => `<span class="boot-fuel-chip">${f}</span>`).join('')}
+        </div>
+        ${distTxt ? `<div class="boot-st-dist">${distTxt}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
 function bootStart() {
   const back = document.getElementById('bootBack');
   if (!back) return;
@@ -8031,7 +8111,7 @@ function applyBootStage(i) {
   bootTarget = BOOT_TARGETS[i];
   const el = document.getElementById('bootLine');
   if (!el) return;
-  const txt = BOOT_LINES[i] || BOOT_LINES[BOOT_LINES.length - 1];
+    const txt = BOOT_LINES[i] || BOOT_LINES[BOOT_LINES.length - 1];
   if (el.textContent === txt) return;
   el.classList.remove('boot-woosh-in');
   el.classList.add('boot-woosh-out');
@@ -8044,19 +8124,8 @@ function applyBootStage(i) {
 }
 function bootPaintPct() {
   const p = Math.max(0, Math.min(100, bootPct));
-  const orb = document.querySelector('.boot-drop-orb');
-  if (orb) orb.style.setProperty('--fill', p + '%');
-  const g = document.getElementById('bootFuelG');
-  if (g) {
-    const level = 22 - (p / 100) * 19.4;
-    g.setAttribute('transform', 'translate(0 ' + level.toFixed(2) + ')');
-  }
-  // стрелки привязаны к заливке: встала заливка — встали стрелки.
-  // минутная делает 2 оборота за всю загрузку, часовая — 2/12 (пропорция 1:12 как у настоящих часов)
-  const hm = document.querySelector('.bd-hand-m');
-  const hh = document.querySelector('.bd-hand-h');
-  if (hm) hm.style.transform = 'rotate(' + (p * 7.2).toFixed(1) + 'deg)';
-  if (hh) hh.style.transform = 'rotate(' + (p * 0.6).toFixed(1) + 'deg)';
+  const bar = document.getElementById('bootBarFill');
+  if (bar) bar.style.width = p + '%';
 }
 function hideBoot() {
   const back = document.getElementById('bootBack');
