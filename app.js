@@ -2530,12 +2530,14 @@ function buildMiniMap() {
       miniLabelCtrls.push({ el: el, minZoom: l.minZoom || 0 });
     }
     miniMapObj.addSource('fuelheat', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-    const FH_DEFS = [
-      { id: 'fuelheat-calm', cls: 'calm', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.35)', 'rgba(27,185,120,0.55)', 'rgba(27,185,120,0.70)', 'rgba(18,168,106,0.80)'] },
-      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.40)', 'rgba(245,160,90,0.62)', 'rgba(239,83,80,0.78)', 'rgba(216,42,38,0.88)'] },
-      { id: 'fuelheat-calm-old', cls: 'calm-old', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.16)', 'rgba(27,185,120,0.25)', 'rgba(27,185,120,0.32)', 'rgba(18,168,106,0.36)'] },
-      { id: 'fuelheat-hot-old', cls: 'hot-old', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.18)', 'rgba(245,160,90,0.28)', 'rgba(239,83,80,0.35)', 'rgba(216,42,38,0.40)'] }
-    ];
+    const CARD_FH_DEFS = [
+  { id:'fuelheat-calm', cls:'calm', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.35)','rgba(27,185,120,0.55)','rgba(27,185,120,0.70)','rgba(18,168,106,0.80)'] },
+  { id:'fuelheat-partial', cls:'partial', ramp:['rgba(45,212,191,0)','rgba(45,212,191,0.40)','rgba(45,212,191,0.60)','rgba(56,189,248,0.70)','rgba(56,189,248,0.90)'] },
+  { id:'fuelheat-calm-old', cls:'calm-old', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.16)','rgba(27,185,120,0.25)','rgba(27,185,120,0.32)','rgba(18,168,106,0.36)'] },
+  { id:'fuelheat-partial-old', cls:'partial-old', ramp:['rgba(45,212,191,0)','rgba(45,212,191,0.20)','rgba(45,212,191,0.30)','rgba(56,189,248,0.35)','rgba(56,189,248,0.40)'] },
+  { id:'fuelheat-hot', cls:'hot', ramp:['rgba(239,83,80,0)','rgba(239,83,80,0.40)','rgba(239,83,80,0.65)','rgba(239,83,80,0.85)','rgba(220,38,38,0.95)'] },
+  { id:'fuelheat-hot-old', cls:'hot-old', ramp:['rgba(239,83,80,0)','rgba(239,83,80,0.18)','rgba(239,83,80,0.28)','rgba(239,83,80,0.35)','rgba(239,83,80,0.45)'] }
+];
     for (const d of FH_DEFS) {
       miniMapObj.addLayer({
         id: d.id, type: 'heatmap', source: 'fuelheat',
@@ -2607,22 +2609,26 @@ function renderMiniMap() {
   const vb = miniMapObj.getBounds();
   const pad = 0.05;
   const inView = st => Number(st.lat) >= vb.getSouth() - pad && Number(st.lat) <= vb.getNorth() + pad && Number(st.lon) >= vb.getWest() - pad && Number(st.lon) <= vb.getEast() + pad;
-  for (const st of allStations) {
+      for (const st of allStations) {
     if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
     const o = last[st.id];
-    const srcState = pinKey(o);
-    let state = srcState;
+    
+    let state = heatKey(o);
     if (state === 'unknown') state = folkPinState(st.id, o) || 'unknown';
+    
     if (state !== 'unknown') {
-      const stale = srcState !== 'unknown' && !obsFresh(o);
-      if (state === 'yes') fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
-      let hotW = 0;
-if (state === 'no') hotW = 1.0; // Ничего нет — максимальный дефицит (красный)
-else if (state === 'part') hotW = 0.35; // Есть 92 — уже хорошо, лёгкий дефицит (жёлтый)
-else if (state === 'diesel') hotW = 0.25; // Есть дизель — почти спокойно
-else if (state === 'conflict') hotW = 0.4; // Разные мнения
-if (o && o.queue_level === 'high') hotW += 0.15; // Очередь добавляет чуть-чуть, но не перебивает наличие топлива
-      if (hotW > 0) fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'hot-old' : 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      const stale = !obsFresh(o);
+      if (state === 'full') {
+        fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      } else if (state === 'yes' || state === 'partial' || state === 'part' || state === 'diesel') {
+        fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'partial-old' : 'partial', w: 0.8 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      } else {
+        let hotW = 0;
+        if (state === 'no') hotW = 1.0;
+        else if (state === 'conflict') hotW = 0.4;
+        if (o && o.queue_level === 'high') hotW += 0.15;
+        if (hotW > 0) fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'hot-old' : 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      }
     }
     // лужи очередей: в мини-карте видны всегда — её зум и есть тот «далёкий»
     // вид, где на полной карте лужи уже показаны
@@ -2725,8 +2731,10 @@ function cardSt3d(key) {
 const CARD_FH_DEFS = [
   { id:'fuelheat-calm', cls:'calm', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.35)','rgba(27,185,120,0.55)','rgba(27,185,120,0.70)','rgba(18,168,106,0.80)'] },
   { id:'fuelheat-hot', cls:'hot', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.40)','rgba(245,160,90,0.62)','rgba(239,83,80,0.78)','rgba(216,42,38,0.88)'] },
+  { id:'fuelheat-partial', cls:'partial', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.4)','rgba(245,213,101,0.6)','rgba(110,168,255,0.7)','rgba(110,168,255,0.9)'] },
   { id:'fuelheat-calm-old', cls:'calm-old', ramp:['rgba(47,211,154,0)','rgba(47,211,154,0.16)','rgba(27,185,120,0.25)','rgba(27,185,120,0.32)','rgba(18,168,106,0.36)'] },
-  { id:'fuelheat-hot-old', cls:'hot-old', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.18)','rgba(245,160,90,0.28)','rgba(239,83,80,0.35)','rgba(216,42,38,0.40)'] }
+  { id:'fuelheat-hot-old', cls:'hot-old', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.18)','rgba(245,160,90,0.28)','rgba(239,83,80,0.35)','rgba(216,42,38,0.40)'] },
+  { id:'fuelheat-partial-old', cls:'partial-old', ramp:['rgba(245,213,101,0)','rgba(245,213,101,0.2)','rgba(245,213,101,0.3)','rgba(110,168,255,0.35)','rgba(110,168,255,0.4)'] }
 ];
 // глушим карточную карту: remove() освобождает WebGL-контекст, пока контейнер
 // ещё в DOM. Вызываем ДО любой перезаписи sheetBody (openSheet / openSheetAboveAdvice)
@@ -2808,22 +2816,26 @@ function applyCardMap(st) {
   const inView = s => Number(s.lat) >= vb.getSouth()-pad && Number(s.lat) <= vb.getNorth()+pad && Number(s.lon) >= vb.getWest()-pad && Number(s.lon) <= vb.getEast()+pad;
   // тепло по всем станциям: KDE-поле формируется соседями, как на полной карте
   const fuelFeats = [];
-  for (const s of allStations) {
+      for (const s of allStations) {
     if (!Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lon))) continue;
     const o = last[s.id];
-    const srcState = pinKey(o);
-    let state = srcState;
+    
+    let state = heatKey(o);
     if (state === 'unknown') state = folkPinState(s.id, o) || 'unknown';
     if (state === 'unknown') continue;
-    const stale = srcState !== 'unknown' && !obsFresh(o);
-    if (state === 'yes') fuelFeats.push({ type:'Feature', properties:{ cls: stale?'calm-old':'calm', w:1 }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
-    let hotW = 0;
-if (state === 'no') hotW = 1.0; // Ничего нет — максимальный дефицит (красный)
-else if (state === 'part') hotW = 0.35; // Есть 92 — уже хорошо, лёгкий дефицит (жёлтый)
-else if (state === 'diesel') hotW = 0.25; // Есть дизель — почти спокойно
-else if (state === 'conflict') hotW = 0.4; // Разные мнения
-if (o && o.queue_level === 'high') hotW += 0.15; // Очередь добавляет чуть-чуть, но не перебивает наличие топлива
-    if (hotW > 0) fuelFeats.push({ type:'Feature', properties:{ cls: stale?'hot-old':'hot', w:hotW }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+    
+    const stale = !obsFresh(o);
+    if (state === 'full') {
+      fuelFeats.push({ type:'Feature', properties:{ cls: stale?'calm-old':'calm', w:1 }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+    } else if (state === 'yes' || state === 'partial' || state === 'part' || state === 'diesel') {
+      fuelFeats.push({ type:'Feature', properties:{ cls: stale?'partial-old':'partial', w:0.8 }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+    } else {
+      let hotW = 0;
+      if (state === 'no') hotW = 1.0;
+      else if (state === 'conflict') hotW = 0.4;
+      if (o && o.queue_level === 'high') hotW += 0.15;
+      if (hotW > 0) fuelFeats.push({ type:'Feature', properties:{ cls: stale?'hot-old':'hot', w:hotW }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+    }
   }
   const fhSrc = cardMapObj.getSource('fuelheat');
   if (fhSrc) fhSrc.setData({ type:'FeatureCollection', features:fuelFeats });
@@ -4574,7 +4586,7 @@ function zoneStreetFade(z) { return Math.max(0, Math.min(1, (16.5 - z) / 1.5)); 
 // (правило проекта: никаких составных interpolate(zoom) выражений), той же zoneRamp
 const FH_RADIUS = [[9, 42], [11, 90], [13, 115], [15, 75], [16.5, 18]];
 const FH_OPACITY = [[9, 1], [12, 1], [15, 1], [16.5, 0]];
-const FH_LAYERS = ['fuelheat-calm', 'fuelheat-hot', 'fuelheat-calm-old', 'fuelheat-hot-old'];
+const FH_LAYERS = ['fuelheat-calm', 'fuelheat-hot', 'fuelheat-partial', 'fuelheat-calm-old', 'fuelheat-hot-old', 'fuelheat-partial-old'];
 let zonePulseTimer = null;
 function startZonePulse() {
   if (zonePulseTimer) return;
@@ -4747,12 +4759,14 @@ mapObj = new maplibregl.Map({
     // (топливо есть) и поле дефицита (жёлтый → оранжевый → красное ядро).
     // Вес точки = сила сигнала дефицита: нет топлива > частичный состав > конфликт,
     // плюс надбавка за очередь сейчас (очередь = спрос здесь и сейчас).
-    const FH_DEFS = [
+        const FH_DEFS = [
       { id: 'fuelheat-calm', cls: 'calm', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.35)', 'rgba(27,185,120,0.55)', 'rgba(27,185,120,0.70)', 'rgba(18,168,106,0.80)'] },
-      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.40)', 'rgba(245,160,90,0.62)', 'rgba(239,83,80,0.78)', 'rgba(216,42,38,0.88)'] },
-      // тусклые двойники для отметок старше 6 часов: те же цвета, прозрачность ~45%
+      { id: 'fuelheat-partial', cls: 'partial', ramp: ['rgba(45,212,191,0)', 'rgba(45,212,191,0.40)', 'rgba(45,212,191,0.60)', 'rgba(56,189,248,0.70)', 'rgba(56,189,248,0.90)'] },
       { id: 'fuelheat-calm-old', cls: 'calm-old', ramp: ['rgba(47,211,154,0)', 'rgba(47,211,154,0.16)', 'rgba(27,185,120,0.25)', 'rgba(27,185,120,0.32)', 'rgba(18,168,106,0.36)'] },
-      { id: 'fuelheat-hot-old', cls: 'hot-old', ramp: ['rgba(245,213,101,0)', 'rgba(245,213,101,0.18)', 'rgba(245,160,90,0.28)', 'rgba(239,83,80,0.35)', 'rgba(216,42,38,0.40)'] }
+      { id: 'fuelheat-partial-old', cls: 'partial-old', ramp: ['rgba(45,212,191,0)', 'rgba(45,212,191,0.20)', 'rgba(45,212,191,0.30)', 'rgba(56,189,248,0.35)', 'rgba(56,189,248,0.40)'] },
+      // ВНИМАНИЕ: Красный слой теперь в самом конце (рисуется поверх) и без желтого оттенка
+      { id: 'fuelheat-hot', cls: 'hot', ramp: ['rgba(239,83,80,0)', 'rgba(239,83,80,0.40)', 'rgba(239,83,80,0.65)', 'rgba(239,83,80,0.85)', 'rgba(220,38,38,0.95)'] },
+      { id: 'fuelheat-hot-old', cls: 'hot-old', ramp: ['rgba(239,83,80,0)', 'rgba(239,83,80,0.18)', 'rgba(239,83,80,0.28)', 'rgba(239,83,80,0.35)', 'rgba(239,83,80,0.45)'] }
     ];
     for (const d of FH_DEFS) {
       mapObj.addLayer({
@@ -5104,6 +5118,32 @@ function blobFeature(lat, lon, rMeters, color, seed, kind, scale) {
   pts.push(pts[0]);
   return { type: 'Feature', properties: { color: color, kind: kind }, geometry: { type: 'Polygon', coordinates: [pts] } };
 }
+function heatKey(o) {
+  if (!o) return 'unknown';
+  const nullish = v => v === null || v === undefined;
+  const g = nullish(o.fuel_95_status) ? null : o.fuel_95_status;
+  const p = nullish(o.fuel_92_status) ? null : o.fuel_92_status;
+  const d = nullish(o.diesel_status) ? null : o.diesel_status;
+
+  // Если вообще нет никаких данных по всем трем видам — станцию не рисуем (серая)
+  if (g === null && p === null && d === null) return 'unknown';
+
+  // Считаем, сколько видов топлива подтверждено (true)
+  let count = 0;
+  if (g === true) count++;
+  if (p === true) count++;
+  if (d === true) count++;
+
+  // Всё топливо есть (3 вида) — зеленый
+  if (count === 3) return 'full';     
+  
+  // Два любых вида есть — бирюзовый
+  if (count === 2) return 'partial';  
+  
+  // Один вид или пусто — красный (дефицит)
+  return 'no';                        
+}
+
 function renderMap() {
   if (!mapObj || !zoneReady) return;
   for (const m of objMarkers) m.remove();
@@ -5154,34 +5194,32 @@ function renderMap() {
   }
   // точки для тепловой карты наличия топлива: берём статус АИ-95 каждой станции
   // (источник приоритетнее, при молчании — народный консенсус) и кладём в отдельный слой
-  const fuelFeats = [];
+      const fuelFeats = [];
   for (const st of allStations) {
     if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
     const o = last[st.id];
-    const srcState = pinKey(o);
-    let state = srcState;
+    
+    let state = heatKey(o);
     if (state === 'unknown') {
       const fp = folkPinState(st.id, o);
       if (fp) state = fp;
     }
     if (state === 'unknown') continue;
-    // отметка источника старше 6 часов уходит в тусклый слой поля;
-    // народные отметки не тускним — они свежие по построению (окно 60 минут)
-    const stale = srcState !== 'unknown' && !obsFresh(o);
-    // спокойное поле: станция с АИ-95
-    if (state === 'yes') {
+    
+    const stale = !obsFresh(o);
+    
+    if (state === 'full') {
       fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
-    }
-    // поле дефицита: вес = сила сигнала (нет топлива > частичный состав > конфликт)
-    // плюс надбавка за очередь сейчас — очередь и есть спрос здесь и сейчас
-    let hotW = 0;
-if (state === 'no') hotW = 1.0; // Ничего нет — максимальный дефицит (красный)
-else if (state === 'part') hotW = 0.35; // Есть 92 — уже хорошо, лёгкий дефицит (жёлтый)
-else if (state === 'diesel') hotW = 0.25; // Есть дизель — почти спокойно
-else if (state === 'conflict') hotW = 0.4; // Разные мнения
-if (o && o.queue_level === 'high') hotW += 0.15; // Очередь добавляет чуть-чуть, но не перебивает наличие топлива
-    if (hotW > 0) {
-      fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'hot-old' : 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+    } else if (state === 'yes' || state === 'partial' || state === 'part' || state === 'diesel') {
+      fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'partial-old' : 'partial', w: 0.8 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+    } else {
+      let hotW = 0;
+      if (state === 'no') hotW = 1.0;
+      else if (state === 'conflict') hotW = 0.4;
+      if (o && o.queue_level === 'high') hotW += 0.15;
+      if (hotW > 0) {
+        fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'hot-old' : 'hot', w: hotW }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      }
     }
   }
   const fhSrc = mapObj.getSource('fuelheat');
