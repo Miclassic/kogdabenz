@@ -792,7 +792,24 @@ function renderAdvicePop() {
       : '<span class="adv-badge fc">' + icon('i-clock', 'ic-s') + 'вернётся по прогнозу</span>';
     const fuels = ['92', '95', 'diesel'].map(fl => {
       const col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
-      const v = o ? o[col] : null; const cls = v === true ? 'yes' : v === false ? 'no' : '';
+      let v = o ? o[col] : null;
+      
+      // 1. Если источник молчит (null), смотрим на подтверждение водителей за 24 часа
+      if (v === null || v === undefined) {
+        const fc = folkConsensus24(st.id, fl);
+        if (fc?.verdict === 'yes') v = true;
+        else if (fc?.verdict === 'no') v = false;
+      }
+      
+      // 2. Если это карточка "ЕСТЬ СЕЙЧАС", и именно этот вид топлива стал причиной рекомендации,
+      // то помечаем его как "есть", даже если источник не передал статус.
+      if (v === null && it.kind === 'now') {
+         if (fl === '92' && it.f === 'part') v = true;
+         if (fl === '95' && it.f === 'yes') v = true;
+         if (fl === 'diesel' && it.f === 'diesel') v = true;
+      }
+      
+      const cls = v === true ? 'yes' : v === false ? 'no' : '';
       return '<span class="adv-fuel ' + cls + '">' + fuelLabel(fl) + (v === true ? ' есть' : v === false ? ' нет' : ' ?') + '</span>';
     }).join('');
     const dist = it.km == null
@@ -807,10 +824,15 @@ function renderAdvicePop() {
     const lastEvt = getLatestEventHtml(st.id); // <--- Новая переменная
     const reasons = adviceReasons(it);
     const our = it.ourChoice ? '<span class="adv-our">' + icon('i-star', 'ic-s') + 'наш выбор</span>' : '';
+    
+    // НОВАЯ ПЛАШКА: если АЗС ближе 1 км и это не "наш выбор"
+    const near = (it.km != null && it.km < 1 && !it.ourChoice) 
+      ? '<span class="adv-our" style="background:#eef4ff; color:#2465ee; border-color:#bcd4ff; box-shadow:0 2px 8px rgba(36,101,238,.15)">' + icon('i-pin', 'ic-s') + 'рядом с тобой</span>' 
+      : '';
     const bk = brandKey(st);
     const wm = (bk && BRAND_LOGOS[bk]) ? '<div class="adv-wm" aria-hidden="true"><img src="' + BRAND_LOGOS[bk] + '" alt=""></div>' : '';
     return '<div class="adv-card' + (i === 0 ? ' best' : '') + (it.ourChoice ? ' our' : '') + '">' + wm +
-      '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + badge + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + '</div>' +
+      '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + badge + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + near + '</div>' +
       '<div class="adv-addr">' + escapeHtml(st.brand ? st.brand + ' · ' : '') + escapeHtml(st.address || '') + '</div>' +
       '<div class="adv-fuels">' + fuels + '</div>' +
       '<div class="adv-metas">' + dist + price + (lastEvt ? '<span class="adv-meta" style="border:none;padding:0 4px;background:transparent">' + lastEvt + '</span>' : '') + win + '</div>' +
@@ -1869,15 +1891,28 @@ function stationRow(station, obs, pred) {
   const stTxt = st === true ? 'есть' : st === false ? 'нет' : 'нет данных';
   const stCls = st === true ? 'yes' : st === false ? 'no' : 'unknown';
   const conf = pred ? Math.round((pred.confidence || 0) * 100) : null;
+  
   return '<div class="srow-wrap"><button class="srow" onclick="toggleRow(\'' + station.id + '\', this)">' +
-    '<span class="sbar" style="background:' + color + '"></span><span class="srow-main">' +
-    '<span class="srow-top"><span class="srow-name">' + escapeHtml(station.name || 'АЗС') + '</span><span class="sbadge ' + b.cls + '">' + b.text + '</span></span>' +
-    '<span class="srow-addr">' + escapeHtml(station.address || '') + '</span>' +
-    '<span class="srow-cols">' +
-    '<span class="scol"><span class="scol-l">факт</span><span class="scol-v ' + stCls + '">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span></span>' +
-    '<span class="scol"><span class="scol-l">прогноз</span><span class="scol-v">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + (conf !== null ? '<span class="scol-s">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') + '</span>' +
-    '<span class="scol scol-r">' + sparkline(station.id) + '<span class="scol-s">' + accuracyShort(station.id) + '</span></span>' +
-    '</span></span></button></div>';
+    '<span class="sbar" style="background:' + color + '"></span>' +
+    // Добавляем flex-column для главного контейнера
+    '<span class="srow-main" style="display:flex; flex-direction:column; width:100%; overflow:hidden;">' +
+      // Верхняя строка с названием и бейджем
+      '<span class="srow-top" style="display:flex; justify-content:space-between; align-items:center; width:100%;">' +
+        '<span class="srow-name">' + escapeHtml(station.name || 'АЗС') + '</span>' +
+        '<span class="sbadge ' + b.cls + '">' + b.text + '</span>' +
+      '</span>' +
+      // Строка с адресом: даем ей место и обрезаем с троеточием, если не влезает
+      '<span class="srow-addr" style="display:block; width:100%; font-size:11px; color:#71809c; margin:2px 0 6px 0; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + 
+        escapeHtml(station.address || '') + 
+      '</span>' +
+      // Нижняя строка с колонками фактов и прогноза
+      '<span class="srow-cols" style="display:flex; justify-content:space-between; width:100%; align-items:flex-end;">' +
+        '<span class="scol"><span class="scol-l">факт</span><span class="scol-v ' + stCls + '">' + fuelLabel(fuelFocus) + ': ' + stTxt + '</span></span>' +
+        '<span class="scol"><span class="scol-l">прогноз</span><span class="scol-v">' + (pred ? time5(pred.from_time) + '–' + time5(pred.to_time) : '—') + '</span>' + (conf !== null ? '<span class="scol-s">' + conf + '% · ' + srcLabel(pred) + '</span>' : '') + '</span>' +
+        '<span class="scol scol-r">' + sparkline(station.id) + '<span class="scol-s">' + accuracyShort(station.id) + '</span></span>' +
+      '</span>' +
+    '</span>' +
+  '</button></div>';
 }
 function toggleRow(id, btn) { openSheet(id); }
 function openSheet(id) {
