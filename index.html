@@ -309,7 +309,7 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .boot-top { display:flex; flex-direction:column; align-items:center; gap:12px; margin-bottom:24px; text-align:center; color:#fff; }
 .boot-top .logo { width:56px; height:56px; border-radius:18px; box-shadow: 0 12px 30px rgba(36,101,238,.4); }
 .boot-title-new { font-size:20px; font-weight:900; letter-spacing:-.5px; text-shadow:0 2px 10px rgba(0,0,0,.3); }
-.boot-live-list { width:min(340px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:10px; }
+.boot-live-list { width:min(340px, calc(100vw - 32px)); display:flex; flex-direction:column; gap:10px; min-height: 200px; }
 .boot-st-card { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); border-radius:16px; padding:12px 14px; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,.15); animation: bootCardIn .4s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes bootCardIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 .boot-st-logo { width:36px; height:36px; border-radius:10px; background:#fff; display:grid; place-items:center; padding:4px; flex:0 0 auto; }
@@ -1652,15 +1652,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
       <div class="boot-title-new" id="bootTitle">Ищем топливо рядом</div>
     </div>
-    
-    <div class="boot-live-list" id="bootLiveList">
-      <!-- Сюда будут динамически вставляться карточки АЗС -->
-      <div class="boot-st-card" style="opacity:0.6; animation:none">
-        <div class="boot-st-logo" style="background:rgba(255,255,255,.1)"></div>
-        <div class="boot-st-info"><div class="boot-st-name" style="background:rgba(255,255,255,.2); width:100px; height:14px; border-radius:4px;"></div></div>
-      </div>
-    </div>
-
+    <div class="boot-live-list" id="bootLiveList"></div>
     <div class="boot-loading-bar"><span id="bootBarFill"></span></div>
     <div class="boot-line" id="bootLine">Подключаемся к базе данных...</div>
   </div>
@@ -8012,13 +8004,14 @@ function renderBootLiveStations() {
   const titleEl = document.getElementById('bootTitle');
   if (!listEl || !allStations.length) return;
 
-  // Проверяем, есть ли геолокация
   const loc = loadUserLocation();
   const lastObs = getLastObservations();
   
-  // Собираем АЗС, где есть топливо
+  // Берем станции ТОЛЬКО из текущего города пользователя! (по умолчанию Новороссийск)
+  const localStations = cityStationList();
+  
   const candidates = [];
-  for (const st of allStations) {
+  for (const st of localStations) {
     const o = lastObs[st.id];
     if (!o) continue;
     
@@ -8040,22 +8033,28 @@ function renderBootLiveStations() {
     candidates.push({ st, o, dist });
   }
 
-  // Сортируем: сначала по расстоянию, если есть, иначе по свежести
+  // Сортируем: сначала по расстоянию, если есть
   candidates.sort((a, b) => {
     if (a.dist !== null && b.dist !== null) return a.dist - b.dist;
     return a.o.data_freshness_minutes - b.o.data_freshness_minutes;
   });
 
   // Берем топ-3
-  const top = candidates.slice(0, 3);
+  let top = candidates.slice(0, 3);
+  
+  // Страховка: если вдруг ближайшая АЗС дальше 50 км, значит либо GPS врет, либо мы за городом.
+  // В таком случае убираем расстояние с экрана, чтобы не пугать водителя цифрами в 300 км.
+  if (loc && top.length && top[0].dist > 50) {
+    top = top.map(c => ({ ...c, dist: null }));
+  }
   
   if (!top.length) {
     titleEl.textContent = 'Ищем свободные АЗС...';
-    listEl.innerHTML = '<div style="color:rgba(255,255,255,.7);font-size:12px;text-align:center;padding:20px;">Пока нет свежих отметок о топливе рядом с вами</div>';
+    listEl.innerHTML = '<div style="color:rgba(255,255,255,.7);font-size:12px;text-align:center;padding:20px;">Пока нет свежих отметок о топливе</div>';
     return;
   }
 
-  titleEl.textContent = loc ? 'Топливо есть рядом' : 'Топливо есть в городе';
+  titleEl.textContent = (loc && top[0].dist !== null) ? 'Топливо есть рядом' : 'Топливо есть в городе';
 
   listEl.innerHTML = top.map((it, i) => {
     const st = it.st;
