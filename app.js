@@ -1,4 +1,3 @@
-<script>
 const SUPABASE_URL = 'https://api.kogdabenz.ru';
 const SUPABASE_KEY = 'eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
 const TG_BOT_USERNAME = 'kogdabenz_alert_bot'; // без @, например KogdaBenzAlertBot
@@ -6861,4 +6860,3 @@ function updateMiniNav(i) {
   document.querySelectorAll('.mn-item').forEach(b => b.classList.toggle('on', Number(b.dataset.mn) === i));
 }
 renderMiniNav();
-</script>
