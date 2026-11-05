@@ -737,10 +737,45 @@ function adviceReasons(it) {
   const r = []; const o = it.o;
   if (it.kind === 'now') r.push(it.f === 'yes' ? 'АИ-95 есть' : it.f === 'part' ? 'АИ-92 есть' : 'дизель есть');
   if (it.km != null) r.push(it.km < 1 ? 'рядом' : '~' + it.km.toFixed(1) + ' км');
-  if (demandOf(it.st.id) < 12 && !liveQueueCount(it.st.id) && !(o && o.queue_level === 'high')) r.push('очередей не видно');
+  // УБРАНА СТРОКА: if (demandOf(it.st.id) < 12 && !liveQueueCount(it.st.id) && !(o && o.queue_level === 'high')) r.push('очередей не видно');
   if (it.pred) { const ws = adviceWinState(it.pred); if (ws === 'open') r.push('окно сейчас'); else if (ws === 'soon') r.push('окно скоро'); }
   if (getDriverTrips().length >= MIN_TRIPS_FOR_ADVICE) { const brand = brandKey(it.st); const pr = getDriverPrefs(); if (brand && pr.brandCounts && pr.brandCounts[brand] >= 3) r.push('твой бренд'); }
   return r.map(x => '<span class="adv-why-i">' + escapeHtml(x) + '</span>').join('');
+}
+// Получаем последнее событие по станции для карточки "Куда ехать"
+function getLatestEventHtml(stId) {
+  let events = [];
+  // События источника
+  for (const e of allWaveEvents) {
+    if (e.station_id !== stId) continue;
+    events.push({
+      t: new Date(e.detected_at).getTime(),
+      text: fuelLabel(e.fuel_type) + (e.event_type === 'fuel_restored' ? ' вернулось' : ' пропало'),
+      icon: e.event_type === 'fuel_restored' ? 'i-check' : 'i-cross',
+      cls: e.event_type === 'fuel_restored' ? 'g' : 'r'
+    });
+  }
+  // События от водителей (народ)
+  for (const f of allFeedback) {
+    if (f.station_id !== stId) continue;
+    let text = '', icon = 'i-check', cls = 'g';
+    if (f.feedback_type === 'available') { text = 'народ: ' + fuelLabel(f.fuel_type) + ' есть'; }
+    else if (f.feedback_type === 'unavailable') { text = 'народ: ' + fuelLabel(f.fuel_type) + ' нет'; icon = 'i-cross'; cls = 'r'; }
+    else if (f.feedback_type === 'delivery') { text = 'народ: привезли'; icon = 'i-truck'; cls = 'b'; }
+    else if (f.feedback_type === 'queue' || f.feedback_type === 'in_queue') { text = 'народ: очередь'; icon = 'i-queue'; cls = 'o'; }
+    else continue;
+    events.push({ t: new Date(f.created_at).getTime(), text: text, icon: icon, cls: cls });
+  }
+  if (!events.length) return '';
+  events.sort((a, b) => b.t - a.t); // Берем самое свежее
+  const last = events[0];
+  const d = new Date(last.t);
+  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  
+  const color = last.cls === 'g' ? '#12855c' : last.cls === 'r' ? '#c2403f' : last.cls === 'o' ? '#c26a2a' : '#2465ee';
+  return `<span class="adv-meta" style="display:inline-flex;align-items:center;gap:4px;color:#5b6b86;font-weight:700;font-size:11px">` +
+         `<svg class="ic ic-s" style="color:${color}"><use href="#${last.icon}"/></svg> ` +
+         `${escapeHtml(last.text)} · ${hm}</span>`;
 }
 function renderAdvicePop() {
   const pop = document.getElementById('advicePop'); if (!pop) return false;
@@ -769,7 +804,7 @@ function renderAdvicePop() {
     let win = '';
     if (it.pred) { const g = getPrediction(it.pred); win = '<span class="adv-win">' + icon('i-clock', 'ic-s') + 'окно ' + (g.eta ? ('≈ ' + g.eta) : g.time) + ' · ' + g.confidence + '%</span>'; }
     const price = advicePriceMeta(st, it);
-    const fresh = adviceFreshMeta(o);
+    const lastEvt = getLatestEventHtml(st.id); // <--- Новая переменная
     const reasons = adviceReasons(it);
     const our = it.ourChoice ? '<span class="adv-our">' + icon('i-star', 'ic-s') + 'наш выбор</span>' : '';
     const bk = brandKey(st);
@@ -778,7 +813,7 @@ function renderAdvicePop() {
       '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + badge + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + '</div>' +
       '<div class="adv-addr">' + escapeHtml(st.brand ? st.brand + ' · ' : '') + escapeHtml(st.address || '') + '</div>' +
       '<div class="adv-fuels">' + fuels + '</div>' +
-      '<div class="adv-metas">' + dist + price + fresh + '<span class="adv-meta">' + icon('i-queue', 'ic-s') + q + '</span>' + win + '</div>' +
+      '<div class="adv-metas">' + dist + price + (lastEvt ? '<span class="adv-meta" style="border:none;padding:0 4px;background:transparent">' + lastEvt + '</span>' : '') + win + '</div>' +
       (reasons ? '<div class="adv-why">' + reasons + '</div>' : '') +
       '<div class="adv-actions"><button class="cta-btn" onclick="adviceRoute(' + i + ')">' + icon('i-truck', 'ic-s') + 'На карте + маршрут</button>' +
       '<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button></div>' +
@@ -6571,6 +6606,23 @@ let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTime
 // «всё готово», пока start() реально не привёз данные. bootDataOk — флаг
 // настоящего успеха, bootFailed — оверлей уже показал честную ошибку
 let bootDataOk = true, bootFailed = false;
+const BOOT_TIPS_CARDS = [
+  { ico: 'i-tg', bg: 'linear-gradient(135deg,#2465ee,#5b8def)', title: 'Уведомления в Телеграме', text: 'Добавь АЗС в избранное — бот напишет, когда туда привезут бензин. Не нужно проверять сайт каждый час.' },
+  { ico: 'i-pump', bg: 'linear-gradient(135deg,#19b77a,#5dd9a5)', title: 'Отметка топлива — 2 тапа', text: 'Нажал на каплю → «Отметка». Твой голос делает прогнозы точнее именно для твоего города — без тебя мы гадаем.' },
+  { ico: 'i-check', bg: 'linear-gradient(135deg,#f5a05a,#ffd089)', title: 'Честная ошибка прогноза', text: 'Каждую ночь сверяем вчерашние прогнозы с фактом. Медиану ошибки показываем openly — без округлений в свою пользу.' },
+  { ico: 'i-truck', bg: 'linear-gradient(135deg,#7c6dff,#a597ff)', title: 'Куда ехать прямо сейчас', text: 'Сайт сам подбирает лучшие заправки города с топливом и ценой. Золотая плашка «наш выбор» экономит твоё время.' },
+  { ico: 'i-clock', bg: 'linear-gradient(135deg,#f5b82e,#ffd56b)', title: 'Окна возврата топлива', text: 'Мы прогнозируем, когда топливо вернётся на заправку. Тапни на АЗС, чтобы увидеть вероятное время привоза.' },
+  { ico: 'i-pin', bg: 'linear-gradient(135deg,#ef5350,#ff8a80)', title: 'GPS врёт?', text: 'Если навигацию глушат, нажми на карте «Указать своё местоположение» — перетащи точку пальцем, и маршруты построятся верно.' },
+  { ico: 'i-heart', bg: 'linear-gradient(135deg,#d7263d,#ff6b81)', title: 'Помоги городу', text: 'Отмечай наличие топлива и очереди. Каждая твоя отметка помогает сотням водителей не тратить время зря.' },
+  { ico: 'i-chart', bg: 'linear-gradient(135deg,#397cff,#74a0ff)', title: 'Экономь на заправках', text: 'В карточке АЗС мы показываем цену и насколько она отличается от средней по городу. Выбирай выгодные заправки.' }
+];
+let currentBootTips = null;
+function getBootTips() {
+  if (currentBootTips) return currentBootTips;
+  // Перемешиваем и берем 3 случайных
+  currentBootTips = [...BOOT_TIPS_CARDS].sort(() => 0.5 - Math.random()).slice(0, 3);
+  return currentBootTips;
+}
 function renderBootLiveStations() {
   const listEl = document.getElementById('bootLiveList');
   const titleEl = document.getElementById('bootTitle');
@@ -6579,35 +6631,21 @@ function renderBootLiveStations() {
   // === НОВЫЙ БЛОК: онбординг вместо скелетонов ===
   if (!allStations.length || !Object.keys(getLastObservations()).length) {
     if (titleEl) titleEl.textContent = 'Подключаемся к базе...';
-    listEl.innerHTML = `
-      <div class="boot-tip-card" style="animation-delay:0s">
-        <div class="boot-tip-ico" style="background:linear-gradient(135deg,#2465ee,#5b8def)">
-          <svg class="ic" style="width:22px;height:22px"><use href="#i-tg"/></svg>
+    
+    // Генерируем 3 случайные карточки
+    const tips = getBootTips();
+    listEl.innerHTML = tips.map((t, i) => `
+      <div class="boot-tip-card" style="animation-delay:${i * 0.1}s">
+        <div class="boot-tip-ico" style="background:${t.bg}">
+          <svg class="ic" style="width:22px;height:22px"><use href="#${t.ico}"/></svg>
         </div>
         <div class="boot-tip-body">
-          <b>Уведомления в Телеграме</b>
-          <span>Добавь АЗС в избранное — бот напишет, когда туда привезут бензин. Не нужно проверять сайт каждый час.</span>
+          <b>${t.title}</b>
+          <span>${t.text}</span>
         </div>
       </div>
-      <div class="boot-tip-card" style="animation-delay:0.1s">
-        <div class="boot-tip-ico" style="background:linear-gradient(135deg,#19b77a,#5dd9a5)">
-          <svg class="ic" style="width:22px;height:22px"><use href="#i-pump"/></svg>
-        </div>
-        <div class="boot-tip-body">
-          <b>Отметка топлива — 2 тапа</b>
-          <span>Нажал на каплю → «Отметка». Твой голос делает прогнозы точнее именно для твоего города — без тебя мы гадаем.</span>
-        </div>
-      </div>
-      <div class="boot-tip-card" style="animation-delay:0.2s">
-        <div class="boot-tip-ico" style="background:linear-gradient(135deg,#f5a05a,#ffd089)">
-          <svg class="ic" style="width:22px;height:22px"><use href="#i-check"/></svg>
-        </div>
-        <div class="boot-tip-body">
-          <b>Честная ошибка прогноза</b>
-          <span>Каждую ночь сверяем вчерашние прогнозы с фактом. Медиану ошибки показываем openly — без округлений в свою пользу.</span>
-        </div>
-      </div>
-    `;
+    `).join('');
+    
     return;
   }
 
