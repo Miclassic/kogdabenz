@@ -710,9 +710,9 @@ function buildAdviceList(){
       const fc95 = folkConsensus24(st.id, '95');
       const fc92 = folkConsensus24(st.id, '92');
       const fcdt = folkConsensus24(st.id, 'diesel');
-      if (fc95?.verdict === 'yes') fpk = 'yes';
-      else if (fc92?.verdict === 'yes') fpk = 'part';
-      else if (fcdt?.verdict === 'yes') fpk = 'diesel';
+      if ((o.fuel_95_status === null || o.fuel_95_status === undefined) && fc95?.verdict === 'yes') fpk = 'yes';
+      else if ((o.fuel_92_status === null || o.fuel_92_status === undefined) && fc92?.verdict === 'yes') fpk = 'part';
+      else if ((o.diesel_status === null || o.diesel_status === undefined) && fcdt?.verdict === 'yes') fpk = 'diesel';
     }
 
     if (fpk === 'unknown' || fpk === 'no') continue;
@@ -815,9 +815,11 @@ function renderAdvicePop() {
     const fuels = ['92', '95', 'diesel'].map(fl => {
       const col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
       let v = o ? o[col] : null;
-      
-      // 1. Если источник молчит (null), смотрим на подтверждение водителей за 24 часа
-      if (v === null || v === undefined) {
+      const tr = o ? availTrustworthy(o) : true;
+      const rawNull = (v === null || v === undefined);
+      if (!tr && v === true) v = null;
+      // 1. Источник молчит (null) и не достоверен — смотрим водителей за 24 часа
+      if (!tr && rawNull) {
         const fc = folkConsensus24(st.id, fl);
         if (fc?.verdict === 'yes') v = true;
         else if (fc?.verdict === 'no') v = false;
@@ -1744,9 +1746,9 @@ function stationCard(station, obs, pred) {
   const fc92 = folkConsensus24(station.id, '92');
   const fcdt = folkConsensus24(station.id, 'diesel');
   
-  const has95 = (trust && obs && obs.fuel_95_status === true) || !!scene['95'] || (useFolk && fc95?.verdict === 'yes');
-  const has92 = (trust && obs && obs.fuel_92_status === true) || !!scene['92'] || (useFolk && fc92?.verdict === 'yes');
-  const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'] || (useFolk && fcdt?.verdict === 'yes');
+  const has95 = (trust && obs && obs.fuel_95_status === true) || !!scene['95'] || (useFolk && (obs.fuel_95_status === null || obs.fuel_95_status === undefined) && fc95?.verdict === 'yes');
+  const has92 = (trust && obs && obs.fuel_92_status === true) || !!scene['92'] || (useFolk && (obs.fuel_92_status === null || obs.fuel_92_status === undefined) && fc92?.verdict === 'yes');
+  const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'] || (useFolk && (obs.diesel_status === null || obs.diesel_status === undefined) && fcdt?.verdict === 'yes');
   
   const availList = [];
   if (has95) availList.push('АИ-95');
@@ -1790,7 +1792,7 @@ function stationCard(station, obs, pred) {
     
     // Если источник не подтвердил, но водители собрали консенсус
     const fc = folkConsensus24(station.id, fk);
-    if (!trust && fc) {
+    if (!trust && fc && (obs ? obs[col] : null) === null) {
       if (fc.verdict === 'yes') {
         return '<div class="f-tile" onclick="openWhyChip(this,\'folk\')">' +
           '<span class="f-drop">' + icon('i-drop') + '</span><b>' + label + '</b>' +
