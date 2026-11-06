@@ -1410,6 +1410,13 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 .mn-item.on .mn-label { color:#2465ee; }
 .mn-item.on .mn-ico { box-shadow:0 8px 18px rgba(36,101,238,.35), inset 0 1px 0 rgba(255,255,255,.6), inset 0 -2px 6px rgba(10,40,120,.16); }
 @media (max-width:380px){ .mn-ico { width:28px; height:28px; border-radius:10px; } .mn-ico .ic { width:14px; height:14px; } .mn-label { font-size:8.5px; } }
+/* boot: карточки не режутся — список тянется по контенту, при нехватке экрана
+   скроллится весь оверлей; прогресс и строка прилипают к низу и видны всегда */
+.boot-back { overflow-y:auto; -webkit-overflow-scrolling:touch; flex-direction:column; justify-content:flex-start; }
+.boot-top { margin-top:auto; }
+.boot-live-list { height:auto; max-height:none; overflow:visible; }
+.boot-loading-bar { position:sticky; bottom:26px; }
+.boot-line { margin-bottom:auto; position:sticky; bottom:10px; }
 </style>
 </head>
 <body>
