@@ -925,89 +925,81 @@ async function loadAdviceReactionsForList(list) {
   }
 }
 
-async function handleAdviceReaction(stationId, type) {
-  // один голос на устройство — если уже голосовал этим типом, ничего не делаем
-  const mine = adviceReactionMine[stationId] || {};
-if (mine[type]) return;
-if (type === 'like' && mine.folk_yes) return;
-if (type === 'dislike' && mine.folk_no) return;
+async function handleAdviceReaction(stationId, type, btn) {
+// один голос на устройство — если уже голосовал этим типом, не молчим:
+// пузырь на кнопке объясняет, что кольцо вокруг неё и есть ваш голос
+const mine = adviceReactionMine[stationId] || {};
+const mineKey = type === 'like' ? (mine.like || mine.folk_yes) : type === 'dislike' ? (mine.dislike || mine.folk_no) : mine.doubt;
+if (mineKey) { if (btn) openWhyChip(btn, 'advvote'); return; }
 const it = adviceList.find(x => x.st.id === stationId);
-  if (!it) return;
-
-  // 👍 "Класс" — если не в избранном, предлагаем добавить
-  if (type === 'like' && !isFavorite(stationId)) {
-    showReactionPopup(it, type);
-    return;
-  }
-  // 👎 "Плохо" — спрашиваем причину
-  if (type === 'dislike') {
-    showReactionPopup(it, type);
-    return;
-  }
-  // 🤔 "Сомнение" — спрашиваем что смущает
-  if (type === 'doubt') {
-    showReactionPopup(it, type);
-    return;
-  }
-  // если уже в избранном и лайк — просто считаем
-  submitReaction(it, type, null);
+if (!it) return;
+// 👍 "Класс" — если не в избранном, предлагаем добавить
+if (type === 'like' && !isFavorite(stationId)) {
+showReactionPopup(it, type);
+return;
+}
+// 👎 "Плохо" — спрашиваем причину
+if (type === 'dislike') {
+showReactionPopup(it, type);
+return;
+}
+// 🤔 "Сомнение" — спрашиваем что смущает
+if (type === 'doubt') {
+showReactionPopup(it, type);
+return;
+}
+// если уже в избранном и лайк — просто считаем
+submitReaction(it, type, null);
 }
 
 function showReactionPopup(it, type) {
-  const pop = document.getElementById('reactPop');
-  const back = document.getElementById('reactBack');
-  if (!pop || !back) return;
-
-  const st = it.st;
-  const emojiIcon = icon(REACTION_ICON[type]);
-  const label = REACTION_LABEL[type];
-
-  let body = '';
-  if (type === 'like') {
-    // объяснение пользы избранного
-    body = '<div class="react-sub">Отличный выбор! Чтобы не искать эту АЗС каждый раз и получать уведомления о привозе топлива — добавьте её в избранное.</div>' +
-      '<div class="react-opts">' +
-      '<button class="react-opt" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\',null,true)">' +
-icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
+const pop = document.getElementById('reactPop');
+const back = document.getElementById('reactBack');
+if (!pop || !back) return;
+const st = it.st;
+const emojiIcon = icon(REACTION_ICON[type]);
+const label = REACTION_LABEL[type];
+let body = '';
+if (type === 'like') {
+// объяснение пользы избранного
+body = '<div class="react-sub">Отличный выбор! Чтобы не искать эту АЗС каждый раз и получать уведомления о привозе топлива — добавьте её в избранное.</div>' +
+'<div class="react-opts">' +
 '<button class="react-opt" data-fav="1">' +
 icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
 '<button class="react-opt" data-fav="0">' +
 icon('i-check') + ' Просто отметить «Да, топливо есть»</button>' +
-      '</div>';
-  } else if (type === 'dislike') {
-    body = '<div class="react-sub">Что не так с этой АЗС? Ваш ответ поможет другим водителям.</div>' +
-      '<div class="react-opts" id="reactOpts">' +
-      DISLIKE_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
-      '</div>' +
-      '<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
-  } else if (type === 'doubt') {
-    body = '<div class="react-sub">Что смущает? Такие голоса помогают нам калибровать модель.</div>' +
-      '<div class="react-opts" id="reactOpts">' +
-      DOUBT_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
-      '</div>' +
-      '<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
-  }
-
-  pop.innerHTML = '<div class="react-head"><span class="react-ico">' + emojiIcon + '</span>' +
-    '<div><div class="react-title">' + label + '</div>' +
-    '<div class="react-sub">' + escapeHtml(st.name || 'АЗС') + '</div></div></div>' +
-    body +
-    '<div class="react-actions">' +
-    (type === 'like' ? '' : '<button class="cta-btn" id="reactSend" data-send="1" disabled>Отправить</button>') +
-    '<button class="cta-btn ghost" onclick="closeReactPop()">Отмена</button></div>';
-
-  pop.dataset.type = type;
-  pop.dataset.stationId = st.id;
-  pop.classList.add('open');
-  back.classList.add('open');
-
-  if (type !== 'like') {
-    const ta = document.getElementById('reactText');
-    if (ta) ta.addEventListener('input', () => {
-      const btn = document.getElementById('reactSend');
-      if (btn) btn.disabled = !ta.value.trim() && !pop.dataset.reason;
-    });
-  }
+'</div>';
+} else if (type === 'dislike') {
+body = '<div class="react-sub">Что не так с этой АЗС? Ваш ответ поможет другим водителям.</div>' +
+'<div class="react-opts" id="reactOpts">' +
+DISLIKE_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
+'</div>' +
+'<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
+} else if (type === 'doubt') {
+body = '<div class="react-sub">Что смущает? Такие голоса помогают нам калибровать модель.</div>' +
+'<div class="react-opts" id="reactOpts">' +
+DOUBT_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
+'</div>' +
+'<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
+}
+pop.innerHTML = '<div class="react-head"><span class="react-ico">' + emojiIcon + '</span>' +
+'<div><div class="react-title">' + label + '</div>' +
+'<div class="react-sub">' + escapeHtml(st.name || 'АЗС') + '</div></div></div>' +
+body +
+'<div class="react-actions">' +
+(type === 'like' ? '' : '<button class="cta-btn" id="reactSend" data-send="1" disabled>Отправить</button>') +
+'<button class="cta-btn ghost" onclick="closeReactPop()">Отмена</button></div>';
+pop.dataset.type = type;
+pop.dataset.stationId = st.id;
+pop.classList.add('open');
+back.classList.add('open');
+if (type !== 'like') {
+const ta = document.getElementById('reactText');
+if (ta) ta.addEventListener('input', () => {
+const btn = document.getElementById('reactSend');
+if (btn) btn.disabled = !ta.value.trim() && !pop.dataset.reason;
+});
+}
 }
 // === клики реакций и попапа через делегирование: id живёт в data-атрибуте,
 // inline-onclick больше нет — клик не может «умереть» от кавычек ===
@@ -1015,7 +1007,7 @@ document.addEventListener('click', e => {
 const t = e.target;
 if (!t || !t.closest) return;
 const rb = t.closest('.adv-reaction[data-st]');
-if (rb) { handleAdviceReaction(rb.getAttribute('data-st'), rb.getAttribute('data-rt')); return; }
+if (rb) { handleAdviceReaction(rb.getAttribute('data-st'), rb.getAttribute('data-rt'), rb); return; }
 const ro = t.closest('.react-opt[data-fav]');
 if (ro) {
 const pop = document.getElementById('reactPop');
@@ -3557,6 +3549,7 @@ const WHY_MAP = {
   momentum: { t: 'Лента: куда движется ситуация', x: 'Сравниваем возвраты и исчезновения топлива в твоём городе за 6 часов — то же окно, что у ленты событий. Возвратов больше — ситуация улучшается, можно выбирать время и цену. Исчезновений больше — топливо уходит с рынка, заправляться лучше сейчас. Очереди никуда не делись: их по-прежнему видно на карте зонами и в карточках АЗС.', e: () => momentumExtra() },
   wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() },
   reliability: { t: 'Ваша надёжность', x: 'Каждую вашу отметку сравниваем с независимыми свидетелями: отметки других водителей в пределах часа от вашей и снимки источника в течение 2 часов после. Подтверждения добавляют надёжность, опровержения вычитают. Пока свидетелей нет — цифра не показывается, надёжность формируется.', e: () => myRel && myRel.pct !== null ? 'Из них источник подтвердил ' + myRel.srcConf + ' раз(а), водители — ' + myRel.folkConf + '.' : null }, 
+  advvote: { t: 'Ваш голос уже учтён', x: 'Кольцо вокруг кнопки — это ваш голос по этой АЗС. С одного устройства принимается один голос каждого типа, чтобы накрутки не искажали картину города. Поэтому повторный тап ничего не меняет.', e: null },
   folk: { t: 'Народный консенсус', x: 'Подтверждение от водителей. Если 2 водителя с разных устройств подтвердили наличие топлива (или его отсутствие), мы отдаём этому приоритет, если источник молчит или его данные устарели.', e: null }
 };
 let whyOpenKey = null;
