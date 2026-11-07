@@ -762,13 +762,15 @@ function buildAdviceList(){
       const fc95 = folkConsensus24(st.id, '95');
       const fc92 = folkConsensus24(st.id, '92');
       const fcdt = folkConsensus24(st.id, 'diesel');
-      const silent = v => v === null|| v === undefined;
-      if (silent(o && o.fuel_95_status) && fc95?.verdict === 'yes') fpk = 'yes';
-      else if (silent(o && o.fuel_92_status) && fc92?.verdict === 'yes') fpk = 'part';
-      else if (silent(o && o.diesel_status) && fcdt?.verdict === 'yes') fpk = 'diesel';
+      if (fc95?.verdict === 'yes') fpk = 'yes';
+else if (fc92?.verdict === 'yes') fpk = 'part';
+else if (fcdt?.verdict === 'yes') fpk = 'diesel';
     }
 
-    if (fpk === 'unknown' || fpk === 'no') continue;
+    if (fpk === 'unknown' || fpk === 'no') {
+  console.log('advice skip fpk:', st.name, 'fpk=' + fpk, 'trust=' + trust, 'o=', o);
+  continue;
+}
 
     let km = null;
     if (uLoc) {
@@ -799,11 +801,17 @@ function buildAdviceList(){
   const out = nows.slice(0, 3);
   if (out.length < 3) out.push(...fcs.slice(0, 3 - out.length));
   // фильтр: убираем станции с >=5 отрицаниями с последнего fuel_restored
-	const filtered = out.filter(it => !isRejected(it.st.id));
+	const filtered = out.filter(it => {
+  const rej = isRejected(it.st.id);
+  if (rej) console.log('advice rejected:', it.st.name, 'rejections=' + countRejections(it.st.id));
+  return !rej;
+});
 	if (filtered.length < out.length) {
 		console.log('advice: отфильтровано ' + (out.length - filtered.length) + ' станций по порогу отрицаний');
 	}
 	return rankByFinalMetrics(filtered.slice(0, 3));
+	console.log('advice nows scores:', nows.map(x => x.st.name + ':' + x.score));
+console.log('advice final:', filtered.slice(0,3).map(x => x.st.name));
 }
 function adviceReasons(it) {
   const r = []; const o = it.o;
@@ -2119,9 +2127,9 @@ function stationCard(station, obs, pred) {
   const fc92 = folkConsensus24(station.id, '92');
   const fcdt = folkConsensus24(station.id, 'diesel');
   
-  const has95 = (trust && obs && obs.fuel_95_status === true) || !!scene['95'] || (useFolk && (!obs|| obs.fuel_95_status === null|| obs.fuel_95_status === undefined) && fc95?.verdict === 'yes');
-  const has92 = (trust && obs && obs.fuel_92_status === true) || !!scene['92'] || (useFolk && (!obs|| obs.fuel_92_status === null|| obs.fuel_92_status === undefined) && fc92?.verdict === 'yes');
-  const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'] || (useFolk && (!obs|| obs.diesel_status === null|| obs.diesel_status === undefined) && fcdt?.verdict === 'yes');
+  const has95 = (trust && obs && obs.fuel_95_status === true) || !!scene['95'] || (useFolk && fc95?.verdict === 'yes');
+const has92 = (trust && obs && obs.fuel_92_status === true) || !!scene['92'] || (useFolk && fc92?.verdict === 'yes');
+const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'] || (useFolk && fcdt?.verdict === 'yes');
   
   const availList = [];
   if (has95) availList.push('АИ-95');
@@ -2165,7 +2173,7 @@ function stationCard(station, obs, pred) {
     
     // Если источник не подтвердил, но водители собрали консенсус
     const fc = folkConsensus24(station.id, fk);
-    if (!trust && fc && (obs ? obs[col] : null) === null) {
+    if (!trust && fc) {
       if (fc.verdict === 'yes') {
         return '<div class="f-tile" onclick="openWhyChip(this,\'folk\')">' +
           '<span class="f-drop">' + icon('i-drop') + '</span><b>' + label + '</b>' +
