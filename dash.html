@@ -559,6 +559,13 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
 // === ПОЛНАЯ СЕКЦИЯ СОВЕТНИКА «КУДА ЕХАТЬ» ===
 function renderAdvisorDetailed() {
   const d = ADVISOR_DETAILED;
+  // функция советника не отвечает (404/ошибка) — честная плашка вместо нулей
+  if (!d || !d.totals) {
+    return '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник «Куда ехать»</div></div>' +
+      '<div class="error" style="text-align:left">Детали советника не загрузились: серверная функция dash_advisor_detailed не отвечает. ' +
+      'Реакции и голоса пишутся в базу, но дашборд не может их достать. ' +
+      'Лечение: создать функцию в psql и выполнить systemctl restart postgrest.</div></div>';
+  }
   const u = d.utility || {};
   const t = d.totals || {};
   const funnel = d.funnel || [];
@@ -581,7 +588,7 @@ function renderAdvisorDetailed() {
   
   // Если данных мало — предупреждаем
   const lowData = (t.shown || 0) < 30;
-  if (lowData && u.score) {
+  if (lowData && u.score !== undefined) {
     word = 'Копим данные';
     desc = 'Пока ' + (t.shown || 0) + ' показов — для точной метрики нужно минимум 30. Текущее значение ориентировочное.';
     wordColor = '#93a1b8';
