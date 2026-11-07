@@ -465,6 +465,30 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .react-thanks .big { font-size:15px; font-weight:900; letter-spacing:-.4px; }
 .react-thanks .note { margin-top:8px; padding:10px 12px; border-radius:14px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; color:#33445f; font-size:11.5px; font-weight:700; line-height:1.5; }
 .react-thanks .me { margin-top:8px; color:#7485a0; font-size:10px; font-weight:600; line-height:1.45; }
+/* === полоса реакций v5: равные сегменты с иконкой в кружке и пилюлей счёта; штамп бренда — наклейка в углу === */
+.adv-card .adv-reactions { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; padding:5px; border:0; border-top:0; border-radius:16px; background:linear-gradient(135deg,#f4f6fa,#eef1f6); box-shadow:inset 0 1px 3px rgba(20,33,61,.05); }
+.adv-card .adv-reaction { flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:flex-start; gap:6px; padding:8px; border:0; border-radius:12px; background:#fff; box-shadow:0 2px 6px rgba(20,33,61,.07); transition:transform .12s ease, box-shadow .12s ease; }
+.adv-card .adv-reaction:active { transform:scale(.96); box-shadow:0 1px 3px rgba(20,33,61,.12); }
+.adv-card .adv-reaction .ic { width:22px; height:22px; padding:5px; border-radius:50%; box-sizing:border-box; flex:0 0 auto; }
+.adv-card .adv-reaction .adv-reaction-t { flex:1; min-width:0; font-size:9px; line-height:1.15; font-weight:850; text-align:left; white-space:normal; letter-spacing:.1px; }
+.adv-card .adv-reaction .cnt { flex:0 0 auto; min-width:16px; padding:1px 5px; border-radius:99px; font-size:8.5px; font-weight:900; text-align:center; }
+.adv-card .adv-reaction.like { color:#12855c; }
+.adv-card .adv-reaction.like .ic { background:rgba(18,133,92,.12); }
+.adv-card .adv-reaction.like .cnt { background:#e5f8ef; color:#12855c; }
+.adv-card .adv-reaction.dislike { color:#c2403f; }
+.adv-card .adv-reaction.dislike .ic { background:rgba(194,64,63,.10); }
+.adv-card .adv-reaction.dislike .cnt { background:#fdecec; color:#c2403f; }
+.adv-card .adv-reaction.doubt { color:#c26a2a; }
+.adv-card .adv-reaction.doubt .ic { background:rgba(194,106,42,.12); }
+.adv-card .adv-reaction.doubt .cnt { background:#fff2e8; color:#c26a2a; }
+.adv-card .adv-reaction.mine { box-shadow:inset 0 0 0 1.5px currentColor, 0 2px 6px rgba(20,33,61,.07); }
+.adv-card .adv-reaction.like.mine { background:#eefaf3; }
+.adv-card .adv-reaction.dislike.mine { background:#fdeeee; }
+.adv-card .adv-reaction.doubt.mine { background:#fff6ee; }
+.adv-card .adv-reaction.reject { opacity:.4; pointer-events:none; }
+/* штамп бренда: маленькая наклейка с наклоном в правом верхнем углу карточки */
+.adv-card .adv-wm { top:7px; right:7px; left:auto; bottom:auto; width:44px; height:44px; transform:rotate(12deg); opacity:.38; filter:saturate(.9); }
+.adv-card .adv-wm img { width:100%; height:100%; object-fit:contain; }
 @media(min-width:900px){ .advice-pop { width:min(1040px, calc(100vw - 40px)); } .adv-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .adv-card { margin-top:0; } }
 /* === загрузочный оверлей: фирменная загрузка с этапами поверх заблюренной страницы === */
 .boot-back { position:fixed; inset:0; z-index:96; display:flex; align-items:center; justify-content:center; background:rgba(13,24,46,.62); backdrop-filter:blur(16px) saturate(.75); -webkit-backdrop-filter:blur(16px) saturate(.75); opacity:1; transition:opacity .45s ease; }

@@ -850,7 +850,7 @@ const mineClass = mineKey ? ' mine' : '';
 const rejectClass = rejected ? ' reject' : '';
 const cnt = type === 'like' ? (s.folk_yes || 0) : type === 'dislike' ? (s.folk_no || 0) : (s[type + '_count'] || 0);
 return '<button class="adv-reaction ' + type + mineClass + rejectClass + '" aria-label="' + REACTION_LABEL[type] + '" ' +
-(rejected ? '' : 'onclick="handleAdviceReaction(' + stId + ',\'' + type + '\')"') + '>' +
+(rejected ? '' : 'onclick="handleAdviceReaction(\'' + stId + '\',\'' + type + '\')"') + '>' +
 icon(REACTION_ICON[type], 'ic-s') + '<span class="adv-reaction-t">' + REACTION_SHORT[type] + '</span>' +
 (cnt > 0 ? '<span class="cnt">' + cnt + '</span>' : '') +
 '</button>';
@@ -967,9 +967,9 @@ function showReactionPopup(it, type) {
     // объяснение пользы избранного
     body = '<div class="react-sub">Отличный выбор! Чтобы не искать эту АЗС каждый раз и получать уведомления о привозе топлива — добавьте её в избранное.</div>' +
       '<div class="react-opts">' +
-      '<button class="react-opt" onclick="submitReactionFromPopup(' + st.id + ',\'' + type + '\',null,true)">' +
-      icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
-'<button class="react-opt" onclick="submitReactionFromPopup(' + st.id + ',\'' + type + '\',null,false)">' +
+      '<button class="react-opt" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\',null,true)">' +
+icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
+'<button class="react-opt" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\',null,false)">' +
 icon('i-check') + ' Просто отметить «Да, топливо есть»</button>' +
       '</div>';
   } else if (type === 'dislike') {
@@ -991,7 +991,7 @@ icon('i-check') + ' Просто отметить «Да, топливо ест�
     '<div class="react-sub">' + escapeHtml(st.name || 'АЗС') + '</div></div></div>' +
     body +
     '<div class="react-actions">' +
-    (type === 'like' ? '' : '<button class="cta-btn" id="reactSend" onclick="submitReactionFromPopup(' + st.id + ',\'' + type + '\')" disabled>Отправить</button>') +
+    (type === 'like' ? '' : '<button class="cta-btn" id="reactSend" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\')" disabled>Отправить</button>') +
     '<button class="cta-btn ghost" onclick="closeReactPop()">Отмена</button></div>';
 
   pop.dataset.type = type;
