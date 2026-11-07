@@ -726,6 +726,7 @@ async function loadAdviceReactionsForListRaw() {
 		}
 		adviceReactionMine[stId] = mine;
 	}
+	try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); for (const k of Object.keys(mm)) adviceReactionMine[k] = Object.assign({}, mm[k], adviceReactionMine[k] || {}); } catch (e) {}
 	// реакции с сервера
 	try {
 		const rows = await dbQuery('/rest/v1/advice_reactions?station_id=in.(' + cityIds.join(',') + ')&select=station_id,reaction_type,device_id&order=created_at.desc&limit=2000');
@@ -740,6 +741,8 @@ async function loadAdviceReactionsForListRaw() {
 		}
 	} catch (e) { console.log('advice_reactions: ' + e.message); }
 }
+const ap = document.getElementById('advicePop');
+if (ap && ap.classList.contains('open')) renderAdvicePop();
 function buildAdviceList(){
 	const e = getLastObservations(),
         uLoc = loadUserLocation(),
@@ -856,7 +859,7 @@ icon(REACTION_ICON[type], 'ic-s') +
 '</button>';
 };
 const fy = s.folk_yes || 0, fn = s.folk_no || 0;
-const people = (fy >= 3 && fy > fn) ? '<span class="adv-people">' + icon('i-heart', 'ic-s') + 'водители выбирают · ' + fy + ' голосов за топливо</span>' : '';
+const people = (fy >= 3 && fy > fn) ? '<span class="adv-people">' + icon('i-heart', 'ic-s') + 'водители выбирают   ' + fy + ' голосов за топливо</span>' : '';
 let html = '<div class="adv-reactions">' + people +
 reactionBtn('like') +
 reactionBtn('dislike') +
@@ -1079,6 +1082,7 @@ async function submitReaction(it, type, reason) {
   }
 
   mine[type] = true;
+  try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); const mrow = mm[stId] = mm[stId] || {}; mrow[type] = true; localStorage.setItem('kbAdvMine', JSON.stringify(mm)); } catch (e) {}
   const s = adviceReactions[stId] = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
   s[type + '_count'] = (s[type + '_count'] || 0) + 1;
 // если like — записываем как народную отметку available: реакция вливается в народные голоса
