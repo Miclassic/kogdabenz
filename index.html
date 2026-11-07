@@ -267,7 +267,7 @@ body.is-swiping .panel::before { animation-play-state:paused; }
    факт (зелёный) и прогноз (синий) разведены, как требует правило продукта */
 .advice-pop { width:min(360px, calc(100vw - 28px)); max-height:88dvh; }
 .adv-cards { display:block; }
-.adv-card { margin-top:8px; padding:10px 11px; border-radius:16px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 8px 22px rgba(38,69,120,.07); }
+.adv-card { margin-top:6px; padding:8px 9px; border-radius:14px; background:#fff; border:1px solid #e6ebf4; box-shadow:0 6px 18px rgba(38,69,120,.07); }
 .adv-card.best { border-color:#bcd4ff; background:linear-gradient(180deg,#f3f8ff,#fff); }
 .adv-top { display:flex; align-items:center; gap:7px; flex-wrap:wrap; } /* «наш выбор» не режется краем */
 .adv-rank { flex:0 0 auto; width:20px; height:20px; border-radius:50%; background:#2465ee; color:#fff; font-size:11px; font-weight:900; display:grid; place-items:center; }
@@ -281,18 +281,18 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .adv-badge.fc { background:#e7f0ff; color:#2465ee; }
 .adv-name { flex:1; min-width:0; font-size:13px; font-weight:850; letter-spacing:-.3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .adv-addr { margin-top:3px; color:#71809c; font-size:9.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.adv-fuels { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.adv-fuels { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
 .adv-fuel { font-size:9px; font-weight:800; padding:3px 7px; border-radius:9px; background:#f2f4f9; color:#7487a7; }
 .adv-fuel.yes { background:#e5f8ef; color:#12855c; }
 .adv-fuel.no { background:#fdecec; color:#c2403f; }
-.adv-metas { display:flex; flex-wrap:wrap; gap:4px 8px; margin-top:6px; }
+.adv-metas { display:flex; flex-wrap:wrap; gap:3px 6px; margin-top:4px; }
 .adv-meta { display:inline-flex; align-items:center; gap:4px; color:#5b6b86; font-size:9.5px; font-weight:700; }
 .adv-meta.warn { color:#c26a2a; }
 .adv-meta .ic, .adv-win .ic { width:11px; height:11px; }
 .adv-win { display:inline-flex; align-items:center; gap:4px; color:#2465ee; font-size:9.5px; font-weight:800; }
-.adv-why { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.adv-why { display:flex; flex-wrap:wrap; gap:3px; margin-top:4px; }
 .adv-why-i { padding:3px 7px; border-radius:8px; background:#f4f7fc; border:1px solid #e6ebf4; color:#33445f; font-size:8.5px; font-weight:700; }
-.adv-actions { display:flex; gap:6px; margin-top:8px; }
+.adv-actions { display:flex; gap:5px; margin-top:6px; }
 .adv-actions .cta-btn { flex:1; padding:8px 6px; font-size:10px; }
 .adv-our { margin-left:auto; flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:99px; font-size:9px; font-weight:900; letter-spacing:.3px; color:#5a3b00; background:linear-gradient(135deg,#ffe08a,#f5b82e 55%,#e89b16); box-shadow:0 4px 12px rgba(232,155,22,.4), inset 0 1px 0 rgba(255,255,255,.6); animation:ourGlow 2.6s ease-in-out infinite; }
 .adv-our .ic { width:11px; height:11px; }
@@ -300,6 +300,171 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 @keyframes ourGlow { 0%,100% { box-shadow:0 4px 12px rgba(232,155,22,.35), inset 0 1px 0 rgba(255,255,255,.6); } 50% { box-shadow:0 6px 20px rgba(232,155,22,.6), inset 0 1px 0 rgba(255,255,255,.75); } }
 .adv-meta.cheap { color:#12855c; } .adv-meta.dear { color:#c2403f; } .adv-meta.fresh-ok { color:#12855c; }
 @media (prefers-reduced-motion: reduce) { .adv-our { animation:none; } }
+/* === Реакции на карточках "Куда ехать" — фирменный синий SVG === */
+.adv-reactions { display:flex; align-items:center; gap:6px; margin-top:4px; padding:0; background:transparent; border:none; flex-wrap:wrap; }
+.adv-reaction { flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; padding:5px 10px; border-radius:99px; border:1.5px solid #dce3f0; background:#fff; color:#5b6b86; font-size:10px; font-weight:700; cursor:pointer; transition:all .15s ease; }
+.adv-reaction:active { transform:scale(.94); }
+.adv-reaction svg { width:14px; height:14px; flex:0 0 auto; }
+.adv-reaction .cnt { font-size:9px; font-weight:800; color:#93a1b8; min-width:10px; text-align:center; }
+.adv-reaction.mine { border-color:#2465ee; background:#e7f0ff; color:#2465ee; box-shadow:0 2px 8px rgba(36,101,238,.18); }
+.adv-reaction.mine svg { fill:#2465ee; stroke:#2465ee; }
+.adv-reaction.mine .cnt { color:#2465ee; }
+.adv-reaction.dislike.mine { border-color:#e57373; background:#fdecec; color:#c2403f; }
+.adv-reaction.dislike.mine svg { fill:#c2403f; stroke:#c2403f; }
+.adv-reaction.doubt.mine { border-color:#f0b429; background:#fffbea; color:#c2902a; }
+.adv-reaction.doubt.mine svg { fill:#c2902a; stroke:#c2902a; }
+.adv-reaction.reject { opacity:.35; pointer-events:none; }
+.adv-reaction.reject::after { content:'убрана'; font-size:7px; color:#c2403f; margin-left:3px; font-weight:800; }
+.adv-folk { margin-top:4px; padding:5px 8px; border-radius:10px; background:#f4f7fc; border:1px solid #e6ebf4; display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+.adv-folk-t { width:100%; font-size:8px; font-weight:800; color:#7485a0; text-transform:uppercase; letter-spacing:.4px; }
+.adv-folk-btn { display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:99px; border:1.5px solid #dce3f0; background:#fff; color:#5b6b86; font-size:10px; font-weight:700; cursor:pointer; }
+.adv-folk-btn svg { width:13px; height:13px; flex:0 0 auto; }
+.adv-folk-btn .cnt { font-size:9px; font-weight:800; color:#93a1b8; }
+.adv-folk-btn.mine { border-color:#2465ee; background:#e7f0ff; color:#2465ee; }
+.adv-folk-btn.mine svg { fill:#2465ee; stroke:#2465ee; }
+.adv-folk-btn.mine .cnt { color:#2465ee; }
+.adv-reject-warn { margin-top:4px; padding:4px 8px; border-radius:8px; background:#fff2e8; border:1px solid #f5d3b8; color:#c26a2a; font-size:9px; font-weight:700; display:flex; align-items:center; gap:4px; }
+/* === компактный советник: реакции-иконки в фирменном синем, меньше воздуха === */
+.adv-reaction { padding:4px 9px; border-width:1px; color:#2465ee; gap:3px; }
+.adv-reaction .ic { width:12px; height:12px; }
+.adv-reaction .cnt { font-size:8.5px; min-width:8px; }
+.adv-reaction.dislike { color:#c2403f; }
+.adv-reaction.doubt { color:#c2902a; }
+.adv-reaction svg, .adv-reaction.mine svg, .adv-reaction.dislike.mine svg, .adv-reaction.doubt.mine svg, .adv-folk-btn svg, .adv-folk-btn.mine svg { fill:none; }
+.adv-folk { display:inline-flex; align-items:center; gap:4px; margin-top:0; margin-left:2px; padding:0 0 0 6px; background:transparent; border:0; border-left:1px solid #e6ebf4; border-radius:0; }
+.adv-folk-t { width:auto; font-size:8px; }
+.adv-folk-btn { padding:4px 8px; border-width:1px; gap:3px; font-size:9.5px; }
+.adv-folk-btn .ic { width:12px; height:12px; }
+.adv-folk-btn.yes { color:#12855c; border-color:#bfe8d4; background:#e5f8ef; }
+.adv-folk-btn.no { color:#c2403f; border-color:#f3c1bf; background:#fdecec; }
+.adv-folk-btn .cnt { font-size:8.5px; }
+.adv-folk-btn.mine { box-shadow:inset 0 0 0 1.5px currentColor; }
+.adv-reject-warn { flex:1 1 100%; margin-top:2px; }
+.adv-reject-warn .ic { width:11px; height:11px; }
+/* компоновка карточки: факты и метрики одним потоком, плотнее */
+.adv-card { padding:8px 10px 9px; }
+.adv-addr { margin-top:2px; font-size:9px; }
+.adv-fuels { align-items:center; gap:3px 7px; margin-top:4px; }
+.adv-fuel { font-size:8.5px; padding:2px 6px; }
+.adv-fuels .adv-meta, .adv-fuels .adv-win { font-size:9px; }
+.adv-fuels .adv-meta .ic, .adv-fuels .adv-win .ic { width:10px; height:10px; }
+.adv-why { margin-top:3px; }
+.adv-why-i { padding:2px 6px; font-size:8px; }
+.adv-actions { margin-top:6px; }
+.adv-actions .cta-btn { padding:7px 6px; font-size:10px; }
+/* попап реакций: иконка вместо эмодзи */
+.react-ico { flex:0 0 auto; width:34px; height:34px; border-radius:12px; background:#e7f0ff; color:#2465ee; display:grid; place-items:center; }
+.react-ico .ic { width:18px; height:18px; }
+.react-opt .ic { width:16px; height:16px; color:#2465ee; flex:0 0 auto; }
+/* реакции = народные отметки: длинные подписи переносятся, плашка «водители выбирают» */
+.adv-reaction { padding:8px 6px; }
+.adv-reaction-t { font-size:8.5px; line-height:1.2; text-align:center; white-space:normal; }
+.adv-people { flex:0 0 auto; display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:99px; font-size:9px; font-weight:900; letter-spacing:.3px; color:#12855c; background:linear-gradient(135deg,#e5f8ef,#cff0e0); border:1px solid #bfe8d4; box-shadow:0 2px 8px rgba(18,133,94,.15); }
+.adv-people .ic { width:11px; height:11px; }
+/* полоса реакций v3: плашка «водители выбирают» — заголовок полосы, сегменты с иконками в кружках */
+.adv-people { flex:1 1 100%; justify-content:center; margin:2px 2px 4px; padding:5px 9px; border-radius:10px; font-size:8.5px; letter-spacing:.2px; }
+.adv-reaction { justify-content:center; gap:5px; padding:8px 4px; border-radius:12px; background:#fff; box-shadow:0 1px 3px rgba(38,69,120,.08); }
+.adv-reaction .ic { width:20px; height:20px; padding:4px; border-radius:50%; box-sizing:border-box; }
+.adv-reaction.like { color:#12855c; }
+.adv-reaction.like .ic { background:rgba(18,133,92,.10); }
+.adv-reaction.dislike .ic { background:rgba(194,64,63,.10); }
+.adv-reaction.doubt .ic { background:rgba(194,144,42,.12); }
+.adv-reaction .cnt { min-width:0; padding:1px 5px; border-radius:99px; font-size:8px; font-weight:900; }
+.adv-reaction.like .cnt { background:#e5f8ef; color:#12855c; }
+.adv-reaction.dislike .cnt { background:#fdecec; color:#c2403f; }
+.adv-reaction.doubt .cnt { background:#fff2e8; color:#c26a2a; }
+.adv-reaction.like.mine { background:#e5f8ef; }
+.adv-reaction-t { font-size:8.5px; line-height:1.15; }
+/* === советник в современном карточном стиле: без рамок, мягкие тени,
+крупная типографика, топливная сетка и строки фактов; палитра наша === */
+.adv-card { border:0; border-radius:18px; padding:12px 12px 10px; margin-top:8px; box-shadow:0 2px 14px rgba(38,69,120,.10); }
+.adv-card.best { background:#fff; }
+.adv-card.our { background:linear-gradient(180deg,#fffdf7,#fff); box-shadow:0 2px 14px rgba(232,155,22,.16), inset 0 0 0 1.5px #f3cf7a; }
+.adv-top { gap:8px; }
+.adv-rank { width:18px; height:18px; font-size:10px; background:#e7f0ff; color:#2465ee; }
+.adv-name { font-size:15px; font-weight:800; letter-spacing:-.3px; }
+.adv-addr { display:flex; align-items:center; gap:6px; margin-top:4px; font-size:10px; color:#8a94a6; }
+.adv-addr-t { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.adv-addr .adv-meta { flex:0 0 auto; margin-left:0; color:#8a94a6; font-size:10px; }
+.adv-addr .adv-meta.warn { color:#c26a2a; }
+.adv-badge { padding:3px 7px; border-radius:7px; font-size:9px; text-transform:none; letter-spacing:0; }
+.adv-badge .ic { width:10px; height:10px; }
+.adv-badge.yes { background:rgba(25,183,122,.12); color:#12855c; }
+.adv-badge.fc { background:rgba(36,101,238,.10); color:#2465ee; }
+/* топливная сетка: три равные плитки — марка сверху, вердикт снизу */
+.adv-fuelgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-top:8px; }
+.adv-fc { display:flex; flex-direction:column; align-items:center; gap:1px; padding:5px 4px; border-radius:10px; background:#f4f7fa; }
+.adv-fc b { font-size:9px; font-weight:700; color:#8a94a6; }
+.adv-fc i { font-style:normal; font-size:10.5px; font-weight:800; color:#7487a7; }
+.adv-fc.yes { background:rgba(25,183,122,.10); }
+.adv-fc.yes i { color:#12855c; }
+.adv-fc.no { background:rgba(239,83,80,.08); }
+.adv-fc.no i { color:#c2403f; }
+/* факты строками: цена, последнее событие, окно прогноза */
+.adv-facts { display:flex; flex-direction:column; gap:3px; margin-top:8px; }
+.adv-facts .adv-meta, .adv-facts .adv-win { font-size:10.5px; }
+/* причины — лёгкие теги без рамок */
+.adv-why { margin-top:6px; }
+.adv-why-i { background:#f4f7fa; border:0; color:#5b6b86; border-radius:7px; }
+/* реакции — мягкие кнопки без рамок, отделены тонкой линией */
+.adv-reactions { margin-top:8px; padding-top:8px; border-top:1px solid #f0f2f5; }
+.adv-reaction { border:0; background:#f2f4f7; border-radius:10px; padding:6px 10px; }
+.adv-reaction.mine { background:#e7f0ff; box-shadow:none; }
+.adv-reaction.dislike.mine { background:#fdecec; }
+.adv-reaction.doubt.mine { background:#fffbea; }
+.adv-folk { margin-left:auto; border-left:0; padding-left:6px; }
+.adv-folk-btn { border:0; }
+.adv-folk-btn.yes { background:rgba(25,183,122,.12); }
+.adv-folk-btn.no { background:rgba(239,83,80,.10); }
+/* кнопки действий — крупнее и круглее, как главные кнопки карточек */
+.adv-actions { margin-top:10px; }
+.adv-actions .cta-btn { padding:11px 6px; border-radius:12px; font-size:11px; }
+.adv-actions .cta-btn.ghost { background:#f2f4f7; }
+/* === сводка и реакции: акцентная кромка, игра шрифтов, полоса реакций внизу === */
+.adv-facts { position:relative; gap:5px; margin-top:8px; padding:8px 10px; border-radius:12px; background:linear-gradient(135deg,#f8fafd,#f4f7fc); overflow:hidden; }
+.adv-facts::before { content:''; position:absolute; left:0; top:8px; bottom:8px; width:3px; border-radius:99px; background:linear-gradient(180deg,#4b93ff,#2465ee); }
+.adv-card.our .adv-facts::before { background:linear-gradient(180deg,#ffe08a,#f5b82e); }
+.adv-price-v { font-size:12.5px; font-weight:900; letter-spacing:-.3px; color:#14213d; }
+.adv-price-d { font-style:normal; margin-left:auto; padding:2px 7px; border-radius:7px; background:#f2f4f7; color:#7485a0; font-size:9px; font-weight:800; white-space:nowrap; }
+.adv-meta.cheap .adv-price-d { background:#e5f8ef; color:#12855c; }
+.adv-meta.dear .adv-price-d { background:#fdecec; color:#c2403f; }
+.adv-facts .adv-evt { font-size:10px; font-weight:700; color:#71809c; }
+.adv-facts .adv-evt-t { font-style:normal; margin-left:auto; padding-left:8px; color:#93a1b8; font-size:9px; font-weight:800; font-variant-numeric:tabular-nums; }
+.adv-facts .adv-win { align-self:flex-start; padding:3px 8px; border-radius:8px; background:rgba(36,101,238,.08); font-size:9.5px; }
+.adv-why { margin-top:6px; gap:2px 4px; }
+.adv-why-i { padding:2px 0; background:transparent; color:#93a1b8; font-size:7.5px; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.adv-why-i + .adv-why-i::before { content:'·'; margin-right:4px; color:#c9d3e3; }
+/* реакции — центрированная полоса внизу карточки, сегменты крупнее */
+.adv-reactions { flex-wrap:wrap; gap:4px; margin-top:8px; padding:4px; border-top:0; border-radius:14px; background:#f2f4f7; }
+.adv-reaction { flex:1; justify-content:center; gap:5px; padding:9px 4px; border-radius:11px; background:#fff; box-shadow:0 1px 4px rgba(38,69,120,.07); }
+.adv-reaction .ic { width:15px; height:15px; }
+.adv-reaction-t { font-size:9.5px; font-weight:800; letter-spacing:.2px; }
+.adv-reaction .cnt { font-size:9px; }
+.adv-reaction.mine { box-shadow:inset 0 0 0 1.5px currentColor, 0 1px 4px rgba(38,69,120,.07); }
+.adv-folk { flex:1 1 100%; justify-content:center; margin:0; padding:6px 2px 2px; border-left:0; border-top:1px dashed #e3e8f0; }
+.adv-folk-t { width:auto; font-size:7.5px; color:#93a1b8; }
+.adv-folk-btn { padding:5px 11px; }
+.adv-folk-btn .ic { width:13px; height:13px; }
+.adv-reject-warn { flex:1 1 100%; justify-content:center; margin-top:0; padding:4px 2px 2px; background:transparent; border:0; }
+/* поп-ап реакций */
+.react-back { position:fixed; inset:0; background:rgba(15,27,51,.45); backdrop-filter:blur(3px); opacity:0; pointer-events:none; transition:.25s; z-index:86; }
+.react-back.open { opacity:1; pointer-events:auto; }
+.react-pop { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%) scale(.95); width:min(330px, calc(100vw - 32px)); max-height:84dvh; overflow-y:auto; background:#fff; border-radius:22px; padding:16px; box-shadow:0 24px 60px rgba(15,27,51,.35); z-index:87; opacity:0; pointer-events:none; transition:.25s; }
+.react-pop.open { opacity:1; pointer-events:auto; transform:translate(-50%,-50%) scale(1); }
+.react-head { display:flex; align-items:center; gap:10px; }
+.react-head .emoji { font-size:28px; }
+.react-title { font-size:14px; font-weight:900; letter-spacing:-.4px; }
+.react-sub { margin-top:2px; color:#5b6b86; font-size:10.5px; line-height:1.4; font-weight:600; }
+.react-opts { margin-top:10px; display:flex; flex-direction:column; gap:6px; }
+.react-opt { display:flex; align-items:center; gap:8px; padding:11px 12px; border:1px solid #e0e6ef; border-radius:14px; background:#f8fafc; color:#33445f; font-size:12px; font-weight:700; cursor:pointer; text-align:left; }
+.react-opt:active, .react-opt.selected { background:#e7f0ff; border-color:#bcd4ff; color:#2465ee; }
+.react-text { width:100%; min-height:72px; margin-top:8px; padding:10px 12px; border:1px solid #e0e6ef; border-radius:14px; background:#f8fafc; color:#33445f; font-size:12px; outline:none; resize:vertical; }
+.react-actions { display:flex; gap:8px; margin-top:12px; }
+.react-actions .cta-btn { flex:1; }
+.react-thanks { text-align:center; padding:8px 2px 4px; }
+.react-thanks .big { font-size:15px; font-weight:900; letter-spacing:-.4px; }
+.react-thanks .note { margin-top:8px; padding:10px 12px; border-radius:14px; background:linear-gradient(135deg,#eafaf5,#eff5ff); border:1px solid #dcebe9; color:#33445f; font-size:11.5px; font-weight:700; line-height:1.5; }
+.react-thanks .me { margin-top:8px; color:#7485a0; font-size:10px; font-weight:600; line-height:1.45; }
 @media(min-width:900px){ .advice-pop { width:min(1040px, calc(100vw - 40px)); } .adv-cards { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; } .adv-card { margin-top:0; } }
 /* === загрузочный оверлей: фирменная загрузка с этапами поверх заблюренной страницы === */
 .boot-back { position:fixed; inset:0; z-index:96; display:flex; align-items:center; justify-content:center; background:rgba(13,24,46,.62); backdrop-filter:blur(16px) saturate(.75); -webkit-backdrop-filter:blur(16px) saturate(.75); opacity:1; transition:opacity .45s ease; }
@@ -1283,7 +1448,7 @@ body.is-swiping .panel::before { animation-play-state:paused; }
   0%, 100% { opacity:.55; transform:translateY(-50%) scale(.98); }
   50%      { opacity:1;   transform:translateY(-51%) scale(1.05); }
 }
-/* волна по знакам в том же порядке: большой → средний → малый → крошечный;
+/* волна по знакам в том же порядке: большой 	 средний 	 малый 	 крошечный;
    каждый плавно подрастает и возвращается, мелкие — с большим множителем,
    чтобы пульс был заметен на всех размерах */
 /* у каждого знака свой ритм: пульсы в разных фазах цикла, без порядка;
@@ -1552,7 +1717,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
             <span>где дешевле</span>
             <i class="n" id="pulseCheapName">—</i>
           </div>
-          <div class="pulse-kpi" onclick="openWhyChip(this,'momentum')"><div class="kp-head"><svg class="ic"><use href="#i-pump-fast"/></svg><b id="pulseMom">—</b></div><span>лента · 6 ч</span><i class="n" id="pulseMomSub">—</i>
+          <div class="pulse-kpi" onclick="openWhyChip(this,'momentum')"><div class="kp-head"><svg class="ic"><use href="#i-pump-fast"/></svg><b id="pulseMom">—</b></div><span>лента   6 ч</span><i class="n" id="pulseMomSub">—</i>
           </div>
         </div>
       </div>
@@ -1604,7 +1769,7 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <div class="nowcard-cta">
         <button class="cta-btn" id="ctaBest"><svg class="ic"><use href="#i-spark"/></svg>Куда ехать сейчас</button>
       </div>
-      <div class="dg-strip tap" style="margin-top:6px" onclick="openMailPop()"><svg class="ic ic-s"><use href="#i-mail"/></svg><span>Написать нам / сообщить об ошибке · анонимно, ответ в Телеграм</span></div>
+      <div class="dg-strip tap" style="margin-top:6px" onclick="openMailPop()"><svg class="ic ic-s"><use href="#i-mail"/></svg><span>Написать нам / сообщить об ошибке   анонимно, ответ в Телеграм</span></div>
     </section>
     <section class="panel">
       <div class="p1-head"><div class="p1-ico"><svg class="ic"><use href="#i-pin"/></svg></div><div class="p1-t"><div class="nowcard-title" id="mapTitle">Карта спроса</div><div class="nowcard-sub" id="mapSub">Каждая капля — заправка: цвет говорит, какое топливо есть сейчас, а лужа вокруг — где очередь. Цветное поле под ними — где дефицит топлива. Нажми на каплю — появятся кнопки.</div></div><span class="mg-tabs" id="heatTabs"><button class="mg-tab active" onclick="setHeatMode(false,this)">Карта</button><button class="mg-tab" onclick="setHeatMode(true,this)">Тепло</button></span></div>
@@ -1741,6 +1906,8 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="hello-back" id="tgOfferBack" onclick="closeTgOffer()"></div>
   <div class="hello-pop" id="tgOfferPop" style="width:min(340px, calc(100vw - 32px))"></div>
   <div class="shadow-card" id="shadowCard"></div>
+  <div class="react-back" id="reactBack" onclick="closeReactPop()"></div>
+<div class="react-pop" id="reactPop"></div>
 </div>
 <script src="app.js" defer></script>
 <script>
