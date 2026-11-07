@@ -735,25 +735,26 @@ async function loadAdviceReactionsForListRaw() {
 	const cityIds = cityStationList().map(s => s.id);
 	if (!cityIds.length) return;
 	// подтянем народные голоса из allFeedback (быстро, без запроса)
-	for (const stId of cityIds) {
-		if (!adviceReactions[stId]) adviceReactions[stId] = { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
-		let lastRestored = 0;
-		for (const e of allWaveEvents) {
-			if (e.station_id === stId && e.event_type === 'fuel_restored') {
-				const t = new Date(e.detected_at).getTime();
-				if (t > lastRestored) lastRestored = t;
-			}
-		}
-		let fy = 0, fn = 0;
-		for (const f of allFeedback) {
-			if (f.station_id !== stId) continue;
-			const t = new Date(f.created_at).getTime();
-			if (lastRestored && t <= lastRestored) continue;
-			if (f.feedback_type === 'available') fy++;
-			else if (f.feedback_type === 'unavailable') fn++;
-		}
-		adviceReactions[stId].folk_yes = fy;
-		adviceReactions[stId].folk_no = fn;
+	const chMap = pairChangeMap();
+for (const stId of cityIds) {
+if (!adviceReactions[stId]) adviceReactions[stId] = { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0, folk_fuel: {} };
+// голоса считаем ПО ТОПЛИВУ карточки и только после последней смены статуса пары
+const ff = {};
+for (const f of allFeedback) {
+if (f.station_id !== stId) continue;
+if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+const fuel = f.fuel_type || '95';
+const ch = chMap[stId + '|' + fuel] || 0;
+const t = new Date(f.created_at).getTime();
+if (ch && t <= ch) continue; // голос до «вернулось/пропало» — сгорел
+const g = ff[fuel] = ff[fuel] || { yes: 0, no: 0 };
+if (f.feedback_type === 'available') g.yes++; else g.no++;
+}
+adviceReactions[stId].folk_fuel = ff;
+let fy = 0, fn = 0;
+for (const k of Object.keys(ff)) { fy += ff[k].yes; fn += ff[k].no; }
+adviceReactions[stId].folk_yes = fy;
+adviceReactions[stId].folk_no = fn;
 		// мой голос
 		const mine = {};
 		for (const f of allFeedback) {
@@ -840,9 +841,9 @@ else if (fcdt?.verdict === 'yes') fpk = 'diesel';
   if (out.length < 3) out.push(...fcs.slice(0, 3 - out.length));
   // фильтр: убираем станции с >=5 отрицаниями с последнего fuel_restored
 	const filtered = out.filter(it => {
-  const rej = isRejected(it.st.id);
-  if (rej) console.log('advice rejected:', it.st.name, 'rejections=' + countRejections(it.st.id));
-  return !rej;
+const rej = isRejected(it.st.id, adviceFocusFuel(it));
+if (rej) console.log('advice rejected:', it.st.name, 'rejections=' + countRejections(it.st.id, adviceFocusFuel(it)));
+return !rej;
 });
 	if (filtered.length < out.length) {
 		console.log('advice: отфильтровано ' + (out.length - filtered.length) + ' станций по порогу отрицаний');
@@ -880,31 +881,33 @@ const DOUBT_REASONS = [
   { key:'other', text:'Другое' }
 ];
 
-function countRejections(stationId) {
-  const s = adviceReactions[stationId];
-  if (!s) return 0;
-  return (s.dislike_count || 0) + (s.folk_no || 0);
+function countRejections(stationId, fuel) {
+const s = adviceReactions[stationId];
+if (!s) return 0;
+const fn = fuel ? (((s.folk_fuel || {})[fuel] || {}).no || 0) : (s.folk_no || 0);
+return (s.dislike_count || 0) + fn;
 }
-function isRejected(stationId) { return countRejections(stationId) >= REJECT_THRESHOLD; }
+function isRejected(stationId, fuel) { return countRejections(stationId, fuel) >= REJECT_THRESHOLD; }
 
 function renderAdviceReactions(it) {
 const stId = it.st.id;
 const s = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
+const ff = (s.folk_fuel || {})[adviceFocusFuel(it)] || { yes: 0, no: 0 };
 const mine = adviceReactionMine[stId] || {};
-const rejected = isRejected(stId);
-const rejectWarn = countRejections(stId) >= 3 && !rejected;
+const rejected = isRejected(stId, adviceFocusFuel(it));
+const rejectWarn = countRejections(stId, adviceFocusFuel(it)) >= 3 && !rejected;
 const reactionBtn = (type) => {
 const mineKey = type === 'like' ? (mine.like || mine.folk_yes) : type === 'dislike' ? (mine.dislike || mine.folk_no) : mine.doubt;
 const mineClass = mineKey ? ' mine' : '';
 const rejectClass = rejected ? ' reject' : '';
-const cnt = type === 'like' ? (s.folk_yes || 0) : type === 'dislike' ? (s.folk_no || 0) : (s[type + '_count'] || 0);
+const cnt = type === 'like' ? (ff.yes || 0) : type === 'dislike' ? (ff.no || 0) : (s[type + '_count'] || 0);
 return '<button class="adv-reaction ' + type + mineClass + rejectClass + '" data-st="' + stId + '" data-rt="' + type + '" aria-label="' + REACTION_LABEL[type] + '">' +
 icon(REACTION_ICON[type], 'ic-s') +
 '<span class="adv-reaction-t">' + REACTION_SHORT[type] + '</span>' +
 (cnt > 0 ? '<span class="cnt">' + cnt + '</span>' : '') +
 '</button>';
 };
-const fy = s.folk_yes || 0, fn = s.folk_no || 0;
+const fy = ff.yes || 0, fn = ff.no || 0;
 const people = (fy >= 3 && fy > fn) ? '<span class="adv-people">' + icon('i-heart', 'ic-s') + 'водители выбирают   ' + fy + ' голосов за топливо</span>' : '';
 let html = '<div class="adv-reactions">' + people +
 reactionBtn('like') +
@@ -2190,8 +2193,29 @@ function driverVerdictHtml(stationId) {
     </div>
   `;
 }
+// === народные голоса живут только до следующей смены статуса пары ===
+// «топливо вернулось»/«топливо пропало» сжигает голоса, поставленные до него:
+// старые отметки не должны утверждать «есть» поверх свежего «нет»
+// (кейс 01:40: карточка зеленела голосами до исчезновения, чипы и лента честные).
+let pairChangeCache = null, pairChangeKey = '';
+function pairChangeMap() {
+const key = allWaveEvents.length + ':' + (allWaveEvents.length ? allWaveEvents[allWaveEvents.length - 1].detected_at : '');
+if (pairChangeCache && pairChangeKey === key) return pairChangeCache;
+const m = {};
+for (const e of allWaveEvents) {
+if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
+const t = new Date(e.detected_at).getTime();
+const k = e.station_id + '|' + e.fuel_type;
+if (!m[k] || t > m[k]) m[k] = t;
+}
+pairChangeCache = m; pairChangeKey = key;
+return m;
+}
+function pairLastChange(stationId, fuel) { return pairChangeMap()[stationId + '|' + fuel] || 0; }
+// окно плашки «возможно есть топливо здесь»: не старше 24 ч и не раньше смены статуса
+function maybeSince(stationId, fuel) { return Math.max(Date.now() - 24 * 3600 * 1000, pairLastChange(stationId, fuel)); }
 function folkConsensus24(stationId, fuel) {
-	const since = Date.now() - 2 * 60 * 60 * 1000;
+const since = Math.max(Date.now() - 2 * 60 * 60 * 1000, pairLastChange(stationId, fuel));
   const yes = new Set(), no = new Set();
   for (const f of allFeedback) {
     if (f.station_id !== stationId || f.fuel_type !== fuel) continue;
@@ -4621,7 +4645,7 @@ function maybeFuelCandidates() {
     // Если водитель физически на месте уже подтвердил топливо, пропускаем
     if (sceneMark(c.stId, c.fuel)) continue;
     
-    const v = maybeFuelVotes(c.stId, c.fuel, c.t);
+    const v = maybeFuelVotes(c.stId, c.fuel, Math.max(c.t, maybeSince(c.stId, c.fuel)));
     
     // НОВАЯ ЛОГИКА: Если консенсус 2/2 уже есть, показываем его ещё 2 часа, 
     // чтобы водитель увидел зачёркивание и результат, а потом скрываем.
@@ -4711,13 +4735,9 @@ setTimeout(() => { if (mapObj) renderMap(); renderNow(); }, 600);
 track('feedback_undo', null, stationId);
 }
 async function maybeVote(stationId, fuel, yes) {
-	// Ищем время последнего fuel_restored для этой пары — голосование начинается с него
-	let since = Date.now() - 24 * 3600 * 1000;
-	for (const e of allWaveEvents) {
-		if (e.station_id !== stationId || e.fuel_type !== fuel || e.event_type !== 'fuel_restored') continue;
-		const t = new Date(e.detected_at).getTime();
-		if (t > since) since = t;
-	}
+// голосование начинается с последней смены статуса пары (вернулось ИЛИ пропало):
+// старые голоса до «пропало» не должны держать счётчики плашки
+const since = maybeSince(stationId, fuel);
 	const v = maybeFuelVotes(stationId, fuel, since);
 // повторный тап по своему голосу — отмена (случайное нажатие)
 if (v.mine === (yes ? 'yes' : 'no')) { await maybeUndoVote(stationId, fuel, yes, since); return; }
