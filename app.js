@@ -129,6 +129,42 @@ async function dbInsert(table, rows, stId) {
     clearTimeout(tm);
   }
 }
+async function dbInsertReturning(table, row) {
+const ctrl = new AbortController();
+const tm = setTimeout(() => ctrl.abort(), 20000);
+try {
+const r = await fetch(SUPABASE_URL + '/rest/v1/' + table, {
+method: 'POST',
+headers: {
+apikey: SUPABASE_KEY,
+Authorization: 'Bearer ' + SUPABASE_KEY,
+'Content-Type': 'application/json',
+Prefer: 'return=representation'
+},
+body: JSON.stringify([row])
+});
+if (!r.ok) throw new Error('HTTP ' + r.status + ': ' + (await r.text()).slice(0, 300));
+return await r.json();
+} finally {
+clearTimeout(tm);
+}
+}
+async function dbDelete(table, filter) {
+const ctrl = new AbortController();
+const tm = setTimeout(() => ctrl.abort(), 20000);
+try {
+const r = await fetch(SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
+method: 'DELETE',
+headers: {
+apikey: SUPABASE_KEY,
+Authorization: 'Bearer ' + SUPABASE_KEY,
+Prefer: 'return=minimal'
+}
+});
+if (!r.ok) throw new Error('HTTP ' + r.status);
+return true;
+} catch (e) { return false; } finally { clearTimeout(tm); }
+}
 function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 function time5(v) { if (!v) return '—'; const s = String(v); return s.length >= 5 ? s.substring(0,5) : s; }
 function fuelLabel(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
@@ -598,6 +634,7 @@ function closeLife() {
 // исход поездки доучивает personalScore через «тень заправки» и опрос.
 let adviceShownThisSession = false, adviceList = [], adviceTries = 0;
 let adviceReactions = {}, adviceReactionMine = {}; // кэш счётчиков реакций и моего голоса
+let adviceReactionIds = {}; // id записей реакций и народных отметок для возможности отмены
 function adviceNowMin() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function adviceWinState(pred) {
   if (!pred || !pred.from_time) return 'none';
@@ -937,11 +974,16 @@ async function loadAdviceReactionsForList(list) {
 }
 
 async function handleAdviceReaction(stationId, type, btn) {
-// один голос на устройство — если уже голосовал этим типом, не молчим:
-// пузырь на кнопке объясняет, что кольцо вокруг неё и есть ваш голос
 const mine = adviceReactionMine[stationId] || {};
-const mineKey = type === 'like' ? (mine.like || mine.folk_yes) : type === 'dislike' ? (mine.dislike || mine.folk_no) : mine.doubt;
-if (mineKey) { if (btn) openWhyChip(btn, 'advvote'); return; }
+// повторный тап по своей реакции = отмена голоса
+if (mine[type]) {
+await cancelAdviceReaction(stationId, type);
+return;
+}
+// если реакция не ставилась, но есть народный голос (поставленный вручную), не отменяем
+const folkKey = type === 'like' ? 'folk_yes' : type === 'dislike' ? 'folk_no' : null;
+if (folkKey && mine[folkKey]) { if (btn) openWhyChip(btn, 'advvote'); return; }
+if (type === 'doubt' && mine.doubt) { if (btn) openWhyChip(btn, 'advvote'); return; }
 const it = adviceList.find(x => x.st.id === stationId);
 if (!it) return;
 // 👍 "Класс" — если не в избранном, предлагаем добавить
@@ -963,6 +1005,42 @@ return;
 submitReaction(it, type, null);
 }
 
+async function cancelAdviceReaction(stationId, type) {
+const mine = adviceReactionMine[stationId];
+if (!mine || !mine[type]) return;
+const ids = adviceReactionIds[stationId] || {};
+const rec = ids[type] || {};
+// удаляем реакцию из базы
+if (rec.reactionId) {
+await dbDelete('advice_reactions', 'id=eq.' + rec.reactionId);
+} else {
+// фолбэк: удаляем по фильтрам
+await dbDelete('advice_reactions', 'station_id=eq.' + stationId + '&device_id=eq.' + deviceId + '&reaction_type=eq.' + type);
+}
+// удаляем народную отметку, если она была создана этой реакцией
+if (rec.fbId) {
+await dbDelete('user_feedback', 'id=eq.' + rec.fbId);
+// также удалим из локального allFeedback
+const idx = allFeedback.findIndex(f => String(f.id) === String(rec.fbId));
+if (idx >= 0) allFeedback.splice(idx, 1);
+}
+// обновляем локальный кэш
+delete mine[type];
+if (type === 'like') delete mine.folk_yes;
+if (type === 'dislike') delete mine.folk_no;
+try {
+const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}');
+if (mm[stationId]) { delete mm[stationId][type]; localStorage.setItem('kbAdvMine', JSON.stringify(mm)); }
+} catch (e) {}
+const s = adviceReactions[stationId];
+if (s) {
+s[type + '_count'] = Math.max(0, (s[type + '_count'] || 0) - 1);
+if (type === 'like') s.folk_yes = Math.max(0, (s.folk_yes || 0) - 1);
+if (type === 'dislike') s.folk_no = Math.max(0, (s.folk_no || 0) - 1);
+}
+renderAdvicePop();
+track('advice_reaction_cancel', null, stationId);
+}
 function showReactionPopup(it, type) {
 const pop = document.getElementById('reactPop');
 const back = document.getElementById('reactBack');
@@ -1075,54 +1153,55 @@ async function submitReactionFromPopup(stationId, type, reason, alsoFavorite) {
 }
 
 async function submitReaction(it, type, reason) {
-  const stId = it.st.id;
-  const mine = adviceReactionMine[stId] = adviceReactionMine[stId] || {};
-  if (mine[type]) return; // уже голосовал
-
-  // записываем реакцию
-  try {
-    await dbInsert('advice_reactions', [{
-      station_id: stId, device_id: deviceId,
-      reaction_type: type, reason: reason || null
-    }]);
-  } catch (e) {
-    console.log('advice_reaction save: ' + e.message);
-  }
-
-  mine[type] = true;
-  try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); const mrow = mm[stId] = mm[stId] || {}; mrow[type] = true; localStorage.setItem('kbAdvMine', JSON.stringify(mm)); } catch (e) {}
-  const s = adviceReactions[stId] = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
-  s[type + '_count'] = (s[type + '_count'] || 0) + 1;
+const stId = it.st.id;
+const mine = adviceReactionMine[stId] = adviceReactionMine[stId] || {};
+if (mine[type]) return; // уже голосовал
+const ids = adviceReactionIds[stId] = adviceReactionIds[stId] || {};
+// записываем реакцию
+try {
+const rows = await dbInsertReturning('advice_reactions', {
+station_id: stId, device_id: deviceId,
+reaction_type: type, reason: reason || null
+});
+if (rows && rows.length) ids[type] = { reactionId: rows[0].id, fbId: null };
+} catch (e) {
+console.log('advice_reaction save: ' + e.message);
+}
+mine[type] = true;
+try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); const mrow = mm[stId] = mm[stId] || {}; mrow[type] = true; localStorage.setItem('kbAdvMine', JSON.stringify(mm)); } catch (e) {}
+const s = adviceReactions[stId] = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
+s[type + '_count'] = (s[type + '_count'] || 0) + 1;
 // если like — записываем как народную отметку available: реакция вливается в народные голоса
 if (type === 'like') {
 const onSite = await onSiteFields(it.st);
 try {
-await dbInsert('user_feedback', [Object.assign({
+const fbRows = await dbInsertReturning('user_feedback', Object.assign({
 station_id: stId, device_id: deviceId,
 feedback_type: 'available', fuel_type: it.f || '95',
 queue_size: null, comment_text: null
-}, onSite)]);
+}, onSite));
+if (fbRows && fbRows.length && ids[type]) ids[type].fbId = fbRows[0].id;
 } catch (e) {}
 mine.folk_yes = true;
 s.folk_yes = (s.folk_yes || 0) + 1;
 }
 // если dislike — сразу записываем как народную отметку unavailable (это усиливает порог)
 if (type === 'dislike') {
-    const onSite = await onSiteFields(it.st);
-    try {
-      await dbInsert('user_feedback', [Object.assign({
-        station_id: stId, device_id: deviceId,
-        feedback_type: 'unavailable', fuel_type: it.f || '95',
-        queue_size: null, comment_text: reason ? ('реакция: ' + reason) : null
-      }, onSite)]);
-    } catch (e) {}
-    mine.folk_no = true;
-    s.folk_no = (s.folk_no || 0) + 1;
-  }
-
-  // перерисовываем советник
-  renderAdvicePop();
-  track('advice_reaction', null, stId);
+const onSite = await onSiteFields(it.st);
+try {
+const fbRows = await dbInsertReturning('user_feedback', Object.assign({
+station_id: stId, device_id: deviceId,
+feedback_type: 'unavailable', fuel_type: it.f || '95',
+queue_size: null, comment_text: reason ? ('реакция: ' + reason) : null
+}, onSite));
+if (fbRows && fbRows.length && ids[type]) ids[type].fbId = fbRows[0].id;
+} catch (e) {}
+mine.folk_no = true;
+s.folk_no = (s.folk_no || 0) + 1;
+}
+// перерисовываем советник
+renderAdvicePop();
+track('advice_reaction', null, stId);
 }
 
 async function handleFolkVote(stationId, type) {
@@ -2102,7 +2181,7 @@ function driverVerdictHtml(stationId) {
   `;
 }
 function folkConsensus24(stationId, fuel) {
-  const since = Date.now() - 24 * 3600 * 1000;
+	const since = Date.now() - 2 * 60 * 60 * 1000;
   const yes = new Set(), no = new Set();
   for (const f of allFeedback) {
     if (f.station_id !== stationId || f.fuel_type !== fuel) continue;
@@ -4532,7 +4611,7 @@ function maybeFuelCandidates() {
     // Если водитель физически на месте уже подтвердил топливо, пропускаем
     if (sceneMark(c.stId, c.fuel)) continue;
     
-    const v = maybeFuelVotes(c.stId, c.fuel, since);
+    const v = maybeFuelVotes(c.stId, c.fuel, c.t);
     
     // НОВАЯ ЛОГИКА: Если консенсус 2/2 уже есть, показываем его ещё 2 часа, 
     // чтобы водитель увидел зачёркивание и результат, а потом скрываем.
@@ -4579,10 +4658,60 @@ function renderMaybeFuel() {
   wrap.innerHTML = '<div class="mf-head">' + icon('i-pump') + 'Возможно есть топливо здесь:<small>источник отметил за 24 ч</small></div>' +
     '<div class="mf-sub">Подтвердите или опровергните метку источника — голос уходит в ленту города и в цвет пина. Консенсус двух водителей закрывает голосование.</div>' + rows;
 }
+// === отмена случайного голоса на плашке «возможно есть топливо здесь» ===
+// повторный тап по своей кнопке удаляет мою отметку: rpc fb_undo
+// (SECURITY DEFINER), фолбэк — прямой DELETE. Офлайн-отметка (id local_*)
+// убирается с экрана и из локальной очереди без сервера.
+async function maybeUndoVote(stationId, fuel, yes, since) {
+let my = null;
+for (const f of allFeedback) {
+if (f.station_id !== stationId || f.fuel_type !== fuel || f.device_id !== deviceId) continue;
+if (f.feedback_type !== (yes ? 'available' : 'unavailable')) continue;
+const t = new Date(f.created_at).getTime();
+if (t < since) continue;
+if (!my || t > my.t) my = { id: f.id, t: t };
+}
+if (!my) return;
+if (String(my.id).indexOf('local_') === 0) {
+const idx = allFeedback.findIndex(f => f.id === my.id);
+if (idx >= 0) allFeedback.splice(idx, 1);
+try {
+const q = JSON.parse(localStorage.getItem('fbQueue') || '[]');
+const nq = q.filter(r => !(r.station_id === stationId && r.fuel_type === fuel && r.device_id === deviceId && r.feedback_type === (yes ? 'available' : 'unavailable')));
+localStorage.setItem('fbQueue', JSON.stringify(nq));
+} catch (e) {}
+renderMaybeFuel();
+return;
+}
+let ok = false;
+try {
+const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/fb_undo', {
+method: 'POST',
+headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+body: JSON.stringify({ p_device: deviceId, p_id: my.id })
+});
+ok = r.ok && (await r.json()) === true;
+} catch (e) {}
+if (!ok) { try { ok = await dbDelete('user_feedback', 'id=eq.' + my.id + '&device_id=eq.' + encodeURIComponent(deviceId)); } catch (e) { ok = false; } }
+if (!ok) { alert('Не удалось убрать голос: отметку уже видит город. Напишите нам — уберём вручную.'); return; }
+const idx = allFeedback.findIndex(f => f.id === my.id);
+if (idx >= 0) allFeedback.splice(idx, 1);
+renderMaybeFuel();
+setTimeout(() => { if (mapObj) renderMap(); renderNow(); }, 600);
+track('feedback_undo', null, stationId);
+}
 async function maybeVote(stationId, fuel, yes) {
-  const since = Date.now() - 24 * 3600 * 1000;
-  const v = maybeFuelVotes(stationId, fuel, since);
-  if (v.mine) return; // Один голос на водителя по паре за сутки
+	// Ищем время последнего fuel_restored для этой пары — голосование начинается с него
+	let since = Date.now() - 24 * 3600 * 1000;
+	for (const e of allWaveEvents) {
+		if (e.station_id !== stationId || e.fuel_type !== fuel || e.event_type !== 'fuel_restored') continue;
+		const t = new Date(e.detected_at).getTime();
+		if (t > since) since = t;
+	}
+	const v = maybeFuelVotes(stationId, fuel, since);
+// повторный тап по своему голосу — отмена (случайное нажатие)
+if (v.mine === (yes ? 'yes' : 'no')) { await maybeUndoVote(stationId, fuel, yes, since); return; }
+if (v.mine) return; // Один голос на водителя по паре за сутки
   if (yes ? v.yes >= 2 : v.no >= 2) return; // Голосование уже закрыто
   
   const st = allStations.find(s => s.id === stationId);
@@ -5393,7 +5522,7 @@ let folkMap = null, folkMapAt = 0, folkMapCount = -1;
 function getFolkMap() {
   const now = Date.now();
   if (folkMap && now - folkMapAt < 60000 && folkMapCount === allFeedback.length) return folkMap;
-  const since = now - 60 * 60 * 1000;
+  const since = now - 2 * 60 * 60 * 1000;
   const votes = {};
   for (const f of allFeedback) {
     if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
