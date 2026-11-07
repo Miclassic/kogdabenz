@@ -59,6 +59,7 @@ document.addEventListener('visibilitychange', () => {
 });
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let geoRequested = false; // флаг: запрос к GPS уже отправлен
+let geoFailed = false; // GPS не ответил за таймаут: не крутим спиннер вечно
 let allQueueEvents = [];
 let allScores = [], scoreMap = {};
 let allEvents7 = [];
@@ -1270,6 +1271,12 @@ function getLatestEventHtml(stId) {
 `<svg class="ic ic-s" style="color:${color}"><use href="#${last.icon}"/></svg> ` +
 `${escapeHtml(last.text)}<i class="adv-evt-t">${hm}</i></span>`;
 }
+// точка пришла (GPS или ручная) — обновляем открытое окно «куда ехать» живо:
+// расстояния вместо «определяю…» без закрытия и повторного открытия окна
+function renderAdviceIfOpen() {
+const ap = document.getElementById('advicePop');
+if (ap && ap.classList.contains('open')) renderAdvicePop();
+}
 function renderAdvicePop() {
 	const pop = document.getElementById('advicePop'); if (!pop) return false;
 	adviceList = buildAdviceList();
@@ -1300,8 +1307,10 @@ function renderAdvicePop() {
 return '<span class="adv-fc ' + cls + '"><b>' + fuelLabel(fl) + '</b><i>' + (v === true ? 'есть' : v === false ? 'нет' : 'нет данных') + '</i></span>';
 		}).join('');
 		const dist = it.km == null
-			? (geoRequested ? ' <span class="adv-meta warn" style="color:#397cff"><span class="ob-spin" style="width:12px;height:12px;border-width:2px;margin-right:6px;vertical-align:-2px"></span>определяю местоположение…</span>' : ' <span class="adv-meta warn">' + icon('i-pin','ic-s') + 'включи геолокацию</span>')
-			: ' <span class="adv-meta">' + icon('i-pin','ic-s') + (it.km < 1 ? Math.round(it.km*1000)+' м' : it.km.toFixed(1)+' км') + '</span>';
+? (geoFailed ? ' <span class="adv-meta warn">' + icon('i-pin','ic-s') + 'геолокация недоступна — расстояние скрыто</span>'
+: geoRequested ? ' <span class="adv-meta warn" style="color:#397cff"><span class="ob-spin" style="width:12px;height:12px;border-width:2px;margin-right:6px;vertical-align:-2px"></span>определяю местоположение…</span>'
+: ' <span class="adv-meta warn">' + icon('i-pin','ic-s') + 'включи геолокацию</span>')
+: ' <span class="adv-meta">' + icon('i-pin','ic-s') + (it.km < 1 ? Math.round(it.km*1000)+' м' : it.km.toFixed(1)+' км') + '</span>';
 		const q = adviceQueueText(st.id, o);
 		let win = '';
 		if (it.pred) { const g = getPrediction(it.pred); win = '<span class="adv-win">' + icon('i-clock', 'ic-s') + 'окно ' + (g.eta ? ('≈ ' + g.eta) : g.time) + '   ' + g.confidence + '%</span>'; }
@@ -1317,7 +1326,8 @@ return '<span class="adv-fc ' + cls + '"><b>' + fuelLabel(fl) + '</b><i>' + (v =
 		const reactionsHtml = renderAdviceReactions(it);
 		return '<div class="adv-card' + (i === 0 ? ' best' : '') + (it.ourChoice ? ' our' : '') + '">' + wm +
 '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + near + '</div>' +
-'<div class="adv-addr">' + badge + '<span class="adv-addr-t">' + escapeHtml(st.address || '') + '</span>' + dist + '</div>' +
+'<div class="adv-addr">' + badge + dist + '</div>' +
+'<div style="font-size:11px;color:#71809c;margin:3px 0 4px;line-height:1.35">' + escapeHtml(st.address || '') + '</div>' +
 '<div class="adv-fuelgrid">' + fuels + '</div>' +
 '<div class="adv-facts">' + price + lastEvt + win + '</div>' +
 			(reasons ? '<div class="adv-why">' + reasons + '</div>' : '') +
@@ -4973,21 +4983,25 @@ function jumpSuspect(lat, lon) {
   return Math.sqrt(dLat * dLat + dLon * dLon) > 5;
 }
 function acceptPendingFix() {
-  if (!pendingFix) return;
-  saveUserLocation(pendingFix.lat, pendingFix.lon);
-  showUserMarker(pendingFix.lat, pendingFix.lon);
-  detectUserCity();
-  renderStations(cityStationList());
-  pendingFix = null;
-  setGeoSuspect(false);
+if (!pendingFix) return;
+saveUserLocation(pendingFix.lat, pendingFix.lon);
+showUserMarker(pendingFix.lat, pendingFix.lon);
+detectUserCity();
+renderStations(cityStationList());
+pendingFix = null;
+setGeoSuspect(false);
+geoFailed = false;
+renderAdviceIfOpen();
 }
 function saveManualLoc(lat, lon) {
-  try { localStorage.setItem('kbManualLoc', JSON.stringify({ lat: lat, lon: lon, t: Date.now() })); } catch (e) {}
-  setGeoSuspect(false); // точку поставили/подтвердили вручную — подозрение GPS снято
-  saveUserLocation(lat, lon);
-  detectUserCity();
-  renderStations(cityStationList());
-  refreshLocChip();
+try { localStorage.setItem('kbManualLoc', JSON.stringify({ lat: lat, lon: lon, t: Date.now() })); } catch (e) {}
+setGeoSuspect(false); // точку поставили/подтвердили вручную — подозрение GPS снято
+saveUserLocation(lat, lon);
+detectUserCity();
+renderStations(cityStationList());
+geoFailed = false;
+renderAdviceIfOpen();
+refreshLocChip();
 }
 function setGeoSuspect(v) { geoSuspect = v; refreshLocChip(); }
 function dismissLocPlate() {
@@ -6407,18 +6421,20 @@ renderWhatsNewPanel();
   // автоопределение местоположения пользователя
   if (navigator.geolocation) {
     geoRequested = true; navigator.geolocation.getCurrentPosition(position => {
-      const lat = position.coords.latitude, lon = position.coords.longitude;
-      const suspect = geoLooksSuspect(position) || jumpSuspect(lat, lon);
-      setGeoSuspect(suspect);
-      if (manualLoc()) return; // точка поставлена вручную — GPS под глушилками её не затирает
-      if (suspect) { pendingFix = { lat: lat, lon: lon }; return; } // город и точку не переписываем до подтверждения
-      saveUserLocation(lat, lon);
-      showUserMarker(lat, lon);
-      detectUserCity();
-      // пере-считаем список и сводки с учётом города пользователя
-      renderStations(cityStationList());
-      loadPulse();
-    }, () => {}, { timeout: 5000, maximumAge: 300000 });
+const lat = position.coords.latitude, lon = position.coords.longitude;
+const suspect = geoLooksSuspect(position) || jumpSuspect(lat, lon);
+setGeoSuspect(suspect);
+if (manualLoc()) return; // точка поставлена вручную — GPS под глушилками её не затирает
+if (suspect) { pendingFix = { lat: lat, lon: lon }; return; } // город и точку не переписываем до подтверждения
+geoFailed = false;
+saveUserLocation(lat, lon);
+showUserMarker(lat, lon);
+detectUserCity();
+// пере-считаем список и сводки с учётом города пользователя
+renderStations(cityStationList());
+renderAdviceIfOpen(); // точка пришла — в открытом окне «определяю…» меняется на километры
+loadPulse();
+}, () => { geoFailed = true; renderAdviceIfOpen(); }, { timeout: 5000, maximumAge: 300000 });
   }
 }
 let startRunning = false;
