@@ -105,6 +105,13 @@ self.addEventListener('fetch', event => {
       })
     );
   }
+  // Проверка обновлений: запрос index.html с ?updatecheck= обходит кэш
+  // (идёт напрямую в сеть, в кэш не пишется), чтобы страница узнала о новой версии
+  else if (url.indexOf('index.html') >= 0 && url.indexOf('updatecheck=') >= 0) {
+    event.respondWith(
+      fetch(event.request).catch(() => new Response('', { status: 503 }))
+    );
+  }
   // Остальная статика: cache-first (мгновенное открытие, даже если сеть медленная)
   else {
     event.respondWith(

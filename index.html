@@ -11,6 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2465ee">
 <meta name="description" content="КогдаБенз — карта наличия топлива на АЗС юга России: где есть АИ-95, АИ-92 и дизель сейчас, когда вернётся пропавшее, очереди и цены. Данные каждые 10 минут.">
+<!-- KB_VERSION: v0.2-->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
@@ -1615,6 +1616,19 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 .boot-live-list { height:auto; max-height:none; overflow:visible; }
 .boot-loading-bar { position:sticky; bottom:26px; }
 .boot-line { margin-bottom:auto; position:sticky; bottom:10px; }
+/* окно обновления: карточка по центру экрана поверх всего */
+.update-back { position:fixed; inset:0; background:rgba(15,27,51,.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); opacity:0; pointer-events:none; transition:.3s ease; z-index:200; display:flex; align-items:center; justify-content:center; padding:16px; }
+.update-back.open { opacity:1; pointer-events:auto; }
+.update-pop { width:min(340px, 100%); background:#fff; border-radius:22px; padding:20px; box-shadow:0 24px 60px rgba(15,27,51,.35); text-align:center; transform:scale(.92); opacity:0; transition:.3s cubic-bezier(.2,.8,.2,1); }
+.update-back.open .update-pop { transform:scale(1); opacity:1; }
+.update-ico { width:56px; height:56px; border-radius:16px; margin:0 auto 12px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; display:grid; place-items:center; box-shadow:0 8px 22px rgba(36,101,238,.35); }
+.update-ico .ic { width:26px; height:26px; }
+.update-title { font-size:17px; font-weight:900; letter-spacing:-.4px; color:#14213d; margin-bottom:6px; }
+.update-sub { color:#5b6b86; font-size:12px; line-height:1.5; margin-bottom:16px; }
+.update-btn { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; padding:13px; border:0; border-radius:14px; background:linear-gradient(135deg,#4385ff,#2465ee); color:#fff; font-size:13px; font-weight:850; cursor:pointer; box-shadow:0 8px 18px rgba(57,124,255,.3); margin-bottom:8px; }
+.update-btn .ic { width:16px; height:16px; }
+.update-btn.ghost { background:#f2f4f9; color:#5b6b86; box-shadow:none; }
+.update-spin { display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation:obSpin .9s linear infinite; vertical-align:-2px; margin-right:6px; }
 </style>
 </head>
 <body>
@@ -1941,6 +1955,15 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
   <div class="shadow-card" id="shadowCard"></div>
   <div class="react-back" id="reactBack" onclick="closeReactPop()"></div>
 <div class="react-pop" id="reactPop"></div>
+<div class="update-back" id="updateBack">
+<div class="update-pop">
+<div class="update-ico"><svg class="ic"><use href="#i-spark"/></svg></div>
+<div class="update-title">Обнаружена новая версия</div>
+<div class="update-sub">Мы обновили сайт: свежие функции и исправления ждут тебя. Обновление займёт пару секунд.</div>
+<button class="update-btn" id="updateBtn" onclick="applyUpdate()"><svg class="ic"><use href="#i-check"/></svg>Обновить сейчас</button>
+<button class="update-btn ghost" onclick="closeUpdatePop()">Позже</button>
+</div>
+</div>
 </div>
 <script src="app.js" defer></script>
 <script>
@@ -1952,6 +1975,68 @@ if ('serviceWorker' in navigator) {
       .catch(err => console.log('[SW] Ошибка регистрации:', err));
   });
 }
+</script>
+<script>
+// === Автопроверка обновлений ===
+// Тихо спрашиваем у сервера свежий index.html в обход sw-кэша, сравниваем
+// версию (HTML-комментарий KB_VERSION). Если отличается — показываем карточку
+// «Обнаружена новая версия». По кнопке — сброс всех кэшей и перезагрузка.
+const KB_VERSION = 'v0.2'; // должно совпадать с комментарием в <head>
+
+function currentVersionFromHtml(html) {
+  const m = html.match(/<!--\s*KB_VERSION:\s*([A-Za-z0-9_.-]+)\s*-->/);
+  return m ? m[1] : null;
+}
+
+async function checkForUpdate() {
+  try {
+    // ?updatecheck= — обходит кэш sw.js, идёт напрямую в сеть
+    const r = await fetch('./index.html?updatecheck=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const html = await r.text();
+    const remote = currentVersionFromHtml(html);
+    if (!remote || remote === KB_VERSION) return;
+    // версии отличаются — показываем карточку
+    showUpdatePop();
+  } catch (e) {
+    // нет сети — молча пропускаем, ничего не показываем
+    console.log('[update] check failed:', e.message);
+  }
+}
+
+function showUpdatePop() {
+  const back = document.getElementById('updateBack');
+  if (back) back.classList.add('open');
+}
+
+function closeUpdatePop() {
+  const back = document.getElementById('updateBack');
+  if (back) back.classList.remove('open');
+}
+
+async function applyUpdate() {
+  const btn = document.getElementById('updateBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="update-spin"></span>Обновляю...';
+  }
+  // сбрасываем ВСЕ кэши service worker
+  try {
+    if (window.caches) {
+      const keys = await caches.keys();
+      for (const k of keys) await caches.delete(k);
+    }
+  } catch (e) {}
+  // ждём немного и перезагружаем страницу (force reload)
+  setTimeout(() => {
+    window.location.reload(true);
+  }, 400);
+}
+
+// Запускаем проверку через 3 секунды после загрузки, чтобы не тормозить вход
+window.addEventListener('load', () => {
+  setTimeout(checkForUpdate, 3000);
+});
 </script>
 </body>
 </html>
