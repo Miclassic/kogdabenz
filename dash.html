@@ -6,251 +6,246 @@
 <title>КогдаБенз · Аналитика</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  
+
   :root {
-    --primary: #2465ee;
-    --primary-light: #397cff;
-    --success: #19b77a;
-    --warning: #f5a05a;
-    --danger: #ef5350;
+    --bg: #f2f3f5;
+    --card: #ffffff;
+    --border: #e6e8ec;
+    --divider: #f0f1f3;
+    --text: #14213d;
+    --text2: #6b7280;
+    --text3: #9aa0a6;
+    --blue: #2465ee;
+    --blue2: #397cff;
+    --green: #19b77a;
+    --orange: #f5a05a;
+    --red: #ef5350;
     --purple: #7c6dff;
-    --text-primary: #14213d;
-    --text-secondary: #71809c;
-    --text-tertiary: #93a1b8;
-    --bg-primary: #f7f9fc;
-    --bg-card: #ffffff;
-    --border: #e6ebf4;
-    --shadow-sm: 0 1px 3px rgba(20,33,61,.06);
-    --shadow: 0 2px 8px rgba(20,33,61,.08);
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 6px 20px rgba(16,24,40,.04);
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    line-height: 1.4;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
 
-  .container { max-width: 1360px; margin: 0 auto; padding: 20px; }
+  .container { max-width: 1240px; margin: 0 auto; padding: 16px 14px 48px; }
 
+  /* === ШАПКА === */
   .header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--border);
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 14px 18px; margin-bottom: 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
   }
-  .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-  .header .subtitle { color: var(--text-secondary); font-size: 12px; margin-top: 3px; font-weight: 600; }
+  .header h1 { font-size: 19px; font-weight: 800; letter-spacing: -.4px; display: flex; align-items: center; gap: 10px; }
+  .header .logo {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--blue), var(--blue2)); color: #fff;
+    display: grid; place-items: center; font-size: 16px; box-shadow: 0 4px 10px rgba(36,101,238,.28);
+  }
+  .header .subtitle { color: var(--text2); font-size: 12px; margin-top: 2px; font-weight: 600; }
   .header-badge {
     display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px;
-    background: linear-gradient(135deg, #e5f8ef, #dff5e9); border: 1px solid #bfe8d4;
-    border-radius: 18px; font-size: 11px; font-weight: 700; color: #12855c;
+    background: #e8f7ef; border: 1px solid #bfe8d4; border-radius: 99px;
+    font-size: 11px; font-weight: 700; color: #12855c; white-space: nowrap;
   }
-  .header-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 2s ease-in-out infinite; }
-  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.2); } }
-  .report-btn { border:0; border-radius:10px; padding:8px 12px; background:linear-gradient(135deg,#2465ee,#397cff); color:#fff; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(36,101,238,.3); }
-  .report-btn:active { transform:scale(.97); }
+  .header-badge::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .5; transform: scale(1.2); } }
+  .report-btn {
+    border: 0; border-radius: 10px; padding: 9px 14px;
+    background: var(--blue); color: #fff; font-size: 12px; font-weight: 700;
+    cursor: pointer; transition: background .15s;
+  }
+  .report-btn:hover { background: #1a56d6; }
+  .report-btn:active { transform: scale(.98); }
 
-  /* ПЛАШКА ВЕРДИКТА */
+  /* === ВЕРДИКТ === */
   .verdict-panel {
-    background: linear-gradient(135deg, #ffffff 0%, #f4f8ff 100%);
-    border: 1px solid #dce4f0; border-radius: 20px; padding: 24px;
-    margin-bottom: 20px; box-shadow: 0 8px 24px rgba(20, 33, 61, 0.08);
-    display: grid; grid-template-columns: 140px 1fr; gap: 24px; align-items: center;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; margin-bottom: 14px; box-shadow: var(--shadow);
+    display: grid; grid-template-columns: 150px 1fr; gap: 24px; align-items: center;
     position: relative; overflow: hidden;
   }
-  .verdict-panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--primary); }
-  .verdict-panel.good::before { background: var(--success); }
-  .verdict-panel.warn::before { background: var(--warning); }
-  .verdict-panel.bad::before { background: var(--danger); }
+  .verdict-panel::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--blue); }
+  .verdict-panel.good::before { background: var(--green); }
+  .verdict-panel.warn::before { background: var(--orange); }
+  .verdict-panel.bad::before { background: var(--red); }
   .score-box { text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .score-ring {
-    width: 100px; height: 100px; border-radius: 50%;
-    background: conic-gradient(var(--primary) var(--score-deg, 70%), #e2e8f0 0);
+    width: 104px; height: 104px; border-radius: 50%;
+    background: conic-gradient(var(--blue) var(--score-deg, 70%), #eceef1 0);
     display: grid; place-items: center; position: relative;
-    box-shadow: inset 0 2px 8px rgba(0,0,0,0.1);
   }
-  .score-ring::before { content: ''; position: absolute; inset: 8px; background: #fff; border-radius: 50%; }
-  .score-val { position: relative; z-index: 1; font-size: 28px; font-weight: 900; line-height: 1; }
-  .score-val small { font-size: 12px; color: var(--text-secondary); }
-  .score-label { margin-top: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); }
-  .verdict-content h3 { font-size: 18px; font-weight: 900; margin-bottom: 12px; letter-spacing: -0.3px; }
-  .verdict-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .v-list-col ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .v-list-col li { font-size: 12px; font-weight: 600; line-height: 1.4; display: flex; align-items: flex-start; gap: 6px; }
+  .score-ring::before { content: ''; position: absolute; inset: 9px; background: #fff; border-radius: 50%; }
+  .score-val { position: relative; z-index: 1; font-size: 28px; font-weight: 800; line-height: 1; letter-spacing: -.5px; }
+  .score-val small { font-size: 12px; color: var(--text2); font-weight: 700; }
+  .score-label { margin-top: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--text2); }
+  .verdict-content h3 { font-size: 17px; font-weight: 800; margin-bottom: 12px; letter-spacing: -.3px; }
+  .verdict-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .v-list-col ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .v-list-col li { font-size: 12px; font-weight: 600; line-height: 1.45; display: flex; align-items: flex-start; gap: 7px; color: var(--text); }
   .v-list-col li::before { content: '•'; font-size: 16px; line-height: 1; }
-  .v-good li::before { color: var(--success); }
-  .v-bad li::before { color: var(--danger); }
-  .v-list-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px; color: var(--text-tertiary); }
+  .v-good li::before { color: var(--green); }
+  .v-bad li::before { color: var(--red); }
+  .v-list-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; color: var(--text3); }
 
-  /* === СЕКЦИЯ СОВЕТНИКА === */
-  .advisor-hero {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;
-  }
+  /* === ГЕРОЙ СОВЕТНИКА === */
+  .advisor-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
   .utility-card {
-    background: linear-gradient(135deg, #2465ee 0%, #7c6dff 100%);
-    border-radius: 22px; padding: 28px; color: #fff; position: relative;
-    overflow: hidden; box-shadow: 0 12px 36px rgba(36, 101, 238, 0.25);
+    background: linear-gradient(135deg, var(--blue) 0%, var(--blue2) 100%);
+    border-radius: var(--radius); padding: 24px; color: #fff; position: relative;
+    overflow: hidden; box-shadow: 0 10px 28px rgba(36,101,238,.28);
   }
   .utility-card::before {
-    content: ''; position: absolute; right: -40px; top: -40px; width: 200px; height: 200px;
-    border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.15), transparent 70%);
+    content: ''; position: absolute; right: -50px; top: -50px; width: 220px; height: 220px;
+    border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.16), transparent 70%);
     pointer-events: none;
   }
-  .utility-head { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 800; letter-spacing: 0.3px; opacity: 0.9; text-transform: uppercase; }
-  .utility-head .badge {
-    padding: 3px 9px; background: rgba(255,255,255,.2); border-radius: 99px;
-    font-size: 9px; font-weight: 800; letter-spacing: 0.4px;
-  }
-  .utility-ring-wrap {
-    display: flex; align-items: center; gap: 24px; margin: 22px 0 18px;
-  }
-  .utility-ring {
-    width: 140px; height: 140px; position: relative; flex-shrink: 0;
-  }
+  .utility-head { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; letter-spacing: .4px; opacity: .92; text-transform: uppercase; }
+  .utility-head .badge { padding: 3px 9px; background: rgba(255,255,255,.2); border-radius: 99px; font-size: 9px; font-weight: 800; letter-spacing: .4px; }
+  .utility-ring-wrap { display: flex; align-items: center; gap: 22px; margin: 20px 0 16px; }
+  .utility-ring { width: 132px; height: 132px; position: relative; flex-shrink: 0; }
   .utility-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-  .utility-ring .track { fill: none; stroke: rgba(255,255,255,.2); stroke-width: 12; }
-  .utility-ring .fill { fill: none; stroke: #fff; stroke-width: 12; stroke-linecap: round;
-    stroke-dasharray: 377; stroke-dashoffset: 377; transition: stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1); }
-  .utility-score {
-    position: absolute; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-  }
-  .utility-score b { font-size: 44px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; }
-  .utility-score small { font-size: 11px; font-weight: 700; opacity: 0.8; margin-top: 4px; letter-spacing: 0.3px; }
-  .utility-word {
-    font-size: 18px; font-weight: 900; letter-spacing: -0.3px; line-height: 1.2;
-  }
-  .utility-desc {
-    font-size: 12px; font-weight: 600; opacity: 0.85; margin-top: 6px; line-height: 1.4;
-  }
-  .utility-breakdown {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px;
-    padding-top: 16px; border-top: 1px solid rgba(255,255,255,.18);
-  }
+  .utility-ring .track { fill: none; stroke: rgba(255,255,255,.22); stroke-width: 11; }
+  .utility-ring .fill { fill: none; stroke: #fff; stroke-width: 11; stroke-linecap: round; stroke-dasharray: 377; stroke-dashoffset: 377; transition: stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1); }
+  .utility-score { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .utility-score b { font-size: 40px; font-weight: 800; letter-spacing: -1.5px; line-height: 1; }
+  .utility-score small { font-size: 11px; font-weight: 700; opacity: .8; margin-top: 4px; letter-spacing: .3px; }
+  .utility-word { font-size: 18px; font-weight: 800; letter-spacing: -.3px; line-height: 1.2; }
+  .utility-desc { font-size: 12px; font-weight: 600; opacity: .88; margin-top: 6px; line-height: 1.45; }
+  .utility-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.2); }
   .ub-item { display: flex; flex-direction: column; gap: 4px; }
-  .ub-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.7; }
-  .ub-bar { height: 4px; background: rgba(255,255,255,.2); border-radius: 99px; overflow: hidden; }
+  .ub-bar { height: 4px; background: rgba(255,255,255,.22); border-radius: 99px; overflow: hidden; }
   .ub-bar span { display: block; height: 100%; background: #fff; border-radius: 99px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
   .ub-val { font-size: 11px; font-weight: 800; display: flex; justify-content: space-between; }
-  .ub-val small { opacity: 0.6; font-weight: 700; }
+  .ub-val small { opacity: .65; font-weight: 700; }
 
-  .advisor-funnel {
-    background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px;
-    padding: 24px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column;
-  }
-  .advisor-funnel h4 { font-size: 14px; font-weight: 800; margin-bottom: 16px; letter-spacing: -0.2px; }
-  .funnel-steps { display: flex; flex-direction: column; gap: 10px; flex: 1; }
-  .f-step { display: grid; grid-template-columns: 32px 1fr auto; gap: 12px; align-items: center; }
+  .advisor-funnel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .advisor-funnel h4 { font-size: 14px; font-weight: 800; margin-bottom: 14px; letter-spacing: -.2px; }
+  .funnel-steps { display: flex; flex-direction: column; gap: 11px; flex: 1; }
+  .f-step { display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: center; }
   .f-step-num {
-    width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
-    background: linear-gradient(135deg, #e7f0ff, #eff5ff); color: var(--primary);
-    font-size: 13px; font-weight: 900;
+    width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+    background: #eef3fe; color: var(--blue); font-size: 13px; font-weight: 800;
   }
-  .f-step-main { min-width: 0; }
   .f-step-name { font-size: 12px; font-weight: 700; }
-  .f-step-bar { height: 6px; background: #f2f4f9; border-radius: 99px; overflow: hidden; margin-top: 4px; }
-  .f-step-bar span { display: block; height: 100%; background: linear-gradient(90deg, #2465ee, #7c6dff); border-radius: 99px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
+  .f-step-bar { height: 6px; background: var(--divider); border-radius: 99px; overflow: hidden; margin-top: 4px; }
+  .f-step-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--blue), var(--purple)); border-radius: 99px; transition: width .8s cubic-bezier(.2,.8,.2,1); }
   .f-step-val { text-align: right; flex-shrink: 0; }
-  .f-step-val b { display: block; font-size: 16px; font-weight: 900; letter-spacing: -0.3px; }
-  .f-step-val small { font-size: 10px; font-weight: 700; color: var(--text-tertiary); }
+  .f-step-val b { display: block; font-size: 15px; font-weight: 800; letter-spacing: -.3px; }
+  .f-step-val small { font-size: 10px; font-weight: 700; color: var(--text3); }
 
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
-  .kpi-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow-sm); transition: all 0.2s; position: relative; overflow: hidden; }
-  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--primary), var(--primary-light)); opacity: 0.6; }
-  .kpi-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-  .kpi-label { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
-  .kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -0.8px; line-height: 1; margin-bottom: 4px; }
-  .kpi-change { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; }
-  .kpi-change.positive { background: #e5f8ef; color: #12855c; }
+  /* === KPI === */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .kpi-label { font-size: 11px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+  .kpi-value { font-size: 28px; font-weight: 800; letter-spacing: -.8px; line-height: 1; margin-bottom: 5px; }
+  .kpi-change { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 7px; }
+  .kpi-change.positive { background: #e8f7ef; color: #12855c; }
   .kpi-change.negative { background: #fdecec; color: #c2403f; }
-  .kpi-change.neutral { background: #f2f4f9; color: var(--text-secondary); }
-  .kpi-subtitle { font-size: 10px; color: var(--text-tertiary); margin-top: 5px; font-weight: 600; }
+  .kpi-change.neutral { background: var(--divider); color: var(--text2); }
+  .kpi-subtitle { font-size: 10px; color: var(--text3); margin-top: 5px; font-weight: 600; }
 
-  .section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow-sm); }
-  .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .section-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 7px; }
-  .section-icon { font-size: 17px; }
+  /* === СЕКЦИИ === */
+  .section { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .section-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .section-title { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 9px; letter-spacing: -.2px; }
+  .section-icon {
+    width: 28px; height: 28px; border-radius: 8px; background: #eef3fe;
+    display: grid; place-items: center; font-size: 14px; flex-shrink: 0;
+  }
 
+  /* === БАРЫ === */
   .bar-chart { display: flex; flex-direction: column; gap: 8px; }
-  .bar-item { display: grid; grid-template-columns: 180px 1fr 70px; gap: 10px; align-items: center; padding: 6px 0; }
-  .bar-label { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bar-track { height: 26px; background: #f7f9fc; border-radius: 7px; overflow: hidden; position: relative; }
-  .bar-fill { height: 100%; border-radius: 7px; transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-  .bar-fill.primary { background: linear-gradient(90deg, #2465ee, #397cff); }
-  .bar-fill.success { background: linear-gradient(90deg, #19b77a, #2fd39a); }
-  .bar-fill.warning { background: linear-gradient(90deg, #f5a05a, #ffb46a); }
-  .bar-fill.danger { background: linear-gradient(90deg, #ef5350, #ff8a80); }
-  .bar-fill.purple { background: linear-gradient(90deg, #7c6dff, #a597ff); }
+  .bar-item { display: grid; grid-template-columns: 170px 1fr 64px; gap: 10px; align-items: center; padding: 4px 0; }
+  .bar-label { font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .bar-track { height: 24px; background: var(--divider); border-radius: 8px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 8px; transition: width .5s cubic-bezier(.4,0,.2,1); }
+  .bar-fill.primary { background: linear-gradient(90deg, var(--blue), var(--blue2)); }
+  .bar-fill.success { background: linear-gradient(90deg, var(--green), #2fd39a); }
+  .bar-fill.warning { background: linear-gradient(90deg, var(--orange), #ffb46a); }
+  .bar-fill.danger { background: linear-gradient(90deg, var(--red), #ff8a80); }
+  .bar-fill.purple { background: linear-gradient(90deg, var(--purple), #a597ff); }
   .bar-value { font-size: 12px; font-weight: 800; text-align: right; }
 
+  /* === ТАБЛИЦЫ === */
   .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .data-table th { text-align: left; padding: 10px 8px; font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 2px solid var(--border); }
-  .data-table td { padding: 9px 8px; border-bottom: 1px solid var(--border); }
+  .data-table th { text-align: left; padding: 10px 8px; font-size: 10px; font-weight: 800; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 10px 8px; border-bottom: 1px solid var(--divider); font-weight: 600; }
   .data-table tr:last-child td { border-bottom: none; }
-  .data-table tr:hover { background: #f8fafc; }
+  .data-table tr:hover { background: #f8f9fb; }
 
-  .note { margin-top: 12px; padding: 10px 12px; background: #f7f9fc; border-left: 3px solid var(--primary); border-radius: 7px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; font-weight: 600; }
+  .note { margin-top: 12px; padding: 10px 12px; background: #f7f8fa; border-left: 3px solid var(--blue); border-radius: 8px; font-size: 11px; color: var(--text2); line-height: 1.5; font-weight: 600; }
 
-  .tf-tabs { display: flex; gap: 3px; background: #f2f4f9; border-radius: 9px; padding: 3px; }
-  .tf-tab { border: 0; background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: all 0.2s; }
-  .tf-tab.active { background: #fff; color: var(--text-primary); box-shadow: 0 2px 6px rgba(20,33,61,.1); }
-  .tf-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 3px 0 8px; }
-  .tf-num { font-size: 26px; font-weight: 800; letter-spacing: -0.8px; }
-  .tf-num small { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-left: 6px; letter-spacing: 0; }
-  .tf-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
-  .tf-badge.up { background: #e5f8ef; color: #12855c; }
+  /* === ГРАФИК ТРАФИКА === */
+  .tf-tabs { display: flex; gap: 2px; background: #eceef1; border-radius: 10px; padding: 3px; }
+  .tf-tab { border: 0; background: transparent; color: var(--text2); font-size: 11px; font-weight: 700; padding: 6px 13px; border-radius: 8px; cursor: pointer; transition: all .15s; }
+  .tf-tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+  .tf-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
+  .tf-num { font-size: 26px; font-weight: 800; letter-spacing: -.8px; }
+  .tf-num small { font-size: 11px; font-weight: 600; color: var(--text2); margin-left: 6px; letter-spacing: 0; }
+  .tf-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 7px; }
+  .tf-badge.up { background: #e8f7ef; color: #12855c; }
   .tf-badge.down { background: #fdecec; color: #c2403f; }
-  .tf-badge.neutral { background: #f2f4f9; color: var(--text-secondary); }
+  .tf-badge.neutral { background: var(--divider); color: var(--text2); }
   .chart-wrap { position: relative; }
   .tf-svg { display: block; width: 100%; }
 
-  .error { padding: 20px; background: #fdecec; border: 1px solid #f3b7b3; border-radius: 12px; color: #c2403f; font-weight: 700; text-align: center; font-size: 13px; }
-  .loading { display: flex; align-items: center; justify-content: center; padding: 50px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
-  .spinner { width: 36px; height: 36px; border: 3px solid #e2e8f0; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.9s linear infinite; margin-right: 11px; }
+  .error { padding: 18px; background: #fdecec; border: 1px solid #f3b7b3; border-radius: 12px; color: #c2403f; font-weight: 700; text-align: center; font-size: 13px; }
+  .loading { display: flex; align-items: center; justify-content: center; padding: 50px; color: var(--text2); font-size: 12px; font-weight: 600; }
+  .spinner { width: 32px; height: 32px; border: 3px solid #e6e8ec; border-top-color: var(--blue); border-radius: 50%; animation: spin .9s linear infinite; margin-right: 11px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .heatmap-wrap { overflow-x: auto; padding-bottom: 10px; }
+  /* === ТЕПЛОКАРТА === */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 8px; }
   .heatmap { border-collapse: collapse; font-size: 10px; }
   .heatmap th, .heatmap td { padding: 2px; text-align: center; }
-  .heatmap .hour-label { font-weight: 600; color: var(--text-secondary); width: 30px; }
-  .heatmap .day-label { font-weight: 600; color: var(--text-secondary); text-align: left; padding-right: 8px; }
-  .heat-cell { width: 24px; height: 20px; border-radius: 3px; display: inline-block; transition: opacity 0.2s; }
-  .heat-cell:hover { opacity: 0.7; outline: 1px solid #000; }
+  .heatmap .hour-label { font-weight: 600; color: var(--text3); width: 30px; }
+  .heatmap .day-label { font-weight: 600; color: var(--text2); text-align: left; padding-right: 8px; }
+  .heat-cell { width: 24px; height: 20px; border-radius: 4px; display: inline-block; transition: opacity .2s; }
+  .heat-cell:hover { opacity: .7; outline: 1px solid #000; }
 
-  .reason-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px; background: #f7f9fc; border: 1px solid var(--border); font-size: 11px; font-weight: 700; margin: 3px 4px 3px 0; }
-  .reason-pill .cnt { font-weight: 900; color: var(--primary); }
-
+  /* === РЕАКЦИИ / ИСХОДЫ === */
+  .reason-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 99px; background: #f7f8fa; border: 1px solid var(--border); font-size: 11px; font-weight: 700; margin: 3px 4px 3px 0; }
+  .reason-pill .cnt { font-weight: 800; color: var(--blue); }
   .emoji-bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .emoji-bar { padding: 14px; border-radius: 14px; background: #f7f9fc; border: 1px solid var(--border); text-align: center; transition: transform 0.2s; }
-  .emoji-bar:hover { transform: translateY(-2px); }
-  .emoji-bar.like { background: linear-gradient(135deg, #e5f8ef, #f4fbf7); border-color: #bfe8d4; }
-  .emoji-bar.dislike { background: linear-gradient(135deg, #fdecec, #fef1f1); border-color: #f3b7b3; }
-  .emoji-bar.doubt { background: linear-gradient(135deg, #fff6ea, #fef8f0); border-color: #f2c9a4; }
-  .emoji-big { font-size: 32px; line-height: 1; margin-bottom: 6px; }
-  .emoji-cnt { font-size: 22px; font-weight: 900; letter-spacing: -0.5px; }
-  .emoji-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-secondary); margin-top: 4px; }
-  .emoji-pct { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-top: 2px; }
-
+  .emoji-bar { padding: 16px 14px; border-radius: 14px; background: #f7f8fa; border: 1px solid var(--border); text-align: center; }
+  .emoji-bar.like { background: #eefaf4; border-color: #bfe8d4; }
+  .emoji-bar.dislike { background: #fef4f4; border-color: #f3b7b3; }
+  .emoji-bar.doubt { background: #fdf8f1; border-color: #f2c9a4; }
+  .emoji-big { font-size: 30px; line-height: 1; margin-bottom: 6px; }
+  .emoji-cnt { font-size: 22px; font-weight: 800; letter-spacing: -.5px; }
+  .emoji-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--text2); margin-top: 4px; }
+  .emoji-pct { font-size: 11px; font-weight: 700; color: var(--text2); margin-top: 2px; }
   .outcomes-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-  .outcome-card { padding: 14px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
-  .outcome-card.fuel { background: #e5f8ef; border-color: #bfe8d4; }
-  .outcome-card.miss { background: #fff2e8; border-color: #f5d3b8; }
-  .outcome-card.notwent { background: #f7f9fc; }
-  .outcome-card.noadv { background: #fdecec; border-color: #f3b7b3; }
+  .outcome-card { padding: 14px; border-radius: 14px; text-align: center; border: 1px solid var(--border); }
+  .outcome-card.fuel { background: #eefaf4; border-color: #bfe8d4; }
+  .outcome-card.miss { background: #fdf8f1; border-color: #f2c9a4; }
+  .outcome-card.notwent { background: #f7f8fa; }
+  .outcome-card.noadv { background: #fef4f4; border-color: #f3b7b3; }
   .outcome-icon { font-size: 26px; margin-bottom: 4px; }
-  .outcome-cnt { font-size: 20px; font-weight: 900; letter-spacing: -0.3px; }
-  .outcome-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .outcome-cnt { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
+  .outcome-label { font-size: 10px; font-weight: 700; color: var(--text2); margin-top: 2px; text-transform: uppercase; letter-spacing: .3px; }
   .outcome-pct { font-size: 11px; font-weight: 800; margin-top: 3px; }
 
   @media (max-width: 768px) {
-    .verdict-panel { grid-template-columns: 1fr; gap: 16px; text-align: center; }
+    .container { padding: 10px 10px 36px; }
+    .header { padding: 12px 14px; }
+    .header h1 { font-size: 17px; }
+    .verdict-panel { grid-template-columns: 1fr; gap: 16px; text-align: center; padding: 18px; }
     .verdict-lists { grid-template-columns: 1fr; text-align: left; }
     .score-box { flex-direction: row; gap: 16px; justify-content: center; }
     .score-label { margin-top: 0; }
-    .container { padding: 14px; }
-    .header h1 { font-size: 19px; }
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .bar-item { grid-template-columns: 140px 1fr 60px; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .kpi-value { font-size: 24px; }
+    .bar-item { grid-template-columns: 120px 1fr 52px; }
     .bar-label { font-size: 11px; }
     .section { padding: 14px; }
     .advisor-hero { grid-template-columns: 1fr; }
@@ -263,12 +258,12 @@
 <div class="container">
   <div class="header">
     <div>
-      <h1>⛽ КогдаБенз · Аналитика</h1>
+      <h1><span class="logo">⛽</span>КогдаБенз · Аналитика</h1>
       <div class="subtitle">Анонимная статистика использования сайта</div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <button class="report-btn" onclick="downloadReport()">⬇ Скачать отчёт</button>
-      <div class="header-badge">Обновлено только что</div>
+      <div class="header-badge" id="updBadge">Обновлено только что</div>
     </div>
   </div>
 
@@ -344,10 +339,16 @@ const EVENT_RU = {
 const CITY_RU = {
   novorossiysk: 'Новороссийск', gelendzhik: 'Геленджик', anapa: 'Анапа',
   krymsk: 'Крымск', krasnodar: 'Краснодар', sochi: 'Сочи',
-  tuapse: 'Туапсе', armavir: 'Армавир', maykop: 'Майкоп'
+  tuapse: 'Туапсе', armavir: 'Армавир', maykop: 'Майкоп',
+  rostov: 'Ростов-на-Дону', taganrog: 'Таганрог', stavropol: 'Ставрополь',
+  volgograd: 'Волгоград', moscow: 'Москва', spb: 'Санкт-Петербург'
 };
 
-function cityRu(c) { return CITY_RU[c] || (c === 'unknown' ? 'Не определён' : c); }
+function cityRu(c) {
+  if (CITY_RU[c]) return CITY_RU[c];
+  if (c === 'unknown' || !c) return 'Не определён';
+  return c.charAt(0).toUpperCase() + c.slice(1);
+}
 
 function sourceRu(s) {
   if (!s) return 'Неизвестно';
@@ -409,20 +410,40 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   const app = document.getElementById('app');
   let html = '';
 
+  // честное время обновления вместо вечного «только что»
+  const ub = document.getElementById('updBadge');
+  if (ub) {
+    const t = new Date(Date.now() + 3 * 3600 * 1000);
+    ub.textContent = 'Обновлено в ' + String(t.getUTCHours()).padStart(2, '0') + ':' + String(t.getUTCMinutes()).padStart(2, '0') + ' МСК';
+  }
+
   html += '<div id="verdict-container"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>';
 
-  // === ГЕРОЙ-СЕКЦИЯ СОВЕТНИКА ===
   html += renderAdvisorDetailed();
 
   // KPI
   const ret = stats.retention || {};
-  const dauChange = stats.dau_yesterday > 0 ? ((stats.dau_today - stats.dau_yesterday) / stats.dau_yesterday * 100).toFixed(1) : 0;
-  const dauChangeClass = dauChange > 0 ? 'positive' : dauChange < 0 ? 'negative' : 'neutral';
-  const dauChangeIcon = dauChange > 0 ? '↑' : dauChange < 0 ? '↓' : '→';
+  // карточка «сегодня»: ночью не пугаем процентом к полным суткам,
+  // днём показываем темп, после 20:00 — честное сравнение полных суток
+  const nowMSK = new Date(Date.now() + 3 * 3600 * 1000);
+  const hoursElapsed = Math.max(1, nowMSK.getUTCHours() + nowMSK.getUTCMinutes() / 60);
+  const dayAlmostDone = nowMSK.getUTCHours() >= 20;
+  let dauBadge;
+  if (stats.dau_yesterday <= 0) {
+    dauBadge = '<div class="kpi-change neutral">нет данных за вчера</div>';
+  } else if (hoursElapsed < 6) {
+    dauBadge = '<div class="kpi-change neutral">данные набираются с полуночи</div>';
+  } else if (dayAlmostDone) {
+    const d = (stats.dau_today - stats.dau_yesterday) / stats.dau_yesterday * 100;
+    dauBadge = '<div class="kpi-change ' + (d > 0 ? 'positive' : d < 0 ? 'negative' : 'neutral') + '">' + (d > 0 ? '↑' : d < 0 ? '↓' : '→') + ' ' + Math.abs(d).toFixed(1) + '% vs вчера</div>';
+  } else {
+    const pace = (stats.dau_today / hoursElapsed) / (stats.dau_yesterday / 24) * 100 - 100;
+    dauBadge = '<div class="kpi-change ' + (pace > 0 ? 'positive' : pace < 0 ? 'negative' : 'neutral') + '">' + (pace > 0 ? '↑' : pace < 0 ? '↓' : '→') + ' ' + Math.abs(pace).toFixed(0) + '% темп к вчера</div>';
+  }
 
   html += '<div class="kpi-grid">';
   html += `<div class="kpi-card"><div class="kpi-label">Пользователи за 30 дней</div><div class="kpi-value">${formatNumber(num(stats.mau_30d))}</div><div class="kpi-subtitle">Уникальных ID</div></div>`;
-  html += `<div class="kpi-card"><div class="kpi-label">Пользователей сегодня</div><div class="kpi-value">${num(stats.dau_today)}</div><div class="kpi-change ${dauChangeClass}">${dauChangeIcon} ${Math.abs(dauChange)}% vs вчера</div><div class="kpi-subtitle">Вчера: ${num(stats.dau_yesterday)}</div></div>`;
+  html += `<div class="kpi-card"><div class="kpi-label">Пользователей сегодня</div><div class="kpi-value">${num(stats.dau_today)}</div>${dauBadge}<div class="kpi-subtitle">С полуночи · вчера целиком: ${num(stats.dau_yesterday)}</div></div>`;
   html += `<div class="kpi-card"><div class="kpi-label">Новые (за 7 дней)</div><div class="kpi-value">${formatNumber(num(ret.new_7d))}</div><div class="kpi-subtitle">Вернувшихся: ${formatNumber(num(ret.returning_7d))}</div></div>`;
   html += `<div class="kpi-card"><div class="kpi-label">Всего визитов</div><div class="kpi-value">${formatNumber(num(stats.total_sessions))}</div><div class="kpi-subtitle">Действий: ${formatNumber(num(stats.total_hits))}</div></div>`;
   html += '</div>';
@@ -431,9 +452,9 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   html += '<div class="section">' +
     '<div class="section-header"><div class="section-title"><span class="section-icon">📈</span>Пользователи по периодам</div>' +
     '<div class="tf-tabs">' +
-    '<button class="tf-tab active" data-range="24h" onclick="loadTraffic(\'24h\')">24h</button>' +
-    '<button class="tf-tab" data-range="7d" onclick="loadTraffic(\'7d\')">1W</button>' +
-    '<button class="tf-tab" data-range="30d" onclick="loadTraffic(\'30d\')">1M</button>' +
+    '<button class="tf-tab active" data-range="24h" onclick="loadTraffic(\'24h\')">24ч</button>' +
+    '<button class="tf-tab" data-range="7d" onclick="loadTraffic(\'7d\')">1Н</button>' +
+    '<button class="tf-tab" data-range="30d" onclick="loadTraffic(\'30d\')">1М</button>' +
     '</div></div>' +
     '<div class="tf-head" id="trafficHead"></div>' +
     '<div class="chart-wrap" id="trafficChart"><div class="loading" style="padding:30px"><div class="spinner"></div></div></div>' +
@@ -490,7 +511,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   // Опросы
   if (poll && !poll.error && poll.total_answers > 0) {
     html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">💬</span>Опросы водителей</div></div>';
-    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px;">
+    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px;">
       <div class="kpi-card"><div class="kpi-label">Всего ответов</div><div class="kpi-value">${formatNumber(poll.total_answers)}</div></div>
       <div class="kpi-card"><div class="kpi-label">Уникальных респондентов</div><div class="kpi-value">${formatNumber(poll.unique_respondents)}</div></div>
       ${poll.avg_stars !== null ? `<div class="kpi-card"><div class="kpi-label">Средняя оценка</div><div class="kpi-value">${poll.avg_stars.toFixed(1)} ★</div></div>` : ''}
@@ -498,11 +519,11 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
 
     if (poll.answers_by_question) {
       poll.answers_by_question.forEach(q => {
-        if (q.question_key === 'advice_outcome') return; // уже в секции советника
+        if (q.question_key === 'advice_outcome') return;
         const qText = POLL_Q[q.question_key] || q.question_key;
         const total = q.answers.reduce((s, a) => s + a.cnt, 0);
         const maxCnt = Math.max(...q.answers.map(a => a.cnt));
-        html += `<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);"><div style="font-size: 14px; font-weight: 700; margin-bottom: 10px;">${qText}</div><div class="bar-chart">`;
+        html += `<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--divider);"><div style="font-size: 14px; font-weight: 800; margin-bottom: 10px;">${qText}</div><div class="bar-chart">`;
         q.answers.forEach(a => {
           let aText = q.question_key === 'stars' ? a.answer_key.replace('star', '').split('_')[0] + ' ★' : (POLL_A[a.answer_key] || a.answer_key);
           const pct = total > 0 ? Math.round(a.cnt / total * 100) : 0;
@@ -516,11 +537,11 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     html += '</div>';
   }
 
-  // Старый блок советника (компактный, без деталей) — оставляем для быстрой сводки
+  // Краткая сводка советника
   if (advisor && !advisor.error && advisor.total_advice > 0) {
     const acceptanceRate = advisor.acceptance_rate || 0;
     html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник: краткая сводка (подробно — в блоке выше)</div></div>';
-    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+    html += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
       <div class="kpi-card"><div class="kpi-label">Принятие советов</div><div class="kpi-value">${acceptanceRate.toFixed(1)}%</div></div>
       <div class="kpi-card"><div class="kpi-label">Всего советов</div><div class="kpi-value">${formatNumber(advisor.total_advice)}</div></div>
       <div class="kpi-card"><div class="kpi-label">Построено маршрутов</div><div class="kpi-value">${formatNumber(advisor.route_built_count)}</div></div>
@@ -534,8 +555,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
 
   app.innerHTML = html;
   loadTraffic(trafficRange);
-  
-  // Анимируем бублик полезности
+
   requestAnimationFrame(() => {
     const fill = document.querySelector('.utility-ring .fill');
     if (fill && ADVISOR_DETAILED.utility) {
@@ -551,7 +571,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
       if (w) requestAnimationFrame(() => el.style.width = w + '%');
     });
   });
-  
+
   renderVerdict();
   loadAdvancedStats();
 }
@@ -559,7 +579,6 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
 // === ПОЛНАЯ СЕКЦИЯ СОВЕТНИКА «КУДА ЕХАТЬ» ===
 function renderAdvisorDetailed() {
   const d = ADVISOR_DETAILED;
-  // функция советника не отвечает (404/ошибка) — честная плашка вместо нулей
   if (!d || !d.totals) {
     return '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Советник «Куда ехать»</div></div>' +
       '<div class="error" style="text-align:left">Детали советника не загрузились: серверная функция dash_advisor_detailed не отвечает. ' +
@@ -575,39 +594,35 @@ function renderAdvisorDetailed() {
   const outcomes = d.outcomes || [];
   const folkVotes = d.folk_votes || [];
   const topStations = d.top_stations || [];
-  
-  // Считаем проценты для реакций
+
   const totalReactions = reactions.reduce((s, r) => s + r.cnt, 0);
-  
-  // Слово и цвет по оценке
+
   let word, desc, wordColor;
-  if (u.score >= 75) { word = 'Отличный советник'; desc = 'Водители доверяют совету, строят маршруты и возвращаются к избранным АЗС'; wordColor = '#19b77a'; }
+  if (u.score === undefined || u.score === null) {
+    word = 'Нет данных'; desc = 'Коэффициент полезности ещё не посчитан: мало событий советника.'; wordColor = '#9aa0a6';
+  } else if (u.score >= 75) { word = 'Отличный советник'; desc = 'Водители доверяют совету, строят маршруты и возвращаются к избранным АЗС'; wordColor = '#19b77a'; }
   else if (u.score >= 55) { word = 'Хороший советник'; desc = 'Больше половины метрик в норме, но есть точки роста'; wordColor = '#2465ee'; }
   else if (u.score >= 35) { word = 'Средний советник'; desc = 'Водители пользуются, но часто сомневаются или не едут по совету'; wordColor = '#f5a05a'; }
   else { word = 'Слабый советник'; desc = 'Нужно пересмотреть алгоритм подбора — люди не доверяют советам'; wordColor = '#ef5350'; }
-  
-  // Если данных мало — предупреждаем
+
   const lowData = (t.shown || 0) < 30;
   if (lowData && u.score !== undefined) {
     word = 'Копим данные';
     desc = 'Пока ' + (t.shown || 0) + ' показов — для точной метрики нужно минимум 30. Текущее значение ориентировочное.';
-    wordColor = '#93a1b8';
+    wordColor = '#9aa0a6';
   }
-  
-  // Компоненты метрики
+
   const components = [
     { key: 'engagement', label: 'Вовлечённость', sub: 'кликнули совет', w: 30 },
     { key: 'conversion', label: 'Конверсия', sub: 'построили маршрут', w: 25 },
     { key: 'satisfaction', label: 'Удовлетворённость', sub: '👍 среди реакций', w: 20 },
     { key: 'loyalty', label: 'Лояльность', sub: 'добавили в избранное', w: 25 }
   ];
-  
+
   let html = '';
-  
-  // === ГЕРОЙ-БЛОК: коэффициент полезности + воронка ===
+
   html += '<div class="advisor-hero">';
-  
-  // Левая часть: бублик метрики
+
   html += '<div class="utility-card">';
   html += '<div class="utility-head">🧭 Коэффициент полезности советника <span class="badge">30 дней</span></div>';
   html += '<div class="utility-ring-wrap">';
@@ -617,17 +632,16 @@ function renderAdvisorDetailed() {
   html += '</div>';
   html += '<div><div class="utility-word" style="color:' + wordColor + '">' + word + '</div>';
   html += '<div class="utility-desc">' + desc + '</div></div></div>';
-  
+
   html += '<div class="utility-breakdown">';
   components.forEach(c => {
-    const val = u[c.key] !== undefined ? u[c.key] : 0;
+    const val = typeof u[c.key] === 'number' ? u[c.key] : 0;
     html += '<div class="ub-item"><div class="ub-val"><span>' + c.label + '</span><small>×' + c.w + '%</small></div>';
     html += '<div class="ub-bar"><span data-w="' + val + '" style="width:0%"></span></div>';
     html += '<div class="ub-val"><b>' + val.toFixed(1) + '</b><small>' + c.sub + '</small></div></div>';
   });
   html += '</div></div>';
-  
-  // Правая часть: воронка советника
+
   html += '<div class="advisor-funnel"><h4>🎯 Воронка: от захода до маршрута</h4>';
   html += '<div class="funnel-steps">';
   funnel.forEach((s, i) => {
@@ -640,11 +654,10 @@ function renderAdvisorDetailed() {
   html += '</div>';
   html += '<div class="note">Воронка показывает, на каком шаге советник теряет водителей. Большой обрыв после «Клик Куда ехать» → карточки не убеждают. После «Открыли карточку» → не хватает доверия к данным.</div>';
   html += '</div>';
-  html += '</div>'; // .advisor-hero
-  
-  // === РЕАКЦИИ: эмодзи-бары ===
+  html += '</div>';
+
   if (totalReactions > 0) {
-    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🎯</span>Реакции водителей на карточки совета</div><div style="font-size:11px;color:var(--text-tertiary);font-weight:700">Всего: ' + totalReactions + ' реакций</div></div>';
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🎯</span>Реакции водителей на карточки совета</div><div style="font-size:11px;color:var(--text3);font-weight:700">Всего: ' + totalReactions + ' реакций</div></div>';
     html += '<div class="emoji-bars">';
     reactions.forEach(r => {
       const pct = totalReactions > 0 ? Math.round(r.cnt / totalReactions * 100) : 0;
@@ -654,10 +667,9 @@ function renderAdvisorDetailed() {
       html += '<div class="emoji-pct">' + pct + '%</div></div>';
     });
     html += '</div>';
-    
-    // Причины дизлайков
+
     if (dislikeReasons.length > 0) {
-      html += '<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"><div style="font-size:13px;font-weight:800;margin-bottom:8px;color:#c2403f">👎 Почему ставят «Плохо»:</div>';
+      html += '<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--divider)"><div style="font-size:13px;font-weight:800;margin-bottom:8px;color:#c2403f">👎 Почему ставят «Плохо»:</div>';
       html += '<div>';
       dislikeReasons.forEach(r => {
         const label = DISLIKE_LABELS[r.reason] || r.reason;
@@ -665,8 +677,7 @@ function renderAdvisorDetailed() {
       });
       html += '</div></div>';
     }
-    
-    // Причины сомнений
+
     if (doubtReasons.length > 0) {
       html += '<div style="margin-top:12px"><div style="font-size:13px;font-weight:800;margin-bottom:8px;color:#c26a2a">🤔 Почему сомневаются:</div>';
       html += '<div>';
@@ -676,15 +687,14 @@ function renderAdvisorDetailed() {
       });
       html += '</div></div>';
     }
-    
+
     html += '<div class="note">Реакции помогают калибровать алгоритм: много «👎 Топлива нет» → советник предлагает АЗС с устаревшими данными. Много «🤔 Данные старые» → источник редко обновляет эту станцию.</div>';
     html += '</div>';
   }
-  
-  // === ИСХОДЫ ПОЕЗДОК (из опросов advice_outcome) ===
+
   const totalOutcomes = outcomes.reduce((s, o) => s + o.cnt, 0);
   if (totalOutcomes > 0) {
-    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🛣️</span>Чем закончились поездки по совету <span style="font-size:11px;color:var(--text-tertiary);font-weight:700;margin-left:8px">' + totalOutcomes + ' ответов</span></div></div>';
+    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🛣️</span>Чем закончились поездки по совету <span style="font-size:11px;color:var(--text3);font-weight:700;margin-left:8px">' + totalOutcomes + ' ответов</span></div></div>';
     html += '<div class="outcomes-grid">';
     outcomes.forEach(o => {
       const info = OUTCOME_LABELS[o.answer_key] || ['•', o.answer_key, 'notwent'];
@@ -692,7 +702,7 @@ function renderAdvisorDetailed() {
       html += '<div class="outcome-card ' + info[2] + '"><div class="outcome-icon">' + info[0] + '</div>';
       html += '<div class="outcome-cnt">' + o.cnt + '</div>';
       html += '<div class="outcome-label">' + info[1] + '</div>';
-      html += '<div class="outcome-pct" style="color:' + (info[2] === 'fuel' ? '#12855c' : info[2] === 'miss' ? '#c26a2a' : info[2] === 'noadv' ? '#c2403f' : '#71809c') + '">' + pct + '%</div></div>';
+      html += '<div class="outcome-pct" style="color:' + (info[2] === 'fuel' ? '#12855c' : info[2] === 'miss' ? '#c26a2a' : info[2] === 'noadv' ? '#c2403f' : '#6b7280') + '">' + pct + '%</div></div>';
     });
     html += '</div>';
     const fuelCnt = outcomes.find(o => o.answer_key === 'fuel');
@@ -700,14 +710,12 @@ function renderAdvisorDetailed() {
     html += '<div class="note"><b>Коэффициент попадания: ' + hitRate + '%</b> — столько водителей реально заправились по совету. Если ниже 40% — советник часто промахивается (топливо кончается до приезда). Опрос приходит через 45 минут – 3 дня после клика «Куда ехать».</div>';
     html += '</div>';
   }
-  
-  // === НАРОДНЫЕ ГОЛОСА + ТОП СТАНЦИЙ ===
+
   const totalFolk = folkVotes.reduce((s, f) => s + f.cnt, 0);
   if (totalFolk > 0 || topStations.length > 0) {
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">';
-    
-    // Народные голоса
-    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🗳️</span>Народные голоса в совете</div></div>';
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">';
+
+    html += '<div class="section" style="margin-bottom:0"><div class="section-header"><div class="section-title"><span class="section-icon">🗳️</span>Народные голоса в совете</div></div>';
     if (totalFolk > 0) {
       const yesCnt = folkVotes.find(f => f.type === 'yes')?.cnt || 0;
       const noCnt = folkVotes.find(f => f.type === 'no')?.cnt || 0;
@@ -719,42 +727,41 @@ function renderAdvisorDetailed() {
       const folkHitRate = Math.round(yesCnt / totalFolk * 100);
       html += '<div class="note">Доля подтверждений: <b>' + folkHitRate + '%</b>. Голос «✅ Подтверждают» усиливает эту АЗС в советнике, «❌ Опровергают» — снижает её рейтинг.</div>';
     } else {
-      html += '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:12px">Пока нет голосов в советнике</div>';
+      html += '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;font-weight:600">Пока нет голосов в советнике</div>';
     }
     html += '</div>';
-    
-    // Топ станций по кликам из совета
-    html += '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">⛽</span>Топ АЗС по кликам из совета</div></div>';
+
+    html += '<div class="section" style="margin-bottom:0"><div class="section-header"><div class="section-title"><span class="section-icon">⛽</span>Топ АЗС по кликам из совета</div></div>';
     if (topStations.length > 0) {
       const maxClicks = Math.max(...topStations.map(s => s.clicks));
       html += '<div class="bar-chart">';
       topStations.slice(0, 6).forEach(s => {
         const width = (s.clicks / maxClicks * 100);
-        html += '<div class="bar-item"><div class="bar-label">' + (s.name || 'Без названия') + '</div><div class="bar-track"><div class="bar-fill purple" style="width:' + width + '%"></div></div><div class="bar-value">' + s.clicks + '</div></div>';
+        html += '<div class="bar-item"><div class="bar-label">' + (s.name || 'Без названия') + '</div><div class="bar-track"><div class="bar-fill purple" style="width:' + (width || 0) + '%"></div></div><div class="bar-value">' + s.clicks + '</div></div>';
       });
       html += '</div>';
       html += '<div class="note">Станции, на которые чаще всего кликали из советника за 30 дней. Если в топе станции, которые регулярно получают 👎 — алгоритм их переоценивает.</div>';
     } else {
-      html += '<div style="text-align:center;padding:20px;color:var(--text-tertiary);font-size:12px">Пока нет данных</div>';
+      html += '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;font-weight:600">Пока нет данных</div>';
     }
     html += '</div>';
-    
+
     html += '</div>';
+    html += '<div style="height:14px"></div>';
   }
-  
-  // === ИЗБРАННОЕ ИЗ СОВЕТНИКА ===
+
   if (d.fav_from_advice > 0) {
     const favRate = t.clicks > 0 ? Math.round(d.fav_from_advice / t.clicks * 100) : 0;
-    html += '<div class="section" style="background:linear-gradient(135deg,#e5f8ef,#f4fbf7);border-color:#bfe8d4">';
-    html += '<div class="section-header"><div class="section-title" style="color:#12855c"><span class="section-icon">❤️</span>Советник → избранное</div></div>';
+    html += '<div class="section" style="background:#eefaf4;border-color:#bfe8d4">';
+    html += '<div class="section-header"><div class="section-title" style="color:#12855c"><span class="section-icon" style="background:#dff3e8">❤️</span>Советник → избранное</div></div>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">';
     html += '<div class="kpi-card" style="border-left:3px solid #19b77a"><div class="kpi-label">Добавили в избранное из совета</div><div class="kpi-value" style="color:#12855c">' + d.fav_from_advice + '</div></div>';
     html += '<div class="kpi-card" style="border-left:3px solid #19b77a"><div class="kpi-label">Конверсия в избранное</div><div class="kpi-value" style="color:#12855c">' + favRate + '%</div><div class="kpi-subtitle">от кликнувших совет</div></div>';
     html += '</div>';
-    html += '<div class="note" style="border-left-color:#19b77a"><b>Золотой показатель советника.</b> Если водитель добавил АЗС из совета в избранное — совет попал в точку настолько, что человек хочет получать уведомления по этой заправке. Цель — выше 8%.</div>';
+    html += '<div class="note" style="border-left-color:#19b77a;background:#f4fbf7"><b>Золотой показатель советника.</b> Если водитель добавил АЗС из совета в избранное — совет попал в точку настолько, что человек хочет получать уведомления по этой заправке. Цель — выше 8%.</div>';
     html += '</div>';
   }
-  
+
   return html;
 }
 
@@ -768,13 +775,12 @@ function renderVerdict() {
   const advDet = ADVISOR_DETAILED;
   const f = s.funnel || [];
   const src = s.sources || [];
-  
+
   let score = 5.0;
   let pros = [];
   let cons = [];
   let statusClass = 'warn';
 
-  // 1. Удержание
   if (adv.bounce && adv.bounce.total_sessions) {
     const br = adv.bounce.bounce_rate;
     if (br <= 12) { score += 1.5; pros.push(`Отличное удержание: отказы ${br}%.`); }
@@ -783,9 +789,7 @@ function renderVerdict() {
     else { score -= 1.5; cons.push(`Высокие отказы (${br}%). Сайт может тормозить.`); }
   }
 
-  // 2. Воронка
   const pv = f.find(x => x.event === 'pageview')?.sessions || 0;
-  const panel = f.find(x => x.event === 'panel_view')?.sessions || 0;
   const card = f.find(x => x.event === 'open_station_card')?.sessions || 0;
   if (pv > 0) {
     const cardConv = Math.round(card / pv * 100);
@@ -793,7 +797,6 @@ function renderVerdict() {
     else { score -= 0.5; cons.push(`Воронка теряет людей: только ${cardConv}% смотрят карточки.`); }
   }
 
-  // 3. Возвращаемость
   if (adv.cohort && adv.cohort.length > 1) {
     const matureCohort = adv.cohort[1];
     if (matureCohort && matureCohort.total_users > 10) {
@@ -804,30 +807,26 @@ function renderVerdict() {
     }
   }
 
-  // 4. Реклама
   const yaAds = src.find(x => x.source.toLowerCase().includes('utm') && x.source.toLowerCase().includes('yandex'))?.sessions || 0;
   if (yaAds > 0) {
     score += 0.3; pros.push(`Реклама приводит трафик (${yaAds} визитов).`);
   }
 
-  // === 5. СОВЕТНИК (НОВОЕ) ===
   if (advDet.utility && advDet.totals && advDet.totals.shown > 30) {
     const util = advDet.utility.score;
     const totals = advDet.totals;
     const favRate = totals.clicks > 0 ? (advDet.fav_from_advice / totals.clicks * 100) : 0;
-    
-    // Исходы поездок
+
     const outcomes = advDet.outcomes || [];
     const totalOutcomes = outcomes.reduce((s, o) => s + o.cnt, 0);
     const fuelOutcome = outcomes.find(o => o.answer_key === 'fuel');
     const hitRate = fuelOutcome && totalOutcomes > 0 ? (fuelOutcome.cnt / totalOutcomes * 100) : null;
-    
-    // Реакции
+
     const reactions = advDet.reactions || [];
     const totalReactions = reactions.reduce((s, r) => s + r.cnt, 0);
     const likes = reactions.find(r => r.type === 'like')?.cnt || 0;
     const dislikes = reactions.find(r => r.type === 'dislike')?.cnt || 0;
-    
+
     if (util >= 65) {
       score += 1.5;
       pros.push(`🧭 Советник отличный (${util.toFixed(0)}/100): ${favRate.toFixed(1)}% добавляют АЗС в избранное из совета.`);
@@ -838,7 +837,7 @@ function renderVerdict() {
       score -= 0.5;
       cons.push(`🧭 Советник слабый (${util.toFixed(0)}/100): водители не доверяют советам.`);
     }
-    
+
     if (hitRate !== null && totalOutcomes >= 5) {
       if (hitRate >= 50) {
         score += 1.0;
@@ -851,7 +850,7 @@ function renderVerdict() {
         cons.push(`🎯 Советы часто промахиваются: только ${Math.round(hitRate)}% заправились по совету. Топливо кончается до приезда.`);
       }
     }
-    
+
     if (totalReactions >= 5) {
       const dislikeRate = Math.round(dislikes / totalReactions * 100);
       if (dislikeRate > 40) {
@@ -920,8 +919,8 @@ async function loadAdvancedStats() {
     if (bounceData && bounceData.total_sessions > 0) {
       const maxB = Math.max(...(bounceData.buckets || []).map(b => b.cnt), 1);
       html += `<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🚪</span>Уходы и глубина просмотра</div></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
-          <div class="kpi-card" style="border-left: 3px solid var(--danger);"><div class="kpi-label">Показатель отказов</div><div class="kpi-value">${bounceData.bounce_rate}%</div><div class="kpi-subtitle">Ушли за первые 10 секунд</div></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px">
+          <div class="kpi-card" style="border-left: 3px solid var(--red);"><div class="kpi-label">Показатель отказов</div><div class="kpi-value">${bounceData.bounce_rate}%</div><div class="kpi-subtitle">Ушли за первые 10 секунд</div></div>
           <div class="kpi-card"><div class="kpi-label">Всего сессий</div><div class="kpi-value">${bounceData.total_sessions}</div></div>
         </div><div class="bar-chart">`;
       (bounceData.buckets || []).forEach(b => {
@@ -972,7 +971,7 @@ async function loadAdvancedStats() {
 
 function renderSourceFunnel(list) {
   if (!list || !list.length) return '';
-  const cell = (n, r) => r.visits ? n + ' <small style="color:#94a3b8">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
+  const cell = (n, r) => r.visits ? n + ' <small style="color:#9aa0a6">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
   let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Воронка по источникам · 7 дней</div></div>';
   out += '<div style="overflow-x:auto"><table class="data-table"><tr><th>Источник</th><th>Открыли</th><th>Листали</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
   for (const r of list) {
@@ -991,7 +990,7 @@ function downloadReport() {
   L.push('КОГДАБЕНЗ · ОТЧЁТ ВЛАДЕЛЬЦА');
   L.push('Сформирован: ' + p2(now.getUTCDate()) + '.' + p2(now.getUTCMonth() + 1) + '.' + now.getUTCFullYear() + ' ' + p2(now.getUTCHours()) + ':' + p2(now.getUTCMinutes()) + ' МСК');
   L.push('');
-  
+
   const verdictEl = document.querySelector('.verdict-panel');
   if (verdictEl) {
     L.push('== ОБЩИЙ ВЕРДИКТ ==');
@@ -1001,7 +1000,6 @@ function downloadReport() {
     L.push('');
   }
 
-  // === НОВОЕ: СОВЕТНИК ПОДРОБНО ===
   if (ADVISOR_DETAILED.utility && ADVISOR_DETAILED.totals) {
     const u = ADVISOR_DETAILED.utility;
     const t = ADVISOR_DETAILED.totals;
@@ -1108,7 +1106,7 @@ function renderEngagement(eng) {
   const d = eng.dur || {};
   const favg = (eng.freq_avg === null || eng.freq_avg === undefined) ? '—' : Number(eng.freq_avg).toFixed(2).replace('.', ',');
   let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">⏱️</span>Привычка: частота и время</div></div>';
-  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px">' +
+  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:0">' +
     '<div class="kpi-card"><div class="kpi-label">Заходов в день</div><div class="kpi-value">' + favg + '</div></div>' +
     '<div class="kpi-card"><div class="kpi-label">Медиана времени</div><div class="kpi-value">' + fmtDur(d.p50) + '</div></div>' +
     '<div class="kpi-card"><div class="kpi-label">Сессии >2 мин</div><div class="kpi-value">' + (d.share_long !== undefined ? d.share_long + '%' : '—') + '</div></div>' +
@@ -1129,7 +1127,7 @@ function renderHooks(hooks) {
   for (const r of (hooks.hooks || [])) H[r.event] = r;
   const card = (label, sub, r) => '<div class="kpi-card"><div class="kpi-label">' + label + '</div><div class="kpi-value">' + (r ? r.sessions : 0) + '</div><div class="kpi-subtitle">' + sub + (r ? r.hits : 0) + '</div></div>';
   let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🪝</span>Крючки привычки</div></div>';
-  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">' +
+  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:0">' +
     card('PWA установок', 'событий: ', H.pwa_install) +
     card('Кнопка «Телеграм»', 'нажатий: ', H.tg_connect) +
     card('Связка подтверждена', 'включений: ', H.tg_linked) +
@@ -1209,23 +1207,29 @@ function drawTraffic(d) {
   let grid = '';
   [maxV, Math.ceil(maxV / 2), 0].forEach(v => {
     const gy = y(v).toFixed(1);
-    grid += '<line x1="' + PL + '" y1="' + gy + '" x2="' + (W - PR) + '" y2="' + gy + '" stroke="#e2e8f0" stroke-width="1"/>' +
-      '<text x="' + (W - PR + 6) + '" y="' + (Number(gy) + 4) + '" font-size="10" fill="#94a3b8">' + v + '</text>';
+    grid += '<line x1="' + PL + '" y1="' + gy + '" x2="' + (W - PR) + '" y2="' + gy + '" stroke="#e6e8ec" stroke-width="1"/>' +
+      '<text x="' + (W - PR + 6) + '" y="' + (Number(gy) + 4) + '" font-size="10" fill="#9aa0a6">' + v + '</text>';
   });
   let xl = '';
   const stepLbl = Math.max(1, Math.round(axis.length / 4));
   for (let i = 0; i < axis.length; i += stepLbl) {
     const dt = new Date(axis[i].t.getTime() + 3 * 3600000);
     const s = range === '24h' ? String(dt.getUTCHours()).padStart(2, '0') + ':00' : String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0');
-    xl += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" font-size="10" fill="#94a3b8" text-anchor="middle">' + s + '</text>';
+    xl += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" font-size="10" fill="#9aa0a6" text-anchor="middle">' + s + '</text>';
   }
   const lastI = axis.length - 1;
   box.innerHTML = '<svg class="tf-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' +
-    '<defs><linearGradient id="tfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3b82f6" stop-opacity=".26"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/></linearGradient></defs>' +
+    '<defs><linearGradient id="tfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#397cff" stop-opacity=".22"/><stop offset="100%" stop-color="#397cff" stop-opacity="0"/></linearGradient></defs>' +
     grid + '<path d="' + area + '" fill="url(#tfGrad)"/>' +
-    '<path d="' + line + '" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
-    '<circle cx="' + x(lastI).toFixed(1) + '" cy="' + y(axis[lastI].users).toFixed(1) + '" r="4" fill="#3b82f6" stroke="#fff" stroke-width="2"/>' + xl + '</svg>';
+    '<path d="' + line + '" fill="none" stroke="#2465ee" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+    '<circle cx="' + x(lastI).toFixed(1) + '" cy="' + y(axis[lastI].users).toFixed(1) + '" r="4" fill="#2465ee" stroke="#fff" stroke-width="2"/>' + xl + '</svg>';
 }
+
+// график перерисовывается при повороте экрана / изменении ширины окна
+window.addEventListener('resize', function () {
+  if (trafficCache[trafficRange]) drawTraffic(trafficCache[trafficRange]);
+});
+
 load();
 </script>
 </body>
