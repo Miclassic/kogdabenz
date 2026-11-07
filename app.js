@@ -849,9 +849,9 @@ const mineKey = type === 'like' ? (mine.like || mine.folk_yes) : type === 'disli
 const mineClass = mineKey ? ' mine' : '';
 const rejectClass = rejected ? ' reject' : '';
 const cnt = type === 'like' ? (s.folk_yes || 0) : type === 'dislike' ? (s.folk_no || 0) : (s[type + '_count'] || 0);
-return '<button class="adv-reaction ' + type + mineClass + rejectClass + '" aria-label="' + REACTION_LABEL[type] + '" ' +
-(rejected ? '' : 'onclick="handleAdviceReaction(\'' + stId + '\',\'' + type + '\')"') + '>' +
-icon(REACTION_ICON[type], 'ic-s') + '<span class="adv-reaction-t">' + REACTION_SHORT[type] + '</span>' +
+return '<button class="adv-reaction ' + type + mineClass + rejectClass + '" data-st="' + stId + '" data-rt="' + type + '" aria-label="' + REACTION_LABEL[type] + '">' +
+icon(REACTION_ICON[type], 'ic-s') +
+'<span class="adv-reaction-t">' + REACTION_SHORT[type] + '</span>' +
 (cnt > 0 ? '<span class="cnt">' + cnt + '</span>' : '') +
 '</button>';
 };
@@ -969,7 +969,9 @@ function showReactionPopup(it, type) {
       '<div class="react-opts">' +
       '<button class="react-opt" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\',null,true)">' +
 icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
-'<button class="react-opt" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\',null,false)">' +
+'<button class="react-opt" data-fav="1">' +
+icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
+'<button class="react-opt" data-fav="0">' +
 icon('i-check') + ' Просто отметить «Да, топливо есть»</button>' +
       '</div>';
   } else if (type === 'dislike') {
@@ -991,7 +993,7 @@ icon('i-check') + ' Просто отметить «Да, топливо ест�
     '<div class="react-sub">' + escapeHtml(st.name || 'АЗС') + '</div></div></div>' +
     body +
     '<div class="react-actions">' +
-    (type === 'like' ? '' : '<button class="cta-btn" id="reactSend" onclick="submitReactionFromPopup(\'' + st.id + '\',\'' + type + '\')" disabled>Отправить</button>') +
+    (type === 'like' ? '' : '<button class="cta-btn" id="reactSend" data-send="1" disabled>Отправить</button>') +
     '<button class="cta-btn ghost" onclick="closeReactPop()">Отмена</button></div>';
 
   pop.dataset.type = type;
@@ -1007,7 +1009,25 @@ icon('i-check') + ' Просто отметить «Да, топливо ест�
     });
   }
 }
-
+// === клики реакций и попапа через делегирование: id живёт в data-атрибуте,
+// inline-onclick больше нет — клик не может «умереть» от кавычек ===
+document.addEventListener('click', e => {
+const t = e.target;
+if (!t || !t.closest) return;
+const rb = t.closest('.adv-reaction[data-st]');
+if (rb) { handleAdviceReaction(rb.getAttribute('data-st'), rb.getAttribute('data-rt')); return; }
+const ro = t.closest('.react-opt[data-fav]');
+if (ro) {
+const pop = document.getElementById('reactPop');
+if (pop) submitReactionFromPopup(pop.dataset.stationId, pop.dataset.type, null, ro.getAttribute('data-fav') === '1');
+return;
+}
+const rs = t.closest('#reactSend[data-send]');
+if (rs) {
+const pop = document.getElementById('reactPop');
+if (pop) submitReactionFromPopup(pop.dataset.stationId, pop.dataset.type);
+}
+}, true);
 function pickReactReason(btn) {
   const pop = document.getElementById('reactPop');
   if (!pop) return;
