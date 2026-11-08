@@ -1,9 +1,7 @@
-// ===== Бот КогдаБенз v4: кнопки владельца + личные подписки + мост «водитель ↔ разработчик» =====
+// ===== Бот КогдаБенз v5: кнопки владельца + личные подписки + мост «водитель ↔ разработчик» + выжимки с выделениями =====
 // v3: кнопки владельца + личные подписки водителей
-// v4: доставка обращений «Написать нам» владельцу с inline-кнопкой «Ответить»,
-//     обработка следующего текстового сообщения владельца как ответа,
-//     доставка ответа водителю в его личный чат с ботом.
-// Сервера нет: читаем обновления Telegram по расписанию (cron-job.org -> workflow).
+// v4: доставка обращений «Написать нам» владельцу с inline-кнопкой «Ответить»
+// v5: улучшенные отчёты с выжимками, отметки водителей с выделениями, быстрый обзор свежих данных
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -11,10 +9,9 @@ const TG = process.env.TELEGRAM_BOT_TOKEN;
 const CHAT = process.env.TELEGRAM_CHAT_ID;
 
 const OWN_BOX = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
-const CODE_TTL = 15 * 60 * 1000; // код связки живёт 15 минут
-const REPLY_PENDING_TTL = 10 * 60 * 1000; // режим «жду ответ» живёт 10 минут
+const CODE_TTL = 15 * 60 * 1000;
+const REPLY_PENDING_TTL = 10 * 60 * 1000;
 
-// Подписи причин в карточках владельца и ответах водителю
 const REASON_LABEL = {
   idea: '💡 Идея',
   complaint: '😤 Жалоба',
@@ -30,7 +27,6 @@ const REASON_SHORT = {
   reply: 'диалог'
 };
 
-// экранирование под HTML: имена/адреса/текст обращения приходят как есть
 function escTg(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 async function sbGet(path) {
@@ -117,7 +113,6 @@ async function tg(text, markup, parseMode) {
   await tgChat(CHAT, text, markup, parseMode);
 }
 
-// отправка в личный чат подписчика (для ответов владельца на обращения)
 async function tgTo(chatId, text) {
   await tgChat(chatId, text, null, 'HTML');
 }
@@ -143,9 +138,10 @@ async function getUpdates(offset) {
 
 const KEYBOARD = {
   keyboard: [
-    [{ text: '📊 Сводка города' }, { text: '🔮 Прогнозы' }],
-    [{ text: '🌅 Дайджест' }, { text: '🔕 Тихий режим' }],
-    [{ text: '🔔 Уведомлять' }, { text: '❓ Помощь' }]
+    [{ text: '⚡ Сводка' }, { text: '👥 Народ' }],
+    [{ text: '🔮 Прогнозы' }, { text: '🌅 Дайджест' }],
+    [{ text: '🔕 Тихий режим' }, { text: '🔔 Уведомлять' }],
+    [{ text: '❓ Помощь' }]
   ],
   resize_keyboard: true
 };
@@ -154,62 +150,204 @@ function isOwn(s) {
   return s.lat >= OWN_BOX.lat1 && s.lat <= OWN_BOX.lat2 && s.lon >= OWN_BOX.lon1 && s.lon <= OWN_BOX.lon2;
 }
 
-// === отчёты владельца (как в v3) ===
+// === УЛУЧШЕННЫЕ ОТЧЁТЫ С ВЫДЕЛЕНИЯМИ ===
+
 async function reportStatus() {
-  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level');
+  const obs = await sbGet('/rest/v1/observations?order=timestamp.desc&limit=1000&select=station_id,fuel_92_status,fuel_95_status,diesel_status,queue_level,timestamp');
   const stations = await sbGet('/rest/v1/stations?select=id,name,lat,lon&limit=2000');
   const lastBy = {};
   for (const o of obs) if (!lastBy[o.station_id]) lastBy[o.station_id] = o;
-  const lines = [];
-  let queues = 0;
+  
+  let queues = 0, deficits = [], fresh = 0, stale = 0;
+  const now = Date.now();
+  
   for (const s of stations) {
     if (!isOwn(s)) continue;
     const o = lastBy[s.id];
     if (!o) continue;
-    if (o.queue_level === 'high') queues++;
+    
+    const age = (now - new Date(o.timestamp).getTime()) / 60000;
+    if (age <= 30) fresh++;
+    else if (age > 360) stale++;
+    
+    if (o.queue_level === 'high') {
+      queues++;
+      deficits.push({ name: s.name || 'АЗС', type: '🚗 <b>ОЧЕРЕДЬ</b>', age: Math.round(age) });
+    }
+    
     const miss = [];
-    if (o.fuel_92_status === false) miss.push('АИ-92');
-    if (o.fuel_95_status === false) miss.push('АИ-95');
-    if (o.diesel_status === false) miss.push('дизель');
-    if (miss.length) lines.push('• ' + (s.name || 'АЗС') + ': нет ' + miss.join(', '));
+    if (o.fuel_92_status === false) miss.push('<b>АИ-92</b>');
+    if (o.fuel_95_status === false) miss.push('<b>АИ-95</b>');
+    if (o.diesel_status === false) miss.push('<b>дизель</b>');
+    if (miss.length) {
+      deficits.push({ name: s.name || 'АЗС', type: '⛽ Нет: ' + miss.join(', '), age: Math.round(age) });
+    }
   }
-  let txt = '📊 Сводка города\n\nОчереди сейчас: ' + queues + ' АЗС.\n';
-  txt += lines.length ? 'Дефициты:\n' + lines.slice(0, 8).join('\n') : 'Дефицитов не видим.';
+  
+  let txt = '⚡ <b>СВОДКА ГОРОДА</b>\n\n';
+  txt += '📊 <b>Данные:</b>\n';
+  txt += '  ✅ Свежие (≤30 мин): <b>' + fresh + '</b>\n';
+  txt += '  ⚠️ Устаревшие (>6 ч): <b>' + stale + '</b>\n\n';
+  
+  txt += '🚗 <b>Очереди:</b> <b>' + queues + '</b> АЗС\n';
+  
+  if (deficits.length) {
+    txt += '\n🔴 <b>ПРОБЛЕМЫ:</b>\n';
+    deficits.slice(0, 10).forEach(d => {
+      txt += '• <b>' + escTg(d.name) + '</b>\n';
+      txt += '  ' + d.type + '\n';
+      txt += '  ⏱️ ' + d.age + ' мин назад\n\n';
+    });
+    if (deficits.length > 10) txt += '<i>...и ещё ' + (deficits.length - 10) + ' станций</i>\n';
+  } else {
+    txt += '\n✅ <b>Всё спокойно:</b> дефицитов не видим\n';
+  }
+  
+  return txt;
+}
+
+async function reportFolkMarks() {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const feedback = await sbGet('/rest/v1/user_feedback?created_at=gte.' + since + '&select=station_id,feedback_type,fuel_type,queue_size,created_at,verified_on_site&order=created_at.desc&limit=100');
+  const stations = await sbGet('/rest/v1/stations?select=id,name&limit=2000');
+  const name = {};
+  for (const s of stations) name[s.id] = s.name;
+  
+  if (!feedback.length) return '👥 <b>НАРОДНЫЕ ОТМЕТКИ</b>\n\nЗа последний час отметок нет — водители молчат.';
+  
+  let txt = '👥 <b>НАРОДНЫЕ ОТМЕТКИ</b> <i>(последний час)</i>\n\n';
+  
+  const grouped = {};
+  feedback.forEach(f => {
+    if (!grouped[f.station_id]) grouped[f.station_id] = [];
+    grouped[f.station_id].push(f);
+  });
+  
+  const stationIds = Object.keys(grouped).slice(0, 8);
+  
+  stationIds.forEach(stId => {
+    const marks = grouped[stId];
+    const stName = name[stId] || 'АЗС';
+    txt += '📍 <b>' + escTg(stName) + '</b>\n';
+    
+    marks.slice(0, 3).forEach(m => {
+      const time = new Date(m.created_at);
+      const hhmm = String(time.getHours()).padStart(2, '0') + ':' + String(time.getMinutes()).padStart(2, '0');
+      const onSite = m.verified_on_site ? ' 📍<b>с места</b>' : '';
+      
+      if (m.feedback_type === 'available') {
+        const fuel = m.fuel_type === '92' ? 'АИ-92' : m.fuel_type === '95' ? 'АИ-95' : 'дизель';
+        txt += '  ✅ <b>' + fuel + ' есть</b>' + onSite + ' <i>' + hhmm + '</i>\n';
+      } else if (m.feedback_type === 'unavailable') {
+        const fuel = m.fuel_type === '92' ? 'АИ-92' : m.fuel_type === '95' ? 'АИ-95' : 'дизель';
+        txt += '  ❌ <b>' + fuel + ' нет</b>' + onSite + ' <i>' + hhmm + '</i>\n';
+      } else if (m.feedback_type === 'queue') {
+        const size = m.queue_size === 'small' ? '2-3' : m.queue_size === 'medium' ? '4-6' : m.queue_size === 'large' ? '7+' : '100+';
+        txt += '  🚗 <b>Очередь ' + size + ' машин</b>' + onSite + ' <i>' + hhmm + '</i>\n';
+      } else if (m.feedback_type === 'in_queue') {
+        txt += '  🧍 <b>Стоит в очереди сейчас</b>' + onSite + ' <i>' + hhmm + '</i>\n';
+      } else if (m.feedback_type === 'delivery') {
+        txt += '  🚚 <b>Привезли топливо</b>' + onSite + ' <i>' + hhmm + '</i>\n';
+      }
+    });
+    
+    if (marks.length > 3) txt += '  <i>...и ещё ' + (marks.length - 3) + ' отметок</i>\n';
+    txt += '\n';
+  });
+  
+  if (Object.keys(grouped).length > 8) {
+    txt += '<i>...и ещё ' + (Object.keys(grouped).length - 8) + ' станций с отметками</i>\n';
+  }
+  
+  const total = feedback.length;
+  const onSite = feedback.filter(f => f.verified_on_site).length;
+  txt += '\n📈 <b>Итого:</b> ' + total + ' отметок, из них ' + onSite + ' с места (GPS)';
+  
   return txt;
 }
 
 async function reportPredictions() {
-  const preds = await sbGet('/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&select=station_id,fuel_type,from_time,to_time,target_date&limit=50');
+  const preds = await sbGet('/rest/v1/predictions?result=eq.PENDING&is_verified=eq.false&select=station_id,fuel_type,from_time,to_time,target_date,confidence&limit=50');
   const stations = await sbGet('/rest/v1/stations?select=id,name&limit=2000');
   const name = {};
   for (const s of stations) name[s.id] = s.name;
-  if (!preds.length) return '🔮 Активных прогнозов нет: копим события.';
-  const lines = preds.slice(0, 8).map(p =>
-    '• ' + (name[p.station_id] || 'АЗС') + ' ' +
-    (p.fuel_type === '92' ? 'АИ-92' : p.fuel_type === '95' ? 'АИ-95' : 'дизель') + ': ' +
-    String(p.from_time).slice(0, 5) + '–' + String(p.to_time).slice(0, 5) + ' (' + p.target_date + ')'
-  );
-  return '🔮 Активные прогнозы:\n' + lines.join('\n');
+  
+  if (!preds.length) return '🔮 <b>ПРОГНОЗЫ</b>\n\nАктивных прогнозов нет: копим события для модели.';
+  
+  let txt = '🔮 <b>АКТИВНЫЕ ПРОГНОЗЫ</b>\n\n';
+  
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  
+  const todayPreds = preds.filter(p => p.target_date === todayStr);
+  const tomorrowPreds = preds.filter(p => p.target_date !== todayStr);
+  
+  if (todayPreds.length) {
+    txt += '📅 <b>Сегодня:</b>\n';
+    todayPreds.slice(0, 5).forEach(p => {
+      const fuel = p.fuel_type === '92' ? 'АИ-92' : p.fuel_type === '95' ? 'АИ-95' : 'дизель';
+      const conf = p.confidence ? Math.round(p.confidence * 100) + '%' : '—';
+      txt += '• <b>' + escTg(name[p.station_id] || 'АЗС') + '</b>\n';
+      txt += '  ' + fuel + ': <b>' + String(p.from_time).slice(0, 5) + '–' + String(p.to_time).slice(0, 5) + '</b>\n';
+      txt += '  🎯 Уверенность: <b>' + conf + '</b>\n\n';
+    });
+    if (todayPreds.length > 5) txt += '<i>...и ещё ' + (todayPreds.length - 5) + ' прогнозов на сегодня</i>\n\n';
+  }
+  
+  if (tomorrowPreds.length) {
+    txt += '📅 <b>Завтра и позже:</b> ' + tomorrowPreds.length + ' прогнозов\n';
+  }
+  
+  txt += '\n📊 <b>Всего активных:</b> ' + preds.length + ' прогнозов';
+  
+  return txt;
 }
 
 async function reportDigest() {
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const events = await sbGet('/rest/v1/events?detected_at=gte.' + since + '&select=event_type,detected_at&limit=1000');
+  const feedback = await sbGet('/rest/v1/user_feedback?created_at=gte.' + since + '&select=feedback_type,verified_on_site&limit=1000');
+  
   const cnt = {};
   for (const e of events) cnt[e.event_type] = (cnt[e.event_type] || 0) + 1;
+  
   const hours = {};
   for (const e of events) if (e.event_type === 'queue_appeared') {
     const h = (new Date(e.detected_at).getUTCHours() + 3) % 24;
     hours[h] = (hours[h] || 0) + 1;
   }
   const peak = Object.entries(hours).sort((a, b) => b[1] - a[1])[0];
-  return '🌅 Дайджест за 24 ч\n\n🟢 Вернулся: ' + (cnt.fuel_restored || 0) +
-    '\n🔴 Закончился: ' + (cnt.fuel_disappeared || 0) +
-    '\n🚗 Очереди: +' + (cnt.queue_appeared || 0) + ' / −' + (cnt.queue_gone || 0) +
-    (peak ? '\nПик очередей: ' + String(peak[0]).padStart(2, '0') + ':00' : '');
+  
+  const fbTotal = feedback.length;
+  const fbOnSite = feedback.filter(f => f.verified_on_site).length;
+  const fbAvailable = feedback.filter(f => f.feedback_type === 'available').length;
+  const fbUnavailable = feedback.filter(f => f.feedback_type === 'unavailable').length;
+  const fbQueue = feedback.filter(f => f.feedback_type === 'queue' || f.feedback_type === 'in_queue').length;
+  
+  let txt = '🌅 <b>ДАЙДЖЕСТ ЗА 24 ЧАСА</b>\n\n';
+  
+  txt += '⛽ <b>Топливо:</b>\n';
+  txt += '  🟢 Вернулось: <b>' + (cnt.fuel_restored || 0) + '</b>\n';
+  txt += '  🔴 Закончилось: <b>' + (cnt.fuel_disappeared || 0) + '</b>\n\n';
+  
+  txt += '🚗 <b>Очереди:</b>\n';
+  txt += '  ➕ Появились: <b>' + (cnt.queue_appeared || 0) + '</b>\n';
+  txt += '  ➖ Исчезли: <b>' + (cnt.queue_gone || 0) + '</b>\n';
+  if (peak) txt += '  ⏰ Пик: <b>' + String(peak[0]).padStart(2, '0') + ':00</b>\n';
+  txt += '\n';
+  
+  txt += '👥 <b>Народные отметки:</b>\n';
+  txt += '  📊 Всего: <b>' + fbTotal + '</b>\n';
+  txt += '  📍 С места (GPS): <b>' + fbOnSite + '</b> (' + (fbTotal ? Math.round(fbOnSite / fbTotal * 100) : 0) + '%)\n';
+  txt += '  ✅ Подтвердили наличие: <b>' + fbAvailable + '</b>\n';
+  txt += '  ❌ Подтвердили отсутствие: <b>' + fbUnavailable + '</b>\n';
+  txt += '  🚗 Сообщили об очереди: <b>' + fbQueue + '</b>\n';
+  
+  return txt;
 }
 
-// === подписчики: связка кода из сайта с чатом ===
+// === подписчики и мост (без изменений) ===
+
 async function linkCode(code, chatId) {
   const rows = await sbGet('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code) + '&select=id,device_id,station_id,created_at');
   if (!rows.length) return null;
@@ -217,13 +355,12 @@ async function linkCode(code, chatId) {
     await sbDel('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code)).catch(() => {});
     return { expired: true };
   }
-  // Шаг 5 воронки: фиксируем момент /start с этим кодом
   await sbPatch('/rest/v1/tg_link_codes?id=eq.' + rows[0].id, { started_at: new Date().toISOString() });
   await sbWrite('/rest/v1/tg_subscriptions',
     { device_id: rows[0].device_id, chat_id: Number(chatId), enabled: true },
     'return=minimal,resolution=merge-duplicates');
   const res = { device_id: rows[0].device_id, station_id: rows[0].station_id || null };
-  await sbDel('/rest/v1/tg_link_codes?code=eq.' + encodeURIComponent(code)).catch(() => {});
+  await sbPatch('/rest/v1/tg_link_codes?id=eq.' + rows[0].id, { linked_at: new Date().toISOString() });
   return res;
 }
 
@@ -241,8 +378,6 @@ async function subSetEnabled(chatId, enabled) {
 
 const SUB_HELP = 'Личные команды:\n/quiet — пауза уведомлений по избранным АЗС\n/loud — снова уведомлять\n/stop — отключить подписку совсем\nИзбранное отмечается сердечком на сайте.';
 
-// === Мост «водитель ↔ разработчик» ===
-// Доставка обращений owner'у с inline-кнопкой «Ответить на <причину>».
 async function fetchPendingMessages() {
   return await sbGet('/rest/v1/driver_messages?owner_notified_at=is.null&select=id,alias,reason,text,created_at&order=id.asc&limit=20');
 }
@@ -277,8 +412,6 @@ async function getOwnerReplyPending() {
   try {
     const obj = typeof v === 'string' ? JSON.parse(v) : v;
     if (!obj || !obj.msg_id) return null;
-    // защита: если владелец забыл ответить и прошло больше 10 минут — сбрасываем,
-    // чтобы следующее обычное сообщение не ушло водителю как ответ
     if (Date.now() - obj.set_at > REPLY_PENDING_TTL) {
       await metaDel('owner_reply_pending');
       return null;
@@ -295,7 +428,6 @@ async function deliverOwnerReply(msgId, replyText) {
   const rows = await sbGet('/rest/v1/driver_messages?id=eq.' + msgId + '&select=id,alias,device_id,reason,text');
   if (!rows.length) return { ok: false, reason: 'not_found' };
   const m = rows[0];
-  // ищем связанный чат подписчика по device_id
   const subs = await sbGet('/rest/v1/tg_subscriptions?device_id=eq.' + encodeURIComponent(m.device_id) + '&select=chat_id,enabled');
   if (!subs.length) return { ok: false, reason: 'no_link' };
   const sub = subs[0];
@@ -314,11 +446,6 @@ async function deliverOwnerReply(msgId, replyText) {
   return { ok: true, alias: m.alias };
 }
 
-// === ответ водителя из Телеграма: продолжение диалога без сайта ===
-// Связанный чат (tg_subscriptions) + уже есть обращение в driver_messages →
-// не-командный текст становится строкой с reason 'reply', владелец в следующем
-// прогоне получает карточку «Диалог» с кнопкой «Ответить». Нет обращений —
-// подсказываем написать через сайт (первое сообщение задаёт тему диалога).
 async function handleDriverFollowup(chatId, text) {
   try {
     if (text.length > 350) {
@@ -326,7 +453,7 @@ async function handleDriverFollowup(chatId, text) {
       return;
     }
     const subs = await sbGet('/rest/v1/tg_subscriptions?chat_id=eq.' + chatId + '&select=device_id');
-    if (!subs.length) return; // чат не связан с сайтом — собеседник не наш
+    if (!subs.length) return;
     const deviceId = subs[0].device_id;
     const hist = await sbGet('/rest/v1/driver_messages?device_id=eq.' + encodeURIComponent(deviceId) + '&select=reason&order=created_at.desc&limit=20');
     if (!hist.length) {
@@ -341,14 +468,11 @@ async function handleDriverFollowup(chatId, text) {
 }
 
 async function main() {
-  console.log('=== БОТ v4: читаю обновления ===');
+  console.log('=== БОТ v5: читаю обновления ===');
   const offset = Number(await metaGet('update_offset', '0'));
   const updates = await getUpdates(offset);
   let next = offset;
 
-  // === Шаг 0: доставка новых обращений владельцу ===
-  // Делаем до обработки updates, чтобы свежие карточки пришли сразу,
-  // а не ждали следующего прогона через 5 минут.
   try {
     const pending = await fetchPendingMessages();
     for (const m of pending) {
@@ -358,14 +482,12 @@ async function main() {
     if (pending.length) console.log('   Новых обращений владельцу: ' + pending.length);
   } catch (e) { console.log('   ! fetchPendingMessages: ' + e.message); }
 
-  // === предсостояние: ждёт ли владелец ответ на конкретное обращение ===
   let replyPending = await getOwnerReplyPending();
 
   for (const u of updates) {
     next = Math.max(next, u.update_id + 1);
     try {
 
-    // --- 1) callback_query: владелец нажал inline-кнопку «Ответить» ---
     if (u.callback_query) {
       const cb = u.callback_query;
       const cbChatId = cb.message && cb.message.chat ? String(cb.message.chat.id) : '';
@@ -396,7 +518,6 @@ async function main() {
     if (!text || !chatId) continue;
     const t = text.trim();
 
-    // --- 2) ОТМЕНА режима ожидания ответа ---
     if (chatId === CHAT && replyPending && (t === '/cancel' || t === '/start')) {
       await clearOwnerReplyPending();
       replyPending = null;
@@ -404,10 +525,8 @@ async function main() {
         await tg('Отменено. Ответ не отправлен.');
         continue;
       }
-      // если /start — просто сбросили pending и идём дальше по обычной логике
     }
 
-    // --- 3) режим «жду ответ»: следующее текстовое сообщение от владельца = ответ ---
     if (chatId === CHAT && replyPending) {
       const result = await deliverOwnerReply(replyPending.msg_id, t);
       await clearOwnerReplyPending();
@@ -424,7 +543,6 @@ async function main() {
       continue;
     }
 
-// --- 3.5) ручной режим ответа, если кнопка не дошла: /reply <номер> ---
     if (chatId === CHAT && t.startsWith('/reply ')) {
       const id = Number(t.slice(7));
       if (id) {
@@ -436,11 +554,7 @@ async function main() {
       }
       continue;
     }
-    // --- 4) связка сайт→бот: /start kb… — персональное приветствие по АЗС ---
-    // Если код пришёл из карточки конкретной станции (station_id есть),
-    // бот называет эту станцию по имени и обещает следить именно за ней.
-    // Подписка уже работает через user_favorites: index.html при подключении
-    // из карточки сам добавляет АЗС в избранное, коллектор начнёт присылать.
+
     const m = t.match(/^\/start\s+(kb[0-9a-z]+)$/i);
     if (m) {
       let res = null;
@@ -469,7 +583,6 @@ async function main() {
       continue;
     }
 
-    // --- 5) личные команды подписчиков (любой чат, кроме хозяйского) ---
     if (chatId !== CHAT) {
       if (t === '/quiet') {
         try { await subSetEnabled(chatId, false); await tgChat(chatId, '🔕 Пауза: по избранным АЗС и ответов от разработчика писать не буду. Вернуть: /loud'); }
@@ -485,21 +598,21 @@ async function main() {
       } else if (t === '/start') {
         await tgChat(chatId, 'Привет! Я КогдаБенз. Личные уведомления включаются с сайта: откройте карточку избранной АЗС и нажмите «Подключить Телеграм».\n' + SUB_HELP);
       } else {
-        // любое не-командное сообщение связанного чата = ответ водителя в диалоге
         await handleDriverFollowup(chatId, t);
       }
       continue;
     }
 
-    // --- 6) хозяйский чат: кнопки и команды владельца ---
     if (t === '/start') {
-      await tg('Привет! Я КогдаБенз, суточный диспетчер.\nДержу кнопки ниже, а ещё понимаю команды:\n/status /predict /digest /quiet /loud /help\nОтвечаю в пределах пары минут: живу не на сервере, а по расписанию.\n\n📩 Обращения водителей приходят с кнопкой «Ответить» — нажимаете, пишете ответ, он уходит водителю в личку.', KEYBOARD);
-    } else if (t === '📊 Сводка города' || t === '/status') {
-      await tg(await reportStatus());
+      await tg('Привет! Я КогдаБенз v5, суточный диспетчер.\n\nДержу кнопки ниже с улучшенными выжимками:\n⚡ Сводка — дефициты и очереди с подсветкой\n👥 Народ — свежие отметки водителей\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — полная статистика за 24 ч\n\n📩 Обращения водителей приходят с кнопкой «Ответить».', KEYBOARD);
+    } else if (t === '⚡ Сводка' || t === '/status') {
+      await tg(await reportStatus(), null, 'HTML');
+    } else if (t === '👥 Народ' || t === '/folk') {
+      await tg(await reportFolkMarks(), null, 'HTML');
     } else if (t === '🔮 Прогнозы' || t === '/predict') {
-      await tg(await reportPredictions());
+      await tg(await reportPredictions(), null, 'HTML');
     } else if (t === '🌅 Дайджест' || t === '/digest') {
-      await tg(await reportDigest());
+      await tg(await reportDigest(), null, 'HTML');
     } else if (t === '🔕 Тихий режим' || t === '/quiet') {
       await metaSet('notify', '0');
       await tg('Принял. Событийные уведомления ставлю на паузу. Отчёты по кнопкам, аварии и обращения водителей продолжу присылать. Вернуть: «🔔 Уведомлять».');
@@ -507,11 +620,10 @@ async function main() {
       await metaSet('notify', '1');
       await tg('Уведомления снова включены!');
     } else if (t === '❓ Помощь' || t === '/help') {
-      await tg('Что я умею:\n📊 Сводка города — дефициты и очереди сейчас\n🔮 Прогнозы — активные окна пополнения\n🌅 Дайджест — сводка за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\n📩 Мост с водителями: обращения «Написать нам» приходят с кнопкой «Ответить» — ваше следующее сообщение уходит водителю в личку.\n\nЛичные подписки водителей: /start КОД с сайта связывает устройство с чатом; подписчики управляют собой командами /quiet /loud /stop.');
+      await tg('Что я умею:\n\n⚡ <b>Сводка</b> — дефициты и очереди сейчас с подсветкой проблем\n👥 <b>Народ</b> — свежие отметки водителей за последний час\n🔮 <b>Прогнозы</b> — активные окна пополнения\n🌅 <b>Дайджест</b> — полная статистика за 24 ч\n🔕 / 🔔 — выключить/включить событийные уведомления\n\n📩 Мост с водителями: обращения «Написать нам» приходят с кнопкой «Ответить».\n\nЛичные подписки: /start КОД с сайта связывает устройство с чатом.', null, 'HTML');
     }
 
     } catch (e) {
-      // одна упавшая обновка не должна ломать проход и сохранение offset
       console.log('   ! update ' + u.update_id + ': ' + e.message);
     }
   }
