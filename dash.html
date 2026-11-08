@@ -286,6 +286,12 @@
     .t-title { font-size: 18px; }
     .screen { top: 4px; left: 10px; right: 10px; bottom: 6px; }
   }
+/* народные отметки в сводке */
+  .g-summary { grid-template-areas: "verdict kpi" "marks marks" "traffic traffic"; }
+  .marks-strip { grid-area: marks; }
+  @media (max-width: 1100px) {
+    .g-summary { grid-template-areas: "verdict" "kpi" "marks" "traffic"; }
+  }
 </style>
 </head>
 <body>
@@ -310,6 +316,7 @@
         <div class="grid g-summary">
           <div class="card verdict-card" id="verdict-container"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>
           <div class="kpi-grid" id="kpiGrid"></div>
+          <div class="card marks-strip" id="marksStrip" style="display:none"></div>
           <div class="card traffic-card">
             <div class="tf-headrow">
               <h3><span class="hicon">📈</span>Пользователи по периодам</h3>
@@ -363,6 +370,7 @@ let trafficCache = {};
 let trafficRange = '24h';
 let marksCache = {};
 let marksRange = '24h';
+let MARKS_30D = null;
 const MARK_TYPE_RU = {
   available: ['⛽', 'Топливо есть'],
   unavailable: ['🔴', 'Топлива нет'],
@@ -530,7 +538,7 @@ function switchTab(id) {
 async function load() {
   try {
     const H = { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) };
-    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes, updRes] = await Promise.all([
+    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes, updRes, marksRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', H),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', H),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', H),
@@ -538,12 +546,15 @@ async function load() {
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', H),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', H),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_detailed', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_update_stats', H)
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_update_stats', H),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_marks_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET, p_range: '30d' }) })
     ]);
 
     if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok || !srcfRes.ok) throw new Error('HTTP error');
 
-    const [stats, poll, advisor, hooks, eng, srcf, advDet, upd] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({}), updRes.ok ? updRes.json() : Promise.resolve({})]);
+    const [stats, poll, advisor, hooks, eng, srcf, advDet, upd, marks30] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({}), updRes.ok ? updRes.json() : Promise.resolve({}), marksRes.ok ? marksRes.json() : Promise.resolve({})]);
+    MARKS_30D = (marks30 && !marks30.error) ? marks30 : null;
+    if (MARKS_30D) marksCache['30d'] = MARKS_30D;
     if (stats.error) throw new Error('Invalid token');
 
     ADVISOR_DETAILED = advDet.error ? {} : advDet;
@@ -586,6 +597,7 @@ function render(stats, poll, advisor, hooks, eng, srcf, upd) {
   kpi += '<div class="kpi p3"><div class="t-ico">✨</div><div class="lbl">Новые (за 7 дней)</div><div class="val">' + formatNumber(num(ret.new_7d)) + '</div><div class="sub">Вернувшихся: ' + formatNumber(num(ret.returning_7d)) + '</div></div>';
   kpi += '<div class="kpi p4"><div class="t-ico">🚦</div><div class="lbl">Всего визитов</div><div class="val">' + formatNumber(num(stats.total_sessions)) + '</div><div class="sub">Действий: ' + formatNumber(num(stats.total_hits)) + '</div></div>';
   document.getElementById('kpiGrid').innerHTML = kpi;
+  renderMarksStrip();
 
   document.getElementById('inner-advisor').innerHTML = buildAdvisor();
   document.getElementById('inner-react').innerHTML = buildReactions();
@@ -1071,6 +1083,25 @@ function buildUpdates(upd) {
   return html;
 }
 
+// === ПОЛОСА НАРОДНЫХ ОТМЕТОК В СВОДКЕ ===
+function renderMarksStrip() {
+  const el = document.getElementById('marksStrip');
+  if (!el) return;
+  if (!MARKS_30D || !MARKS_30D.totals) { el.style.display = 'none'; return; }
+  const t = MARKS_30D.totals;
+  const marks = num(t.marks), devices = num(t.devices), onSite = num(t.on_site);
+  const cities = MARKS_30D.by_city || [];
+  const onSitePct = marks > 0 ? Math.round(100 * onSite / marks) : 0;
+  const topCity = cities.length ? cities[0].city + ': ' + cities[0].cnt : '—';
+  el.style.display = '';
+  el.innerHTML = '<h3><span class="hicon">🙏</span>Народные отметки · 30 дней<span class="hchip">ВЛИЯЕТ НА ОБЩУЮ ОЦЕНКУ</span></h3>' +
+    '<div class="tiles t4">' +
+    '<div class="tile p1"><div class="t-ico">🙏</div><div class="lbl">Всего отметок</div><div class="val">' + marks + '</div><div class="sub">за 30 дней</div></div>' +
+    '<div class="tile p2"><div class="t-ico">👤</div><div class="lbl">Отмечали водители</div><div class="val">' + devices + '</div><div class="sub">уникальных device_id</div></div>' +
+    '<div class="tile p3"><div class="t-ico">📍</div><div class="lbl">С места с GPS</div><div class="val">' + onSitePct + '%</div><div class="sub">' + onSite + ' из ' + marks + '</div></div>' +
+    '<div class="tile p4"><div class="t-ico">🏙️</div><div class="lbl">Города с отметками</div><div class="val">' + cities.length + '</div><div class="sub">лидер: ' + topCity + '</div></div>' +
+    '</div>';
+}
 // === ВЕРДИКТ ===
 function renderVerdict() {
   const container = document.getElementById('verdict-container');
@@ -1169,6 +1200,24 @@ function renderVerdict() {
     }
   }
 
+// народные отметки (30 дней) — ключевое из вкладки «Отметки»
+  if (MARKS_30D && MARKS_30D.totals) {
+    const mt = MARKS_30D.totals;
+    const mks = num(mt.marks), dev = num(mt.devices), ons = num(mt.on_site);
+    const cityCnt = (MARKS_30D.by_city || []).length;
+    const onsPct = mks > 0 ? Math.round(100 * ons / mks) : 0;
+    if (mks >= 100) { score += 0.5; pros.push('🙏 Толпа живая: ' + mks + ' отметок за 30 дней.'); }
+    else if (mks >= 30) { score += 0.2; pros.push('🙏 Толпа разогревается: ' + mks + ' отметок за 30 дней.'); }
+    else if (mks > 0) { score -= 0.3; cons.push('🙏 Толпа молчит: лишь ' + mks + ' отметок за 30 дней.'); }
+    else { score -= 0.5; cons.push('🙏 Народных отметок за 30 дней нет — сайт живёт только источником.'); }
+    if (dev >= 20) { score += 0.3; pros.push('👤 Отметки ставят ' + dev + ' разных водителей — не одиночное мнение.'); }
+    else if (mks > 0 && dev <= 3) { score -= 0.3; cons.push('👤 Отметки ставят всего ' + dev + ' водителя — риск одиночного обманщика.'); }
+    if (mks > 0) {
+      if (onsPct >= 25) { score += 0.4; pros.push('📍 ' + onsPct + '% отметок с места с GPS — высокое доверие к толпе.'); }
+      else if (onsPct < 10) { score -= 0.3; cons.push('📍 Лишь ' + onsPct + '% отметок с места с GPS — доверие к толпе низкое.'); }
+    }
+    if (cityCnt >= 3) { score += 0.2; pros.push('🏙️ Отметки из ' + cityCnt + ' городов — толпа шире домашнего бокса.'); }
+  }
   score = Math.max(1.0, Math.min(10.0, score));
   if (score >= 7.5) statusClass = 'good';
   else if (score >= 4.5) statusClass = 'warn';
