@@ -333,29 +333,30 @@ function formatNumber(n) {
 async function load() {
   const app = document.getElementById('app');
   try {
-    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes] = await Promise.all([
+    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes, updRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_detailed', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) })
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_detailed', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_update_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) })
     ]);
 
     if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok || !srcfRes.ok) throw new Error('HTTP error');
 
-    const [stats, poll, advisor, hooks, eng, srcf, advDet] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({})]);
+    const [stats, poll, advisor, hooks, eng, srcf, advDet, upd] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({}), updRes.ok ? updRes.json() : Promise.resolve({})]);
     if (stats.error) throw new Error('Invalid token');
 
     ADVISOR_DETAILED = advDet.error ? {} : advDet;
-    render(stats, poll, advisor, hooks, eng, srcf);
+    render(stats, poll, advisor, hooks, eng, srcf, upd);
   } catch (e) {
     app.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
   }
 }
 
-function render(stats, poll, advisor, hooks, eng, srcf) {
+function render(stats, poll, advisor, hooks, eng, srcf, upd) {
   REPORT = { stats, poll, advisor, hooks, eng, srcf };
   const app = document.getElementById('app');
   let html = '';
@@ -500,6 +501,7 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
 
   html += renderHooks(hooks);
   html += renderEngagement(eng);
+  html += renderUpdates(upd);
   html += renderSourceFunnel(srcf);
   html += '<div id="advanced-stats-container"></div>';
 
@@ -919,6 +921,62 @@ async function loadAdvancedStats() {
   }
 }
 
+// === ОБНОВЛЕНИЯ ВЕРСИИ САЙТА: кто / сколько / когда перешёл на новую версию ===
+// Источник: sw_updates (автофиксация: устройство впервые загрузило новую версию)
+// + site_updates (явный клик «Обновить сейчас»).
+function renderUpdates(upd) {
+  if (!upd || upd.error) {
+    return '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🔄</span>Обновления версии сайта</div></div>' +
+      '<div class="error" style="text-align:left">Метрика обновлений не отвечает: функция dash_update_stats не создана или вернула ошибку. Лечение: выполнить SQL создания функции в psql и systemctl restart postgrest.</div></div>';
+  }
+  const kpi = (label, value, sub) => '<div class="kpi-card"><div class="kpi-label">' + label + '</div><div class="kpi-value">' + value + '</div>' + (sub ? '<div class="kpi-subtitle">' + sub + '</div>' : '') + '</div>';
+  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🔄</span>Обновления версии сайта</div>' +
+    (upd.current_latest ? '<div style="font-size:11px;color:var(--text3);font-weight:700">последняя замеченная версия: ' + upd.current_latest + '</div>' : '') + '</div>';
+  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px">' +
+    kpi('Устройств обновилось · 7 дн', num(upd.devices_7d)) +
+    kpi('Устройств обновилось · 30 дн', num(upd.devices_30d)) +
+    kpi('Всего автообновлений', num(upd.total_sw), 'заходов на новую версию') +
+    kpi('Кликов «Обновить сейчас»', num(upd.total_clicks), 'кнопка в окне обновления') +
+    '</div>';
+  const tr = upd.by_transition || [];
+  if (tr.length) {
+    const maxT = Math.max(...tr.map(x => x.cnt), 1);
+    out += '<div style="font-size:13px;font-weight:800;margin:4px 0 8px">Переходы между версиями</div><div class="bar-chart">';
+    tr.forEach(x => {
+      out += '<div class="bar-item"><div class="bar-label">' + (x.old_v || '?') + ' → ' + x.new_v + '</div>' +
+        '<div class="bar-track"><div class="bar-fill purple" style="width:' + (x.cnt / maxT * 100) + '%"></div></div>' +
+        '<div class="bar-value">' + x.devices + ' устр. / ' + x.cnt + '</div></div>';
+    });
+    out += '</div>';
+  }
+  const days = upd.by_day || [];
+  if (days.length) {
+    const maxD = Math.max(...days.map(x => x.devices), 1);
+    out += '<div style="font-size:13px;font-weight:800;margin:16px 0 8px">По дням (14 дней)</div><div class="bar-chart">';
+    days.forEach(x => {
+      out += '<div class="bar-item"><div class="bar-label">' + x.d.slice(8, 10) + '.' + x.d.slice(5, 7) + '</div>' +
+        '<div class="bar-track"><div class="bar-fill primary" style="width:' + (x.devices / maxD * 100) + '%"></div></div>' +
+        '<div class="bar-value">' + x.devices + ' устр.</div></div>';
+    });
+    out += '</div>';
+  }
+  const rec = upd.recent || [];
+  if (rec.length) {
+    out += '<div style="font-size:13px;font-weight:800;margin:16px 0 8px">Последние обновления</div><table class="data-table"><tr><th>Когда</th><th>Переход</th></tr>';
+    rec.forEach(x => {
+      const d = x.t ? new Date(new Date(x.t).getTime() + 3 * 3600 * 1000) : null;
+      const s = d ? String(d.getUTCDate()).padStart(2, '0') + '.' + String(d.getUTCMonth() + 1).padStart(2, '0') + ' ' + String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') : '—';
+      out += '<tr><td>' + s + ' МСК</td><td><b>' + (x.old_v || '?') + ' → ' + x.new_v + '</b></td></tr>';
+    });
+    out += '</table>';
+  }
+  if (!tr.length && !days.length) {
+    out += '<div style="text-align:center;padding:20px;color:var(--text3);font-size:12px;font-weight:600">Пока ни одно устройство не зафиксировано на новой версии. Данные появятся после первого захода на обновлённый сайт.</div>';
+  }
+  out += '<div class="note">Автообновление фиксируется, когда устройство впервые загружает новую версию (браузер сравнивает сохранённую и текущую версию). «Обновить сейчас» — явный клик по кнопке в окне обновления. Устройства считаются анонимно по device_id.</div>';
+  out += '</div>';
+  return out;
+}
 function renderSourceFunnel(list) {
   if (!list || !list.length) return '';
   const cell = (n, r) => r.visits ? n + ' <small style="color:#9aa0a6">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
