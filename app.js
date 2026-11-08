@@ -797,8 +797,8 @@ function stalePinKey(o) {
 function staleWarnText(o) {
   const m = getFreshnessMin(o);
   return m === null
-    ? 'Данные источника не свежие — топливо могло закончиться. Проверь перед выездом.'
-    : 'Данные источника были ' + agoRu(m) + ' — топливо могло закончиться. Проверь перед выездом.';
+    ? 'Источник давно не присылал новых данных по этой станции. Метки водителей помогут проверить обстановку.'
+    : 'Данные по этой станции пришли ' + agoRu(m) + '. С тех пор обстановка могла измениться — метки водителей помогут проверить.';
 }
 function buildAdviceList(){
 	const e = getLastObservations(),
@@ -2311,8 +2311,8 @@ const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'] 
       : 'прогноз возврата ещё зреет   ' + qTxt;
   } else {
     vCls = 'v-unknown'; vIco = 'i-clock';
-    vTitle = 'Свежих данных нет';
-    vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes !== undefined ? 'источник был ' + agoRu(obs.data_freshness_minutes) : 'источник молчит') + '   ' + qTxt;
+    vTitle = 'Данные обновляются';
+vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes !== undefined ? 'источник не рассказывал про станцию ' + agoRu(obs.data_freshness_minutes) + ' — подскажут отметки водителей' : 'источник пока молчит — подскажут отметки водителей') + '   ' + qTxt;
   }
     const tile = (label, col, fk) => {
     const sc = scene[fk];
@@ -4094,7 +4094,7 @@ function lentiRender() {
   // сцена 2: живой советник — лучшая станция прямо сейчас
   const advList = buildAdviceList();
   const adv = advList[0];
-  el('lentiAdvV').textContent = adv ? (adv.st.name || 'АЗС') : 'нет свежих вариантов';
+  el('lentiAdvV').textContent = adv ? (adv.st.name || 'АЗС') : 'данные обновляются';
   el('lentiAdvS').textContent = adv
     ? (adv.kind === 'now' ? 'топливо есть сейчас   тап — топ-3' : adv.kind === 'stale' ? 'не точно — стоит проверить   тап — топ-3' : 'окно по прогнозу   тап — топ-3')
     : 'тап — список АЗС города';
@@ -4909,11 +4909,11 @@ function renderNow() {
   if (sub) {
     const fr = freshStats();
     sub.innerHTML = '<span class="why-span" style="color:' + freshColor(fr) + ';font-weight:800;cursor:pointer" onclick="openWhyChip(this,\'fresh\')">Данные: ' + fr.fresh + ' из ' + fr.tot + ' свежие</span><br>' +
-      (enough ? 'очереди на ' + qPct + '% АЗС   АИ-95 есть на ' + aPct + '%' : (known ? 'свежих отметок лишь ' + tot + ' — проценты по городу ещё не считаем' : 'нет свежих отметок топлива'));
+      (enough ? 'очереди на ' + qPct + '% АЗС   АИ-95 есть на ' + aPct + '%' : (known ? 'свежих отметок лишь ' + tot + ' — проценты по городу ещё не считаем' : 'источник ещё не прислал отметки топлива — появятся по мере поступления'));
   }
   const title = document.getElementById('nowTitle');
   if (title) {
-    if (!known) title.textContent = 'Ждём свежие данные';
+    if (!known) title.textContent = 'Данные обновляются';
     else if (!enough) title.textContent = 'Источник большей частью молчит';
     else if (tot && qPct >= 25) title.textContent = 'Город в очередях';
     else if (known - avail >= known * 0.5) title.textContent = 'В городе дефицит топлива';
