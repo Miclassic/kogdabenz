@@ -333,6 +333,7 @@
     <section class="screen" id="scr-aud"><div class="screen-inner" id="inner-aud"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
     <section class="screen" id="scr-poll"><div class="screen-inner" id="inner-poll"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
     <section class="screen" id="scr-ver"><div class="screen-inner" id="inner-ver"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+    <section class="screen" id="scr-marks"><div class="screen-inner" id="inner-marks"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
 
   </main>
 
@@ -345,6 +346,7 @@
       <button class="tab" data-tab="aud" onclick="switchTab('aud')"><span class="ti">👥</span>Аудитория</button>
       <button class="tab" data-tab="poll" onclick="switchTab('poll')"><span class="ti">💬</span>Опросы</button>
       <button class="tab" data-tab="ver" onclick="switchTab('ver')"><span class="ti">🔄</span>Версии</button>
+      <button class="tab" data-tab="marks" onclick="switchTab('marks')"><span class="ti">🙏</span>Отметки</button>
     </div>
   </nav>
 </div>
@@ -359,6 +361,18 @@ let ADVANCED_REPORT = {};
 let ADVISOR_DETAILED = {};
 let trafficCache = {};
 let trafficRange = '24h';
+let marksCache = {};
+let marksRange = '24h';
+const MARK_TYPE_RU = {
+  available: ['⛽', 'Топливо есть'],
+  unavailable: ['🔴', 'Топлива нет'],
+  delivery: ['🚛', 'Привоз заметили'],
+  queue: ['🚗', 'Очередь со стороны'],
+  in_queue: ['🚗', 'Стоит в очереди'],
+  low: ['🟢', 'Свободно'],
+  free: ['🟢', 'Свободно']
+};
+const MARK_FUEL_RU = { '92': 'АИ-92', '95': 'АИ-95', 'diesel': 'Дизель', 'all': 'Все топлива', 'none': 'Без типа топлива' };
 
 const POLL_Q = {
   arrive_truth: 'Подъехали к заправке — информация совпала?',
@@ -509,6 +523,7 @@ function switchTab(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'scr-' + id));
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
   if (id === 'summary' && trafficCache[trafficRange]) drawTraffic(trafficCache[trafficRange]);
+  if (id === 'marks' && marksCache[marksRange]) drawMarksCharts();
   fitScreen();
 }
 
@@ -578,6 +593,7 @@ function render(stats, poll, advisor, hooks, eng, srcf, upd) {
   document.getElementById('inner-aud').innerHTML = buildAudience();
   document.getElementById('inner-poll').innerHTML = buildPolls();
   document.getElementById('inner-ver').innerHTML = buildUpdates(upd);
+  loadMarks(marksRange);
 
   loadTraffic(trafficRange);
 
@@ -1320,6 +1336,150 @@ function downloadReport() {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
+// === ВКЛАДКА: НАРОДНЫЕ ОТМЕТКИ ===
+async function loadMarks(range) {
+  marksRange = range;
+  const box = document.getElementById('inner-marks');
+  if (!box) return;
+  if (!marksCache[range]) {
+    box.innerHTML = '<div class="card"><div class="loading"><div class="spinner"></div><span>Загрузка отметок...</span></div></div>';
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_marks_stats', {
+        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: DASH_SECRET, p_range: range })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      marksCache[range] = d;
+    } catch (e) {
+      box.innerHTML = '<div class="card"><div class="err">Отметки не загрузились: ' + e.message + '. Создай функцию dash_marks_stats в psql и выполни systemctl restart postgrest.</div></div>';
+      return;
+    }
+  }
+  box.innerHTML = buildMarks();
+  drawMarksCharts();
+  fitScreen();
+}
+
+function buildMarks() {
+  const d = marksCache[marksRange] || {};
+  const t = d.totals || {};
+  const RL = { '2h': '2 часа', '24h': '24 часа', '7d': '1 неделя', '30d': '1 месяц' };
+  let html = scrHead('🙏', 'Народные отметки', 'кто, сколько, когда и где отмечал · ' + RL[marksRange]);
+  html += '<div class="card"><div class="tf-headrow"><h3><span class="hicon">🙏</span>Активность отметок</h3><div class="tf-tabs">' +
+    ['2h', '24h', '7d', '30d'].map(r => '<button class="tf-tab' + (r === marksRange ? ' active' : '') + '" onclick="loadMarks(\'' + r + '\')">' + RL[r] + '</button>').join('') +
+    '</div></div>';
+  html += '<div class="tiles t4" style="margin:12px 0 14px">' +
+    '<div class="tile p1"><div class="t-ico">🙏</div><div class="lbl">Всего отметок</div><div class="val">' + num(t.marks) + '</div></div>' +
+    '<div class="tile p2"><div class="t-ico">👤</div><div class="lbl">Уникальных водителей</div><div class="val">' + num(t.devices) + '</div></div>' +
+    '<div class="tile p3"><div class="t-ico">⛽</div><div class="lbl">Уникальных АЗС</div><div class="val">' + num(t.stations) + '</div></div>' +
+    '<div class="tile p4"><div class="t-ico">📍</div><div class="lbl">С места с GPS</div><div class="val">' + num(t.on_site) + '</div></div>' +
+    '</div>';
+  html += '<div class="q-title">График активности (лог-шкала)</div><div id="marksChart" style="height:180px"></div>';
+  html += '<div class="q-title" style="margin-top:14px">В какое время отмечают (МСК)</div><div id="marksHour" style="height:140px"></div>';
+  html += '<div class="note">Лог-шкала: каждая следующая линия сетки в 10 раз выше (1 → 10 → 100). Водители и станции анонимны (device_id).</div>';
+  html += '</div>';
+
+  html += '<div class="grid g-react" style="margin-top:12px">';
+  html += '<div class="card"><h3><span class="hicon">🎯</span>На что ставили отметки</h3>';
+  const bt = d.by_type || [];
+  if (bt.length) {
+    const tot = bt.reduce((s, x) => s + x.cnt, 0);
+    html += '<div class="tiles t2">';
+    bt.forEach(x => {
+      const info = MARK_TYPE_RU[x.kind] || ['❓', x.kind];
+      html += '<div class="tile p1"><div class="t-ico">' + info[0] + '</div><div class="lbl">' + info[1] + '</div><div class="val">' + x.cnt + '</div><div class="sub">' + Math.round(100 * x.cnt / tot) + '% отметок</div></div>';
+    });
+    html += '</div>';
+    const bf = d.by_fuel || [];
+    if (bf.length) {
+      html += '<div class="subhead">По топливу</div><div class="tiles t2">';
+      bf.forEach(x => { html += '<div class="tile p3"><div class="lbl">' + (MARK_FUEL_RU[x.fuel] || x.fuel) + '</div><div class="val">' + x.cnt + '</div></div>'; });
+      html += '</div>';
+    }
+  } else html += '<div class="empty">Нет отметок за период</div>';
+  html += '</div>';
+
+  html += '<div class="card"><h3><span class="hicon">🏙️</span>В каких городах отмечали</h3>';
+  const bc = d.by_city || [];
+  if (bc.length) {
+    const mx = Math.max(...bc.map(x => x.cnt));
+    html += '<div class="bars">';
+    bc.forEach(x => { html += '<div class="bar-row"><div class="bar-lbl">' + x.city + '</div><div class="bar-track"><div class="bar-fill f-purple" style="width:' + (x.cnt / mx * 100) + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>'; });
+    html += '</div>';
+  } else html += '<div class="empty">Нет отметок за период</div>';
+  html += '</div>';
+
+  html += '<div class="card"><h3><span class="hicon">⛽</span>Топ отмечаемых АЗС</h3>';
+  const ts = d.top_stations || [];
+  if (ts.length) {
+    const mx = Math.max(...ts.map(x => x.cnt));
+    html += '<div class="bars">';
+    ts.forEach(x => { html += '<div class="bar-row"><div class="bar-lbl">' + x.name + '</div><div class="bar-track"><div class="bar-fill f-primary" style="width:' + (x.cnt / mx * 100) + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>'; });
+    html += '</div>';
+  } else html += '<div class="empty">Нет отметок за период</div>';
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+function drawMarksCharts() {
+  const d = marksCache[marksRange];
+  if (!d) return;
+  const box = document.getElementById('marksChart');
+  if (box) {
+    const series = d.series || [];
+    const W = Math.max(300, box.clientWidth || 700), H = Math.max(120, box.clientHeight || 180), PL = 6, PR = 34, PT = 10, PB = 20;
+    const iw = W - PL - PR, ih = H - PT - PB;
+    const maxV = Math.max(1, ...series.map(p => p.cnt));
+    const maxL = Math.log10(maxV + 1);
+    const y = v => PT + ih - (Math.log10(v + 1) / maxL) * ih;
+    const x = i => PL + (series.length === 1 ? iw / 2 : i * iw / (series.length - 1));
+    let line = '';
+    series.forEach((p, i) => { line += (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.cnt).toFixed(1); });
+    const area = series.length ? line + 'L' + x(series.length - 1).toFixed(1) + ' ' + (PT + ih) + 'L' + x(0).toFixed(1) + ' ' + (PT + ih) + 'Z' : '';
+    let grid = '';
+    [1, 10, 100, 1000].forEach(v => {
+      if (v > maxV * 3) return;
+      const gy = y(v).toFixed(1);
+      grid += '<line x1="' + PL + '" y1="' + gy + '" x2="' + (W - PR) + '" y2="' + gy + '" stroke="#F1EFFA" stroke-width="1.5"/><text x="' + (W - PR + 5) + '" y="' + (Number(gy) + 4) + '" font-size="9" font-weight="700" fill="#8B87A6">' + v + '</text>';
+    });
+    grid += '<line x1="' + PL + '" y1="' + (PT + ih) + '" x2="' + (W - PR) + '" y2="' + (PT + ih) + '" stroke="#F1EFFA" stroke-width="1.5"/><text x="' + (W - PR + 5) + '" y="' + (PT + ih + 4) + '" font-size="9" font-weight="700" fill="#8B87A6">0</text>';
+    let xl = '';
+    const step = Math.max(1, Math.round(series.length / 4));
+    for (let i = 0; i < series.length; i += step) {
+      const dt = new Date(new Date(series[i].t).getTime() + 3 * 3600 * 1000);
+      const s = (marksRange === '7d' || marksRange === '30d') ? String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0') : String(dt.getUTCHours()).padStart(2, '0') + ':' + String(dt.getUTCMinutes()).padStart(2, '0');
+      xl += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="9" font-weight="700" fill="#8B87A6" text-anchor="middle">' + s + '</text>';
+    }
+    box.innerHTML = series.length ? '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="display:block;width:100%">' +
+      '<defs><linearGradient id="mkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7C69EF" stop-opacity=".2"/><stop offset="100%" stop-color="#7C69EF" stop-opacity="0"/></linearGradient></defs>' +
+      grid + '<path d="' + area + '" fill="url(#mkGrad)"/><path d="' + line + '" fill="none" stroke="#7C69EF" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>'
+      : '<div class="empty">Нет отметок за период</div>';
+  }
+  const hbox = document.getElementById('marksHour');
+  if (hbox) {
+    const bh = d.by_hour || [];
+    const arr = Array(24).fill(0);
+    bh.forEach(x => { arr[x.hour] = x.cnt; });
+    const W = Math.max(300, hbox.clientWidth || 700), H = Math.max(100, hbox.clientHeight || 140), PL = 4, PR = 4, PT = 8, PB = 18;
+    const iw = W - PL - PR, ih = H - PT - PB;
+    const maxV = Math.max(1, ...arr);
+    const bw = iw / 24;
+    let cols = '';
+    arr.forEach((v, hh) => {
+      const hg = (v / maxV) * ih;
+      const isMax = v === maxV && v > 0;
+      cols += '<rect x="' + (PL + hh * bw + 1).toFixed(1) + '" y="' + (PT + ih - hg).toFixed(1) + '" width="' + Math.max(2, bw - 2).toFixed(1) + '" height="' + Math.max(v > 0 ? 2 : 0, hg).toFixed(1) + '" rx="3" fill="' + (isMax ? '#7C69EF' : '#C9BEF9') + '"/>';
+    });
+    let xl = '';
+    for (let hh = 0; hh < 24; hh += 3) xl += '<text x="' + (PL + hh * bw + bw / 2).toFixed(1) + '" y="' + (H - 4) + '" font-size="9" font-weight="700" fill="#8B87A6" text-anchor="middle">' + String(hh).padStart(2, '0') + '</text>';
+    const peak = arr.indexOf(Math.max(...arr));
+    hbox.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="display:block;width:100%">' + cols + xl + '</svg>' +
+      '<div class="sub" style="margin-top:6px">Пик активности: ' + String(peak).padStart(2, '0') + ':00–' + String((peak + 1) % 24).padStart(2, '0') + ':00 МСК</div>';
+  }
+}
 // === ГРАФИК ТРАФИКА ===
 async function loadTraffic(range) {
   trafficRange = range;
@@ -1418,6 +1578,7 @@ function drawTraffic(d) {
 window.addEventListener('resize', function () {
   layoutHeights();
   if (trafficCache[trafficRange]) drawTraffic(trafficCache[trafficRange]);
+  if (marksCache[marksRange] && document.getElementById('scr-marks').classList.contains('active')) drawMarksCharts();
   fitScreen();
 });
 window.addEventListener('orientationchange', function () {
