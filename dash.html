@@ -337,8 +337,7 @@ async function load() {
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_detailed', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
-fetch(SUPABASE_URL + '/rest/v1/rpc/dash_updates_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) })
-]);
+fetch(SUPABASE_URL + '/rest/v1/rpc/dash_updates_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }), 
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
