@@ -1982,6 +1982,13 @@ if ('serviceWorker' in navigator) {
 // версию (HTML-комментарий KB_VERSION). Если отличается — показываем карточку
 // «Обнаружена новая версия». По кнопке — сброс всех кэшей и перезагрузка.
 const KB_VERSION = 'v0.3'; // должно совпадать с комментарием в <head>
+// Сохраняем текущую версию при первом заходе, чтобы при следующем обновлении
+// записать from_version корректно
+try {
+  if (!localStorage.getItem('kbVersion')) {
+    localStorage.setItem('kbVersion', KB_VERSION);
+  }
+} catch (e) {}
 
 function currentVersionFromHtml(html) {
   const m = html.match(/<!--\s*KB_VERSION:\s*([A-Za-z0-9_.-]+)\s*-->/);
@@ -2020,6 +2027,40 @@ async function applyUpdate() {
     btn.disabled = true;
     btn.innerHTML = '<span class="update-spin"></span>Обновляю...';
   }
+
+  // Трекаем обновление ДО перезагрузки — keepalive доставит пакет
+  // даже когда страница уже закрывается
+  try {
+    const oldVersion = localStorage.getItem('kbVersion') || 'unknown';
+    const payload = {
+      device_id: (typeof deviceId !== 'undefined' && deviceId) ? deviceId : ('dev_' + Math.random().toString(36).slice(2)),
+      from_version: oldVersion,
+      to_version: KB_VERSION,
+      city_key: (typeof userCityKey !== 'undefined' && userCityKey) ? userCityKey : null,
+      session_id: (typeof sessionId !== 'undefined' && sessionId) ? sessionId : null,
+      utm_source: (typeof utmParams !== 'undefined' && utmParams.s) ? utmParams.s : null,
+      utm_medium: (typeof utmParams !== 'undefined' && utmParams.m) ? utmParams.m : null,
+      utm_campaign: (typeof utmParams !== 'undefined' && utmParams.c) ? utmParams.c : null
+    };
+
+    fetch(SUPABASE_URL + '/rest/v1/site_updates', {
+      method: 'POST',
+      keepalive: true,
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify([payload])
+    }).catch(() => {});
+
+    // Сохраняем новую версию локально
+    localStorage.setItem('kbVersion', KB_VERSION);
+  } catch (e) {
+    console.log('[update] track failed:', e.message);
+  }
+
   // сбрасываем ВСЕ кэши service worker
   try {
     if (window.caches) {
@@ -2036,6 +2077,47 @@ async function applyUpdate() {
 // Запускаем проверку через 3 секунды после загрузки, чтобы не тормозить вход
 window.addEventListener('load', () => {
   setTimeout(checkForUpdate, 3000);
+});
+</script>
+<script>
+// === Отслеживание обновлений версии сайта ===
+// При загрузке сравниваем сохранённую версию с текущей.
+// Если они отличаются и сохранённая уже была — это обновление.
+// Пишем событие в таблицу sw_updates для дашборда владельца.
+function trackVersionUpdate() {
+  try {
+    var storedVersion = localStorage.getItem('kbInstalledVersion') || null;
+    if (storedVersion === KB_VERSION) return;
+
+    if (storedVersion && storedVersion !== KB_VERSION) {
+      var row = {
+        device_id: (typeof deviceId !== 'undefined') ? deviceId : 'unknown',
+        session_id: (typeof sessionId !== 'undefined') ? sessionId : null,
+        old_version: storedVersion,
+        new_version: KB_VERSION,
+        city_key: (typeof userCityKey !== 'undefined') ? userCityKey : null,
+        user_agent: navigator.userAgent ? navigator.userAgent.slice(0, 200) : null
+      };
+      fetch(SUPABASE_URL + '/rest/v1/sw_updates', {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify([row])
+      }).catch(function() {});
+    }
+
+    localStorage.setItem('kbInstalledVersion', KB_VERSION);
+  } catch (e) {
+    console.log('[update-track] ошибка:', e.message);
+  }
+}
+
+window.addEventListener('load', function() {
+  setTimeout(trackVersionUpdate, 2000);
 });
 </script>
 </body>
