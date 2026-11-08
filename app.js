@@ -798,7 +798,7 @@ function staleWarnText(o) {
   const m = getFreshnessMin(o);
   return m === null
     ? 'Данные источника не свежие — топливо могло закончиться. Проверь перед выездом.'
-    : 'Данные источника были ' + agoRu(m) + ' назад — топливо могло закончиться. Проверь перед выездом.';
+    : 'Данные источника были ' + agoRu(m) + ' — топливо могло закончиться. Проверь перед выездом.';
 }
 function buildAdviceList(){
 	const e = getLastObservations(),
@@ -1358,7 +1358,6 @@ return '<span class="adv-fc ' + cls + '"><b>' + fuelLabel(fl) + '</b><i>' + (v =
 		if (it.pred) { const g = getPrediction(it.pred); win = '<span class="adv-win">' + icon('i-clock', 'ic-s') + 'окно ' + (g.eta ? ('≈ ' + g.eta) : g.time) + '   ' + g.confidence + '%</span>'; }
 		const price = advicePriceMeta(st, it);
 		const lastEvt = getLatestEventHtml(st.id);
-		const reasons = adviceReasons(it);
 		const our = it.ourChoice ? '<span class="adv-our">' + icon('i-star', 'ic-s') + 'наш выбор</span>' : '';
 		const near = (it.km != null && it.km < 1 && !it.ourChoice)
 			? '<span class="adv-our" style="background:#eef4ff !important; color:#2465ee !important; border:1px solid #bcd4ff !important; box-shadow:0 2px 12px rgba(36,101,238,.3) !important; background-image:none !important;">' + icon('i-pin', 'ic-s') + 'рядом с тобой</span>'
@@ -1368,12 +1367,13 @@ return '<span class="adv-fc ' + cls + '"><b>' + fuelLabel(fl) + '</b><i>' + (v =
 		const reactionsHtml = renderAdviceReactions(it);
 		return '<div class="adv-card' + (i === 0 ? ' best' : '') + (it.ourChoice ? ' our' : '') + '">' + wm +
 '<div class="adv-top"><span class="adv-rank">' + (i + 1) + '</span>' + '<span class="adv-name">' + escapeHtml(st.name || 'АЗС') + '</span>' + our + near + '</div>' +
-'<div class="adv-addr">' + badge + dist + '</div>' +
-'<div style="font-size:11px;color:#71809c;margin:3px 0 4px;line-height:1.35">' + escapeHtml(st.address || '') + '</div>' +
+'<div class="adv-addr">' + badge + '</div>' +
+'<div style="display:flex;align-items:center;gap:6px;margin:3px 0 4px">' +
+'<span style="flex:1;min-width:0;font-size:11px;color:#71809c;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escapeHtml(st.address || '') + '</span>' +
+'<span style="flex:0 0 auto">' + dist + '</span></div>' +
 '<div class="adv-fuelgrid">' + fuels + '</div>' +
 '<div class="adv-facts">' + price + lastEvt + win + '</div>' +
 (it.unverified ? '<div class="adv-stale-warn">' + icon('i-clock', 'ic-s') + '<span>' + staleWarnText(o) + '</span></div>' : '') +
-			(reasons ? '<div class="adv-why">' + reasons + '</div>' : '') +
 '<div class="adv-actions"><button class="cta-btn" onclick="adviceRoute(' + i + ')">' + icon('i-truck', 'ic-s') + 'На карте + маршрут</button>' +
 '<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button></div>' +
 reactionsHtml +
@@ -4623,7 +4623,7 @@ function renderTop3() {
   }
 }
 // === «Возможно есть топливо здесь»: народное подтверждение свежих меток источника ===
-// Кандидаты — станции, где источник за последние 24 ч отметил возврат топлива
+// Кандидаты — станции, где источник за последние 2 ч отметил возврат топлива
 // (событие fuel_restored), но свежим наблюдением «есть» сейчас не подтверждено.
 // Голоса пишем обычными народными отметками в user_feedback: коллектор превратит
 // их в события, журнал свидетеля — в заявления, консенсус перекрасит пины.
@@ -4642,7 +4642,7 @@ function maybeFuelVotes(stationId, fuel, since) {
   return { yes: yes.size, no: no.size, mine: mine };
 }
 function maybeFuelCandidates() {
-  const since = Date.now() - 24 * 3600 * 1000;
+  const since = Date.now() - 2 * 3600 * 1000;
   const citySet = new Set(cityStationList().map(s => s.id));
   const last = getLastObservations();
   
@@ -4729,7 +4729,7 @@ function renderMaybeFuel() {
       '<button class="mf-btn no' + (c.no >= 2 ? ' struck' : '') + (c.mine === 'no' ? ' mine' : '') + '" onclick="maybeVote(\'' + c.st.id + '\',\'' + c.fuel + '\',false)">' + icon('i-cross', 'ic-s') + 'Нет, отсутствует <i>' + c.no + '/2</i></button>' +
       '</span></div></div>';
   }).join('');
-  wrap.innerHTML = '<div class="mf-head">' + icon('i-pump') + 'Возможно есть топливо здесь:<small>источник отметил за 24 ч</small></div>' +
+  wrap.innerHTML = '<div class="mf-head">' + icon('i-pump') + 'Возможно есть топливо здесь:<small>источник отметил за 2 ч</small></div>' +
     '<div class="mf-sub">Подтвердите или опровергните метку источника — голос уходит в ленту города и в цвет пина. Консенсус двух водителей закрывает голосование.</div>' + rows;
 }
 // === отмена случайного голоса на плашке «возможно есть топливо здесь» ===
