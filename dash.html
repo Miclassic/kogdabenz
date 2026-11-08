@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>КогдаБенз · Аналитика</title>
+<title>КогдаБенз   Аналитика</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -208,7 +208,7 @@
 <div class="container">
   <div class="header">
     <div>
-      <h1><span class="logo">⛽</span>КогдаБенз · Аналитика</h1>
+      <h1><span class="logo">⛽</span>КогдаБенз   Аналитика</h1>
       <div class="subtitle">Анонимная статистика использования сайта</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -333,11 +333,10 @@ function formatNumber(n) {
 async function load() {
   const app = document.getElementById('app');
   try {
-    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes, updRes] = await Promise.all([
+    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_detailed', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
-fetch(SUPABASE_URL + '/rest/v1/rpc/dash_updates_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }), 
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) }),
@@ -346,12 +345,11 @@ fetch(SUPABASE_URL + '/rest/v1/rpc/dash_updates_stats', { method: 'POST', header
 
     if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok || !srcfRes.ok) throw new Error('HTTP error');
 
-    const [stats, poll, advisor, hooks, eng, srcf, advDet, updStats] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({}), updRes.ok ? updRes.json() : Promise.resolve({})]);
+    const [stats, poll, advisor, hooks, eng, srcf, advDet] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({})]);
     if (stats.error) throw new Error('Invalid token');
 
     ADVISOR_DETAILED = advDet.error ? {} : advDet;
-    window.__UPD_STATS = updStats.error ? {} : updStats;
-render(stats, poll, advisor, hooks, eng, srcf);
+    render(stats, poll, advisor, hooks, eng, srcf);
   } catch (e) {
     app.innerHTML = '<div class="error">Ошибка загрузки: ' + e.message + '</div>';
   }
@@ -387,15 +385,15 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
     dauBadge = '<div class="kpi-change neutral">данные набираются с полуночи</div>';
   } else if (dayAlmostDone) {
     const d = (stats.dau_today - stats.dau_yesterday) / stats.dau_yesterday * 100;
-    dauBadge = '<div class="kpi-change ' + (d > 0 ? 'positive' : d < 0 ? 'negative' : 'neutral') + '">' + (d > 0 ? '↑' : d < 0 ? '↓' : '→') + ' ' + Math.abs(d).toFixed(1) + '% vs вчера</div>';
+    dauBadge = '<div class="kpi-change ' + (d > 0 ? 'positive' : d < 0 ? 'negative' : 'neutral') + '">' + (d > 0 ? '↑' : d < 0 ? '↓' : '	') + ' ' + Math.abs(d).toFixed(1) + '% vs вчера</div>';
   } else {
     const pace = (stats.dau_today / hoursElapsed) / (stats.dau_yesterday / 24) * 100 - 100;
-    dauBadge = '<div class="kpi-change ' + (pace > 0 ? 'positive' : pace < 0 ? 'negative' : 'neutral') + '">' + (pace > 0 ? '↑' : pace < 0 ? '↓' : '→') + ' ' + Math.abs(pace).toFixed(0) + '% темп к вчера</div>';
+    dauBadge = '<div class="kpi-change ' + (pace > 0 ? 'positive' : pace < 0 ? 'negative' : 'neutral') + '">' + (pace > 0 ? '↑' : pace < 0 ? '↓' : '	') + ' ' + Math.abs(pace).toFixed(0) + '% темп к вчера</div>';
   }
 
   html += '<div class="kpi-grid">';
   html += `<div class="kpi-card"><div class="kpi-label">Пользователи за 30 дней</div><div class="kpi-value">${formatNumber(num(stats.mau_30d))}</div><div class="kpi-subtitle">Уникальных ID</div></div>`;
-  html += `<div class="kpi-card"><div class="kpi-label">Пользователей сегодня</div><div class="kpi-value">${num(stats.dau_today)}</div>${dauBadge}<div class="kpi-subtitle">С полуночи · вчера целиком: ${num(stats.dau_yesterday)}</div></div>`;
+  html += `<div class="kpi-card"><div class="kpi-label">Пользователей сегодня</div><div class="kpi-value">${num(stats.dau_today)}</div>${dauBadge}<div class="kpi-subtitle">С полуночи   вчера целиком: ${num(stats.dau_yesterday)}</div></div>`;
   html += `<div class="kpi-card"><div class="kpi-label">Новые (за 7 дней)</div><div class="kpi-value">${formatNumber(num(ret.new_7d))}</div><div class="kpi-subtitle">Вернувшихся: ${formatNumber(num(ret.returning_7d))}</div></div>`;
   html += `<div class="kpi-card"><div class="kpi-label">Всего визитов</div><div class="kpi-value">${formatNumber(num(stats.total_sessions))}</div><div class="kpi-subtitle">Действий: ${formatNumber(num(stats.total_hits))}</div></div>`;
   html += '</div>';
@@ -501,10 +499,9 @@ function render(stats, poll, advisor, hooks, eng, srcf) {
   }
 
   html += renderHooks(hooks);
-html += renderEngagement(eng);
-html += renderSourceFunnel(srcf);
-html += renderUpdatesStats();
-html += '<div id="advanced-stats-container"></div>';
+  html += renderEngagement(eng);
+  html += renderSourceFunnel(srcf);
+  html += '<div id="advanced-stats-container"></div>';
 
   app.innerHTML = html;
   loadTraffic(trafficRange);
@@ -605,7 +602,7 @@ function renderAdvisorDetailed() {
     html += '<div class="f-step-val"><b>' + formatNumber(s.sessions) + '</b><small>' + pct + '%</small></div></div>';
   });
   html += '</div>';
-  html += '<div class="note">Воронка показывает, на каком шаге советник теряет водителей. Большой обрыв после «Клик Куда ехать» → карточки не убеждают. После «Открыли карточку» → не хватает доверия к данным.</div>';
+  html += '<div class="note">Воронка показывает, на каком шаге советник теряет водителей. Большой обрыв после «Клик Куда ехать» 	 карточки не убеждают. После «Открыли карточку» 	 не хватает доверия к данным.</div>';
   html += '</div>';
   html += '</div>';
 
@@ -641,7 +638,7 @@ function renderAdvisorDetailed() {
       html += '</div></div>';
     }
 
-    html += '<div class="note">Реакции помогают калибровать алгоритм: много «👎 Топлива нет» → советник предлагает АЗС с устаревшими данными. Много «🤔 Данные старые» → источник редко обновляет эту станцию.</div>';
+    html += '<div class="note">Реакции помогают калибровать алгоритм: много «👎 Топлива нет» 	 советник предлагает АЗС с устаревшими данными. Много «🤔 Данные старые» 	 источник редко обновляет эту станцию.</div>';
     html += '</div>';
   }
 
@@ -706,7 +703,7 @@ function renderAdvisorDetailed() {
   if (d.fav_from_advice > 0) {
     const favRate = t.clicks > 0 ? Math.round(d.fav_from_advice / t.clicks * 100) : 0;
     html += '<div class="section" style="background:#eefaf4;border-color:#bfe8d4">';
-    html += '<div class="section-header"><div class="section-title" style="color:#12855c"><span class="section-icon" style="background:#dff3e8">❤️</span>Советник → избранное</div></div>';
+    html += '<div class="section-header"><div class="section-title" style="color:#12855c"><span class="section-icon" style="background:#dff3e8">❤️</span>Советник 	 избранное</div></div>';
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px">';
     html += '<div class="kpi-card" style="border-left:3px solid #19b77a"><div class="kpi-label">Добавили в избранное из совета</div><div class="kpi-value" style="color:#12855c">' + d.fav_from_advice + '</div></div>';
     html += '<div class="kpi-card" style="border-left:3px solid #19b77a"><div class="kpi-label">Конверсия в избранное</div><div class="kpi-value" style="color:#12855c">' + favRate + '%</div><div class="kpi-subtitle">от кликнувших совет</div></div>';
@@ -925,7 +922,7 @@ async function loadAdvancedStats() {
 function renderSourceFunnel(list) {
   if (!list || !list.length) return '';
   const cell = (n, r) => r.visits ? n + ' <small style="color:#9aa0a6">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
-  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Воронка по источникам · 7 дней</div></div>';
+  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🧭</span>Воронка по источникам   7 дней</div></div>';
   out += '<div style="overflow-x:auto"><table class="data-table"><tr><th>Источник</th><th>Открыли</th><th>Листали</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
   for (const r of list) {
     out += '<tr><td><b>' + r.source + '</b></td><td>' + r.visits + '</td><td>' + cell(r.panels, r) + '</td><td>' + cell(r.cards, r) + '</td><td>' + cell(r.advice, r) + '</td><td>' + cell(r.marks, r) + '</td><td>' + cell(r.installs, r) + '</td></tr>';
@@ -940,7 +937,7 @@ function downloadReport() {
   const L = [];
   const now = new Date(Date.now() + 3 * 3600 * 1000);
   const stamp = now.getUTCFullYear() + '-' + p2(now.getUTCMonth() + 1) + '-' + p2(now.getUTCDate()) + '_' + p2(now.getUTCHours()) + p2(now.getUTCMinutes());
-  L.push('КОГДАБЕНЗ · ОТЧЁТ ВЛАДЕЛЬЦА');
+  L.push('КОГДАБЕНЗ   ОТЧЁТ ВЛАДЕЛЬЦА');
   L.push('Сформирован: ' + p2(now.getUTCDate()) + '.' + p2(now.getUTCMonth() + 1) + '.' + now.getUTCFullYear() + ' ' + p2(now.getUTCHours()) + ':' + p2(now.getUTCMinutes()) + ' МСК');
   L.push('');
 
@@ -958,10 +955,10 @@ function downloadReport() {
     const t = ADVISOR_DETAILED.totals;
     L.push('== СОВЕТНИК «КУДА ЕХАТЬ» (ПОДРОБНО) ==');
     L.push('Коэффициент полезности: ' + u.score + '/100');
-    L.push('  · Вовлечённость (кликнули совет): ' + u.engagement + '% (вес 30%)');
-    L.push('  · Конверсия (построили маршрут): ' + u.conversion + '% (вес 25%)');
-    L.push('  · Удовлетворённость (лайки): ' + u.satisfaction + '% (вес 20%)');
-    L.push('  · Лояльность (добавили в избранное): ' + u.loyalty + '% (вес 25%)');
+    L.push('    Вовлечённость (кликнули совет): ' + u.engagement + '% (вес 30%)');
+    L.push('    Конверсия (построили маршрут): ' + u.conversion + '% (вес 25%)');
+    L.push('    Удовлетворённость (лайки): ' + u.satisfaction + '% (вес 20%)');
+    L.push('    Лояльность (добавили в избранное): ' + u.loyalty + '% (вес 25%)');
     L.push('');
     L.push('Воронка за 30 дней:');
     L.push('  Зашли на сайт: ' + t.shown);
@@ -975,11 +972,11 @@ function downloadReport() {
     L.push('  🤔 Сомнение: ' + t.doubts);
     if (ADVISOR_DETAILED.dislike_reasons) {
       L.push('  Причины «Плохо»:');
-      ADVISOR_DETAILED.dislike_reasons.forEach(r => L.push('    · ' + (DISLIKE_LABELS[r.reason] || r.reason) + ': ' + r.cnt));
+      ADVISOR_DETAILED.dislike_reasons.forEach(r => L.push('      ' + (DISLIKE_LABELS[r.reason] || r.reason) + ': ' + r.cnt));
     }
     if (ADVISOR_DETAILED.doubt_reasons) {
       L.push('  Причины «Сомнение»:');
-      ADVISOR_DETAILED.doubt_reasons.forEach(r => L.push('    · ' + (DOUBT_LABELS[r.reason] || r.reason) + ': ' + r.cnt));
+      ADVISOR_DETAILED.doubt_reasons.forEach(r => L.push('      ' + (DOUBT_LABELS[r.reason] || r.reason) + ': ' + r.cnt));
     }
     if (ADVISOR_DETAILED.fav_from_advice > 0) {
       const favRate = t.clicks > 0 ? (ADVISOR_DETAILED.fav_from_advice / t.clicks * 100).toFixed(1) : 0;
@@ -992,15 +989,15 @@ function downloadReport() {
       L.push('Исходы поездок по совету (' + total + ' ответов):');
       ADVISOR_DETAILED.outcomes.forEach(o => {
         const label = OUTCOME_LABELS[o.answer_key]?.[1] || o.answer_key;
-        L.push('  · ' + label + ': ' + o.cnt + ' (' + Math.round(o.cnt/total*100) + '%)');
+        L.push('    ' + label + ': ' + o.cnt + ' (' + Math.round(o.cnt/total*100) + '%)');
       });
       const fuel = ADVISOR_DETAILED.outcomes.find(o => o.answer_key === 'fuel');
-      if (fuel) L.push('  → Коэффициент попадания: ' + Math.round(fuel.cnt/total*100) + '% реально заправились по совету');
+      if (fuel) L.push('  	 Коэффициент попадания: ' + Math.round(fuel.cnt/total*100) + '% реально заправились по совету');
     }
     if (ADVISOR_DETAILED.top_stations && ADVISOR_DETAILED.top_stations.length) {
       L.push('');
       L.push('Топ АЗС по кликам из совета:');
-      ADVISOR_DETAILED.top_stations.slice(0, 5).forEach(s => L.push('  · ' + s.name + ': ' + s.clicks + ' кликов'));
+      ADVISOR_DETAILED.top_stations.slice(0, 5).forEach(s => L.push('    ' + s.name + ': ' + s.clicks + ' кликов'));
     }
     L.push('');
   }
@@ -1035,7 +1032,7 @@ function downloadReport() {
     L.push('Ответов: ' + p.total_answers + ', респондентов: ' + p.unique_respondents);
     for (const q of (p.answers_by_question || [])) {
       const total = q.answers.reduce((sm, x) => sm + x.cnt, 0);
-      L.push('· ' + (POLL_Q[q.question_key] || q.question_key));
+      L.push('  ' + (POLL_Q[q.question_key] || q.question_key));
       for (const an of q.answers) {
         const txt = q.question_key === 'stars' ? an.answer_key : (POLL_A[an.answer_key] || an.answer_key);
         L.push('   ' + txt + ': ' + an.cnt + ' (' + (total ? Math.round(100 * an.cnt / total) : 0) + '%)');
@@ -1183,41 +1180,6 @@ window.addEventListener('resize', function () {
   if (trafficCache[trafficRange]) drawTraffic(trafficCache[trafficRange]);
 });
 
-function renderUpdatesStats() {
-  const d = window.__UPD_STATS || {};
-  if (!d.total_site && !d.total_sw) return '';
-  const last = d.last_update || {};
-  const lastAt = last.at ? new Date(new Date(last.at).getTime() + 3 * 3600 * 1000) : null;
-  const lastAtStr = lastAt ? String(lastAt.getUTCDate()).padStart(2,'0') + '.' + String(lastAt.getUTCMonth()+1).padStart(2,'0') + ' ' + String(lastAt.getUTCHours()).padStart(2,'0') + ':' + String(lastAt.getUTCMinutes()).padStart(2,'0') : '—';
-  let out = '<div class="section"><div class="section-header"><div class="section-title"><span class="section-icon">🔄</span>Обновления сайта</div></div>';
-  out += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px">';
-  out += '<div class="kpi-card"><div class="kpi-label">Всего обновлений</div><div class="kpi-value">' + (d.total_site || 0) + '</div><div class="kpi-subtitle">по кнопке «Обновить»</div></div>';
-  out += '<div class="kpi-card"><div class="kpi-label">За 24 часа</div><div class="kpi-value">' + (d.last_24h || 0) + '</div></div>';
-  out += '<div class="kpi-card"><div class="kpi-label">За 7 дней</div><div class="kpi-value">' + (d.last_7d || 0) + '</div></div>';
-  out += '<div class="kpi-card"><div class="kpi-label">Последнее обновление</div><div class="kpi-value" style="font-size:20px">' + (last.to_version || '—') + '</div><div class="kpi-subtitle">' + lastAtStr + (last.city ? ' · ' + cityRu(last.city) : '') + '</div></div>';
-  out += '</div>';
-  if (d.by_version && d.by_version.length) {
-    const max = Math.max(...d.by_version.map(v => v.cnt));
-    out += '<div style="font-size:13px;font-weight:700;margin:14px 0 8px">По версиям</div><div class="bar-chart">';
-    d.by_version.forEach(v => {
-      const w = (v.cnt / max * 100);
-      out += '<div class="bar-item"><div class="bar-label">' + v.version + '</div><div class="bar-track"><div class="bar-fill success" style="width:' + w + '%"></div></div><div class="bar-value">' + v.cnt + '</div></div>';
-    });
-    out += '</div>';
-  }
-  if (d.by_city && d.by_city.length) {
-    const max = Math.max(...d.by_city.map(v => v.cnt));
-    out += '<div style="font-size:13px;font-weight:700;margin:14px 0 8px">По городам</div><div class="bar-chart">';
-    d.by_city.forEach(v => {
-      const w = (v.cnt / max * 100);
-      out += '<div class="bar-item"><div class="bar-label">' + cityRu(v.city) + '</div><div class="bar-track"><div class="bar-fill primary" style="width:' + w + '%"></div></div><div class="bar-value">' + v.cnt + '</div></div>';
-    });
-    out += '</div>';
-  }
-  out += '<div class="note"><b>Как считается:</b> когда водитель нажимает «Обновить сейчас» в окне новой версии — сайт пишет событие в <code>site_updates</code>. «За 24 часа» и «За 7 дней» — по московскому времени.</div>';
-  out += '</div>';
-  return out;
-}
 load();
 </script>
 </body>
