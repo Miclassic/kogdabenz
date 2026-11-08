@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2465ee">
 <meta name="description" content="КогдаБенз — карта наличия топлива на АЗС юга России: где есть АИ-95, АИ-92 и дизель сейчас, когда вернётся пропавшее, очереди и цены. Данные каждые 10 минут.">
-<!-- KB_VERSION: v0.3-->
+<!-- KB_VERSION: v0.3.1-->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
@@ -392,6 +392,9 @@ body.is-swiping .panel::before { animation-play-state:paused; }
 .adv-badge .ic { width:10px; height:10px; }
 .adv-badge.yes { background:rgba(25,183,122,.12); color:#12855c; }
 .adv-badge.fc { background:rgba(36,101,238,.10); color:#2465ee; }
+.adv-badge.stale { background:#fff2e8; color:#c26a2a; }
+.adv-stale-warn { margin-top:6px; padding:6px 9px; border-radius:10px; background:#fff2e8; border:1px solid #f5d3b8; color:#c26a2a; font-size:9.5px; font-weight:700; display:flex; align-items:center; gap:5px; line-height:1.35; }
+.adv-stale-warn .ic { width:12px; height:12px; flex:0 0 auto; }
 /* топливная сетка: три равные плитки — марка сверху, вердикт снизу */
 .adv-fuelgrid { display:grid; grid-template-columns:repeat(3,1fr); gap:4px; margin-top:8px; }
 .adv-fc { display:flex; flex-direction:column; align-items:center; gap:1px; padding:5px 4px; border-radius:10px; background:#f4f7fa; }
@@ -1981,7 +1984,7 @@ if ('serviceWorker' in navigator) {
 // Тихо спрашиваем у сервера свежий index.html в обход sw-кэша, сравниваем
 // версию (HTML-комментарий KB_VERSION). Если отличается — показываем карточку
 // «Обнаружена новая версия». По кнопке — сброс всех кэшей и перезагрузка.
-const KB_VERSION = 'v0.3'; // должно совпадать с комментарием в <head>
+const KB_VERSION = 'v0.3.1'; // должно совпадать с комментарием в <head>
 // Сохраняем текущую версию при первом заходе, чтобы при следующем обновлении
 // записать from_version корректно
 try {

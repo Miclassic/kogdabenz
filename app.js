@@ -704,12 +704,15 @@ function fullChoiceScore(it) {
   const dist = it.km != null ? cl(1 - it.km / 15, 0, 1) : 0.5;
   const qn = demandOf(it.st.id) + liveQueueCount(it.st.id) * 6;
   const queue = cl(1 - qn / 60, 0, 1);
-  return 30 * fuel + 22 * conf + 16 * fresh + 14 * price + 12 * dist + 6 * queue;
+  let s = 30 * fuel + 22 * conf + 16 * fresh + 14 * price + 12 * dist + 6 * queue;
+if (it.unverified) s -= 50; // «не точно» не отбирает «наш выбор» у проверенных
+return s;
 }
 function rankByFinalMetrics(list) {
   for (const it of list) it._fs = fullChoiceScore(it);
   list.sort((a, b) => b._fs - a._fs);
-  if (list.length) list[0].ourChoice = true;
+const our = list.find(x => !x.unverified);
+if (our) our.ourChoice = true;
   return list;
 }
 function adviceCoreScore(st, o, km, pred) {
@@ -782,13 +785,28 @@ adviceReactions[stId].folk_no = fn;
 }
 const ap = document.getElementById('advicePop');
 if (ap && ap.classList.contains('open')) renderAdvicePop();
+// Источник утверждает топливо, но снимок несвежий/недостоверный: запасной ключ
+// для советника. Null — если топлива по источнику нет вовсе, станция скрыта как раньше.
+function stalePinKey(o) {
+  if (!o) return null;
+  if (o.fuel_95_status === true) return 'yes';
+  if (o.diesel_status === true && o.fuel_92_status !== true) return 'diesel';
+  if (o.fuel_92_status === true) return 'part';
+  return null;
+}
+function staleWarnText(o) {
+  const m = getFreshnessMin(o);
+  return m === null
+    ? 'Данные источника не свежие — топливо могло закончиться. Проверь перед выездом.'
+    : 'Данные источника были ' + agoRu(m) + ' назад — топливо могло закончиться. Проверь перед выездом.';
+}
 function buildAdviceList(){
 	const e = getLastObservations(),
         uLoc = loadUserLocation(),
         t = cityStationList(),
         n = [],
         s = [];
-  const nows = [], fcs = [];
+  const nows = [], fcs = [], stales = [];
   for (const st of t) {                          // было city
     if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
     const o = e[st.id];                          // было last[st.id]
@@ -807,7 +825,22 @@ else if (fcdt?.verdict === 'yes') fpk = 'diesel';
     }
 
     if (fpk === 'unknown' || fpk === 'no') {
-  console.log('advice skip fpk:', st.name, 'fpk=' + fpk, 'trust=' + trust, 'o=', o);
+  // Третья ступень: источник говорит «есть», но снимок несвежий или
+  // подозрительный — станцию не скрываем совсем, а кладём в запасной список
+  // с пометкой «не точно». Народный консенсус и проверенные факты важнее.
+  const spk = stalePinKey(o);
+  if (!spk) {
+    console.log('advice skip fpk:', st.name, 'fpk=' + fpk, 'trust=' + trust, 'o=', o);
+    continue;
+  }
+  let kmS = null;
+  if (uLoc) {
+    const dLat = 111 * (Number(st.lat) - uLoc.lat);
+    const dLon = 111 * (Number(st.lon) - uLoc.lon) * Math.cos(uLoc.lat * Math.PI / 180);
+    kmS = Math.sqrt(dLat * dLat + dLon * dLon);
+  }
+  const predS = pickPrediction(st.id, o);
+  stales.push({ kind: 'stale', st, o, pred: predS, km: kmS, f: spk, unverified: true, score: 500 + adviceCoreScore(st, o, kmS, predS) });
   continue;
 }
 
@@ -836,9 +869,12 @@ else if (fcdt?.verdict === 'yes') fpk = 'diesel';
     }
   }
   nows.sort((a, b) => b.score - a.score);
-  fcs.sort((a, b) => b.score - a.score);
-  const out = nows.slice(0, 3);
-  if (out.length < 3) out.push(...fcs.slice(0, 3 - out.length));
+fcs.sort((a, b) => b.score - a.score);
+stales.sort((a, b) => b.score - a.score);
+const out = nows.slice(0, 3);
+if (out.length < 3) out.push(...fcs.slice(0, 3 - out.length));
+// проверенных вариантов не хватило — додаём «не точные», чтобы водитель не остался без зацепки
+if (out.length < 3) out.push(...stales.slice(0, 3 - out.length));
   // фильтр: убираем станции с >=5 отрицаниями с последнего fuel_restored
 	const filtered = out.filter(it => {
 const rej = isRejected(it.st.id, adviceFocusFuel(it));
@@ -855,6 +891,7 @@ console.log('advice final:', filtered.slice(0,3).map(x => x.st.name));
 function adviceReasons(it) {
   const r = []; const o = it.o;
   if (it.kind === 'now') r.push(it.f === 'yes' ? 'АИ-95 есть' : it.f === 'part' ? 'АИ-92 есть' : 'дизель есть');
+  if (it.kind === 'stale') r.push('источник утверждает топливо — данные не свежие');
   if (it.km != null) r.push(it.km < 1 ? 'рядом' : '~' + it.km.toFixed(1) + ' км');
   // УБРАНА СТРОКА: if (demandOf(it.st.id) < 12 && !liveQueueCount(it.st.id) && !(o && o.queue_level === 'high')) r.push('очередей не видно');
   if (it.pred) { const ws = adviceWinState(it.pred); if (ws === 'open') r.push('окно сейчас'); else if (ws === 'soon') r.push('окно скоро'); }
@@ -1289,8 +1326,10 @@ function renderAdvicePop() {
 	const cards = adviceList.map((it, i) => {
 		const st = it.st, o = it.o;
 		const badge = it.kind === 'now'
-			? '<span class="adv-badge yes">' + icon('i-check', 'ic-s') + 'есть сейчас</span>'
-			: '<span class="adv-badge fc">' + icon('i-clock', 'ic-s') + 'вернётся по прогнозу</span>';
+? '<span class="adv-badge yes">' + icon('i-check', 'ic-s') + 'есть сейчас</span>'
+: it.kind === 'stale'
+? '<span class="adv-badge stale">' + icon('i-help', 'ic-s') + 'не точно — стоит проверить</span>'
+: '<span class="adv-badge fc">' + icon('i-clock', 'ic-s') + 'вернётся по прогнозу</span>';
 		const fuels = ['92', '95', 'diesel'].map(fl => {
 			const col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
 			let v = o ? o[col] : null;
@@ -1300,7 +1339,7 @@ function renderAdvicePop() {
 				else if (fc?.verdict === 'no') v = false;
 			}
 			const tr = o ? availTrustworthy(o) : true;
-			if (!tr && v === true) v = null;
+if (!tr && v === true && it.kind !== 'stale') v = null;
 			if (v === null && it.kind === 'now') {
 				if (fl === '92' && it.f === 'part') v = true;
 				if (fl === '95' && it.f === 'yes') v = true;
@@ -1333,6 +1372,7 @@ return '<span class="adv-fc ' + cls + '"><b>' + fuelLabel(fl) + '</b><i>' + (v =
 '<div style="font-size:11px;color:#71809c;margin:3px 0 4px;line-height:1.35">' + escapeHtml(st.address || '') + '</div>' +
 '<div class="adv-fuelgrid">' + fuels + '</div>' +
 '<div class="adv-facts">' + price + lastEvt + win + '</div>' +
+(it.unverified ? '<div class="adv-stale-warn">' + icon('i-clock', 'ic-s') + '<span>' + staleWarnText(o) + '</span></div>' : '') +
 			(reasons ? '<div class="adv-why">' + reasons + '</div>' : '') +
 '<div class="adv-actions"><button class="cta-btn" onclick="adviceRoute(' + i + ')">' + icon('i-truck', 'ic-s') + 'На карте + маршрут</button>' +
 '<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button></div>' +
@@ -1340,7 +1380,7 @@ reactionsHtml +
 '</div>';
 	}).join('');
 	pop.innerHTML = '<div class="hello-title">Куда ехать прямо сейчас   ' + escapeHtml(userCityName()) + '</div>' +
-		'<div class="help-lead" style="margin:4px 0 8px">' + nWord + ' по свежим данным: где топливо есть сейчас, а если нет — где обещают привоз. Очереди не приукрашиваем: показываем что реально видим.</div>' +
+		'<div class="help-lead" style="margin:4px 0 8px">' + nWord + ' по свежим данным: где топливо есть сейчас, а если нет — где обещают привоз. Очереди не приукрашиваем: показываем что реально видим.' + (adviceList.some(x => x.unverified) ? ' Пометка «не точно — стоит проверить» — данные источника не свежие, проверь перед выездом.' : '') + '</div>' +
 		'<div class="adv-cards">' + cards + '</div>' +
 		'<div class="recent">Клик по варианту учит подборку под тебя: бренд, часы и исходы поездок. Показываем при каждом заходе — данные каждые 10 минут, топ живой.</div>' +
 		'<button class="cta-btn ghost" style="width:100%;margin-top:8px" onclick="closeAdvicePop()">Закрыть</button>';
@@ -4056,7 +4096,7 @@ function lentiRender() {
   const adv = advList[0];
   el('lentiAdvV').textContent = adv ? (adv.st.name || 'АЗС') : 'нет свежих вариантов';
   el('lentiAdvS').textContent = adv
-    ? (adv.kind === 'now' ? 'топливо есть сейчас   тап — топ-3' : 'окно по прогнозу   тап — топ-3')
+    ? (adv.kind === 'now' ? 'топливо есть сейчас   тап — топ-3' : adv.kind === 'stale' ? 'не точно — стоит проверить   тап — топ-3' : 'окно по прогнозу   тап — топ-3')
     : 'тап — список АЗС города';
   // сцена 3: народная жизнь за сутки + след водителя
   const since24 = Date.now() - 24 * 3600 * 1000;
@@ -4252,7 +4292,7 @@ function renderPulse() {
   const go = buildAdviceList()[0];
   if (go) {
     el('pulseGoName').textContent = go.st.name || 'АЗС';
-    const fTxt = go.kind === 'now' ? (go.f === 'yes' ? 'АИ-95' : go.f === 'part' ? 'АИ-92' : 'дизель') : 'окно по прогнозу';
+    const fTxt = go.kind === 'now' ? (go.f === 'yes' ? 'АИ-95' : go.f === 'part' ? 'АИ-92' : 'дизель') : go.kind === 'stale' ? 'не точно — проверь' : 'окно по прогнозу';
     const goSub = el('pulseGoSub');
     goSub.textContent = fTxt + (go.km != null ? '   ' + (go.km < 1 ? Math.round(go.km * 1000) + ' м' : go.km.toFixed(1) + ' км') : '');
     goSub.className = go.kind === 'now' ? 'g' : 'n';
