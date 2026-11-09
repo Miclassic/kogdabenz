@@ -7795,7 +7795,16 @@ function scrollToTop3() {
 function updateSlimBellBadge() {
   const btn = document.getElementById('slimBell');
   if (!btn) return;
-  btn.classList.toggle('has-news', getFavoriteEvents().length > 0);
+  
+  // Узнаем, когда пользователь последний раз открывал уведомления
+  let lastView = 0;
+  try { lastView = Number(localStorage.getItem('kbLastNotifView') || 0); } catch (e) {}
+  
+  const events = getFavoriteEvents();
+  // Показываем красную точку, только если есть события, которые случились ПОСЛЕ последнего просмотра
+  const hasNew = events.length > 0 && new Date(events[0].detected_at).getTime() > lastView;
+  
+  btn.classList.toggle('has-news', hasNew);
 }
 
 function getFavoriteEvents() {
@@ -7846,7 +7855,7 @@ function renderSlimNotif() {
   if (!el) return;
   const favs = getFavorites();
 
-  if (favs.length) {
+    if (favs.length) {
     const events = getFavoriteEvents();
     let html = '<div class="slim-notif-t">' + icon('i-bell') + 'Уведомления по избранным</div>';
     if (!events.length) {
@@ -7855,6 +7864,7 @@ function renderSlimNotif() {
       html += events.map(e => {
         const st = stationById(e.station_id);
         const name = st ? (st.name || 'АЗС') : 'АЗС';
+        const address = (st && st.address) ? escapeHtml(st.address) : '';
         const isR = e.event_type === 'fuel_restored';
         const cls = isR ? 'g' : 'r';
         const ico = isR ? 'i-check' : 'i-cross';
@@ -7863,9 +7873,10 @@ function renderSlimNotif() {
         const d = new Date(e.detected_at);
         const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
         const src = e.source === 'folk' ? 'водители' : 'источник';
+        
         return '<div class="sn-row" onclick="openSheet(\'' + e.station_id + '\');closeSlimNotif()">' +
           '<span class="sn-ico ' + cls + '">' + icon(ico) + '</span>' +
-          '<span class="sn-txt"><b>' + escapeHtml(name) + '</b><span>' + fuelTxt + ' ' + verb + ' · ' + src + '</span></span>' +
+          '<span class="sn-txt"><b>' + escapeHtml(name) + '</b><span>' + (address ? address + ' · ' : '') + fuelTxt + ' ' + verb + ' · ' + src + '</span></span>' +
           '<span class="sn-time">' + hm + '</span></div>';
       }).join('');
     }
@@ -7892,8 +7903,16 @@ function renderSlimNotif() {
 
 function toggleSlimNotif() {
   if (slimNotifOpen) { closeSlimNotif(); return; }
+  
   renderSlimNotif();
   slimNotifOpen = true;
+  
+  // ЗАПОМИНАЕМ ВРЕМЯ ПРОСМОТРА: сохраняем "сейчас" в память
+  try { localStorage.setItem('kbLastNotifView', String(Date.now())); } catch (e) {}
+  
+  // Сразу же обновляем иконку, чтобы красная точка мгновенно пропала
+  updateSlimBellBadge();
+  
   const back = document.getElementById('slimNotifBack');
   const panel = document.getElementById('slimNotif');
   if (back) back.classList.add('open');
