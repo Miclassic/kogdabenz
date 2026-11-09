@@ -12,8 +12,11 @@ let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
 // === Минимальная аналитика: анонимные хиты, без персональных данных ===
 // session — случайный id в localStorage; события: pageview, panel_view,
-// open_station_card, click_where_to_go, feedback_submit.
+// open_station_card, click_where_to_go, feedback_submit, top3_loaded,
+// advisor_open, visibility_hidden/visible, heartbeat, session_end.
 // Отправка пачками по 5 или раз в 4 сек; при скрытии вкладки — fetch keepalive.
+// Важно: быстрый уход после показа топ-3 — часто УСПЕХ, а не отказ.
+// Поэтому отдельно копим: общее время сеанса, видимое время, последнее действие.
 let sessionId = localStorage.getItem('kbSession');
 if (!sessionId) { sessionId = 'ses_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('kbSession', sessionId); }
 const utmParams = (() => {
@@ -23,21 +26,42 @@ const utmParams = (() => {
 let hitQueue = [];
 let hitTimer = null;
 let sessionStartMs = Date.now();
-function track(event, panel, stationId, durationSec) {
-  hitQueue.push({
+let visibleSinceMs = document.hidden ? null : Date.now();
+let visibleMs = 0;
+let lastActivityAt = Date.now();
+let sessionEndSent = false;
+let top3LoadedSent = false;
+
+function track(event, panel, stationId, durationSec, extra) {
+  // extra — только для внутренней логики. В site_hits пишем ТОЛЬКО известные колонки,
+  // иначе PostgREST отвергнет всю пачку (нет visible_sec/note в таблице).
+  const now = Date.now();
+  let dur = durationSec;
+  if (dur == null) dur = Math.round((now - sessionStartMs) / 1000);
+  // для visibility/session_end в duration_sec кладём видимое время, если передали
+  if (extra && extra.visible_sec != null &&
+      (event === 'session_end' || event === 'visibility_hidden' || event === 'visibility_visible' || event === 'heartbeat')) {
+    // формат: общее_сек * 10000 + видимые_сек  (до ~2.7 ч укладывается в int)
+    const vis = Math.max(0, Math.min(9999, Math.round(extra.visible_sec)));
+    const tot = Math.max(0, Math.min(9999, Math.round(dur)));
+    dur = tot * 10000 + vis;
+  }
+  const row = {
     session_id: sessionId,
     event: event,
     referrer: document.referrer || null,
     utm_source: utmParams.s, utm_medium: utmParams.m, utm_campaign: utmParams.c,
-    city_key: userCityKey || null,
-    offline: offlineMode === true,
+    city_key: (typeof userCityKey !== 'undefined' ? userCityKey : null),
+    offline: (typeof offlineMode !== 'undefined' && offlineMode === true),
     panel: panel === undefined ? null : panel,
     station_id: stationId || null,
-    duration_sec: durationSec || null
-  });
+    duration_sec: dur
+  };
+  hitQueue.push(row);
   if (hitQueue.length >= 5) { flushHits(false); return; }
   if (!hitTimer) hitTimer = setTimeout(() => flushHits(false), 4000);
 }
+
 function flushHits(keepalive) {
   if (hitTimer) { clearTimeout(hitTimer); hitTimer = null; }
   if (!hitQueue.length) return;
@@ -49,19 +73,47 @@ function flushHits(keepalive) {
     body: JSON.stringify(rows)
   }).catch(() => {});
 }
+
+// активность пользователя (не скролл-спам: только фиксируем время последнего действия)
+['pointerdown', 'touchstart', 'keydown'].forEach(function (evName) {
+  window.addEventListener(evName, function () { lastActivityAt = Date.now(); }, { passive: true });
+});
+
+// heartbeat раз в 45 сек, только пока вкладка видима и была активность за 2 мин
+setInterval(function () {
+  if (document.hidden) return;
+  const idleMs = Date.now() - lastActivityAt;
+  if (idleMs > 120000) return;
+  const visSec = Math.round((visibleMs + (visibleSinceMs ? Date.now() - visibleSinceMs : 0)) / 1000);
+  track('heartbeat', null, null, null, { visible_sec: visSec });
+}, 45000);
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
+    if (visibleSinceMs != null) {
+      visibleMs += Date.now() - visibleSinceMs;
+      visibleSinceMs = null;
+    }
     const durationSec = Math.round((Date.now() - sessionStartMs) / 1000);
-    if (durationSec > 5 && durationSec < 3600) {
-      track('session_end', null, null, durationSec);
+    const visSec = Math.round(visibleMs / 1000);
+    track('visibility_hidden', null, null, durationSec, { visible_sec: visSec });
+    if (!sessionEndSent && durationSec > 3 && durationSec < 7200) {
+      sessionEndSent = true;
+      track('session_end', null, null, durationSec, { visible_sec: visSec });
     }
     flushHits(true);
     return;
   }
+  // вернулись во вкладку
+  visibleSinceMs = Date.now();
+  lastActivityAt = Date.now();
+  sessionEndSent = false;
+  track('visibility_visible', null, null, null, {
+    visible_sec: Math.round(visibleMs / 1000)
+  });
   checkAdvicePoll();
-  // вернулись во вкладку без связи — пробуем обновиться сразу, не ждать 30 секунд
   if (offlineMode && !refreshing) manualRefresh(true);
-  refreshTgLink(); // вдруг водитель только что связал аккаунт через бота
+  refreshTgLink();
 });
 let allStations = [], allObservations = [], allPredictions = [], allFeedback = [], allEvents = [], allCounts = [], allHourly = [], localIdsGlobal = [], fuelHourly = [];
 let geoRequested = false; // флаг: запрос к GPS уже отправлен
@@ -1410,6 +1462,8 @@ try { ok = renderAdvicePop(); } catch (e) { console.log('Окно «куда е�
   adviceShownThisSession = true;
   document.getElementById('advicePop').classList.add('open');
   document.getElementById('adviceBack').classList.add('open');
+  // советник реально показан водителю; panel = число карточек
+  track('advisor_open', adviceList ? adviceList.length : 0);
 }
 function closeAdvicePop() {
   const pop = document.getElementById('advicePop'); const back = document.getElementById('adviceBack');
@@ -4605,6 +4659,12 @@ function renderTop3() {
   pageLater.innerHTML = laterList.length
     ? laterList.map(it => top3RowHtml(it.st, it.o, it.pred, (evBySt[it.st.id] || []).slice(0, 3))).join('')
     : '<div class="t3-empty">Ближайших окон пока нет — прогнозы копятся. Загляни позже или открой «куда ехать».</div>';
+      // один раз за сессию: топ-3 реально нарисован (успешный сценарий «увидел и уехал»)
+  // panel = сколько карточек «сейчас», duration_sec = сколько «потом»
+  if (!top3LoadedSent && (nowList.length > 0 || laterList.length > 0)) {
+    top3LoadedSent = true;
+    track('top3_loaded', nowList.length, null, laterList.length);
+  }
   // свайп по блоку: touch-action:pan-y не отдаёт жест горизонтальному пейджеру
   if (!top3Bound) {
     top3Bound = true;

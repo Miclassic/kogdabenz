@@ -366,6 +366,7 @@ const DASH_SECRET = 'kb-dash-2026-x9f3k';
 let REPORT = {};
 let ADVANCED_REPORT = {};
 let ADVISOR_DETAILED = {};
+let BEHAVIOR_REPORT = null;
 let trafficCache = {};
 let trafficRange = '24h';
 let marksCache = {};
@@ -901,6 +902,8 @@ function buildAudience() {
   const hooks = REPORT.hooks || {};
   const eng = REPORT.eng || {};
   const adv = ADVANCED_REPORT || {};
+  const beh = (BEHAVIOR_REPORT && !BEHAVIOR_REPORT.error) ? BEHAVIOR_REPORT : null;
+  const bt = beh ? (beh.totals || {}) : {};
   let html = scrHead('👥', 'Аудитория', 'привычки, удержание и активность');
   html += '<div class="grid g-aud">';
 
@@ -915,12 +918,86 @@ function buildAudience() {
     '</div></div>';
 
   const d = eng.dur || {};
+  const medTotal = bt.median_total_sec != null ? bt.median_total_sec : d.p50;
+  const medVisible = bt.median_visible_sec;
+  const medActive = bt.median_active_sec;
+  html += '<div class="card"><h3><span class="hicon">⏱️</span>Время сеанса (три метрики)</h3><div class="tiles t3">' +
+    '<div class="tile p1"><div class="t-ico">🕐</div><div class="lbl">Медиана сеанса</div><div class="val">' + fmtDur(medTotal) + '</div><div class="sub">от открытия до ухода</div></div>' +
+    '<div class="tile p2"><div class="t-ico">👁</div><div class="lbl">Активное время</div><div class="val">' + (medVisible != null ? fmtDur(medVisible) : '—') + '</div><div class="sub">вкладка видима + действия</div></div>' +
+    '<div class="tile p3"><div class="t-ico">📱</div><div class="lbl">Время в фоне</div><div class="val">' +
+      (medTotal != null && medVisible != null ? fmtDur(Math.max(0, medTotal - medVisible)) : '—') +
+    '</div><div class="sub">сайт открыт, но не виден</div></div>' +
+    '</div>';
+  if (!beh) {
+    html += '<div class="note">Активное время и время в фоне появятся после внедрения Page Visibility API + heartbeat на клиенте и SQL <b>dash_session_behavior</b>.</div>';
+  }
+  html += '</div>';
+
   const favg = (eng.freq_avg === null || eng.freq_avg === undefined) ? '—' : Number(eng.freq_avg).toFixed(2).replace('.', ',');
   html += '<div class="card"><h3><span class="hicon">⏱️</span>Привычка: частота и время</h3><div class="tiles t3">' +
     '<div class="tile p1"><div class="t-ico">🔁</div><div class="lbl">Заходов в день</div><div class="val">' + favg + '</div></div>' +
     '<div class="tile p2"><div class="t-ico">⏱️</div><div class="lbl">Медиана времени</div><div class="val">' + fmtDur(d.p50) + '</div></div>' +
     '<div class="tile p3"><div class="t-ico">⏳</div><div class="lbl">Сессии &gt;2 мин</div><div class="val">' + (d.share_long !== undefined ? d.share_long + '%' : '—') + '</div></div>' +
     '</div></div>';
+
+  html += '<div class="card"><h3><span class="hicon">💡</span>Интерпретация коротких сессий</h3>' +
+    '<div class="note" style="margin-top:0"><b>Важно:</b> если пользователь увидел топ-3 АЗС с нужным топливом и закрыл сайт за 8–15 секунд — это успешный сценарий, а не отказ. Обычный bounce_rate вводит в заблуждение. Нужны три отдельных метрики:<br>' +
+    '• время сеанса (от открытия до закрытия),<br>' +
+    '• активное время (вкладка видима + есть взаимодействие),<br>' +
+    '• время в фоне.<br>' +
+    'Без событий <code>top3_loaded</code> / <code>station_visible</code> нельзя отличить «не заинтересовался» от «получил ответ и уехал».</div></div>';
+
+  if (beh) {
+    const sessions = num(bt.sessions);
+    const withTop3 = num(bt.with_top3);
+    const top3Only = num(bt.top3_only);
+    const withAdvisor = num(bt.with_advisor);
+    const withAction = num(bt.with_action);
+    const shortSuccess = num(bt.short_success);
+    const pct = (n) => sessions > 0 ? Math.round(100 * n / sessions) : 0;
+
+    html += '<div class="card span2"><h3><span class="hicon">⚡</span>Поведение сеансов<span class="hchip">30 ДНЕЙ</span></h3>';
+    html += '<div class="tiles t4" style="margin-bottom:12px">' +
+      '<div class="tile p1"><div class="t-ico">👥</div><div class="lbl">Всего сеансов</div><div class="val">' + formatNumber(sessions) + '</div></div>' +
+      '<div class="tile p2"><div class="t-ico">⛽</div><div class="lbl">Увидели топ-3</div><div class="val">' + formatNumber(withTop3) + '</div><div class="sub">' + pct(withTop3) + '%</div></div>' +
+      '<div class="tile p3"><div class="t-ico">⚡</div><div class="lbl">Топ-3 и ушли</div><div class="val" style="color:#047857">' + formatNumber(top3Only) + '</div><div class="sub">' + pct(top3Only) + '% · часто успех</div></div>' +
+      '<div class="tile p4"><div class="t-ico">🎯</div><div class="lbl">Были действия</div><div class="val">' + formatNumber(withAction) + '</div><div class="sub">' + pct(withAction) + '%</div></div>' +
+      '</div>';
+    html += '<div class="tiles t2" style="margin-bottom:12px">' +
+      '<div class="tile p3"><div class="t-ico">⚡</div><div class="lbl">Короткий успех ≤20 с</div><div class="val" style="color:#047857">' + formatNumber(shortSuccess) + '</div><div class="sub">' + pct(shortSuccess) + '% сеансов</div></div>' +
+      '<div class="tile p1"><div class="t-ico">🧭</div><div class="lbl">Открыли советник</div><div class="val">' + formatNumber(withAdvisor) + '</div><div class="sub">' + pct(withAdvisor) + '%</div></div>' +
+      '</div>';
+
+    const funnel = beh.funnel || [];
+    if (funnel.length) {
+      const maxF = Math.max(...funnel.map(x => x.sessions), 1);
+      html += '<div class="subhead">Воронка поведения</div><div class="bars">';
+      funnel.forEach(x => {
+        const width = (x.sessions / maxF * 100);
+        html += '<div class="bar-row"><div class="bar-lbl">' + x.step + '</div><div class="bar-track"><div class="bar-fill f-primary" style="width:' + width + '%"></div></div><div class="bar-val">' + formatNumber(x.sessions) + ' <small>' + (x.pct != null ? x.pct + '%' : '') + '</small></div></div>';
+      });
+      html += '</div>';
+    }
+
+    const buckets = beh.duration_buckets || [];
+    if (buckets.length) {
+      const maxB = Math.max(...buckets.map(x => x.cnt), 1);
+      html += '<div class="subhead">Длина сеанса (видимое время)</div><div class="bars">';
+      buckets.forEach(x => {
+        const width = (x.cnt / maxB * 100);
+        const cls = (String(x.label).indexOf('≤10') >= 0 || String(x.label).indexOf('≤20') >= 0) ? 'f-success' : 'f-primary';
+        html += '<div class="bar-row"><div class="bar-lbl">' + x.label + '</div><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + width + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>';
+      });
+      html += '</div>';
+      html += '<div class="note">Зелёные короткие корзины — кандидаты в успешный быстрый поиск топлива (особенно если был top3_loaded).</div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div class="card span2"><h3><span class="hicon">⚡</span>Поведение сеансов</h3>' +
+      '<div class="note" style="margin-top:0">Блок появится после SQL-функции <b>dash_session_behavior</b> и деплоя обновлённого <b>app.js</b> (события top3_loaded, visibility_*, heartbeat).<br>' +
+      (BEHAVIOR_REPORT && BEHAVIOR_REPORT.error ? 'Сейчас ошибка: ' + BEHAVIOR_REPORT.error : 'Функция пока не отвечает.') +
+      '</div></div>';
+  }
 
   const b = adv.bounce;
   html += '<div class="card"><h3><span class="hicon">🚪</span>Уходы и глубина просмотра</h3>';
@@ -1123,12 +1200,22 @@ function renderVerdict() {
   let statusClass = 'warn';
 
   if (adv.bounce && adv.bounce.total_sessions) {
-    const br = adv.bounce.bounce_rate;
-    if (br <= 12) { score += 1.5; pros.push('Отличное удержание: отказы ' + br + '%.'); }
-    else if (br <= 25) { score += 0.8; pros.push('Хорошее удержание: отказы ' + br + '%.'); }
-    else if (br <= 40) { score -= 0.5; cons.push('Средние отказы (' + br + '%).'); }
-    else { score -= 1.5; cons.push('Высокие отказы (' + br + '%). Сайт может тормозить.'); }
+  const br = adv.bounce.bounce_rate;
+  // Короткие сессии после показа топ-3 часто = успех, а не отказ
+  if (br <= 18) {
+    score += 1.2;
+    pros.push('Хорошее удержание (отказы ' + br + '%). Учитываем, что быстрый уход после топ-3 — нормальный сценарий.');
+  } else if (br <= 35) {
+    score += 0.3;
+    pros.push('Приемлемые отказы (' + br + '%). Часть коротких сессий — успешный поиск топлива.');
+  } else if (br <= 50) {
+    score -= 0.4;
+    cons.push('Повышенные отказы (' + br + '%). Нужно проверить, видят ли люди топ-3.');
+  } else {
+    score -= 1.2;
+    cons.push('Очень высокие отказы (' + br + '%). Возможны проблемы с загрузкой или релевантностью топ-3.');
   }
+}
 
   const pv = f.find(x => x.event === 'pageview') ? f.find(x => x.event === 'pageview').sessions : 0;
   const cardEv = f.find(x => x.event === 'open_station_card') ? f.find(x => x.event === 'open_station_card').sessions : 0;
@@ -1249,15 +1336,18 @@ function renderVerdict() {
 async function loadAdvancedStats() {
   try {
     const H = { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) };
-    const [bounceRes, cohortRes, heatmapRes] = await Promise.all([
+    const [bounceRes, cohortRes, heatmapRes, behRes] = await Promise.all([
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_bounce_stats', H),
       fetch(SUPABASE_URL + '/rest/v1/rpc/dash_retention_cohorts', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', H)
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', H),
+      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_session_behavior', H)
     ]);
     const bounceData = await bounceRes.json();
     const cohortData = await cohortRes.json();
     const heatmapData = await heatmapRes.json();
+    const behData = behRes.ok ? await behRes.json() : { error: 'HTTP ' + behRes.status };
     ADVANCED_REPORT = { bounce: bounceData, cohort: cohortData, heatmap: heatmapData };
+    BEHAVIOR_REPORT = behData;
     if (bounceData.error || cohortData.error || heatmapData.error) {
       console.error("SQL Errors:", bounceData.error, cohortData.error, heatmapData.error);
     }
