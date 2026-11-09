@@ -1068,9 +1068,13 @@ function buildUpdates(upd) {
   if (rec.length) {
     html += '<table class="tbl"><tr><th>Когда</th><th>Переход</th></tr>';
     rec.forEach(x => {
-      const d = x.t ? new Date(new Date(x.t).getTime() + 3 * 3600 * 1000) : null;
+      const tRaw = x.t || x.created_at || x.ts || x.when || null;
+      const ov = x.old_v || x.old_version || x.from_version || x.from_v || x.from || null;
+      const nv = x.new_v || x.new_version || x.to_version || x.to_v || x.to || null;
+      if (!ov && !nv) return; // пустая строка: не показываем «?» и «undefined»
+      const d = tRaw ? new Date(new Date(tRaw).getTime() + 3 * 3600 * 1000) : null;
       const s = d ? String(d.getUTCDate()).padStart(2, '0') + '.' + String(d.getUTCMonth() + 1).padStart(2, '0') + ' <span style="color:var(--muted);margin-left:4px">' + String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + '</span>' : '—';
-      html += '<tr><td>' + s + '</td><td><b>' + (x.old_v || '?') + ' → ' + x.new_v + '</b></td></tr>';
+      html += '<tr><td>' + s + '</td><td><b>' + (ov || '?') + ' → ' + (nv || '?') + '</b></td></tr>';
     });
     html += '</table>';
   } else {
