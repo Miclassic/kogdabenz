@@ -2,6 +2,12 @@ const SUPABASE_URL = 'https://api.kogdabenz.ru';
 const SUPABASE_KEY = 'eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
 const TG_BOT_USERNAME = 'kogdabenz_alert_bot'; // без @, например KogdaBenzAlertBot
 const LOGO_FALLBACK = "<svg class='ic ic-l'><use href='#i-pump'/></svg>";
+// === лайт-режим для слабого соединения: флаг читаем до первой отрисовки ===
+let liteMode = false;
+let liteMapOk = false;
+let liteAsked = false;
+try { liteMode = localStorage.getItem('kbLiteMode') === '1'; } catch (e) {}
+if (liteMode) document.body.classList.add('kb-lite');
 let deviceId = localStorage.getItem('deviceId');
 if (!deviceId) { deviceId = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('deviceId', deviceId); }
 // === Минимальная аналитика: анонимные хиты, без персональных данных ===
@@ -3022,9 +3028,10 @@ function ensureMapLibre() {
 // Второй WebGL-контекст и тайлы больше не тормозят вход.
 let miniMapQueued = false;
 function ensureMiniMap() {
-  const box = document.getElementById('miniMapBox');
-  if (!box || miniMapObj || miniMapQueued) return;
-  miniMapQueued = true;
+const box = document.getElementById('miniMapBox');
+if (!box || miniMapObj || miniMapQueued) return;
+if (liteMode && !liteMapOk) { litePlaceholder(box); return; }
+miniMapQueued = true;
   const run = () => ensureMapLibre().then(buildMiniMap).catch(() => { miniMapQueued = false; });
   if (!('IntersectionObserver' in window)) { run(); return; }
   const io = new IntersectionObserver(es => {
@@ -3284,9 +3291,10 @@ function disposeCardMap() {
   cardMainPin = null;
 }
 function mountCardMap(st) {
-  const box = document.getElementById('cardMapBox');
-  if (!box) return; // контейнер не живой — честная плашка остаётся
-  ensureMapLibre().then(() => mountCardMapNow(st)).catch(() => {});
+const box = document.getElementById('cardMapBox');
+if (!box) return; // контейнер не живой — честная плашка остаётся
+if (liteMode && !liteMapOk) { window.__liteCardSt = st; litePlaceholder(box); return; }
+ensureMapLibre().then(() => mountCardMapNow(st)).catch(() => {});
 }
 function mountCardMapNow(st) {
   const box = document.getElementById('cardMapBox');
@@ -3715,7 +3723,8 @@ const WHY_MAP = {
   wavePlate: { t: 'Соседи: обзор юга', x: 'По каждому городу считаем исчезновения и возвраты АИ-95 за 24 ч и сравниваем с обычной нормой за сутки (среднее за предыдущие 6 суток). ≥4 исчезновений и ≥3× нормы — «волна», ≥3 и ≥2× — «напряжённо», ≥4 возвратов и ≥3× нормы возвратов — «возвращают топливо». Это факт за последние сутки, не прогноз.', e: () => waveFactExtra() },
   reliability: { t: 'Ваша надёжность', x: 'Каждую вашу отметку сравниваем с независимыми свидетелями: отметки других водителей в пределах часа от вашей и снимки источника в течение 2 часов после. Подтверждения добавляют надёжность, опровержения вычитают. Пока свидетелей нет — цифра не показывается, надёжность формируется.', e: () => myRel && myRel.pct !== null ? 'Из них источник подтвердил ' + myRel.srcConf + ' раз(а), водители — ' + myRel.folkConf + '.' : null }, 
   advvote: { t: 'Ваш голос уже учтён', x: 'Кольцо вокруг кнопки — это ваш голос по этой АЗС. С одного устройства принимается один голос каждого типа, чтобы накрутки не искажали картину города. Поэтому повторный тап ничего не меняет.', e: null },
-  folk: { t: 'Народный консенсус', x: 'Подтверждение от водителей. Если 2 водителя с разных устройств подтвердили наличие топлива (или его отсутствие), мы отдаём этому приоритет, если источник молчит или его данные устарели.', e: null }
+  folk: { t: 'Народный консенсус', x: 'Подтверждение от водителей. Если 2 водителя с разных устройств подтвердили наличие топлива (или его отсутствие), мы отдаём этому приоритет, если источник молчит или его данные устарели.', e: null },
+ctm: { t: 'Тепловая карта города: как читать', x: 'Каждая плитка — АЗС твоего города. Чем плитка больше и ярче, тем активнее станция с полуночи (события источника и отметки водителей). Цвет — топливо сейчас: зелёный — АИ-95 есть, оранжевый — только 92, голубой — дизель, красный — ничего нет, серый — источник молчит. Процент — доля станции в активности города. Иконки-капли в плитке: со стрелками — окно прогноза привоза, с молнией — событий за сутки, с пином — расстояние до тебя. Станции с долей меньше 5% не рисуем, чтобы не шуметь мелочью.', e: () => 'Тап по плитке открывает полную карточку АЗС.' }
 };
 let whyOpenKey = null;
 function closeWhy() {
@@ -4209,7 +4218,7 @@ function lentiBind() {
     new IntersectionObserver(es => { lentiInView = es[0].isIntersecting; }, { threshold: 0.25 }).observe(box);
   }
   const loop = t => {
-    if (lentiIdle && document.visibilityState === 'visible' && !pagerTouching) {
+if (lentiIdle && document.visibilityState === 'visible' && !pagerTouching && !liteMode) {
       lentiAngle = 24 * Math.sin(t / 1900);
       lentiApply();
     }
@@ -4912,14 +4921,7 @@ function renderNow() {
       (enough ? 'очереди на ' + qPct + '% АЗС   АИ-95 есть на ' + aPct + '%' : (known ? 'свежих отметок лишь ' + tot + ' — проценты по городу ещё не считаем' : 'источник ещё не прислал отметки топлива — появятся по мере поступления'));
   }
   const title = document.getElementById('nowTitle');
-  if (title) {
-    if (!known) title.textContent = 'Данные обновляются';
-    else if (!enough) title.textContent = 'Источник большей частью молчит';
-    else if (tot && qPct >= 25) title.textContent = 'Город в очередях';
-    else if (known - avail >= known * 0.5) title.textContent = 'В городе дефицит топлива';
-    else if (qPct <= 6 && aPct >= 40) title.textContent = 'Сейчас спокойное время заправиться';
-    else title.textContent = 'Ситуация ровная';
-  }
+if (title) title.innerHTML = 'Лента событий <b class="pl-city">' + escapeHtml(cityGenitive()) + '</b>';
   updateMapPlate();
   renderHero();
   renderPulse();
@@ -4930,7 +4932,10 @@ function renderNow() {
   ensureMiniMap();
   renderMiniMap();
   renderAccuracy();
+  renderCityTreemap();
   setTagline(currentPanel);
+  updateSlimBar();
+  updateSlimGeoStatus();
 }
 let onlyPred = false, sortWin = false, onlyFav = false, lastKeepOrder = false;
 function toggleOnlyPred() {
@@ -5293,9 +5298,10 @@ function applyServiceZoom() {
   mapObj.setPaintProperty('service-line', 'line-opacity', line);
 }
 function ensureMap() {
-  const box = document.getElementById('mapBox');
-  if (!box || mapObj) return;
-  ensureMapLibre().then(buildMap).catch(() => {});
+const box = document.getElementById('mapBox');
+if (!box || mapObj) return;
+if (liteMode && !liteMapOk) { litePlaceholder(box); return; }
+ensureMapLibre().then(buildMap).catch(() => {});
 }
 function mapLoadFail(e) {
   const box = document.getElementById('mapBox');
@@ -6632,7 +6638,7 @@ function showOfflineBar(cacheTime) {
   if (!el) return;
   offlineCacheT = cacheTime;
   el.classList.remove('catch');
-  el.innerHTML = 'Нет связи — показываем данные на ' + offlineStamp(cacheTime) + '. Пробую каждые 5 секунд, отметки сохраняются. <button class="ob-btn" onclick="manualRefresh()">Обновить сейчас</button>';
+  el.innerHTML = 'Нет связи — показываем данные на ' + offlineStamp(cacheTime) + '. Пробую каждые ~30 секунд, отметки сохраняются. <button class="ob-btn" onclick="manualRefresh()">Обновить сейчас</button>';
   el.classList.add('on');
   document.body.classList.add('offline');
   scheduleOfflineRetry();
@@ -6804,7 +6810,7 @@ document.addEventListener('pointerdown', e => {
   const pop = document.getElementById('covPop');
   if (pop && pop.classList.contains('open') && !(t.closest && (t.closest('#covPop') || t.closest('#covChip')))) pop.classList.remove('open');
   const wp = document.getElementById('whyPop');
-  if (wp && wp.classList.contains('open') && !(t.closest && (t.closest('#whyPop') || t.closest('.chip3.tap') || t.closest('.gp-btn') || t.closest('.info.tap') || t.closest('.why-span')))) closeWhy();
+  if (wp && wp.classList.contains('open') && !(t.closest && (t.closest('#whyPop') || t.closest('.chip3.tap') || t.closest('.gp-btn') || t.closest('.info.tap') || t.closest('.why-span') || t.closest('.ctm-why')))) closeWhy();
 }, { capture: true });
 async function loadPulse() {
   const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
@@ -6849,7 +6855,8 @@ function helpHtml() {
     '<div class="help-item"><div class="help-q">Как получать уведомления по любимым АЗС?</div><div class="help-a">Нажмите сердечко в карточке АЗС — станция попадёт в избранное. Затем нажмите полоску «Подключить Телеграм», откроется бот — нажмите «Старт». После этого бот будет лично вам писать, когда на избранных заправках вернулось или кончилось топливо, либо появилась очередь (в пределах 10 минут от события).</div></div>' +
     '<div class="help-item"><div class="help-q">Как написать разработчику?</div><div class="help-a">Кнопка «Написать нам / сообщить об ошибке» на главной панели: выберите причину (идея, жалоба, ошибка, реклама), напишите до 350 символов и отправьте. Сообщение придёт разработчику анонимно как «Водитель #N», а Ответ вернётся вам в Телеграм через бота — поэтому окно сначала предложит привязаться к боту. Ответить разработчику можно прямо в чате бота: кнопкой «Ответить разработчику» под его сообщением или обычным сообщением — продолжение диалога придёт ему карточкой «Диалог».</div></div>' +
     '<div class="help-item"><div class="help-q">Что такое «волна в соседнем городе»?</div><div class="help-a">Если в соседнем городе топливо стали терять в 3–4 раза чаще обычного, на плашке карты и полоске главной панели мы показываем «волна» с названием города. Это факт за последние 24 часа, а не прогноз: дефицит иногда ходит между городами волнами, и мы пока измеряем, как часто они доходят до нас.</div></div>' +
-    '<button class="cta-btn" style="width:100%;margin-top:10px" onclick="openMailPop()">' + icon('i-mail') + 'Написать нам / сообщить об ошибке</button>';
+    (liteMode ? '<button class="cta-btn ghost" style="width:100%;margin-top:6px" onclick="liteSet(false)">Выключить лайт-версию</button>' : '') +
+'<button class="cta-btn" style="width:100%;margin-top:10px" onclick="openMailPop()">' + icon('i-mail') + 'Написать нам / сообщить об ошибке</button>';
 }
 function openHelp() {
   document.getElementById('sheetBody').innerHTML = helpHtml();
@@ -7705,6 +7712,340 @@ function tickClock() {
   if (bb) bb.style.display = 'none';
   bootOver = true;
 })();
+// === Слим-бар: постоянная шапка ===
+// Инициализация сразу, без таймера
+function initSlimBar() {
+  document.body.classList.add('slim-on'); // Добавляем отступ сверху для контента
+  updateSlimBar();
+  checkServerHealth();
+  setInterval(checkServerHealth, 30000); // Пинг сервера каждые 30 сек
+}
+
+function updateSlimBar() {
+  const vEl = document.getElementById('slimVersion');
+if (vEl && typeof KB_VERSION !== 'undefined') {
+const m = KB_VERSION.match(/^v\d+\./);
+const head = m ? m[0] : KB_VERSION;
+const tail = m ? KB_VERSION.slice(head.length) : '';
+vEl.innerHTML = '<i class="slim-vh">' + head + '</i><i class="slim-vt">' + tail + '</i>';
+}
+  updateSlimForecast();
+  updateSlimBellBadge();
+  updateSlimGeoStatus(); // Обновляем цвет иконки гео
+}
+
+// --- Гео: зелёный/красный ---
+function updateSlimGeoStatus() {
+  const btn = document.getElementById('slimGeo');
+  if (!btn) return;
+  // geoFailed = true если GPS не ответил. geoSuspect = true если глушилки/прыжок.
+  // manualMode = ручная точка (считаем ок, если пользователь сам поставил).
+  const isOk = !geoFailed && !geoSuspect; 
+  
+  if (isOk) {
+    btn.classList.remove('geo-err');
+    btn.classList.add('geo-ok');
+  } else {
+    btn.classList.remove('geo-ok');
+    btn.classList.add('geo-err');
+  }
+}
+
+// --- Прогнозы: скролл к Топ-3 ---
+function updateSlimForecast() {
+  const el = document.getElementById('slimForecast');
+  if (!el) return;
+  if (!allPredictions.length || !allStations.length) { el.style.display = 'none'; return; }
+  
+  const cityIds = new Set(cityStationList().map(s => s.id));
+  const pending = allPredictions.filter(p => p.result === 'PENDING' && cityIds.has(p.station_id));
+  
+  if (pending.length) {
+    el.style.display = '';
+    el.innerHTML = icon('i-clock', 'ic-s') + ' ' + pending.length + ' окон';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function scrollToTop3() {
+  // 1. Переключаемся на главную панель (индекс 1)
+  pagerGo(1);
+  
+  // 2. Ждем немного, пока панель доедет, и скроллим внутри неё к блоку .top3
+  setTimeout(() => {
+    const panels = document.querySelectorAll('.panel');
+    const mainPanel = panels[1]; // Вторая панель (Главная)
+    if (!mainPanel) return;
+    
+    const target = mainPanel.querySelector('.top3');
+    if (target) {
+      // Скроллим контейнер панели (panel-scroll или сама panel)
+      // В текущей верстке скроллится .panel.p1 или .panel-scroll внутри неё
+      const scrollContainer = mainPanel.querySelector('.panel-scroll') || mainPanel;
+      
+      // Вычисляем позицию с учетом отступа сверху
+      const topPos = target.offsetTop - 60; 
+      scrollContainer.scrollTo({ top: topPos, behavior: 'smooth' });
+    }
+  }, 400); // 400мс задержка на анимацию свайпа пейджера
+}
+
+// --- Уведомления (логика та же) ---
+function updateSlimBellBadge() {
+  const btn = document.getElementById('slimBell');
+  if (!btn) return;
+  btn.classList.toggle('has-news', getFavoriteEvents().length > 0);
+}
+
+function getFavoriteEvents() {
+  const favs = getFavorites();
+  if (!favs.length) return [];
+  const since = Date.now() - 24 * 3600 * 1000;
+  const out = [];
+  for (const e of allWaveEvents) {
+    if (!favs.includes(e.station_id)) continue;
+    if (new Date(e.detected_at).getTime() < since) continue;
+    out.push(e);
+  }
+  for (const f of allFeedback) {
+    if (!favs.includes(f.station_id)) continue;
+    if (new Date(f.created_at).getTime() < since) continue;
+    if (f.feedback_type === 'available' || f.feedback_type === 'unavailable') {
+      out.push({ station_id: f.station_id, fuel_type: f.fuel_type, detected_at: f.created_at,
+                 event_type: f.feedback_type === 'available' ? 'fuel_restored' : 'fuel_disappeared', source: 'folk' });
+    }
+  }
+  out.sort((a, b) => new Date(b.detected_at) - new Date(a.detected_at));
+  return out.slice(0, 12);
+}
+
+function getRecommendedStations() {
+  const since = Date.now() - 24 * 3600 * 1000;
+  const city = cityStationList();
+  const loc = loadUserLocation();
+  const active = [];
+  for (const st of city) {
+    const hasEv = allWaveEvents.some(e => e.station_id === st.id && new Date(e.detected_at).getTime() >= since);
+    const hasFb = allFeedback.some(f => f.station_id === st.id && new Date(f.created_at).getTime() >= since);
+    if (!hasEv && !hasFb) continue;
+    let dist = null;
+    if (loc && Number.isFinite(Number(st.lat))) {
+      const dLat = (Number(st.lat) - loc.lat) * 111;
+      const dLon = (Number(st.lon) - loc.lon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+      dist = Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+    active.push({ st: st, dist: dist });
+  }
+  active.sort((a, b) => (a.dist === null ? 999 : a.dist) - (b.dist === null ? 999 : b.dist));
+  return active.slice(0, 5);
+}
+
+function renderSlimNotif() {
+  const el = document.getElementById('slimNotif');
+  if (!el) return;
+  const favs = getFavorites();
+
+  if (favs.length) {
+    const events = getFavoriteEvents();
+    let html = '<div class="slim-notif-t">' + icon('i-bell') + 'Уведомления по избранным</div>';
+    if (!events.length) {
+      html += '<div class="slim-notif-empty">За последние 24 часа по вашим АЗС событий не было.<br>Загляните позже — мы следим.</div>';
+    } else {
+      html += events.map(e => {
+        const st = stationById(e.station_id);
+        const name = st ? (st.name || 'АЗС') : 'АЗС';
+        const isR = e.event_type === 'fuel_restored';
+        const cls = isR ? 'g' : 'r';
+        const ico = isR ? 'i-check' : 'i-cross';
+        const fuelTxt = e.fuel_type ? fuelLabel(e.fuel_type) : 'Топливо';
+        const verb = isR ? 'вернулось' : 'пропало';
+        const d = new Date(e.detected_at);
+        const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        const src = e.source === 'folk' ? 'водители' : 'источник';
+        return '<div class="sn-row" onclick="openSheet(\'' + e.station_id + '\');closeSlimNotif()">' +
+          '<span class="sn-ico ' + cls + '">' + icon(ico) + '</span>' +
+          '<span class="sn-txt"><b>' + escapeHtml(name) + '</b><span>' + fuelTxt + ' ' + verb + ' · ' + src + '</span></span>' +
+          '<span class="sn-time">' + hm + '</span></div>';
+      }).join('');
+    }
+    el.innerHTML = html;
+  } else {
+    const recs = getRecommendedStations();
+    let html = '<div class="slim-notif-t">' + icon('i-spark') + 'Рекомендации рядом</div>';
+    if (!recs.length) {
+      html += '<div class="slim-notif-empty">Нет активных АЗС за 24 ч в вашем городе.<br>Добавьте АЗС в избранное, чтобы получать уведомления.</div>';
+    } else {
+      html += recs.map(r => {
+        const st = r.st;
+        const distTxt = r.dist !== null ? (r.dist < 1 ? Math.round(r.dist * 1000) + ' м' : r.dist.toFixed(1) + ' км') : '';
+        return '<div class="sn-row" onclick="openSheet(\'' + st.id + '\');closeSlimNotif()">' +
+          '<span class="sn-ico b">' + icon('i-pump') + '</span>' +
+          '<span class="sn-txt"><b>' + escapeHtml(st.name || 'АЗС') + '</b><span>' + escapeHtml(st.address || '') + (distTxt ? ' · ' + distTxt : '') + '</span></span>' +
+          '<span class="sn-time">' + icon('i-heart', 'ic-s') + '</span></div>';
+      }).join('');
+      html += '<div class="sn-fav-hint">' + icon('i-heart') + 'Нажмите на АЗС и добавьте в избранное (сердечко), чтобы получать уведомления о топливе прямо сюда.</div>';
+    }
+    el.innerHTML = html;
+  }
+}
+
+function toggleSlimNotif() {
+  if (slimNotifOpen) { closeSlimNotif(); return; }
+  renderSlimNotif();
+  slimNotifOpen = true;
+  const back = document.getElementById('slimNotifBack');
+  const panel = document.getElementById('slimNotif');
+  if (back) back.classList.add('open');
+  if (panel) panel.classList.add('open');
+}
+
+function closeSlimNotif() {
+  slimNotifOpen = false;
+  const back = document.getElementById('slimNotifBack');
+  const panel = document.getElementById('slimNotif');
+  if (back) back.classList.remove('open');
+  if (panel) panel.classList.remove('open');
+}
+let slimNotifOpen = false;
+
+// --- Статус сервера ---
+let slimDropPrev = null; // 'ok' / 'err': попап только при СМЕНЕ состояния
+function slimDropToast(kind) {
+const bad = kind === 'err';
+let t = document.getElementById('slimDropToast');
+if (!t) {
+t = document.createElement('div');
+t.id = 'slimDropToast';
+t.style.cssText = 'position:fixed;left:50%;top:calc(60px + env(safe-area-inset-top));transform:translate(-50%,-10px);z-index:93;display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;font-size:11px;font-weight:800;box-shadow:0 12px 30px rgba(15,27,51,.25);opacity:0;pointer-events:none;transition:opacity .3s ease, transform .3s cubic-bezier(.2,.8,.2,1);max-width:calc(100vw - 32px);';
+document.body.appendChild(t);
+}
+t.style.background = bad ? '#fdecec' : '#e5f8ef';
+t.style.color = bad ? '#c2403f' : '#12855c';
+t.style.border = '1px solid ' + (bad ? '#f3b7b3' : '#bfe8d4');
+t.innerHTML = icon(bad ? 'i-cross' : 'i-check', 'ic-s') + '<span>' + (bad ? 'Соединение плохое — сервер не отвечает' : 'Соединение восстановлено') + '</span>';
+t.style.opacity = '1';
+t.style.transform = 'translate(-50%,0)';
+clearTimeout(t._hide);
+t._hide = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translate(-50%,-10px)'; }, 4000);
+}
+async function checkServerHealth() {
+const drop = document.getElementById('slimDrop');
+if (!drop) return;
+let okNow = false;
+try {
+const ctrl = new AbortController();
+const tm = setTimeout(() => ctrl.abort(), 6000);
+const r = await fetch(SUPABASE_URL + '/rest/v1/stations?select=id&limit=1', {
+headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY },
+signal: ctrl.signal
+});
+clearTimeout(tm);
+okNow = r.ok;
+} catch (e) { okNow = false; }
+drop.classList.toggle('drop-ok', okNow);
+drop.classList.toggle('drop-err', !okNow);
+// попап только при переходе: покраснела — предупредили, позеленела — успокоили
+if (slimDropPrev !== null && (slimDropPrev === 'ok') !== okNow) slimDropToast(okNow ? 'ok' : 'err');
+slimDropPrev = okNow ? 'ok' : 'err';
+}
+
+async function slimDropTap() {
+  const drop = document.getElementById('slimDrop');
+  if (!drop) return;
+  drop.style.opacity = '.45';
+  await checkServerHealth();
+  drop.style.opacity = '';
+}
+initSlimBar(); // Запускаем шапку сразу
+// === Связь: замер скорости на загрузке, лайт-версия при слабом интернете ===
+// Лайт = без карт (MapLibre + тайлы = самый тяжёлый трафик) и без декоративных
+// анимаций. Данные, прогнозы, отметки и теплокарта — полностью на месте.
+// Решение помним на устройстве: '1' — лайт, '0' — отказ (7 дней не спрашиваем).
+(function liteCss() {
+const st = document.createElement('style');
+st.id = 'kbLiteCss';
+st.textContent =
+'body.kb-lite .lenti-holo,body.kb-lite .lenti-glare,body.kb-lite .lenti-foil,body.kb-lite .lenti-spark,body.kb-lite .lenti-slats{display:none;}' +
+'body.kb-lite .panel::before{animation:none;opacity:.2;}' +
+'body.kb-lite .why-tap::before,body.kb-lite .why-tap::after{animation:none;}' +
+'body.kb-lite .kb-glow{animation:none;opacity:.3;}' +
+'body.kb-lite .boot-parts{display:none;}' +
+'body.kb-lite .boot-drop-wrap,body.kb-lite .boot-drop-orb-wrap::after,body.kb-lite .boot-drop-orb::before,body.kb-lite .boot-drop-orb::after,body.kb-lite .bd-wave{animation:none;}' +
+'body.kb-lite .adv-our{animation:none;}' +
+'body.kb-lite .card-halo{animation:none;opacity:.5;}' +
+'body.kb-lite .ctm-tile{transition:none;}';
+document.head.appendChild(st);
+})();
+function netProbe() {
+const c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+if (c && c.saveData) return Promise.resolve({ weak: true, why: 'saveData' });
+const et = c ? (c.effectiveType || '') : '';
+if (et === 'slow-2g' || et === '2g') return Promise.resolve({ weak: true, why: et });
+return new Promise(res => {
+const t0 = performance.now();
+const ctrl = new AbortController();
+const tm = setTimeout(() => { ctrl.abort(); res({ weak: true, why: 'timeout' }); }, 9000);
+fetch('icon-512.png?kbprobe=' + Date.now(), { cache: 'no-store', signal: ctrl.signal })
+.then(r => {
+if (!r.ok) throw new Error('http ' + r.status);
+return r.arrayBuffer().then(buf => {
+clearTimeout(tm);
+const ms = performance.now() - t0;
+const kbps = (buf.byteLength || 1) / 1024 / (ms / 1000 || 1) * 8;
+res({ weak: ms > 3500 || kbps < 250, ms: Math.round(ms), kbps: Math.round(kbps) });
+});
+})
+.catch(() => { clearTimeout(tm); res({ weak: false, why: 'err' }); }); // не смогли замерить — не пристаём с вопросом
+});
+}
+function litePlaceholder(box) {
+if (!box || box.dataset.litePh) return;
+box.dataset.litePh = '1';
+box.innerHTML = '<div class="status" style="margin:10px">Лайт-режим: карта отключена для экономии трафика.<br><button class="cta-btn" style="width:auto;padding:8px 16px;margin-top:10px">Всё равно загрузить карту</button></div>';
+const b = box.querySelector('.cta-btn');
+if (b) b.onclick = () => { liteMapOk = true; delete box.dataset.litePh; box.innerHTML = ''; if (box.id === 'mapBox') ensureMap(); else if (box.id === 'miniMapBox') ensureMiniMap(); else mountCardMap(window.__liteCardSt || null); };
+}
+function liteAsk() {
+if (liteAsked) return;
+const openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack'].some(id => {
+const el = document.getElementById(id); return el && el.classList.contains('open');
+});
+if (openNow) { setTimeout(liteAsk, 4000); return; } // не лезем поверх других окон
+liteAsked = true;
+let back = document.getElementById('liteBack');
+if (!back) {
+back = document.createElement('div');
+back.id = 'liteBack'; back.className = 'hello-back'; back.style.zIndex = '88';
+back.onclick = () => liteSet(false);
+const pop = document.createElement('div');
+pop.id = 'litePop'; pop.className = 'hello-pop'; pop.style.zIndex = '89';
+document.body.appendChild(back); document.body.appendChild(pop);
+}
+const pop = document.getElementById('litePop');
+pop.innerHTML = '<div class="hello-title">Соединение слабое</div>' +
+'<div class="help-lead" style="margin:6px 0 10px">Интернет сейчас медленнее обычного. Есть лайт-версия сайта: без карты и лишних анимаций — грузится быстрее и экономит трафик. Прогнозы, отметки и тепловая карта остаются на месте.</div>' +
+'<button class="cta-btn" onclick="liteSet(true)">Включить лайт-версию</button>' +
+'<button class="cta-btn ghost" style="margin-top:6px" onclick="liteSet(false)">Остаться на обычной</button>';
+pop.classList.add('open');
+back.classList.add('open');
+}
+function liteSet(on) {
+const pop = document.getElementById('litePop');
+const back = document.getElementById('liteBack');
+if (pop) pop.classList.remove('open');
+if (back) back.classList.remove('open');
+try {
+if (on) { localStorage.setItem('kbLiteMode', '1'); }
+else { localStorage.setItem('kbLiteMode', '0'); }
+} catch (e) {}
+liteMode = !!on;
+document.body.classList.toggle('kb-lite', liteMode);
+}
+setTimeout(() => {
+if (liteMode) return; // уже в лайте — не спрашиваем
+netProbe().then(r => { if (r.weak) liteAsk(); });
+}, 1500);
 if (!bootOver) bootStart();
 renderBootLiveStations();
 const g0 = ++startGen;
@@ -7809,34 +8150,464 @@ let hintCancelled = false;
     }, 600);
   }, 900);
 })();
-// === мини-навигация: 5 плиток «как линза», тап = переход, текущая подсвечена ===
+// // === мини-навигация: плавающий стеклянный док СВЕРХУ, под slim-баром ===
+// Активная вкладка — пилюля с подписью, остальные — компактные иконки.
+// Док fixed поверх контента, z-index ниже модалок (sheet 91+), но выше карточек.
 const MINI_NAV = [
-  { ico:'i-check', label:'Точность', s:'s0' },
-  { ico:'i-chart', label:'Главная',  s:'s1' },
-  { ico:'i-pin',   label:'Карта',    s:'s2' },
-  { ico:'i-pump',  label:'АЗС',      s:'s3' },
-  { ico:'i-star',  label:'Новинки',  s:'s4' }
+{ icon: 'i-check',  label: 'Точность', s: 's0' },
+{ icon: 'i-chart',  label: 'Главная',  s: 's1' },
+{ icon: 'i-pin',    label: 'Карта',    s: 's2' },
+{ icon: 'i-pump',   label: 'АЗС',      s: 's3' },
+{ icon: 'i-spark',  label: 'Новинки',  s: 's4' }
 ];
+
 function renderMiniNav() {
-  const wrap = document.getElementById('mnWrap');
-  if (!wrap || wrap.dataset.built) return;
-  wrap.dataset.built = '1';
-  wrap.innerHTML = MINI_NAV.map((m, i) =>
-    '<button class="mn-item ' + m.s + '" data-mn="' + i + '" onclick="pagerGo(' + i + ')">' +
-    '<span class="mn-ico"><svg class="ic"><use href="#' + m.ico + '"/></svg></span>' +
-    '<span class="mn-label">' + m.label + '</span>' +
-    '<span class="lenti-holo"></span><span class="lenti-slats"></span><span class="lenti-glare"></span><span class="lenti-foil"></span><span class="lenti-spark"></span>' +
-    '</button>').join('');
-  updateMiniNav(currentPanel);
-  const pg = document.getElementById('pager');
-  if (pg && !pg.dataset.mnBound) {
-    pg.dataset.mnBound = '1';
-    pg.addEventListener('scroll', () => {
-      updateMiniNav(Math.round(pg.scrollLeft / pg.clientWidth));
-    }, { passive: true });
-  }
+const wrap = document.getElementById('mnWrap');
+if (!wrap || wrap.dataset.built) return;
+wrap.dataset.built = '1';
+if (!document.getElementById('mnTabsCss')) {
+const st = document.createElement('style');
+st.id = 'mnTabsCss';
+st.textContent =
+/* контейнер — та же стеклянная пилюля, что нравится: не трогаем */
+'#mnWrap{position:relative !important;display:flex !important;align-items:center !important;justify-content:center !important;gap:4px !important;padding:2px !important;margin:-4px 0 10px !important;background:rgba(255,255,255,.88) !important;backdrop-filter:blur(22px) saturate(1.5) !important;-webkit-backdrop-filter:blur(22px) saturate(1.5) !important;border:1px solid rgba(255,255,255,.8) !important;border-radius:999px !important;box-shadow:0 10px 30px rgba(20,33,61,.14),0 2px 6px rgba(20,33,61,.05) !important;z-index:1 !important;max-width:calc(100vw - 20px) !important;font-family:inherit !important;}' +
+/* кнопка: размер по содержимому (ничего не режется), без цветных подложек */
+'#mnWrap .mn-item{flex:0 0 auto !important;min-width:0 !important;display:flex !important;flex-direction:row !important;align-items:center !important;justify-content:center !important;height:40px !important;padding:0 10px !important;border:none !important;outline:none !important;background:transparent !important;background-image:none !important;border-radius:999px !important;cursor:pointer !important;color:#7487a7 !important;box-shadow:none !important;transition:color .25s ease,background .3s ease,box-shadow .3s ease,padding .35s cubic-bezier(.34,1.4,.64,1),transform .15s ease !important;position:relative !important;overflow:hidden !important;font-family:inherit !important;}' +
+'#mnWrap .mn-item::before{display:none !important;}' +
+'#mnWrap .mn-item:active{transform:scale(.9);}' +
+/* иконка: чистый глиф без кружка-плашки и без ч/б фильтра */
+'#mnWrap .mn-ico{width:21px !important;height:21px !important;flex:none !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;background:transparent !important;background-image:none !important;box-shadow:none !important;border-radius:0 !important;color:inherit !important;filter:none !important;opacity:1 !important;}' +
+'#mnWrap .mn-ico::after{display:none !important;}' +
+'#mnWrap .mn-ico svg,#mnWrap .mn-ico .ic{width:100% !important;height:100% !important;display:block !important;}' +
+/* подпись: по умолчанию скрыта, у активной разворачивается ВСЁ слово */
+'#mnWrap .mn-label{display:inline-block !important;font-size:12px !important;font-weight:800 !important;color:inherit !important;white-space:nowrap !important;letter-spacing:.2px !important;max-width:0 !important;opacity:0 !important;overflow:hidden !important;margin-left:0 !important;text-shadow:none !important;transition:max-width .35s cubic-bezier(.34,1.4,.64,1),opacity .25s ease,margin-left .35s ease !important;}' +
+/* активная: глубокая синяя пилюля с внутренним светом и мягкой тенью */
+'#mnWrap .mn-item.on{background:linear-gradient(140deg,#4b93ff 0%,#2465ee 55%,#1746c8 100%) !important;color:#fff !important;padding:0 14px !important;box-shadow:0 6px 18px rgba(36,101,238,.38),inset 0 1px 0 rgba(255,255,255,.4),inset 0 -2px 6px rgba(10,40,120,.28) !important;}' +
+'#mnWrap .mn-item.on .mn-label{max-width:110px !important;opacity:1 !important;margin-left:7px !important;}' +
+/* нажатие на неактивную: лёгкое подсвечивание стекла */
+'#mnWrap .mn-item:not(.on):active{background:rgba(20,33,61,.06) !important;color:#33445f !important;}';
+document.head.appendChild(st);
+}
+wrap.innerHTML = MINI_NAV.map((m, i) =>
+'<button class="mn-item ' + m.s + '" data-mn="' + i + '" onclick="pagerGo(' + i + ')" aria-label="' + m.label + '">' +
+'<span class="mn-ico">' + icon(m.icon) + '</span>' +
+'<span class="mn-label">' + m.label + '</span>' +
+'</button>').join('');
+updateMiniNav(currentPanel);
+const pg = document.getElementById('pager');
+if (pg && !pg.dataset.mnBound) {
+pg.dataset.mnBound = '1';
+pg.addEventListener('scroll', () => {
+updateMiniNav(Math.round(pg.scrollLeft / pg.clientWidth));
+}, { passive: true });
+}
 }
 function updateMiniNav(i) {
   document.querySelectorAll('.mn-item').forEach(b => b.classList.toggle('on', Number(b.dataset.mn) === i));
 }
 renderMiniNav();
+// === ТЕПЛОКАРТА ГОРОДА (treemap в стиле Coin360, но в нашей палитре) ===
+// Плитка = АЗС города. Размер и яркость = активность с 00:00 МСК
+// (источник +2 за событие, народ +3 за отметку, живая очередь и свежий
+// снимок — бонусы в живой точке). Цвет = топливо сейчас. Процент = доля
+// активности города, сидит в правом нижнем углу плитки.
+// Тап по плитке = карточка АЗС. Снизу — плеер суток: ползунок 00:00→сейчас,
+// автопроигрывание один раз показывает, как плитки росли в течение дня.
+const CTM_CSS =
+'.ctm-card{margin:10px 0 12px;background:linear-gradient(165deg,#fdfeff,#eef4ff);border-radius:18px;padding:10px 10px 8px;box-shadow:0 2px 10px rgba(20,33,61,.06);}' +
+'.ctm-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin:0 2px 8px;}' +
+'.ctm-head-t{display:flex;flex-direction:column;gap:2px;align-items:flex-start;min-width:0;}' +
+'.ctm-why{flex:0 0 auto;margin-top:2px;display:inline-flex;align-items:center;gap:4px;border:1px solid #e6ebf4;background:rgba(255,255,255,.85);color:#5b6b86;border-radius:99px;padding:5px 10px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;}' +
+'.ctm-why .ic{width:11px;height:11px;color:#2465ee;}' +
+'.ctm-title{font-size:13px;font-weight:800;color:#14213d;white-space:nowrap;}' +
+'.ctm-sub{font-size:10px;color:#71809c;font-weight:700;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;}' +
+'.ctm-body{position:relative;height:230px;border-radius:14px;overflow:hidden;background:#f4f7fb;}' +
+'.ctm-tile{position:absolute;border-radius:12px;overflow:hidden;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.30),inset 0 1px 0 rgba(255,255,255,.22);transition:left .8s cubic-bezier(.2,.8,.2,1),top .8s cubic-bezier(.2,.8,.2,1),width .8s,height .8s,background .8s;}' +
+'.ctm-tile::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 46%);pointer-events:none;}' +
+'.ctm-playing .ctm-tile{transition:left .16s linear,top .16s linear,width .16s linear,height .16s linear,background .16s linear;}' +
+'.ctm-in{position:absolute;inset:0;padding:6px 7px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:3px;min-width:0;}' +
+'.ctm-stamp{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}' +
+'.ctm-stamp img{width:80%;height:80%;object-fit:contain;opacity:.20;filter:saturate(.85);}' +
+'.ctm-a{position:relative;font-size:8.5px;font-weight:800;opacity:.85;letter-spacing:.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}' +
+'.ctm-rows{position:relative;align-self:stretch;display:flex;flex-direction:column;gap:2px;align-items:flex-start;min-width:0;padding-right:34px;overflow:hidden;}' +
+'.ctm-tile.ctm-fs .ctm-row{font-size:7.5px;gap:3px;}' +
+'.ctm-tile.ctm-fs .ctm-row .ic{width:9px;height:9px;}' +
+'.ctm-tile.ctm-fs .ctm-rows{padding-right:26px;gap:1px;}' +
+'.ctm-tile.ctm-fs .ctm-a{font-size:7px;}' +
+'.ctm-tile.ctm-fs .ctm-p{font-size:11px;right:5px;bottom:4px;}' +
+'.ctm-tile.ctm-fs .ctm-p.small{font-size:9px;}' +
+'.ctm-tile.ctm-fl .ctm-row{font-size:10px;gap:5px;}' +
+'.ctm-tile.ctm-fl .ctm-row .ic{width:13px;height:13px;}' +
+'.ctm-tile.ctm-fl .ctm-rows{padding-right:42px;gap:3px;}' +
+'.ctm-tile.ctm-fl .ctm-a{font-size:9px;}' +
+'.ctm-tile.ctm-fl .ctm-p{font-size:17px;}' +
+'.ctm-row{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:900;letter-spacing:-.2px;white-space:nowrap;font-variant-numeric:tabular-nums;}' +
+'.ctm-v{font-style:normal;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}' +
+'.ctm-row .ic{width:15px;height:15px;flex:none;opacity:.95;}' +
+'.ctm-p{position:absolute;right:6px;bottom:5px;font-size:15px;font-weight:900;line-height:1;letter-spacing:-.5px;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px rgba(20,33,61,.15);}' +
+'.ctm-p.small{font-size:10px;letter-spacing:-.2px;}' +
+'.ctm-player{display:flex;align-items:center;gap:8px;margin:10px 2px 2px;}' +
+'.ctm-play{width:30px;height:30px;border-radius:50%;border:0;background:#397cff;color:#fff;font-size:11px;font-weight:800;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(57,124,255,.35);}' +
+'.ctm-track{position:relative;flex:1;height:6px;border-radius:99px;background:#dfe6f2;cursor:pointer;touch-action:none;}' +
+'.ctm-fill{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,#7db4ff,#397cff);}' +
+'.ctm-thumb{position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:#fff;border:3px solid #397cff;transform:translate(-50%,-50%);box-shadow:0 2px 6px rgba(20,33,61,.25);pointer-events:none;}' +
+'.ctm-time{font-size:10px;font-weight:800;color:#71809c;min-width:52px;text-align:right;flex:none;}' +
+'.ctm-note{margin:6px 2px 0;font-size:9.5px;color:#8aa0b8;font-weight:600;}' +
+'.ctm-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8aa0b8;font-weight:700;}' +
+'.pl-city{color:#2465ee;font-weight:800;}';
+let ctmDay = null;            // {since, nowMs, perSt:{id:[{t,w,folk}]}}
+let ctmTileEls = {};          // живые DOM-плитки по id станции (для морфинга)
+let ctmPlay = { playing: false, t: 0, raf: 0 };
+let ctmAutoPlayed = false;
+let ctmCurT = null;           // null = живая точка (сейчас)
+function ctmSinceMs() {
+  const m = new Date(Date.now() + 3 * 3600 * 1000);
+  return Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate()) - 3 * 3600 * 1000;
+}
+function ctmMskHM(t) {
+  const d = new Date(t + 3 * 3600 * 1000);
+  return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+}
+function ctmEvWord(n) {
+  if (n % 10 === 1 && n % 100 !== 11) return n + ' событие';
+  const d = n % 10, h = n % 100;
+  if (d >= 2 && d <= 4 && (h < 12 || h > 14)) return n + ' события';
+  return n + ' событий';
+}
+function ctmRgba(hex, al) {
+  const n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + al.toFixed(3) + ')';
+}
+// события суток из единой ленты allEvents7 (source говорит, кто отметился)
+function ctmBuildDay() {
+  const since = ctmSinceMs();
+  const nowMs = Date.now();
+  const perSt = {};
+  for (const e of allEvents7) {
+    const t = new Date(e.detected_at).getTime();
+    if (t < since || t > nowMs) continue;
+    const folk = e.source === 'user_feedback';
+    (perSt[e.station_id] = perSt[e.station_id] || []).push({ t: t, w: folk ? 3 : 2, folk: folk });
+  }
+  ctmDay = { since: since, nowMs: nowMs, perSt: perSt };
+}
+function ctmWeightAt(id, T) {
+  let a = 0.6, ev = 0;
+  const list = (ctmDay && ctmDay.perSt[id]) || null;
+  if (list) for (const x of list) if (x.t <= T) { a += x.w; ev++; }
+  return { a: a, ev: ev };
+}
+function ctmCityActs(T, live) {
+  const city = cityStationList();
+  const last = getLastObservations();
+  return city.map(st => {
+    const w = ctmWeightAt(st.id, T);
+    let a = w.a;
+    if (live) {
+      const lq = liveQueueCount(st.id);
+      if (lq) a += 2 + lq;
+      const o = last[st.id];
+      if (o && obsFresh(o)) a += 1;
+    }
+    return { st: st, o: last[st.id], a: a, ev: w.ev };
+  });
+}
+// squarified treemap: плитки стремятся к квадратам, крупные — к левому верху
+function ctmTreemap(items, W, H) {
+  const sorted = items.slice().sort((a, b) => b.w - a.w);
+  const total = sorted.reduce((s, i) => s + i.w, 0) || 1;
+  const scale = (W * H) / total;
+  const out = [];
+  let x = 0, y = 0, w = W, h = H, i = 0;
+  const worst = (row, sum, side) => {
+    const thick = (sum * scale) / side;
+    let mx = 0;
+    for (const it of row) {
+      const len = (it.w * scale) / thick;
+      const r = Math.max(thick / len, len / thick);
+      if (r > mx) mx = r;
+    }
+    return mx;
+  };
+  while (i < sorted.length && w > 0 && h > 0) {
+    const side = Math.min(w, h);
+    let row = [sorted[i]], sum = sorted[i].w, best = worst(row, sum, side), j = i + 1;
+    while (j < sorted.length) {
+      const c = worst(row.concat(sorted[j]), sum + sorted[j].w, side);
+      if (c <= best) { row.push(sorted[j]); sum += sorted[j].w; best = c; j++; } else break;
+    }
+    const thick = (sum * scale) / side;
+    if (w >= h) {
+      let yy = y;
+      for (const it of row) { const len = (it.w * scale) / thick; out.push({ x: x, y: yy, w: thick, h: len, ref: it.ref }); yy += len; }
+      x += thick; w -= thick;
+    } else {
+      let xx = x;
+      for (const it of row) { const len = (it.w * scale) / thick; out.push({ x: xx, y: y, w: len, h: thick, ref: it.ref }); xx += len; }
+      y += thick; h -= thick;
+    }
+    i = j;
+  }
+  return out;
+}
+function ctmOpen(id) {
+  track('open_station_card', null, id);
+  learnFromAction(id, 'card_open');
+  openSheet(id);
+}
+function ctmGeoKm(st) {
+try {
+if (!st || st.lat == null || st.lon == null) return null;
+const g = loadUserLocation(); // родная точка приложения: GPS или ручная под глушилками
+if (!g) return null;
+const R = 6371, r = Math.PI / 180;
+const dLa = (st.lat - g.lat) * r, dLo = (st.lon - g.lon) * r;
+const a = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(g.lat * r) * Math.cos(st.lat * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+} catch (e) { return null; }
+}
+function ctmTileInner(b, x, pct, word, tier) {
+const p = '<span class="ctm-p' + (b === 3 ? '' : ' small') + '">' + pct + '%</span>';
+if (b <= 0) return '';
+const bk = brandKey(x.st);
+const stamp = (bk && BRAND_LOGOS[bk]) ? '<span class="ctm-stamp"><img src="' + BRAND_LOGOS[bk] + '" alt=""></span>' : '';
+const addr = '<span class="ctm-a">' + escapeHtml(x.st.address || x.st.name || 'АЗС') + '</span>';
+if (b === 1) return '<span class="ctm-in">' + stamp + '</span>' + p;
+const pred = pickPrediction(x.st.id, x.o);
+const winR = (pred && pred.from_time) ? '<span class="ctm-row">' + icon('kb-win') + '<i class="ctm-v">' + time5(pred.from_time) + '–' + time5(pred.to_time) + '</i></span>' : '';
+const evR = x.ev > 0 ? '<span class="ctm-row">' + icon('kb-ev') + '<i class="ctm-v">' + x.ev + '</i></span>' : '';
+const km = ctmGeoKm(x.st);
+const kmR = km != null ? '<span class="ctm-row">' + icon('kb-km') + '<i class="ctm-v">' + (km < 10 ? km.toFixed(1) : Math.round(km)) + '</i></span>' : '';
+const order = tier === 's' ? [evR, kmR, winR] : [winR, evR, kmR];
+const rows = b === 3 ? order.filter(Boolean).slice(0, tier === 's' ? 2 : 3) : [evR, kmR, winR].filter(Boolean).slice(0, 1);
+return '<span class="ctm-in">' + stamp + addr + (rows.length ? '<span class="ctm-rows">' + rows.join('') + '</span>' : '') + '</span>' + p;
+}
+function ctmPaintPlayer(T, live, citySet) {
+  const span = (ctmDay.nowMs - ctmDay.since) || 1;
+  const frac = Math.max(0, Math.min(1, (T - ctmDay.since) / span));
+  const fill = document.getElementById('ctmFill');
+  const thumb = document.getElementById('ctmThumb');
+  const time = document.getElementById('ctmTime');
+  const sub = document.getElementById('ctmSub');
+  if (fill) fill.style.width = (frac * 100).toFixed(2) + '%';
+  if (thumb) thumb.style.left = (frac * 100).toFixed(2) + '%';
+  if (time) time.textContent = live ? ctmMskHM(ctmDay.nowMs) : ctmMskHM(T);
+  if (sub) {
+    let tot = 0, folk = 0, upto = 0;
+    for (const id of citySet) {
+      const list = ctmDay.perSt[id];
+      if (!list) continue;
+      for (const x of list) { tot++; if (x.folk) folk++; if (x.t <= T) upto++; }
+    }
+    sub.textContent = live
+      ? 'с 00:00 · всего ' + tot + ' · народ ' + folk + (tot ? ' (' + Math.round(100 * folk / tot) + '%)' : '')
+      : 'на ' + ctmMskHM(T) + ' · событий с 00:00: ' + upto;
+  }
+}
+function ctmPaint(T, live) {
+  const body = document.getElementById('ctmBody');
+  if (!body || !ctmDay) return;
+  if (body.querySelector('.ctm-empty')) { body.innerHTML = ''; ctmTileEls = {}; }
+  const city = cityStationList();
+  const acts = ctmCityActs(T, live);
+  if (!acts.length) { body.innerHTML = '<div class="ctm-empty">город ещё не определён</div>'; ctmTileEls = {}; return; }
+  const W = body.clientWidth || 340, H = body.clientHeight || 230;
+const total = acts.reduce((s, x) => s + x.a, 0) || 1;
+// плитки мельче 5% активности города не рисуем вовсе: хвост из
+// однопроцентных огрызков превращал мозаику в шум. Проценты честные —
+// от всей активности города, поэтому видимые плитки не обязаны давать 100%.
+let shown = acts.filter(x => (100 * x.a / total) >= 5);
+// вдруг всё мельче 5% (ровный тихий день) — держим топ-4, карта не пустеет
+if (shown.length < 4) shown = acts.slice().sort((a, b) => b.a - a.a).slice(0, 4);
+const rects = ctmTreemap(shown.map(x => ({ w: Math.max(0.6, x.a), ref: x })), W, H);
+const maxA = Math.max(...shown.map(x => x.a)) || 1;
+  const WORD = { yes: 'топливо', part: 'АИ-92', diesel: 'дизель', no: 'нет', conflict: 'спорно', unknown: 'молчит' };
+  const seen = {};
+  for (const r of rects) {
+    const x = r.ref, id = x.st.id;
+    seen[id] = 1;
+    let el = ctmTileEls[id];
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'ctm-tile';
+      el.onclick = (function (sid) { return function () { ctmOpen(sid); }; })(id);
+      body.appendChild(el);
+      ctmTileEls[id] = el;
+    }
+    const pct = Math.round(100 * x.a / total);
+    const area = r.w * r.h;
+    const key = effPinKey(x.st, x.o);
+    const col = PIN_COL[key] || PIN_COL.unknown;
+    const al = 0.28 + 0.72 * Math.pow(x.a / maxA, 0.7);
+    el.style.left = r.x.toFixed(1) + 'px';
+    el.style.top = r.y.toFixed(1) + 'px';
+    el.style.width = Math.max(0, r.w - 3).toFixed(1) + 'px';
+    el.style.height = Math.max(0, r.h - 3).toFixed(1) + 'px';
+    el.style.background = ctmRgba(col, al);
+    el.style.color = al < 0.5 ? '#14213d' : '#fff';
+    const b = area > 5200 ? 3 : area > 2600 ? 2 : area > 1200 ? 1 : area > 420 ? 0 : -1;
+const word = WORD[key] || '';
+const winP = pickPrediction(x.st.id, x.o);
+// калибр по живому размеру плитки: узкая мельче, широкая крупнее
+const tier = (r.w < 82 || r.h < 62) ? 's' : (r.w >= 112 && r.h >= 92) ? 'l' : 'm';
+el.classList.toggle('ctm-fs', tier === 's');
+el.classList.toggle('ctm-fl', tier === 'l');
+const sig = b + '|' + tier + '|' + x.ev + '|' + pct + '|' + (winP ? winP.from_time : '-') + '|' + word + '|' + (ctmGeoKm(x.st) || 0).toFixed(1);
+if (el.dataset.sig !== sig) {
+el.dataset.sig = sig;
+el.innerHTML = ctmTileInner(b, x, pct, word, tier);
+} else {
+const p = el.querySelector('.ctm-p'); if (p) p.textContent = pct + '%';
+}
+  }
+  for (const id of Object.keys(ctmTileEls)) if (!seen[id]) { ctmTileEls[id].remove(); delete ctmTileEls[id]; }
+  ctmPaintPlayer(T, live, new Set(city.map(s => s.id)));
+}
+function ctmStopPlay() {
+  ctmPlay.playing = false;
+  if (ctmPlay.raf) cancelAnimationFrame(ctmPlay.raf);
+  ctmPlay.raf = 0;
+  const card = document.getElementById('ctmCard'); if (card) card.classList.remove('ctm-playing');
+  const btn = document.getElementById('ctmPlay'); if (btn) btn.textContent = '▶';
+}
+function ctmStartPlay(fromT) {
+  if (!ctmDay) return;
+  const card = document.getElementById('ctmCard'); if (card) card.classList.add('ctm-playing');
+  const btn = document.getElementById('ctmPlay'); if (btn) btn.textContent = '❚❚';
+  ctmPlay.playing = true;
+  ctmPlay.t = fromT;
+  const span = (ctmDay.nowMs - ctmDay.since) || 1;
+  let prevTs = null;
+  const step = ts => {
+    if (!ctmPlay.playing) return;
+    if (prevTs === null) prevTs = ts;
+    const dt = Math.min(100, ts - prevTs); prevTs = ts;
+    ctmPlay.t += span * (dt / 25000); // сутки проигрываются за 25 секунд — спокойно и читаемо
+    if (ctmPlay.t >= ctmDay.nowMs) { ctmStopPlay(); renderCityTreemap(); return; }
+    ctmCurT = ctmPlay.t;
+    ctmPaint(ctmPlay.t, false);
+    ctmPlay.raf = requestAnimationFrame(step);
+  };
+  ctmPlay.raf = requestAnimationFrame(step);
+}
+function ctmTogglePlay() {
+  if (ctmPlay.playing) { ctmStopPlay(); return; }
+  const from = (ctmCurT !== null && ctmCurT < ctmDay.nowMs - 60000) ? ctmCurT : ctmDay.since;
+  ctmStartPlay(from);
+}
+function ctmScrub(clientX) {
+  const tr = document.getElementById('ctmTrack');
+  if (!tr || !ctmDay) return;
+  const r = tr.getBoundingClientRect();
+  const f = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+  const T = ctmDay.since + f * (ctmDay.nowMs - ctmDay.since);
+  ctmCurT = T;
+  ctmPaint(T, false);
+}
+function mountCityTreemap() {
+  if (document.getElementById('ctmCard')) return;
+  const lb = document.getElementById('lentiBox');
+  if (!lb || !lb.parentNode) return;
+  const card = document.createElement('div');
+  card.className = 'ctm-card'; card.id = 'ctmCard';
+  card.innerHTML = '<div class="ctm-head"><div class="ctm-head-t"><div class="ctm-title">Тепловая карта города</div><div class="ctm-sub" id="ctmSub">считаем…</div></div>' +
+'<button class="ctm-why" onclick="openWhyChip(this,\'ctm\')" aria-label="Что это?">' + icon('i-help', 'ic-s') + 'Что это?</button></div>' +
+'<div class="ctm-body" id="ctmBody"></div>';
+  lb.parentNode.insertBefore(card, lb.nextSibling);
+}
+function renderCityTreemap() {
+  const body = document.getElementById('ctmBody');
+  if (!body) return;
+  ctmStopPlay();
+  ctmCurT = null;
+  ctmBuildDay();
+  if (!cityStationList().length) { body.innerHTML = '<div class="ctm-empty">город ещё не определён</div>'; ctmTileEls = {}; return; }
+  ctmPaint(ctmDay.nowMs, true);
+}
+// Род города для заголовка «Лента событий …»: Новороссийск → Новороссийска
+function cityGenitive() {
+  const G = { novorossiysk: 'Новороссийска', gelendzhik: 'Геленджика', anapa: 'Анапы', krymsk: 'Крымска', krasnodar: 'Краснодара', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавира', maykop: 'Майкопа', rostov: 'Ростова-на-Дону', stavropol: 'Ставрополя' };
+  return G[userCityKey] || userCityName();
+}
+// Перестановка главной панели: линза встаёт на место слогана
+// «Данными. Не догадками.» (слоган скрываем), теплокарта остаётся
+// на бывшем месте линзы внутри карточки ленты.
+function ctmRelayout() {
+  const lb = document.getElementById('lentiBox');
+  const ts = document.getElementById('tagSlogan');
+  if (!lb || !ts || lb.dataset.moved) return;
+  const wrap = ts.parentNode;
+  if (!wrap || !wrap.parentNode) return;
+  lb.dataset.moved = '1';
+  wrap.style.display = 'none';
+  wrap.parentNode.insertBefore(lb, wrap);
+  
+  // Возвращаем как было в оригинале
+  lb.style.marginBottom = '0';
+  
+  const mn = document.getElementById('mnWrap');
+  if (mn) { 
+    mn.style.marginTop = '-6px'; 
+    mn.style.paddingTop = '0'; 
+  }
+}
+// === ЛИНЗА: тоньше + ночной свет билборда (исправлено) ===
+// Мои прошлые косяки: 1) класс .lenti-glow уже занят продуктом — это
+// световые оверлеи ВНУТРИ сцен (lentiRender/lentiLifeBars), мой CSS ломал
+// их геометрию и растягивал карточку; 2) сцену искал среди детей #lentiBox,
+// а сцены живут в #lentiCard — свечение не получало цвет; 3) height:100%
+// бил по всем детям бокса. Теперь: уникальный класс .kb-glow, сцена берётся
+// как #lentiCard .lenti-scene.on, высота только на боксе и карточке.
+const LENTI_CSS =
+'#lentiBox{height:90px !important;min-height:0 !important;overflow:hidden !important;}' +
+'#lentiCard{height:90px !important;min-height:0 !important;}' +
+'.kb-glow{position:relative;z-index:3;height:24px;margin:0 10%;filter:blur(12px);pointer-events:none;border-radius:50%;opacity:.5;transition:background 1.1s ease;animation:kbGlow 4.2s ease-in-out infinite;}' +
+'.kb-glow.top{margin-bottom:-14px;}' +
+'.kb-glow.bottom{margin-top:-14px;}' +
+'@keyframes kbGlow{0%,100%{opacity:.38}50%{opacity:.68}}';
+function lentiPolish() {
+  const s = document.createElement('style');
+  s.textContent = LENTI_CSS;
+  document.head.appendChild(s);
+  const lb = document.getElementById('lentiBox');
+  if (!lb || lb.dataset.glow) return;
+  lb.dataset.glow = '1';
+  const top = document.createElement('div');
+  top.className = 'kb-glow top';
+  const bot = document.createElement('div');
+  bot.className = 'kb-glow bottom';
+  lb.parentNode.insertBefore(top, lb);
+  lb.parentNode.insertBefore(bot, lb.nextSibling);
+  const paint = () => {
+    const sc = document.querySelector('#lentiCard .lenti-scene.on') || document.querySelector('#lentiCard .lenti-scene');
+    if (!sc) return;
+    const cs = getComputedStyle(sc);
+    let col = cs.backgroundColor;
+    if (!col || col === 'rgba(0, 0, 0, 0)') {
+      const m = cs.backgroundImage.match(/rgba?\([^)]+\)/);
+      col = m ? m[0] : 'rgba(57,124,255,.8)';
+    }
+    const g = 'radial-gradient(ellipse at 50% 50%, ' + col + ', rgba(255,255,255,0) 72%)';
+    top.style.background = g;
+    bot.style.background = g;
+  };
+  paint();
+  new MutationObserver(() => { requestAnimationFrame(paint); }).observe(lb, { attributes: true, childList: true, subtree: true, attributeFilter: ['class', 'style'] });
+  setInterval(paint, 1500);
+}
+(function initCityTreemap() {
+  const s = document.createElement('style');
+  s.textContent = CTM_CSS;
+  document.head.appendChild(s);
+  mountCityTreemap();
+  ctmRelayout();
+  lentiPolish();
+  renderCityTreemap();
+  setInterval(renderCityTreemap, 10 * 60 * 1000); // каждые 10 минут
+  (function schedMidnight() { // сброс-перерисовка в 00:00 МСК
+    const now = Date.now();
+    const m = new Date(now + 3 * 3600 * 1000);
+    const next = Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate() + 1) - 3 * 3600 * 1000;
+    setTimeout(function () { renderCityTreemap(); schedMidnight(); }, next - now + 5000);
+  })();
+})();

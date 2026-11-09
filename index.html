@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2465ee">
 <meta name="description" content="КогдаБенз — карта наличия топлива на АЗС юга России: где есть АИ-95, АИ-92 и дизель сейчас, когда вернётся пропавшее, очереди и цены. Данные каждые 10 минут.">
-<!-- KB_VERSION: v0.4.1-->
+<!-- KB_VERSION: v0.4.2-->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
@@ -1632,6 +1632,73 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 .update-btn .ic { width:16px; height:16px; }
 .update-btn.ghost { background:#f2f4f9; color:#5b6b86; box-shadow:none; }
 .update-spin { display:inline-block; width:14px; height:14px; border-radius:50%; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation:obSpin .9s linear infinite; vertical-align:-2px; margin-right:6px; }
+/* === Постоянная компактная шапка (слим-бар) === */
+body.slim-on .page { padding-top: calc(56px + env(safe-area-inset-top)); }
+
+.slim-bar { position:fixed; left:0; right:0; top:0; z-index:45; display:flex; align-items:center; gap:8px;
+  padding:calc(8px + env(safe-area-inset-top)) 14px 8px;
+  /* Матовая прозрачная подложка */
+  background:rgba(255,255,255,.75); backdrop-filter:blur(16px) saturate(180%); -webkit-backdrop-filter:blur(16px) saturate(180%);
+  border-bottom:1px solid rgba(226,232,244,.5); box-shadow:0 4px 20px rgba(38,69,120,.05);
+  pointer-events:auto; }
+
+.slim-ver { display:flex; align-items:center; gap:6px; font-size:15px; font-weight:900; letter-spacing:-.4px; color:var(--text); white-space:nowrap; cursor:pointer; }
+.slim-ver .slim-logo { width:22px; height:22px; display:grid; place-items:center; flex:0 0 auto; }
+.slim-ver .slim-logo svg { width:20px; height:20px; }
+/* Когда(Бенз) — Бенз синим */
+.slim-ver .brand-blue { color: var(--blue); }
+.slim-sup { font-style:normal; font-size:8px; font-weight:900; letter-spacing:.4px; color:var(--blue); vertical-align:top; position:relative; top:-5px; margin-left:3px; }
+/* версия под названием: тонкая синяя линия между ними */
+.slim-ver { display:grid; grid-template-columns:auto 1fr; gap:0 6px; align-items:center; }
+.slim-ver .slim-logo { grid-column:1; grid-row:1 / span 2; }
+.slim-ver .slim-name { grid-column:2; grid-row:1; font-size:13px; letter-spacing:-.3px; }
+.slim-ver .slim-name::after { content:''; display:block; height:2px; border-radius:99px; margin-top:2px; background:linear-gradient(90deg,#2465ee,#7db4ff 65%,rgba(125,180,255,.25)); }
+.slim-ver .slim-v { grid-column:2; grid-row:2; justify-self:start; margin-top:2px; padding:1px 6px; font-size:8.5px; }
+.slim-v .slim-vh { font-style:normal; color:#33445f; }
+.slim-v .slim-vt { font-style:normal; color:var(--blue); }
+.slim-ver .slim-v { font-size:9px; font-weight:800; color:var(--muted); background:rgba(0,0,0,.04); padding:2px 6px; border-radius:6px; margin-left:2px; }
+
+.slim-icons { margin-left:auto; display:flex; align-items:center; gap:6px; }
+.slim-ico { width:32px; height:32px; border:0; border-radius:10px; background:rgba(0,0,0,.03); color:#5b6b86; display:grid; place-items:center; cursor:pointer; position:relative; transition:background .2s, color .2s, transform .12s; }
+.slim-ico:active { transform:scale(.9); }
+.slim-ico .ic { width:16px; height:16px; }
+/* Индикаторы статуса */
+.slim-ico.geo-ok { color: #19b77a; background: rgba(25,183,122,.1); }
+.slim-ico.geo-err { color: #ef5350; background: rgba(239,83,80,.1); }
+.slim-ico.drop-ok { color: #397cff; }
+.slim-ico.drop-err { color: #ef5350; }
+/* Красная точка уведомлений */
+.slim-ico.has-news::after { content:''; position:absolute; top:5px; right:5px; width:6px; height:6px; border-radius:50%; background:#ef5350; border:1.5px solid #fff; }
+
+.slim-fc { display:inline-flex; align-items:center; gap:4px; padding:5px 9px; border-radius:10px; background:rgba(57,124,255,.1); color:#2465ee; font-size:10px; font-weight:800; cursor:pointer; white-space:nowrap; }
+.slim-fc .ic { width:12px; height:12px; }
+
+/* Панель уведомлений (стили те же, что были) */
+.slim-notif-back { position:fixed; inset:0; z-index:46; background:rgba(15,27,51,.3); backdrop-filter:blur(2px); opacity:0; pointer-events:none; transition:.25s; }
+.slim-notif-back.open { opacity:1; pointer-events:auto; }
+.slim-notif { position:fixed; top:calc(54px + env(safe-area-inset-top)); right:12px; z-index:47;
+  width:min(320px, calc(100vw - 24px)); max-height:min(60dvh,420px); overflow-y:auto;
+  background:#fff; border-radius:20px; padding:14px; box-shadow:0 20px 50px rgba(15,27,51,.22);
+  opacity:0; transform:translateY(-12px) scale(.95); pointer-events:none; transition:.3s cubic-bezier(.2,.8,.2,1); }
+.slim-notif.open { opacity:1; transform:none; pointer-events:auto; }
+.slim-notif-t { font-size:13px; font-weight:900; letter-spacing:-.3px; margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.slim-notif-t .ic { width:15px; height:15px; color:#2465ee; }
+.slim-notif-empty { color:#93a1b8; font-size:11px; font-weight:600; padding:14px 0; text-align:center; line-height:1.5; }
+.sn-row { display:flex; align-items:center; gap:9px; padding:8px 0; border-top:1px solid #f2f5fa; cursor:pointer; }
+.sn-row:first-of-type { border-top:0; }
+.sn-ico { width:28px; height:28px; border-radius:9px; display:grid; place-items:center; color:#fff; flex:0 0 auto; }
+.sn-ico .ic { width:14px; height:14px; }
+.sn-ico.g { background:linear-gradient(140deg,#2fd39a,#19b77a); }
+.sn-ico.r { background:linear-gradient(140deg,#ff8a80,#ef5350); }
+.sn-ico.b { background:linear-gradient(140deg,#8ab6ff,#397cff); }
+.sn-txt { flex:1; min-width:0; }
+.sn-txt b { display:block; font-size:11px; font-weight:850; color:#14213d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sn-txt span { display:block; font-size:9px; color:#7c89a0; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sn-time { flex:0 0 auto; font-size:8.5px; color:#b6c2d6; font-weight:700; }
+.sn-fav-hint { margin-top:8px; padding:9px 10px; border-radius:12px; background:#f4f7fc; font-size:9.5px; color:#5b6b86; font-weight:600; line-height:1.45; display:flex; align-items:flex-start; gap:6px; }
+.sn-fav-hint .ic { width:14px; height:14px; color:#e0557a; flex:0 0 auto; margin-top:1px; }
+
+@media(min-width:900px){ .slim-bar { max-width:880px; left:50%; transform:translateX(-50%); border-radius:0 0 18px 18px; } .slim-notif { right:calc(50% - 440px + 12px); } }
 </style>
 </head>
 <body>
@@ -1662,11 +1729,14 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
 <symbol id="i-nav" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></symbol>
 <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></symbol>
 <symbol id="i-tg" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></symbol>
+<symbol id="kb-win" viewBox="0 0 24 24"><path d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path stroke-width="1.7" d="M12 11.2v3.4l2.6 1.6"/></symbol>
+<symbol id="kb-ev" viewBox="0 0 24 24"><path d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path d="M12.9 10.2l-2.6 3.9h2.3l-1.9 3.4"/></symbol>
+<symbol id="kb-km" viewBox="0 0 24 24"><path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><path d="M12 7.2c0 0-2.4 2.8-2.4 4a2.4 2.4 0 0 0 4.8 0C14.4 10 12 7.2 12 7.2Z"/></symbol>
 <filter id="lentiMelt" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency="0.012 0.14" numOctaves="2" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G"/></filter>
 </svg>
 <div class="page">
   <div class="offline-bar" id="offlineBar"></div>
-  <header class="header">
+  <header class="header" style="display:none">
     <div class="logo-wrap">
       <div class="logo"><svg viewBox="0 0 24 24" class="logo-mark" aria-hidden="true"><path fill="#fff" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#2465ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></div>
       <div>
@@ -1680,6 +1750,26 @@ body.offline .page { padding-top:calc(52px + env(safe-area-inset-top)); }
       <button class="location" onclick="openHelp()"><svg class="ic ic-s"><use href="#i-help"/></svg>Помощь</button>
     </div>
   </header>
+<!-- Постоянная компактная шапка -->
+<div class="slim-bar" id="slimBar">
+  <div class="slim-ver" onclick="pagerGo(1)">
+    <span class="slim-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#2465ee" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></span>
+    <span class="slim-name">Когда<span class="brand-blue">Бенз<i class="slim-sup">юг</i></span></span> <span class="slim-v" id="slimVersion">v0.4.2</span>
+  </div>
+  <div class="slim-icons">
+    <span class="slim-fc" id="slimForecast" onclick="scrollToTop3()" style="display:none"></span>
+    <!-- Геолокация: статус обновляется JS-ом -->
+    <button class="slim-ico geo-ok" id="slimGeo" onclick="findNearby()" aria-label="Геолокация"><svg class="ic"><use href="#i-pin"/></svg></button>
+    <!-- Уведомления -->
+    <button class="slim-ico" id="slimBell" onclick="toggleSlimNotif()" aria-label="Уведомления"><svg class="ic"><use href="#i-bell"/></svg></button>
+    <!-- Статус сервера -->
+    <button class="slim-ico drop-ok" id="slimDrop" onclick="slimDropTap()" aria-label="Статус сервера"><svg class="ic"><use href="#i-drop"/></svg></button>
+    <!-- Помощь -->
+    <button class="slim-ico" id="slimHelp" onclick="openHelp()" aria-label="Помощь"><svg class="ic"><use href="#i-help"/></svg></button>
+  </div>
+</div>
+<div class="slim-notif-back" id="slimNotifBack" onclick="closeSlimNotif()"></div>
+<div class="slim-notif" id="slimNotif"></div>
   <div class="tagline">
     <div class="tagline-slogan" id="tagSlogan">Данными. <span>Не догадками.</span></div>
     <div class="tagline-text" id="tagText">Каждые 10 минут — отметки АЗС и голоса водителей: алгоритм предсказывает окна возврата.</div>
@@ -1984,7 +2074,7 @@ if ('serviceWorker' in navigator) {
 // Тихо спрашиваем у сервера свежий index.html в обход sw-кэша, сравниваем
 // версию (HTML-комментарий KB_VERSION). Если отличается — показываем карточку
 // «Обнаружена новая версия». По кнопке — сброс всех кэшей и перезагрузка.
-const KB_VERSION = 'v0.4.1'; // должно совпадать с комментарием в <head>
+const KB_VERSION = 'v0.4.2'; // должно совпадать с комментарием в <head>
 let pendingRemoteVersion = null; // версия с сервера, до которой реально обновляемся
 // Сохраняем текущую версию при первом заходе, чтобы при следующем обновлении
 // записать from_version корректно
