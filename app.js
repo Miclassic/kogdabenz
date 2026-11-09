@@ -764,16 +764,20 @@ let fy = 0, fn = 0;
 for (const k of Object.keys(ff)) { fy += ff[k].yes; fn += ff[k].no; }
 adviceReactions[stId].folk_yes = fy;
 adviceReactions[stId].folk_no = fn;
-		// мой голос
-		const mine = {};
-		for (const f of allFeedback) {
-			if (f.station_id === stId && f.device_id === deviceId) {
-				if (f.feedback_type === 'available') mine.folk_yes = true;
-				else if (f.feedback_type === 'unavailable') mine.folk_no = true;
-			}
-		}
-		adviceReactionMine[stId] = mine;
-	}
+		// мой голос: только живой — отметки до последней смены статуса пары
+// («вернулось/пропало») сгорели вместе с общими счётчиками, поэтому
+// старые народные метки больше не зажигают кольцо «уже голосовал»
+const mine = {};
+for (const f of allFeedback) {
+if (f.station_id !== stId || f.device_id !== deviceId) continue;
+if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+const ch = chMap[stId + '|' + (f.fuel_type || '95')] || 0;
+const t = new Date(f.created_at).getTime();
+if (ch && t <= ch) continue;
+if (f.feedback_type === 'available') mine.folk_yes = true;
+else mine.folk_no = true;
+}
+adviceReactionMine[stId] = mine;
 	try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); for (const k of Object.keys(mm)) adviceReactionMine[k] = Object.assign({}, mm[k], adviceReactionMine[k] || {}); } catch (e) {}
 	// реакции с сервера
 	try {
@@ -1006,18 +1010,22 @@ async function loadAdviceReactionsForList(list) {
     s.folk_yes = fy; s.folk_no = fn;
     adviceReactions[stId] = s;
   }
-  // мой голос
-  for (const it of list) {
-    const stId = it.st.id;
-    const mine = {};
-    for (const f of allFeedback) {
-      if (f.station_id === stId && f.device_id === deviceId) {
-        if (f.feedback_type === 'available') mine.folk_yes = true;
-        else if (f.feedback_type === 'unavailable') mine.folk_no = true;
-      }
-    }
-    adviceReactionMine[stId] = mine;
-  }
+  // мой голос: только живой (после последней смены статуса пары)
+const chMapM = pairChangeMap();
+for (const it of list) {
+const stId = it.st.id;
+const mine = {};
+for (const f of allFeedback) {
+if (f.station_id !== stId || f.device_id !== deviceId) continue;
+if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+const ch = chMapM[stId + '|' + (f.fuel_type || '95')] || 0;
+const t = new Date(f.created_at).getTime();
+if (ch && t <= ch) continue;
+if (f.feedback_type === 'available') mine.folk_yes = true;
+else mine.folk_no = true;
+}
+adviceReactionMine[stId] = mine;
+}
 }
 
 async function handleAdviceReaction(stationId, type, btn) {
