@@ -764,20 +764,16 @@ let fy = 0, fn = 0;
 for (const k of Object.keys(ff)) { fy += ff[k].yes; fn += ff[k].no; }
 adviceReactions[stId].folk_yes = fy;
 adviceReactions[stId].folk_no = fn;
-		// мой голос: только живой — отметки до последней смены статуса пары
-// («вернулось/пропало») сгорели вместе с общими счётчиками, поэтому
-// старые народные метки больше не зажигают кольцо «уже голосовал»
-const mine = {};
-for (const f of allFeedback) {
-if (f.station_id !== stId || f.device_id !== deviceId) continue;
-if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
-const ch = chMap[stId + '|' + (f.fuel_type || '95')] || 0;
-const t = new Date(f.created_at).getTime();
-if (ch && t <= ch) continue;
-if (f.feedback_type === 'available') mine.folk_yes = true;
-else mine.folk_no = true;
-}
-adviceReactionMine[stId] = mine;
+		// мой голос
+		const mine = {};
+		for (const f of allFeedback) {
+			if (f.station_id === stId && f.device_id === deviceId) {
+				if (f.feedback_type === 'available') mine.folk_yes = true;
+				else if (f.feedback_type === 'unavailable') mine.folk_no = true;
+			}
+		}
+		adviceReactionMine[stId] = mine;
+	}
 	try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); for (const k of Object.keys(mm)) adviceReactionMine[k] = Object.assign({}, mm[k], adviceReactionMine[k] || {}); } catch (e) {}
 	// реакции с сервера
 	try {
@@ -1010,22 +1006,18 @@ async function loadAdviceReactionsForList(list) {
     s.folk_yes = fy; s.folk_no = fn;
     adviceReactions[stId] = s;
   }
-  // мой голос: только живой (после последней смены статуса пары)
-const chMapM = pairChangeMap();
-for (const it of list) {
-const stId = it.st.id;
-const mine = {};
-for (const f of allFeedback) {
-if (f.station_id !== stId || f.device_id !== deviceId) continue;
-if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
-const ch = chMapM[stId + '|' + (f.fuel_type || '95')] || 0;
-const t = new Date(f.created_at).getTime();
-if (ch && t <= ch) continue;
-if (f.feedback_type === 'available') mine.folk_yes = true;
-else mine.folk_no = true;
-}
-adviceReactionMine[stId] = mine;
-}
+  // мой голос
+  for (const it of list) {
+    const stId = it.st.id;
+    const mine = {};
+    for (const f of allFeedback) {
+      if (f.station_id === stId && f.device_id === deviceId) {
+        if (f.feedback_type === 'available') mine.folk_yes = true;
+        else if (f.feedback_type === 'unavailable') mine.folk_no = true;
+      }
+    }
+    adviceReactionMine[stId] = mine;
+  }
 }
 
 async function handleAdviceReaction(stationId, type, btn) {
@@ -7966,44 +7958,6 @@ async function slimDropTap() {
   drop.style.opacity = '';
 }
 initSlimBar(); // Запускаем шапку сразу
-// === слим-бар: живые анимации при нажатии ===
-// гео прыгает вверх-вниз, колокольчик маятником, капля сквошится,
-// чип окон пульсирует, вопросик виляет. Декор: состояния и клики не тронуты,
-// prefers-reduced-motion уважается.
-(function slimTapAnims() {
-if (document.getElementById('kbSlimAnimCss')) return;
-const st = document.createElement('style');
-st.id = 'kbSlimAnimCss';
-st.textContent =
-'@keyframes kbGeoBounce{0%{transform:translateY(0)}30%{transform:translateY(-6px)}55%{transform:translateY(0)}75%{transform:translateY(-3px)}100%{transform:translateY(0)}}' +
-'@keyframes kbBellSwing{0%{transform:rotate(0)}20%{transform:rotate(13deg)}45%{transform:rotate(-10deg)}70%{transform:rotate(6deg)}88%{transform:rotate(-3deg)}100%{transform:rotate(0)}}' +
-'@keyframes kbDropSquash{0%{transform:scale(1,1)}30%{transform:scale(1.14,.86)}60%{transform:scale(.92,1.08) translateY(-3px)}100%{transform:scale(1,1)}}' +
-'@keyframes kbChipPulse{0%{transform:scale(1)}40%{transform:scale(1.07)}100%{transform:scale(1)}}' +
-'@keyframes kbHelpWiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-9deg)}50%{transform:rotate(7deg)}75%{transform:rotate(-4deg)}}' +
-'.kb-anim-geo{animation:kbGeoBounce .6s cubic-bezier(.28,.8,.42,1);}' +
-'.kb-anim-bell{animation:kbBellSwing .7s ease-in-out;transform-origin:50% 0;}' +
-'.kb-anim-drop{animation:kbDropSquash .55s cubic-bezier(.28,.8,.42,1);}' +
-'.kb-anim-chip{animation:kbChipPulse .45s ease;}' +
-'.kb-anim-help{animation:kbHelpWiggle .55s ease;}' +
-'@media (prefers-reduced-motion: reduce){.kb-anim-geo,.kb-anim-bell,.kb-anim-drop,.kb-anim-chip,.kb-anim-help{animation:none;}}';
-document.head.appendChild(st);
-const kick = (el, cls) => {
-if (!el) return;
-el.classList.remove(cls);
-void el.offsetWidth; // частые тапы перезапускают анимацию с начала
-el.classList.add(cls);
-setTimeout(() => el.classList.remove(cls), 750);
-};
-document.addEventListener('click', e => {
-const t = e.target;
-if (!t || !t.closest) return;
-const g = t.closest('#slimGeo'); if (g) { kick(g, 'kb-anim-geo'); return; }
-const b = t.closest('#slimBell'); if (b) { kick(b, 'kb-anim-bell'); return; }
-const d = t.closest('#slimDrop'); if (d) { kick(d, 'kb-anim-drop'); return; }
-const f = t.closest('#slimForecast'); if (f) { kick(f, 'kb-anim-chip'); return; }
-const h = t.closest('#slimHelp') || t.closest('.slim-bar [onclick*="openHelp"]'); if (h) { kick(h, 'kb-anim-help'); }
-}, true);
-})();
 // === Связь: замер скорости на загрузке, лайт-версия при слабом интернете ===
 // Лайт = без карт (MapLibre + тайлы = самый тяжёлый трафик) и без декоративных
 // анимаций. Данные, прогнозы, отметки и теплокарта — полностью на месте.
