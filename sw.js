@@ -1,6 +1,9 @@
-// Service Worker v1 для КогдаБенз
-// Стратегия: статика — cache-first (мгновенное открытие), API — network-first с фолбэком на кэш
-const CACHE_VERSION = 'kogdabenz-v254';
+// Service Worker КогдаБенз
+// статика — stale-while-revalidate; API — network-first; плитки — cache-first
+const CACHE_VERSION = 'kogdabenz-v255'; // <-- БАМП при каждом релизе
+const TILE_CACHE = 'kogdabenz-tiles-v136';
+const MAX_TILES = 2000;
+
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -10,22 +13,18 @@ const STATIC_ASSETS = [
   './maskable-192.png',
   './maskable-512.png',
   'life-hero.png',
-  '01_sobiraem_dannye.png', 
-  '02_analiziruem_teplovuyu_kartu.png', 
-  '03_proveryaem_dostupnost.png', 
-  '04_schitaem_vremya_i_ocheredi.png', 
-  '05_proveryaem_marshrut.png', 
-  '06_finalnye_shtrihi.png', 
+  '01_sobiraem_dannye.png',
+  '02_analiziruem_teplovuyu_kartu.png',
+  '03_proveryaem_dostupnost.png',
+  '04_schitaem_vremya_i_ocheredi.png',
+  '05_proveryaem_marshrut.png',
+  '06_finalnye_shtrihi.png',
   'whatsnew-tg.png',
   'whatsnew-mail.png',
   'whatsnew-advice.png',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css',
   'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'
 ];
-
-// Кэш плиток карты: cache-first, ограничение 2000 записей (примерно 100 МБ)
-const TILE_CACHE = 'kogdabenz-tiles-v136';
-const MAX_TILES = 2000;
 
 async function trimTileCache() {
   const cache = await caches.open(TILE_CACHE);
@@ -36,67 +35,84 @@ async function trimTileCache() {
   }
 }
 
-// Установка: кэшируем статику
-self.addEventListener('install', event => {
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then(cache => {
-      console.log('[SW] Кэширую статику');
+    caches.open(CACHE_VERSION).then((cache) => {
+      console.log('[SW] Кэширую статику', CACHE_VERSION);
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  self.skipWaiting(); // активируем сразу, не ждём закрытия старой вкладки
+  self.skipWaiting();
 });
 
-// Активация: чистим старые кэши (если была предыдущая версия)
-self.addEventListener('activate', event => {
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
-        keys.filter(key => key !== CACHE_VERSION).map(key => {
-          console.log('[SW] Удаляю старый кэш:', key);
-          return caches.delete(key);
-        })
-      );
-    })
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys
+          // не трогаем текущий кэш статики и кэш плиток
+          .filter((key) => key !== CACHE_VERSION && key !== TILE_CACHE)
+          .map((key) => {
+            console.log('[SW] Удаляю старый кэш:', key);
+            return caches.delete(key);
+          })
+      )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim(); // берём контроль над всеми открытыми вкладками
 });
 
-// Fetch: статика — из кэша, API — сеть с фолбэком на кэш
-self.addEventListener('fetch', event => {
-  const url = event.request.url;
-  // API Supabase: network-first (всегда свежие данные, но если сеть упала — показываем кэш)
+// страница может форсировать активацию
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = req.url;
+
+  // сам SW и любые ?updatecheck= — только сеть
+  if (url.includes('/sw.js') || url.includes('updatecheck=')) {
+    event.respondWith(fetch(req).catch(() => new Response('', { status: 503 })));
+    return;
+  }
+
+  // API Supabase — network-first
   if (url.includes('/rest/v1/') || url.includes('supabase.co')) {
     event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          // в кэш кладём только успешные ответы: 503 не должен консервироваться
+      fetch(req)
+        .then((response) => {
           if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_VERSION).then(cache => {
-              cache.put(event.request, responseClone);
-            });
+            const clone = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone));
           }
           return response;
         })
-        .catch(() => {
-          // сеть упала — пытаемся достать из кэша
-          return caches.match(event.request).then(cached => {
-            return cached || new Response('{"error":"offline"}', { status: 503 });
-          });
-        })
+        .catch(() =>
+          caches.match(req).then(
+            (cached) =>
+              cached ||
+              new Response('{"error":"offline"}', {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' }
+              })
+          )
+        )
     );
+    return;
   }
-  // Плитки карты OpenFreeMap: cache-first + кэширование новых
-  else if (url.includes('tiles.openfreemap.org') || url.includes('demotiles.maplibre.org')) {
+
+  // плитки карты — cache-first
+  if (url.includes('tiles.openfreemap.org') || url.includes('demotiles.maplibre.org')) {
     event.respondWith(
-      caches.match(event.request).then(cached => {
+      caches.match(req).then((cached) => {
         if (cached) return cached;
-        return fetch(event.request).then(response => {
+        return fetch(req).then((response) => {
           if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(TILE_CACHE).then(cache => {
-              cache.put(event.request, responseClone);
+            const clone = response.clone();
+            caches.open(TILE_CACHE).then((cache) => {
+              cache.put(req, clone);
               trimTileCache();
             });
           }
@@ -104,20 +120,44 @@ self.addEventListener('fetch', event => {
         });
       })
     );
+    return;
   }
-  // Проверка обновлений: запрос index.html с ?updatecheck= обходит кэш
-  // (идёт напрямую в сеть, в кэш не пишется), чтобы страница узнала о новой версии
-  else if (url.indexOf('index.html') >= 0 && url.indexOf('updatecheck=') >= 0) {
+
+  // HTML/JS/CSS — stale-while-revalidate: сразу из кэша, в фоне обновляем
+  const isDoc =
+    req.mode === 'navigate' ||
+    url.includes('.html') ||
+    url.includes('.js') ||
+    url.includes('.css');
+
+  if (isDoc) {
     event.respondWith(
-      fetch(event.request).catch(() => new Response('', { status: 503 }))
-    );
-  }
-  // Остальная статика: cache-first (мгновенное открытие, даже если сеть медленная)
-  else {
-    event.respondWith(
-      caches.match(event.request).then(cached => {
-        return cached || fetch(event.request);
+      caches.open(CACHE_VERSION).then(async (cache) => {
+        const cached = await cache.match(req);
+        const networkPromise = fetch(req)
+          .then((response) => {
+            if (response.ok) cache.put(req, response.clone());
+            return response;
+          })
+          .catch(() => null);
+        // есть кэш — отдаём его, сеть обновит на следующий раз
+        if (cached) {
+          networkPromise.catch(() => {});
+          return cached;
+        }
+        // кэша нет — ждём сеть
+        const net = await networkPromise;
+        return (
+          net ||
+          new Response('Офлайн', { status: 503, statusText: 'Offline' })
+        );
       })
     );
+    return;
   }
+
+  // прочее — cache, иначе сеть
+  event.respondWith(
+    caches.match(req).then((cached) => cached || fetch(req))
+  );
 });
