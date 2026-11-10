@@ -1462,7 +1462,9 @@ return '<span class="adv-fc ' + cls + '"><b>' + fuelLabel(fl) + '</b><i>' + (v =
 '<div class="adv-facts">' + price + lastEvt + win + '</div>' +
 (it.unverified ? '<div class="adv-stale-warn">' + icon('i-clock', 'ic-s') + '<span>' + staleWarnText(o) + '</span></div>' : '') +
 '<div class="adv-actions"><button class="cta-btn" onclick="adviceRoute(' + i + ')">' + icon('i-truck', 'ic-s') + 'На карте + маршрут</button>' +
-'<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button></div>' +
+'<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button>' +
+'<button class="cta-btn ghost' + (isFavorite(st.id) ? ' on' : '') + '" onclick="adviceWatch(' + i + ')">' +
+icon('i-heart', 'ic-s') + (isFavorite(st.id) ? 'Слежу' : 'Следить за топливом') + '</button></div>' +
 reactionsHtml +
 '</div>';
 	}).join('');
@@ -1506,7 +1508,7 @@ function adviceRoute(i) {
   const it = adviceList[i]; if (!it) return; const st = it.st;
   track('click_where_to_go', null, st.id); learnFromAction(st.id, 'advice_click'); rememberAdvice();
   closeAdvicePop(); pagerGo(2); ensureMap();
-  const go = () => { if (!mapObj) { setTimeout(go, 150); return; } drawRouteTo(st); };
+  const go = () => { if (!mapObj) { setTimeout(go, 150); return; } drawRouteTo(st); maybeFavFollowOffer(st.id); };
   go();
 }
 function adviceCard(i) {
@@ -1515,6 +1517,56 @@ function adviceCard(i) {
   // окно НЕ закрываем (просьба): держим до крестика/фона или «на карте + маршрут».
   // Шторку карточки поднимаем поверх окна — детали видны, окно живёт под ними.
   openSheetAboveAdvice(st.id);
+}
+// «Следить за топливом» прямо из топ-3 — без захода в карточку за сердечком
+function adviceWatch(i) {
+  const it = adviceList[i]; if (!it) return;
+  const id = it.st.id;
+  if (isFavorite(id)) {
+    toggleFavoriteById(id);
+  } else {
+    toggleFavoriteById(id);
+    track('fav_add_advice', null, id);
+  }
+  try { renderAdvicePop(); } catch (e) {}
+}
+// Тихий оффер после маршрута: один раз за сессию на АЗС, не если уже в избранном
+function maybeFavFollowOffer(stId) {
+  if (!stId || isFavorite(stId)) return;
+  try {
+    if (sessionStorage.getItem('kbFavOffer_' + stId)) return;
+    if (sessionStorage.getItem('kbFavOfferSession') === '1') return;
+  } catch (e) {}
+  const st = allStations.find(s => s.id === stId);
+  const name = st ? (st.name || 'этой АЗС') : 'этой АЗС';
+  let bar = document.getElementById('favFollowBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'favFollowBar';
+    bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:88px;z-index:96;background:#fff;border-radius:16px;padding:12px 14px;box-shadow:0 8px 28px rgba(20,40,80,.18);border:1px solid #e4ebf5;display:none;font-family:inherit';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML =
+    '<div style="font-size:13px;font-weight:650;color:#1a2b45;margin-bottom:4px">Сообщить про топливо здесь?</div>' +
+    '<div style="font-size:12px;color:#5b6b86;line-height:1.35;margin-bottom:10px">Добавьте «' + escapeHtml(name) + '» в избранное — будет проще следить, когда бензин появится или закончится. Уведомления можно включить отдельно.</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button type="button" id="favFollowYes" style="flex:1;min-width:120px;border:0;border-radius:12px;padding:10px 12px;background:#2465ee;color:#fff;font-weight:650;font-size:13px;cursor:pointer">Следить за топливом</button>' +
+    '<button type="button" id="favFollowNo" style="border:0;border-radius:12px;padding:10px 12px;background:#eef2f8;color:#5b6b86;font-weight:600;font-size:13px;cursor:pointer">Не сейчас</button>' +
+    '</div>';
+  bar.style.display = '';
+  const close = () => { bar.style.display = 'none'; };
+  const yes = document.getElementById('favFollowYes');
+  const no = document.getElementById('favFollowNo');
+  if (yes) yes.onclick = () => {
+    try { sessionStorage.setItem('kbFavOffer_' + stId, '1'); sessionStorage.setItem('kbFavOfferSession', '1'); } catch (e) {}
+    if (!isFavorite(stId)) { toggleFavoriteById(stId); track('fav_add_route_offer', null, stId); }
+    close();
+  };
+  if (no) no.onclick = () => {
+    try { sessionStorage.setItem('kbFavOffer_' + stId, '1'); sessionStorage.setItem('kbFavOfferSession', '1'); } catch (e) {}
+    close();
+  };
+  setTimeout(() => { if (bar.style.display !== 'none') close(); }, 12000);
 }
 function openSheetAboveAdvice(id) {
   const st = allStations.find(s => s.id === id); if (!st) return;
@@ -2487,7 +2539,7 @@ vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes
     '<div class="station-header"><div class="station-logo">' + stationLogo(station) + '</div>' +
     '<div class="station-info"><div class="station-name">' + escapeHtml(station.name || 'АЗС') + '</div>' +
     '<div class="station-address">' + escapeHtml(station.brand ? station.brand + '   ' : '') + escapeHtml(station.address || '') + '</div></div>' +
-    '<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)">' + icon('i-heart') + '</button></div>' +
+'<button class="favorite ' + (isFavorite(station.id) ? 'on' : '') + '" data-station-id="' + station.id + '" onclick="toggleFavorite(this)" title="' + (isFavorite(station.id) ? 'В избранном — нажмите, чтобы убрать' : 'Следить за топливом') + '" aria-label="' + (isFavorite(station.id) ? 'В избранном' : 'Следить за топливом') + '">' + icon('i-heart') + '</button></div>' +
     '<div class="verdict ' + vCls + '"><span class="v-ico">' + icon(vIco) + '</span><span class="v-txt"><span class="verdict-t">' + escapeHtml(vTitle) + '</span><span class="verdict-s">' + escapeHtml(vSub) + '</span></span></div>' +
     '<div class="f-tiles">' + tile('АИ-92', 'fuel_92_status', '92') + tile('АИ-95', 'fuel_95_status', '95') + tile('Дизель', 'diesel_status', 'diesel') + '</div>' +
     '<div class="card-facts">' +
@@ -2781,6 +2833,7 @@ function showOnMap(id) {
   const go = () => {
     if (!mapObj) { setTimeout(go, 150); return; }
     drawRouteTo(st);
+    maybeFavFollowOffer(id);
   };
   go();
 }
@@ -7421,6 +7474,40 @@ let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTime
 // «всё готово», пока start() реально не привёз данные. bootDataOk — флаг
 // настоящего успеха, bootFailed — оверлей уже показал честную ошибку
 let bootDataOk = true, bootFailed = false;
+// метрики под прогресс-баром: скорость, объём, ETA (оценка по probe + % этапов)
+let bootNet = { kbps: 0, bytesEst: 0, probeMs: 0 };
+const BOOT_BYTES_DEFAULT = 1.6 * 1024 * 1024; // типичный объём первой загрузки ~1.6 МБ
+function bootFmtBytes(n) {
+  if (!n || n < 0) return '—';
+  if (n < 1024) return Math.round(n) + ' Б';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + ' КБ';
+  return (n / (1024 * 1024)).toFixed(2) + ' МБ';
+}
+function bootFmtSpeed(kbps) {
+  if (!kbps || kbps < 1) return '…';
+  if (kbps >= 1000) return (kbps / 1000).toFixed(1) + ' Мбит/с';
+  return Math.round(kbps) + ' Кбит/с';
+}
+function bootFmtEta(sec) {
+  if (sec == null || !isFinite(sec) || sec < 0) return '…';
+  if (sec < 1.5) return 'меньше секунды';
+  if (sec < 60) return '~' + Math.max(1, Math.round(sec)) + ' с';
+  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+  return '~' + m + ' мин ' + (s < 10 ? '0' : '') + s + ' с';
+}
+function ensureBootMetaEl() {
+  let meta = document.getElementById('bootMeta');
+  if (meta) return meta;
+  const bar = document.getElementById('bootBarFill');
+  const parent = bar && (bar.parentElement || bar.parentNode);
+  if (!parent) return null;
+  meta = document.createElement('div');
+  meta.id = 'bootMeta';
+  meta.setAttribute('aria-live', 'polite');
+  meta.style.cssText = 'margin-top:8px;font-size:11px;line-height:1.35;color:rgba(255,255,255,.72);text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.01em';
+  parent.insertAdjacentElement('afterend', meta);
+  return meta;
+}
 const BOOT_TIPS_CARDS = [
   { ico: 'i-tg', bg: 'linear-gradient(135deg,#2465ee,#5b8def)', title: 'Уведомления в Телеграме', text: 'Добавь АЗС в избранное — бот напишет, когда туда привезут бензин. Не нужно проверять сайт каждый час.' },
   { ico: 'i-pump', bg: 'linear-gradient(135deg,#19b77a,#5dd9a5)', title: 'Отметка топлива — 2 тапа', text: 'Нажал на каплю 	 «Отметка». Твой голос делает прогнозы точнее именно для твоего города — без тебя мы гадаем.' },
@@ -7572,10 +7659,24 @@ function bootStart() {
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
   bootOver = false; bootFailed = false;
   bootPct = 3; bootTarget = 3; bootStage = -1;
+  // оценка объёма: прошлый удачный заход или дефолт
+  try {
+    const prev = parseInt(localStorage.getItem('kbBootBytes') || '0', 10);
+    bootNet.bytesEst = (prev > 200 * 1024 && prev < 20 * 1024 * 1024) ? prev : BOOT_BYTES_DEFAULT;
+  } catch (e) { bootNet.bytesEst = BOOT_BYTES_DEFAULT; }
+  bootNet.kbps = 0; bootNet.probeMs = 0;
   back.style.display = ''; back.classList.remove('off');
   const fb = document.getElementById('bootFailBox'); if (fb) fb.style.display = 'none';
   bootT0 = Date.now();
+  ensureBootMetaEl();
   bootPaintPct();
+  // быстрый замер скорости для строки под баром (не блокирует UI)
+  netProbe().then((r) => {
+    if (bootOver) return;
+    if (r && r.kbps) bootNet.kbps = r.kbps;
+    if (r && r.ms) bootNet.probeMs = r.ms;
+    bootPaintPct();
+  }).catch(() => {});
   bootTimer = setInterval(() => {
     if (bootPct < bootTarget) { bootPct = Math.min(bootTarget, bootPct + 1); bootPaintPct(); }
   }, 70);
@@ -7615,6 +7716,32 @@ function bootPaintPct() {
   const p = Math.max(0, Math.min(100, bootPct));
   const bar = document.getElementById('bootBarFill');
   if (bar) bar.style.width = p + '%';
+  // строка под баром: скорость · скачано/всего · осталось
+  const meta = ensureBootMetaEl();
+  if (!meta) return;
+  const total = bootNet.bytesEst || BOOT_BYTES_DEFAULT;
+  // до 95% — оценка по прогрессу этапов; на 100% — «готово»
+  const frac = Math.min(0.95, p / 100);
+  const done = Math.round(total * frac);
+  const left = Math.max(0, total - done);
+  let etaSec = null;
+  if (bootNet.kbps > 0) {
+    // kbps → байт/с: (kbps/8)*1024
+    const bps = (bootNet.kbps / 8) * 1024;
+    if (bps > 1) etaSec = left / bps;
+  } else {
+    // без замера — грубо по скорости ползунка этапов
+    const elapsed = (Date.now() - bootT0) / 1000;
+    if (p > 8 && elapsed > 0.8) etaSec = elapsed * (100 - p) / p;
+  }
+  if (p >= 100) {
+    meta.textContent = 'Готово · ' + bootFmtBytes(total) + ' · ' + bootFmtSpeed(bootNet.kbps);
+    return;
+  }
+  meta.textContent =
+    bootFmtSpeed(bootNet.kbps) +
+    ' · ' + bootFmtBytes(done) + ' из ' + bootFmtBytes(total) +
+    ' · осталось ' + bootFmtEta(etaSec);
 }
 function hideBoot() {
   const back = document.getElementById('bootBack');
@@ -7628,6 +7755,17 @@ function bootDone() {
   bootOver = true;
   if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
+  // уточняем оценку объёма по реальному времени × скорости (для следующего раза)
+  try {
+    const elapsedSec = Math.max(0.5, (Date.now() - bootT0) / 1000);
+    if (bootNet.kbps > 50) {
+      const approx = Math.round((bootNet.kbps / 8) * 1024 * elapsedSec);
+      if (approx > 200 * 1024 && approx < 20 * 1024 * 1024) {
+        bootNet.bytesEst = approx;
+        localStorage.setItem('kbBootBytes', String(approx));
+      }
+    }
+  } catch (e) {}
   bootPct = 100; bootPaintPct();
   const back = document.getElementById('bootBack');
   if (!back) return;
