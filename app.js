@@ -791,15 +791,30 @@ function adviceCoreScore(st, o, km, pred) {
   }
   return s;
 }
+// Окно актуальности голосов в советнике: после смены статуса пары И не старше 24 ч.
+// Раньше счётчики жили, пока не придёт fuel_restored/disappeared — на «зависших»
+// станциях (данные 2–4 дня) цифры 6/4 и 11/1 висели вечно и держали карточку в топе.
+const ADVICE_VOTE_TTL_MS = 24 * 3600 * 1000;
+function adviceVoteSince(stationId, fuel) {
+  const ch = pairLastChange(stationId, fuel || '95');
+  return Math.max(Date.now() - ADVICE_VOTE_TTL_MS, ch || 0);
+}
+
 // сырая загрузка реакций для всех станций города (нужна до buildAdviceList)
 async function loadAdviceReactionsForListRaw() {
 	const cityIds = cityStationList().map(s => s.id);
 	if (!cityIds.length) return;
+	const now = Date.now();
+	const ttlFloor = now - ADVICE_VOTE_TTL_MS;
 	// подтянем народные голоса из allFeedback (быстро, без запроса)
 	const chMap = pairChangeMap();
 for (const stId of cityIds) {
 if (!adviceReactions[stId]) adviceReactions[stId] = { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0, folk_fuel: {} };
-// голоса считаем ПО ТОПЛИВУ карточки и только после последней смены статуса пары
+// сбрасываем счётчики — иначе при повторной загрузке они накапливаются
+adviceReactions[stId].like_count = 0;
+adviceReactions[stId].dislike_count = 0;
+adviceReactions[stId].doubt_count = 0;
+// голоса считаем ПО ТОПЛИВУ: после смены статуса пары И не старше 24 ч
 const ff = {};
 for (const f of allFeedback) {
 if (f.station_id !== stId) continue;
@@ -808,6 +823,7 @@ const fuel = f.fuel_type || '95';
 const ch = chMap[stId + '|' + fuel] || 0;
 const t = new Date(f.created_at).getTime();
 if (ch && t <= ch) continue; // голос до «вернулось/пропало» — сгорел
+if (t < ttlFloor) continue; // старше суток — тоже сгорел
 const g = ff[fuel] = ff[fuel] || { yes: 0, no: 0 };
 if (f.feedback_type === 'available') g.yes++; else g.no++;
 }
@@ -816,20 +832,25 @@ let fy = 0, fn = 0;
 for (const k of Object.keys(ff)) { fy += ff[k].yes; fn += ff[k].no; }
 adviceReactions[stId].folk_yes = fy;
 adviceReactions[stId].folk_no = fn;
-		// мой голос
+		// мой голос — только актуальный (в окне TTL)
 		const mine = {};
 		for (const f of allFeedback) {
-			if (f.station_id === stId && f.device_id === deviceId) {
-				if (f.feedback_type === 'available') mine.folk_yes = true;
-				else if (f.feedback_type === 'unavailable') mine.folk_no = true;
-			}
+			if (f.station_id !== stId || f.device_id !== deviceId) continue;
+			const t = new Date(f.created_at).getTime();
+			if (t < ttlFloor) continue;
+			const fuel = f.fuel_type || '95';
+			const ch = chMap[stId + '|' + fuel] || 0;
+			if (ch && t <= ch) continue;
+			if (f.feedback_type === 'available') mine.folk_yes = true;
+			else if (f.feedback_type === 'unavailable') mine.folk_no = true;
 		}
 		adviceReactionMine[stId] = mine;
 	}
 	try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); for (const k of Object.keys(mm)) adviceReactionMine[k] = Object.assign({}, mm[k], adviceReactionMine[k] || {}); } catch (e) {}
-	// реакции с сервера
+	// реакции с сервера — тоже только за 24 ч
 	try {
-		const rows = await dbQuery('/rest/v1/advice_reactions?station_id=in.(' + cityIds.join(',') + ')&select=station_id,reaction_type,device_id&order=created_at.desc&limit=2000');
+		const sinceIso = new Date(ttlFloor).toISOString();
+		const rows = await dbQuery('/rest/v1/advice_reactions?station_id=in.(' + cityIds.join(',') + ')&created_at=gte.' + sinceIso + '&select=station_id,reaction_type,device_id,created_at&order=created_at.desc&limit=2000');
 		for (const r of (rows || [])) {
 			const s = adviceReactions[r.station_id];
 			if (!s) continue;
@@ -1036,37 +1057,45 @@ async function loadAdviceReactionsForList(list) {
     }
   }
   // подгрузим народные голоса из allFeedback (если RPC не сработал или для свежести)
+  // окно: после last change пары И не старше 24 ч — иначе на «зависших» АЗС счётчики вечные
+  const ttlFloor = Date.now() - ADVICE_VOTE_TTL_MS;
   for (const it of list) {
     const stId = it.st.id;
-    const s = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
-    // найдём last_restored
-    let lastRestored = 0;
-    for (const e of allWaveEvents) {
-      if (e.station_id === stId && e.event_type === 'fuel_restored') {
-        const t = new Date(e.detected_at).getTime();
-        if (t > lastRestored) lastRestored = t;
-      }
-    }
+    const s = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0, folk_fuel: {} };
+    const focus = adviceFocusFuel(it);
+    const since = adviceVoteSince(stId, focus);
+    const ff = {};
     let fy = 0, fn = 0;
     for (const f of allFeedback) {
       if (f.station_id !== stId) continue;
+      if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
       const t = new Date(f.created_at).getTime();
-      if (lastRestored && t <= lastRestored) continue;
-      if (f.feedback_type === 'available') fy++;
-      else if (f.feedback_type === 'unavailable') fn++;
+      if (t < since || t < ttlFloor) continue;
+      const fuel = f.fuel_type || '95';
+      const g = ff[fuel] = ff[fuel] || { yes: 0, no: 0 };
+      if (f.feedback_type === 'available') { g.yes++; fy++; }
+      else { g.no++; fn++; }
     }
-    s.folk_yes = fy; s.folk_no = fn;
+    s.folk_fuel = ff;
+    s.folk_yes = fy;
+    s.folk_no = fn;
     adviceReactions[stId] = s;
   }
-  // мой голос
+  // мой голос — только в актуальном окне
   for (const it of list) {
     const stId = it.st.id;
-    const mine = {};
+    const focus = adviceFocusFuel(it);
+    const since = adviceVoteSince(stId, focus);
+    const mine = adviceReactionMine[stId] || {};
+    // не затираем like/dislike/doubt с сервера, только folk-флаги
+    delete mine.folk_yes;
+    delete mine.folk_no;
     for (const f of allFeedback) {
-      if (f.station_id === stId && f.device_id === deviceId) {
-        if (f.feedback_type === 'available') mine.folk_yes = true;
-        else if (f.feedback_type === 'unavailable') mine.folk_no = true;
-      }
+      if (f.station_id !== stId || f.device_id !== deviceId) continue;
+      const t = new Date(f.created_at).getTime();
+      if (t < since || t < ttlFloor) continue;
+      if (f.feedback_type === 'available') mine.folk_yes = true;
+      else if (f.feedback_type === 'unavailable') mine.folk_no = true;
     }
     adviceReactionMine[stId] = mine;
   }
