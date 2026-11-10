@@ -2358,6 +2358,24 @@ const since = Math.max(Date.now() - 2 * 60 * 60 * 1000, pairLastChange(stationId
   if (c.yes >= 1 && c.no >= 1) return { verdict: 'conflict', votes: c.yes + c.no };
   return null;
 }
+// Сигнал народа для плиток/пинов: сначала строгий консенсус (2 device_id / 2 ч),
+// иначе — как блок «Наши водители»: перевес отметок за 24 ч (≥2).
+function folkFuelSignal(stationId, fuel) {
+  const strict = folkConsensus24(stationId, fuel);
+  if (strict) return strict;
+  const since = Math.max(Date.now() - 24 * 3600 * 1000, pairLastChange(stationId, fuel) || 0);
+  let yes = 0, no = 0;
+  for (const f of allFeedback) {
+    if (f.station_id !== stationId || f.fuel_type !== fuel) continue;
+    if (new Date(f.created_at).getTime() < since) continue;
+    if (f.feedback_type === 'available') yes++;
+    else if (f.feedback_type === 'unavailable') no++;
+  }
+  if (yes >= 2 && yes > no) return { verdict: 'yes', votes: yes, soft: true };
+  if (no >= 2 && no > yes) return { verdict: 'no', votes: no, soft: true };
+  if (yes >= 1 && no >= 1) return { verdict: 'conflict', votes: yes + no, soft: true };
+  return null;
+}
 function stationCard(station, obs, pred) {
   const prediction = getPrediction(pred);
   const trust = availTrustworthy(obs);
@@ -2365,9 +2383,9 @@ function stationCard(station, obs, pred) {
   
   // ИСПОЛЬЗУЕМ 24 ЧАСА
   const useFolk = !trust;
-  const fc95 = folkConsensus24(station.id, '95');
-  const fc92 = folkConsensus24(station.id, '92');
-  const fcdt = folkConsensus24(station.id, 'diesel');
+  const fc95 = folkFuelSignal(station.id, '95');
+  const fc92 = folkFuelSignal(station.id, '92');
+  const fcdt = folkFuelSignal(station.id, 'diesel');
   
   const has95 = (trust && obs && obs.fuel_95_status === true) || !!scene['95'] || (useFolk && fc95?.verdict === 'yes');
 const has92 = (trust && obs && obs.fuel_92_status === true) || !!scene['92'] || (useFolk && fc92?.verdict === 'yes');
@@ -2414,7 +2432,7 @@ vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes
     }
     
     // Если источник не подтвердил, но водители собрали консенсус
-    const fc = folkConsensus24(station.id, fk);
+    const fc = folkFuelSignal(station.id, fk);
     if (!trust && fc) {
       if (fc.verdict === 'yes') {
         return '<div class="f-tile" onclick="openWhyChip(this,\'folk\')">' +
@@ -2434,6 +2452,13 @@ vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes
     const stt = obs ? obs[col] : null;
     let stTxt, stIco, stCls;
     if (stt === true && trust) { stTxt = 'есть'; stIco = 'i-check'; stCls = 'yes'; }
+    else if (stt === true && fc && fc.verdict === 'yes') {
+      stTxt = 'есть   народ'; stIco = 'i-check'; stCls = 'yes';
+      return '<div class="f-tile" onclick="openWhyChip(this,\'folk\')">' +
+        '<span class="f-drop">' + icon('i-drop') + '</span><b>' + label + '</b>' +
+        '<span class="f-st yes">' + stTxt + icon(stIco, 'ic-s') + '</span>' +
+        '<span class="f-pill yes">' + fc.votes + ' подтв.</span></div>';
+    }
     else if (stt === true) { stTxt = 'не подтверждён'; stIco = 'i-clock'; stCls = 'unknown'; }
     else if (stt === false) { stTxt = 'нет'; stIco = 'i-cross'; stCls = 'no'; }
     else { stTxt = 'нет данных'; stIco = 'i-minus'; stCls = 'none'; }
@@ -5728,13 +5753,14 @@ function folkPinState(stationId, o) {
   const trust = o && availTrustworthy(o);
   if (trust && (o.fuel_92_status != null || o.fuel_95_status != null || o.diesel_status != null)) return null;
   
-  const f95 = folkConsensus(stationId, '95'), f92 = folkConsensus(stationId, '92'), fdt = folkConsensus(stationId, 'diesel');
+  const f95 = folkFuelSignal(stationId, '95'), f92 = folkFuelSignal(stationId, '92'), fdt = folkFuelSignal(stationId, 'diesel');
   if (!f95 && !f92 && !fdt) return null;
   if (f95 && f95.verdict === 'yes') return 'yes';
   if (f92 && f92.verdict === 'yes') return 'part';
   if (fdt && fdt.verdict === 'yes') return 'diesel';
   if ((f95 && f95.verdict === 'conflict') || (f92 && f92.verdict === 'conflict') || (fdt && fdt.verdict === 'conflict')) return 'conflict';
-  return 'no';
+  if ((f95 && f95.verdict === 'no') || (f92 && f92.verdict === 'no') || (fdt && fdt.verdict === 'no')) return 'no';
+  return null;
 }
 function effPinKey(st, o) {
   const k = pinKey(o);

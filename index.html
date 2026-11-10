@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2465ee">
 <meta name="description" content="КогдаБенз — карта наличия топлива на АЗС юга России: где есть АИ-95, АИ-92 и дизель сейчас, когда вернётся пропавшее, очереди и цены. Данные каждые 10 минут.">
-<!-- KB_VERSION: v0.4.8-->
+<!-- KB_VERSION: v0.4.9-->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
@@ -1754,7 +1754,7 @@ body.slim-on .page { padding-top: calc(56px + env(safe-area-inset-top)); }
 <div class="slim-bar" id="slimBar">
   <div class="slim-ver" onclick="pagerGo(1)">
     <span class="slim-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#2465ee" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></span>
-    <span class="slim-name">Когда<span class="brand-blue">Бенз<i class="slim-sup">юг</i></span></span> <span class="slim-v" id="slimVersion">v0.4.8</span>
+    <span class="slim-name">Когда<span class="brand-blue">Бенз<i class="slim-sup">юг</i></span></span> <span class="slim-v" id="slimVersion">v0.4.9</span>
   </div>
   <div class="slim-icons">
     <span class="slim-fc" id="slimForecast" onclick="scrollToTop3()" style="display:none"></span>
@@ -2074,7 +2074,7 @@ if ('serviceWorker' in navigator) {
 // Тихо спрашиваем у сервера свежий index.html в обход sw-кэша, сравниваем
 // версию (HTML-комментарий KB_VERSION). Если отличается — показываем карточку
 // «Обнаружена новая версия». По кнопке — сброс всех кэшей и перезагрузка.
-const KB_VERSION = 'v0.4.8'; // должно совпадать с комментарием в <head>
+const KB_VERSION = 'v0.4.9'; // должно совпадать с комментарием в <head>
 let pendingRemoteVersion = null; // версия с сервера, до которой реально обновляемся
 // Сохраняем текущую версию при первом заходе, чтобы при следующем обновлении
 // записать from_version корректно
