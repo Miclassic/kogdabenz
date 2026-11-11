@@ -9679,3 +9679,289 @@ function lentiPolish() {
   setTimeout(kbLiveTick, 12000);
   setInterval(kbLiveTick, 4 * 60000);
 })();
+// ============================================================
+// KB LIVE RESET + NEARBY CARE
+// 1) Реакции (3 кнопки) сбрасываются при каждом появлении/пропаже
+//    топлива на АЗС: старые голоса и счётчики сгорают, можно голосовать заново.
+// 2) Геолокация -> ближайшие АЗС -> мягкая просьба отметить топливо,
+//    если станция давно молчит или просто нужен свежий голос для города.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+  'use strict';
+  if (window.__kbLiveResetCare) return;
+  window.__kbLiveResetCare = 1;
+
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  // ---------- маленький тост в палитре сайта ----------
+  function toast(msg, kind) {
+    var t = document.getElementById('kbLrToast');
+    if (!t) {
+      t = document.createElement('div'); t.id = 'kbLrToast';
+      t.style.cssText = 'position:fixed;left:12px;right:12px;bottom:150px;z-index:121;border-radius:14px;padding:10px 14px;font-size:12px;font-weight:700;color:#fff;background:#14213d;box-shadow:0 10px 26px rgba(20,33,61,.3);opacity:0;transform:translateY(12px);transition:.3s;pointer-events:none;font-family:inherit';
+      document.body.appendChild(t);
+    }
+    t.style.background = kind === 'ok' ? '#12855c' : kind === 'warn' ? '#c26a2a' : '#14213d';
+    t.textContent = msg;
+    t.style.opacity = '1'; t.style.transform = 'translateY(0)';
+    clearTimeout(t._tm); t._tm = setTimeout(function () { t.style.opacity = '0'; t.style.transform = 'translateY(12px)'; }, 4200);
+  }
+
+  // ============================================================
+  // 1) ЭПОХА ТОПЛИВА: сжигание реакций при смене статуса
+  // ============================================================
+  function fuelEpoch(stId) {
+    var t = 0;
+    for (var i = 0; i < allWaveEvents.length; i++) {
+      var e = allWaveEvents[i];
+      if (e.station_id !== stId) continue;
+      if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
+      var x = new Date(e.detected_at).getTime();
+      if (x > t) t = x;
+    }
+    return t;
+  }
+  function readEpochs() { return lsGet('kbAdvEpoch', {}); }
+  function writeEpochs(m) { lsSet('kbAdvEpoch', m); }
+  function readMine() { return lsGet('kbAdvMine', {}); }
+  function writeMine(m) { lsSet('kbAdvMine', m); }
+
+  // синхронное локальное сжигание: вызывается перед каждой отрисовкой советника
+  function localBurn() {
+    var stored = readEpochs();
+    var first = !Object.keys(stored).length;
+    var ids = {};
+    Object.keys(adviceReactions).forEach(function (id) { ids[id] = 1; });
+    (adviceList || []).forEach(function (x) { ids[x.st.id] = 1; });
+    var cur = {};
+    Object.keys(ids).forEach(function (id) { cur[id] = fuelEpoch(id); });
+    if (first) { writeEpochs(cur); return false; }
+    var changed = false;
+    var mm = readMine();
+    Object.keys(ids).forEach(function (id) {
+      var ep = cur[id] || 0, old = stored[id] || 0;
+      if (ep > old) {
+        changed = true;
+        adviceReactionMine[id] = {};
+        adviceReactionIds[id] = {};
+        delete mm[id];
+        var s = adviceReactions[id];
+        if (s) { s.like_count = 0; s.dislike_count = 0; s.doubt_count = 0; }
+      }
+    });
+    writeEpochs(Object.assign({}, stored, cur));
+    if (changed) writeMine(mm);
+    return changed;
+  }
+
+  // серверная пересборка счётчиков: считаем только голоса НОВЕЕ эпохи топлива
+  var sweepTimer = null;
+  function scheduleSweep() { if (sweepTimer) return; sweepTimer = setTimeout(function () { sweepTimer = null; serverSweep(); }, 700); }
+  async function serverSweep() {
+    var ids = Object.keys(adviceReactions);
+    if (!ids.length) return;
+    var epochs = {}; ids.forEach(function (id) { epochs[id] = fuelEpoch(id); });
+    try {
+      var sinceIso = new Date(Date.now() - ADVICE_VOTE_TTL_MS).toISOString();
+      var rows = await dbQuery('/rest/v1/advice_reactions?station_id=in.(' + ids.join(',') + ')&created_at=gte.' + sinceIso + '&select=station_id,reaction_type,device_id,created_at&order=created_at.desc&limit=2000');
+      ids.forEach(function (id) {
+        var s = adviceReactions[id] = adviceReactions[id] || { like_count: 0, dislike_count: 0, doubt_count: 0, folk_yes: 0, folk_no: 0, folk_fuel: {} };
+        s.like_count = 0; s.dislike_count = 0; s.doubt_count = 0;
+        var mine = adviceReactionMine[id] = adviceReactionMine[id] || {};
+        delete mine.like; delete mine.dislike; delete mine.doubt;
+        (rows || []).forEach(function (r) {
+          if (r.station_id !== id) return;
+          var t = new Date(r.created_at).getTime();
+          if (epochs[id] && t <= epochs[id]) return; // голос до смены топлива — сгорел
+          s[r.reaction_type + '_count'] = (s[r.reaction_type + '_count'] || 0) + 1;
+          if (r.device_id === deviceId) mine[r.reaction_type] = true;
+        });
+      });
+      var mm = readMine();
+      ids.forEach(function (id) {
+        var m = adviceReactionMine[id] || {};
+        var row = mm[id] || {};
+        row.like = !!m.like; row.dislike = !!m.dislike; row.doubt = !!m.doubt;
+        mm[id] = row;
+      });
+      writeMine(mm);
+      try { renderAdvicePop(); } catch (e) {}
+    } catch (e) {}
+  }
+
+  // оборачиваем отрисовку и загрузчики: сжигание до показа + пересборка после
+  var _rap = renderAdvicePop;
+  renderAdvicePop = function () { var ch = localBurn(); var r = _rap(); if (ch) scheduleSweep(); return r; };
+  var _raw = loadAdviceReactionsForListRaw;
+  loadAdviceReactionsForListRaw = async function () { await _raw(); localBurn(); await serverSweep(); };
+  var _lst = loadAdviceReactionsForList;
+  loadAdviceReactionsForList = async function (list) { await _lst(list); localBurn(); await serverSweep(); };
+  var _sr = softRefresh;
+  softRefresh = function () {
+    _sr();
+    if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
+  };
+  setInterval(function () {
+    if (document.hidden) return;
+    if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
+  }, 20000);
+
+  // ============================================================
+  // 2) БЛИЖАЙШИЕ АЗС: мягкая просьба отметить топливо
+  // ============================================================
+  var nearLoc = null, nearTriedGeo = false;
+  var nearState = { list: [], sel: null };
+  function realLoc() {
+    var l = loadUserLocation();
+    if (l && !l.kbCityAnchor) return l;
+    return nearLoc;
+  }
+  function ensureGeo() {
+    if (nearTriedGeo || realLoc() || !navigator.geolocation) return;
+    nearTriedGeo = true;
+    navigator.geolocation.getCurrentPosition(function (p) {
+      if (!p || !p.coords || p.coords.accuracy > 300) return;
+      nearLoc = { lat: p.coords.latitude, lon: p.coords.longitude };
+    }, function () {}, { timeout: 6000, maximumAge: 300000 });
+  }
+  function folkRecent(stId, ms) {
+    var since = Date.now() - ms;
+    for (var i = 0; i < allFeedback.length; i++) {
+      var f = allFeedback[i];
+      if (f.station_id !== stId) continue;
+      if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+      if (new Date(f.created_at).getTime() >= since) return true;
+    }
+    return false;
+  }
+  function nearCandidates() {
+    var loc = realLoc(); if (!loc) return [];
+    var last = getLastObservations();
+    var arr = [];
+    for (var i = 0; i < allStations.length; i++) {
+      var st = allStations[i];
+      if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
+      var d = distMeters(loc.lat, loc.lon, Number(st.lat), Number(st.lon));
+      if (d > 3000) continue;
+      var o = last[st.id];
+      var fm = getFreshnessMin(o);
+      var folk2 = folkRecent(st.id, 2 * 3600000);
+      var needs = (fm === null || fm > 180 || !folk2);
+      if (!needs) continue;
+      var reason = fm === null ? 'источник ещё не делился данными'
+        : fm > 180 ? 'источник молчит ' + agoRu(fm)
+        : 'нужен свежий голос для других водителей';
+      arr.push({ st: st, d: d, reason: reason });
+    }
+    arr.sort(function (a, b) { return a.d - b.d; });
+    return arr.slice(0, 2);
+  }
+  function nearCooldown(id) { try { return localStorage.getItem('kbNearAsk_' + id) === new Date().toDateString(); } catch (e) { return false; } }
+  function nearMark(id) { try { localStorage.setItem('kbNearAsk_' + id, new Date().toDateString()); } catch (e) {} }
+  function anyModal() {
+    return ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack', 'reactBack', 'scoreBack', 'tgOfferBack', 'liteBack', 'kbTgWizBack', 'kbPrefsBack'].some(function (id) {
+      var el = document.getElementById(id); return el && el.classList.contains('open');
+    });
+  }
+
+  function nearCss() {
+    if (document.getElementById('kbNearCss')) return;
+    var s = document.createElement('style'); s.id = 'kbNearCss';
+    s.textContent =
+      '#kbNearCard{position:fixed;left:12px;right:12px;bottom:88px;z-index:96;background:#fff;border-radius:18px;border:1px solid #e4ebf5;box-shadow:0 12px 32px rgba(20,40,80,.2);padding:12px 14px;font-family:inherit;max-height:60vh;overflow-y:auto}' +
+      '#kbNearCard::-webkit-scrollbar{width:8px}#kbNearCard::-webkit-scrollbar-thumb{background:#2465ee;border-radius:8px}' +
+      '.kbn-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#14213d;margin-bottom:6px}' +
+      '.kbn-head .ic{width:16px;height:16px;color:#2465ee}' +
+      '.kbn-sub{font-size:11px;color:#5b6b86;line-height:1.4;margin-bottom:8px}' +
+      '.kbn-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}' +
+      '.kbn-pill{border:1px solid #dfe8f2;background:#f7f9fc;color:#33445f;border-radius:99px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}' +
+      '.kbn-pill.on{background:#2465ee;color:#fff;border-color:#2465ee}' +
+      '.kbn-reason{font-size:11px;color:#c26a2a;font-weight:700;margin-bottom:6px}' +
+      '.kbn-actions{display:flex;gap:8px;margin-top:8px}' +
+      '.kbn-actions button{flex:1;border:0;border-radius:12px;padding:10px 12px;font-weight:650;font-size:12px;cursor:pointer;font-family:inherit}' +
+      '.kbn-no{background:#eef2f8;color:#5b6b86}' +
+      '.kbn-thanks{font-size:12px;color:#12855c;font-weight:800;text-align:center;padding:8px 0}';
+    document.head.appendChild(s);
+  }
+
+  function nearRender() {
+    nearCss();
+    var card = document.getElementById('kbNearCard');
+    if (!card) { card = document.createElement('div'); card.id = 'kbNearCard'; document.body.appendChild(card); }
+    var sel = nearState.sel || (nearState.list[0] && nearState.list[0].st.id);
+    nearState.sel = sel;
+    var cur = nearState.list.find(function (x) { return x.st.id === sel; }) || nearState.list[0];
+    if (!cur) { card.remove(); return; }
+    var pills = nearState.list.map(function (x) {
+      var dm = x.d < 1000 ? Math.round(x.d) + ' м' : (x.d / 1000).toFixed(1) + ' км';
+      return '<button class="kbn-pill' + (x.st.id === sel ? ' on' : '') + '" data-kbnear-sel="' + x.st.id + '">' + escapeHtml(x.st.name || 'АЗС') + ' · ' + dm + '</button>';
+    }).join('');
+    card.innerHTML =
+      '<div class="kbn-head">' + icon('i-pin', 'ic-s') + 'Вы рядом с заправками</div>' +
+      '<div class="kbn-sub">Пара тапов — и город увидит свежую обстановку. Это помогает другим водителям не ехать вслепую.</div>' +
+      '<div class="kbn-pills">' + pills + '</div>' +
+      '<div class="kbn-reason">' + escapeHtml(cur.reason) + '</div>' +
+      '<div class="feedback-panel open" id="quick-' + cur.st.id + '">' + quickChipsHtml() + '</div>' +
+      '<div class="kbn-actions"><button class="kbn-no" data-kbnear-no="1">Не сейчас</button><button class="cta-btn" data-kbnear-send="' + cur.st.id + '">Отправить отметку</button></div>';
+  }
+
+  function nearHide() { var c = document.getElementById('kbNearCard'); if (c) c.remove(); }
+
+  async function nearSend(id) {
+    var panel = document.getElementById('quick-' + id);
+    if (!panel) return;
+    var rows = [];
+    panel.querySelectorAll('.feedback-option.selected').forEach(function (b) {
+      var fact = b.dataset.fact;
+      var base = { feedback_type: null, fuel_type: null, queue_size: null, comment_text: null };
+      if (fact === 'yes') Object.assign(base, { feedback_type: 'available', fuel_type: b.dataset.fuel });
+      else if (fact === 'no') Object.assign(base, { feedback_type: 'unavailable', fuel_type: b.dataset.fuel });
+      else if (fact === 'queue') Object.assign(base, { feedback_type: 'queue', queue_size: b.dataset.queue });
+      else if (fact === 'delivery') Object.assign(base, { feedback_type: 'delivery' });
+      else if (fact === 'free') Object.assign(base, { feedback_type: 'free' });
+      else if (fact === 'inqueue') Object.assign(base, { feedback_type: 'in_queue' });
+      rows.push(base);
+    });
+    if (!rows.length) { toast('Выберите хотя бы один факт', 'warn'); return; }
+    var st = stationById(id);
+    var onSite = await onSiteFields(st);
+    rows.forEach(function (r) { r.station_id = id; r.device_id = deviceId; Object.assign(r, onSite); });
+    var ok = true;
+    try { await dbInsert('user_feedback', rows); } catch (e) { ok = false; }
+    if (!ok) queueFeedbackLocally(rows);
+    rows.forEach(function (r) { allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)); });
+    track('feedback_submit'); bumpContrib(); nearMark(id);
+    var card = document.getElementById('kbNearCard');
+    if (card) card.innerHTML = '<div class="kbn-thanks">Спасибо! Отметка учтена — город видит свежее топливо 🙏</div>';
+    setTimeout(function () { nearHide(); try { softRefresh(); } catch (e) {} }, 1600);
+  }
+
+  function nearTick() {
+    if (document.hidden || offlineMode || !allStations.length) return;
+    if (anyModal() || activeQuick || activeRing) return;
+    var sh = document.getElementById('shadowCard'); if (sh && sh.classList.contains('open')) return;
+    if (document.getElementById('kbNearCard')) return;
+    try { if (Number(sessionStorage.getItem('kbNearSession') || 0) >= 2) return; } catch (e) {}
+    ensureGeo();
+    var list = nearCandidates().filter(function (x) { return !nearCooldown(x.st.id); });
+    if (!list.length) return;
+    nearState.list = list; nearState.sel = list[0].st.id;
+    list.forEach(function (x) { nearMark(x.st.id); });
+    try { sessionStorage.setItem('kbNearSession', String(Number(sessionStorage.getItem('kbNearSession') || 0) + 1)); } catch (e) {}
+    nearRender();
+    track('near_nudge_show', null, list[0].st.id);
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target; if (!t || !t.closest) return;
+    var el;
+    if ((el = t.closest('[data-kbnear-sel]'))) { nearState.sel = el.getAttribute('data-kbnear-sel'); nearRender(); return; }
+    if ((el = t.closest('[data-kbnear-send]'))) { nearSend(el.getAttribute('data-kbnear-send')); return; }
+    if ((el = t.closest('[data-kbnear-no]'))) { nearHide(); return; }
+  }, true);
+
+  setInterval(nearTick, 45000);
+  setTimeout(nearTick, 15000);
+})();
