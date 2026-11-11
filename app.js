@@ -9809,10 +9809,13 @@ function lentiPolish() {
   }, 20000);
 
   // ============================================================
-  // 2) БЛИЖАЙШИЕ АЗС: мягкая просьба отметить топливо
+  // ============================================================
+  // 2) БЛИЖАЙШИЕ АЗС: мягкая просьба отметить топливо.
+  //    Уступает советнику и любым окнам; улица видна сразу.
   // ============================================================
   var nearLoc = null, nearTriedGeo = false;
   var nearState = { list: [], sel: null };
+
   function realLoc() {
     var l = loadUserLocation();
     if (l && !l.kbCityAnchor) return l;
@@ -9848,8 +9851,7 @@ function lentiPolish() {
       var o = last[st.id];
       var fm = getFreshnessMin(o);
       var folk2 = folkRecent(st.id, 2 * 3600000);
-      var needs = (fm === null || fm > 180 || !folk2);
-      if (!needs) continue;
+      if (!(fm === null || fm > 180 || !folk2)) continue;
       var reason = fm === null ? 'источник ещё не делился данными'
         : fm > 180 ? 'источник молчит ' + agoRu(fm)
         : 'нужен свежий голос для других водителей';
@@ -9860,8 +9862,9 @@ function lentiPolish() {
   }
   function nearCooldown(id) { try { return localStorage.getItem('kbNearAsk_' + id) === new Date().toDateString(); } catch (e) { return false; } }
   function nearMark(id) { try { localStorage.setItem('kbNearAsk_' + id, new Date().toDateString()); } catch (e) {} }
+
   function anyModal() {
-    return ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack', 'reactBack', 'scoreBack', 'tgOfferBack', 'liteBack', 'kbTgWizBack', 'kbPrefsBack'].some(function (id) {
+    return ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack', 'reactBack', 'scoreBack', 'tgOfferBack', 'liteBack', 'kbTgWizBack', 'kbPrefsBack', 'slimNotifBack'].some(function (id) {
       var el = document.getElementById(id); return el && el.classList.contains('open');
     });
   }
@@ -9870,14 +9873,18 @@ function lentiPolish() {
     if (document.getElementById('kbNearCss')) return;
     var s = document.createElement('style'); s.id = 'kbNearCss';
     s.textContent =
-      '#kbNearCard{position:fixed;left:12px;right:12px;bottom:88px;z-index:96;background:#fff;border-radius:18px;border:1px solid #e4ebf5;box-shadow:0 12px 32px rgba(20,40,80,.2);padding:12px 14px;font-family:inherit;max-height:60vh;overflow-y:auto}' +
+      '#kbNearCard{position:fixed;left:12px;right:12px;bottom:88px;z-index:84;background:#fff;border-radius:18px;border:1px solid #e4ebf5;box-shadow:0 12px 32px rgba(20,40,80,.2);padding:12px 14px;font-family:inherit;max-height:60vh;overflow-y:auto}' +
       '#kbNearCard::-webkit-scrollbar{width:8px}#kbNearCard::-webkit-scrollbar-thumb{background:#2465ee;border-radius:8px}' +
       '.kbn-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#14213d;margin-bottom:6px}' +
       '.kbn-head .ic{width:16px;height:16px;color:#2465ee}' +
       '.kbn-sub{font-size:11px;color:#5b6b86;line-height:1.4;margin-bottom:8px}' +
       '.kbn-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}' +
-      '.kbn-pill{border:1px solid #dfe8f2;background:#f7f9fc;color:#33445f;border-radius:99px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit}' +
+      '.kbn-pill{display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid #dfe8f2;background:#f7f9fc;color:#33445f;border-radius:12px;padding:7px 10px;cursor:pointer;font-family:inherit;max-width:100%}' +
       '.kbn-pill.on{background:#2465ee;color:#fff;border-color:#2465ee}' +
+      '.kbn-pill-top{font-size:11px;font-weight:800;white-space:nowrap}' +
+      '.kbn-pill-addr{font-size:9px;font-weight:600;opacity:.8;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.kbn-addr{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#33445f;margin:2px 0 6px}' +
+      '.kbn-addr .ic{width:13px;height:13px;color:#2465ee;flex:none}' +
       '.kbn-reason{font-size:11px;color:#c26a2a;font-weight:700;margin-bottom:6px}' +
       '.kbn-actions{display:flex;gap:8px;margin-top:8px}' +
       '.kbn-actions button{flex:1;border:0;border-radius:12px;padding:10px 12px;font-weight:650;font-size:12px;cursor:pointer;font-family:inherit}' +
@@ -9896,12 +9903,16 @@ function lentiPolish() {
     if (!cur) { card.remove(); return; }
     var pills = nearState.list.map(function (x) {
       var dm = x.d < 1000 ? Math.round(x.d) + ' м' : (x.d / 1000).toFixed(1) + ' км';
-      return '<button class="kbn-pill' + (x.st.id === sel ? ' on' : '') + '" data-kbnear-sel="' + x.st.id + '">' + escapeHtml(x.st.name || 'АЗС') + ' · ' + dm + '</button>';
+      return '<button class="kbn-pill' + (x.st.id === sel ? ' on' : '') + '" data-kbnear-sel="' + x.st.id + '">' +
+        '<span class="kbn-pill-top">' + escapeHtml(x.st.name || 'АЗС') + ' · ' + dm + '</span>' +
+        '<span class="kbn-pill-addr">' + escapeHtml(x.st.address || 'адрес не указан') + '</span>' +
+        '</button>';
     }).join('');
     card.innerHTML =
       '<div class="kbn-head">' + icon('i-pin', 'ic-s') + 'Вы рядом с заправками</div>' +
       '<div class="kbn-sub">Пара тапов — и город увидит свежую обстановку. Это помогает другим водителям не ехать вслепую.</div>' +
       '<div class="kbn-pills">' + pills + '</div>' +
+      '<div class="kbn-addr">' + icon('i-pin', 'ic-s') + '<span>' + escapeHtml(cur.st.name || 'АЗС') + ' — ' + escapeHtml(cur.st.address || 'адрес не указан') + '</span></div>' +
       '<div class="kbn-reason">' + escapeHtml(cur.reason) + '</div>' +
       '<div class="feedback-panel open" id="quick-' + cur.st.id + '">' + quickChipsHtml() + '</div>' +
       '<div class="kbn-actions"><button class="kbn-no" data-kbnear-no="1">Не сейчас</button><button class="cta-btn" data-kbnear-send="' + cur.st.id + '">Отправить отметку</button></div>';
@@ -9938,9 +9949,14 @@ function lentiPolish() {
     setTimeout(function () { nearHide(); try { softRefresh(); } catch (e) {} }, 1600);
   }
 
+  function nearDismiss() {
+    nearState.list.forEach(function (x) { nearMark(x.st.id); });
+    nearHide();
+  }
+
   function nearTick() {
     if (document.hidden || offlineMode || !allStations.length) return;
-    if (anyModal() || activeQuick || activeRing) return;
+    if (anyModal() || activeQuick || activeRing) return; // советник и любые окна — главнее
     var sh = document.getElementById('shadowCard'); if (sh && sh.classList.contains('open')) return;
     if (document.getElementById('kbNearCard')) return;
     try { if (Number(sessionStorage.getItem('kbNearSession') || 0) >= 2) return; } catch (e) {}
@@ -9948,18 +9964,27 @@ function lentiPolish() {
     var list = nearCandidates().filter(function (x) { return !nearCooldown(x.st.id); });
     if (!list.length) return;
     nearState.list = list; nearState.sel = list[0].st.id;
-    list.forEach(function (x) { nearMark(x.st.id); });
     try { sessionStorage.setItem('kbNearSession', String(Number(sessionStorage.getItem('kbNearSession') || 0) + 1)); } catch (e) {}
     nearRender();
     track('near_nudge_show', null, list[0].st.id);
   }
+
+  // Мгновенно прячем карточку, когда открывается советник/любое окно,
+  // и возвращаем её только после закрытия (без наложения слоёв).
+  var nearGuardT = null;
+  function nearGuard() {
+    if (anyModal()) { nearHide(); return; }
+    if (nearGuardT) return;
+    nearGuardT = setTimeout(function () { nearGuardT = null; if (!anyModal()) nearTick(); }, 700);
+  }
+  new MutationObserver(nearGuard).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
   document.addEventListener('click', function (e) {
     var t = e.target; if (!t || !t.closest) return;
     var el;
     if ((el = t.closest('[data-kbnear-sel]'))) { nearState.sel = el.getAttribute('data-kbnear-sel'); nearRender(); return; }
     if ((el = t.closest('[data-kbnear-send]'))) { nearSend(el.getAttribute('data-kbnear-send')); return; }
-    if ((el = t.closest('[data-kbnear-no]'))) { nearHide(); return; }
+    if ((el = t.closest('[data-kbnear-no]'))) { nearDismiss(); return; }
   }, true);
 
   setInterval(nearTick, 45000);
