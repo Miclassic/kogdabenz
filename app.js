@@ -10108,3 +10108,356 @@ function lentiPolish() {
   // первый прогон: если водитель уже голосовал раньше — сразу чисто
   setTimeout(function () { try { renderMaybeFuel(); } catch (e) {} }, 1200);
 })();
+// ============================================================
+// KB FUEL MERGE v1 — одна правда о топливе: источник + народ + «с места»
+// Советник «Куда ехать» больше не рисует «нет данных» там, где карточка
+// АЗС уже видит топливо по народным отметкам. Приоритет (как в stationCard):
+//   1) «с места» (GPS ≤200 м, ≤2 ч) — факт у колонки;
+//   2) свежий достоверный источник (≤6 ч, не SUSPECTED/CONFIRMED_LOSS…);
+//   3) народ: строгий консенсус (2 устройства / 2 ч), иначе перевес за 24 ч
+//      (folkFuelSignal — ровно то, что красит плитки карточки);
+//   4) несвежее «есть» источника — янтарное «не точно», не зелёное.
+// Народное «есть» больше НЕ затирается фильтром доверия источника,
+// а народное «есть» перекрывает несвежее «нет» источника — как в карточке.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbFuelMerge) return;
+window.__kbFuelMerge = 1;
+
+// ---------- палитра плиток в стиле сайта ----------
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbFuelMergeCss';
+s.textContent =
+'.adv-fc.kbm{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 6px 6px;border-radius:12px;min-width:0;}' +
+'.adv-fc.kbm b{font-size:10px;font-weight:800;letter-spacing:.2px;opacity:.85;}' +
+'.adv-fc.kbm i{font-style:normal;display:inline-flex;align-items:center;gap:3px;font-size:11.5px;font-weight:900;line-height:1.2;}' +
+'.adv-fc.kbm em{font-style:normal;display:inline-flex;align-items:center;gap:3px;font-size:8px;font-weight:700;opacity:.8;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+'.adv-fc.kbm .ic{width:10px;height:10px;flex:none;}' +
+'.adv-fc.kbm.yes{background:#e5f8ef;color:#12855c;}' +
+'.adv-fc.kbm.no{background:#fdecec;color:#c2403f;}' +
+'.adv-fc.kbm.warn{background:#fff6ec;color:#c26a2a;}' +
+'.adv-fc.kbm.none{background:#eef2f8;color:#7487a7;}' +
+'.adv-fc.kbm.folk.yes{box-shadow:inset 0 0 0 1px #bfe8d4;}' +
+'.adv-fc.kbm.scene.yes{box-shadow:inset 0 0 0 1.5px #12855c;}' +
+'.adv-fc.kbm.source.yes{box-shadow:inset 0 0 0 1px #bfe8d4;}' +
+'.kbm-bsrc{font-style:normal;font-weight:700;opacity:.85;margin-left:4px;font-size:9px;}' +
+'.kbm-lead{color:#12855c;font-weight:700;}';
+document.head.appendChild(s);
+})();
+
+// ---------- объединённый взгляд на пару АЗС×топливо (с кэшем) ----------
+var fvCache = {}, fvAt = 0, fvFb = -1, fvEv = -1;
+function fvInvalidate() {
+var now = Date.now();
+if (now - fvAt > 15000 || fvFb !== allFeedback.length || fvEv !== allWaveEvents.length) {
+fvCache = {}; fvAt = now; fvFb = allFeedback.length; fvEv = allWaveEvents.length;
+}
+}
+function minAgo(m) { return m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн'; }
+function latestFolkAt(stId, fl, yes) {
+var t = 0, since = Date.now() - 24 * 3600000;
+for (var i = 0; i < allFeedback.length; i++) {
+var f = allFeedback[i];
+if (f.station_id !== stId || f.fuel_type !== fl) continue;
+if (f.feedback_type !== (yes ? 'available' : 'unavailable')) continue;
+var x = new Date(f.created_at).getTime();
+if (x >= since && x > t) t = x;
+}
+return t;
+}
+function computeFuelView(stId, o, fl) {
+var col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
+var trust = o ? availTrustworthy(o) : false;
+var fm = o ? getFreshnessMin(o) : null;
+// 1) «с места» — сильнее всего
+var sc = null; try { sc = sceneMark(stId, fl); } catch (e) {}
+if (sc) return { v: true, src: 'scene', label: 'есть', ico: 'i-pin', note: 'с места · ' + minAgo(Math.max(0, Math.round((Date.now() - sc.t) / 60000))) + ' назад' };
+var stt = o ? o[col] : null;
+// 2) свежий достоверный источник
+if (trust && stt === true) return { v: true, src: 'source', label: 'есть', ico: 'i-pump', note: 'источник' + (fm !== null ? ' · ' + minAgo(fm) + ' назад' : '') };
+if (trust && stt === false) return { v: false, src: 'source', label: 'нет', ico: 'i-pump', note: 'источник' + (fm !== null ? ' · ' + minAgo(fm) + ' назад' : '') };
+// 3) народ — дополняет молчание/несвежесть источника (как folkFuelSignal в карточке)
+var fc = null; try { fc = folkFuelSignal(stId, fl); } catch (e) {}
+if (fc && fc.verdict === 'yes') { var ty = latestFolkAt(stId, fl, true); return { v: true, src: 'folk', label: 'есть', ico: 'i-heart', votes: fc.votes, note: 'народ · ' + fc.votes + ' подтв.' + (ty ? ' · ' + minAgo(Math.max(0, Math.round((Date.now() - ty) / 60000))) + ' назад' : '') }; }
+if (fc && fc.verdict === 'no') { var tn = latestFolkAt(stId, fl, false); return { v: false, src: 'folk', label: 'нет', ico: 'i-heart', votes: fc.votes, note: 'народ · ' + fc.votes + ' опр.' + (tn ? ' · ' + minAgo(Math.max(0, Math.round((Date.now() - tn) / 60000))) + ' назад' : '') }; }
+if (fc && fc.verdict === 'conflict') return { v: null, src: 'conflict', label: 'спорно', ico: 'i-help', note: 'народ · мнения разошлись' };
+// 4) несвежий источник: «есть» — не точно, «нет» — тускло
+if (stt === true) return { v: null, src: 'stale', label: 'не точно', ico: 'i-clock', staleYes: true, note: 'источник · ' + (fm !== null ? agoRu(fm) : 'давно') };
+if (stt === false) return { v: false, src: 'stale-no', label: 'нет', ico: 'i-clock', dim: true, note: 'источник · ' + (fm !== null ? agoRu(fm) : 'давно') };
+return { v: null, src: 'none', label: 'нет данных', ico: 'i-minus', note: 'ждём отметок' };
+}
+function kbFuelView(stId, o, fl) {
+fvInvalidate();
+var key = stId + '|' + fl, c = fvCache[key];
+if (c && c.o === o) return c.v;
+var v = computeFuelView(stId, o, fl);
+fvCache[key] = { o: o, v: v };
+return v;
+}
+window.kbFuelView = kbFuelView; // единая точка правды для будущих блоков
+
+// ---------- focus-топливо: то, что реально видно (а не только пин источника) ----------
+var _aff = adviceFocusFuel;
+adviceFocusFuel = function (it) {
+if (!it || it.kind === 'forecast') return _aff(it);
+var pref = null; try { pref = JSON.parse(localStorage.getItem('kbFuelPref') || 'null'); } catch (e) {}
+var order = ['95', '92', 'diesel'];
+if (pref === '92' || pref === 'diesel') order = [pref].concat(order.filter(function (f) { return f !== pref; }));
+for (var i = 0; i < order.length; i++) if (kbFuelView(it.st.id, it.o, order[i]).v === true) return order[i];
+return _aff(it);
+};
+
+// ---------- кандидаты советника: наличие = объединённый взгляд ----------
+buildAdviceList = function () {
+var uLoc = loadUserLocation(), city = cityStationList(), last = getLastObservations();
+var nows = [], fcs = [], stales = [];
+function kmOf(st) {
+if (!uLoc) return null;
+var dLat = 111 * (Number(st.lat) - uLoc.lat);
+var dLon = 111 * (Number(st.lon) - uLoc.lon) * Math.cos(uLoc.lat * Math.PI / 180);
+return Math.sqrt(dLat * dLat + dLon * dLon);
+}
+for (var i = 0; i < city.length; i++) {
+var st = city[i];
+if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
+var o = last[st.id], km = kmOf(st), pred = pickPrediction(st.id, o);
+var v95 = kbFuelView(st.id, o, '95'), v92 = kbFuelView(st.id, o, '92'), vdt = kbFuelView(st.id, o, 'diesel');
+var f = v95.v === true ? 'yes' : v92.v === true ? 'part' : vdt.v === true ? 'diesel' : null;
+if (f) { nows.push({ kind: 'now', st: st, o: o, pred: pred, km: km, f: f, score: 1000 + adviceCoreScore(st, o, km, pred) }); continue; }
+var spk = stalePinKey(o);
+if (spk) { stales.push({ kind: 'stale', st: st, o: o, pred: pred, km: km, f: spk, unverified: true, score: 500 + adviceCoreScore(st, o, km, pred) }); continue; }
+if (pred) {
+var g = getPrediction(pred);
+if (g.confidence >= 35) {
+var sc = g.confidence;
+if (km != null) sc -= Math.min(15, km);
+var dm = demandOf(st.id);
+sc -= dm >= 50 ? 20 : dm >= 30 ? 10 : 0;
+sc -= liveQueueCount(st.id) * 2;
+fcs.push({ kind: 'forecast', st: st, o: o, pred: pred, km: km, f: null, score: sc });
+}
+}
+}
+nows.sort(function (a, b) { return b.score - a.score; });
+fcs.sort(function (a, b) { return b.score - a.score; });
+stales.sort(function (a, b) { return b.score - a.score; });
+var pool = nows.concat(fcs).concat(stales), out = [];
+for (var j = 0; j < pool.length && out.length < 3; j++) {
+if (!isRejected(pool[j].st.id, adviceFocusFuel(pool[j]))) out.push(pool[j]);
+}
+return rankByFinalMetrics(out);
+};
+
+// ---------- плитки топлива в советнике: статус + происхождение ----------
+function tileHtml(fl, vw) {
+var cls = vw.v === true ? 'yes' : vw.v === false ? 'no' : (vw.src === 'stale' || vw.src === 'conflict' ? 'warn' : 'none');
+var mark = vw.v === true ? ' ' + icon('i-check', 'ic-s') : vw.v === false ? ' ' + icon('i-cross', 'ic-s') : '';
+return '<span class="adv-fc kbm ' + cls + ' ' + vw.src + '"' + (vw.dim ? ' style="opacity:.72"' : '') + '>' +
+'<b>' + fuelLabel(fl) + '</b>' +
+'<i>' + vw.label + mark + '</i>' +
+'<em>' + icon(vw.ico, 'ic-s') + '<span>' + escapeHtml(vw.note) + '</span></em>' +
+'</span>';
+}
+function badgeSrc(it) {
+if (it.kind !== 'now') return '';
+var o = it.o, trust = o ? availTrustworthy(o) : false;
+var scene = ['92', '95', 'diesel'].some(function (fl) { try { return !!sceneMark(it.st.id, fl); } catch (e) { return false; } });
+if (scene) return 'с места';
+if (trust && o && (o.fuel_92_status === true || o.fuel_95_status === true || o.diesel_status === true)) return 'источник';
+return 'народ';
+}
+function mergeAdviceDom() {
+var pop = document.getElementById('advicePop');
+if (!pop || !pop.classList.contains('open')) return;
+var cards = pop.querySelectorAll('.adv-card');
+for (var i = 0; i < cards.length; i++) {
+var it = adviceList[i];
+if (!it) continue;
+var grid = cards[i].querySelector('.adv-fuelgrid');
+if (grid) {
+grid.innerHTML = ['92', '95', 'diesel'].map(function (fl) { return tileHtml(fl, kbFuelView(it.st.id, it.o, fl)); }).join('');
+}
+var badge = cards[i].querySelector('.adv-badge.yes');
+if (badge && !badge.querySelector('.kbm-bsrc')) {
+var src = badgeSrc(it);
+if (src) badge.insertAdjacentHTML('beforeend', '<i class="kbm-bsrc">· ' + src + '</i>');
+}
+}
+var lead = pop.querySelector('.help-lead');
+if (lead && lead.innerHTML.indexOf('kbm-lead') < 0) {
+lead.insertAdjacentHTML('beforeend', ' <span class="kbm-lead">Плитки топлива учитывают источник, отметки водителей («народ») и «с места» — как в карточке АЗС.</span>');
+}
+}
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+var ok = _rap();
+if (ok) { try { mergeAdviceDom(); } catch (e) { console.log('fuel merge: ' + e.message); } }
+return ok;
+};
+
+// ---------- живое обновление: новая народная отметка сразу перекрашивает открытый советник ----------
+var _bump = bumpContrib;
+bumpContrib = function () { var n = _bump(); setTimeout(function () { try { renderAdviceIfOpen(); } catch (e) {} }, 600); return n; };
+function sig() {
+return (adviceList || []).map(function (it) {
+return it.st.id + ':' + ['92', '95', 'diesel'].map(function (fl) { var v = kbFuelView(it.st.id, it.o, fl); return v.label + '/' + v.src; }).join(',');
+}).join('|');
+}
+var lastSig = '';
+setInterval(function () {
+if (document.hidden || offlineMode) return;
+var pop = document.getElementById('advicePop');
+if (!pop || !pop.classList.contains('open') || !adviceList.length) return;
+var s = sig();
+if (lastSig && s !== lastSig) { try { renderAdvicePop(); } catch (e) {} }
+lastSig = sig();
+}, 20000);
+})();
+// ============================================================
+// KB CHOICE GUARD v1 — «наш выбор» только за подтверждённое топливо
+// Порядок советника: сначала станции, где топливо РЕАЛЬНО видно
+// (источник / народ / «с места»), затем прогнозы, затем «не точно».
+// Баллы цены/расстояния/района сортируют ТОЛЬКО внутри своего класса —
+// они больше не могут поднять «нет данных + прогноз» выше подтверждённой АЗС.
+// Золотая плашка «наш выбор» выдаётся только классу «есть сейчас»;
+// если подтверждённого топлива нет вовсе — плашки нет, без обмана.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbChoiceGuard) return;
+window.__kbChoiceGuard = 1;
+
+// класс доказательности: 0 — топливо подтверждено сейчас,
+// 1 — только прогноз возврата, 2 — несвежее «есть» источника («не точно»)
+function kbTier(it) {
+if (!it) return 3;
+return it.kind === 'now' ? 0 : it.kind === 'forecast' ? 1 : 2;
+}
+
+rankByFinalMetrics = function (list) {
+for (var i = 0; i < list.length; i++) list[i]._fs = fullChoiceScore(list[i]);
+list.sort(function (a, b) {
+var t = kbTier(a) - kbTier(b);
+if (t !== 0) return t;               // класс доказательности важнее любых баллов
+return (b._fs - a._fs);              // внутри класса — цена/район/очередь/свежесть
+});
+for (var j = 0; j < list.length; j++) delete list[j].ourChoice;
+var our = null;
+for (var k = 0; k < list.length; k++) {
+if (list[k].kind === 'now') { our = list[k]; break; }
+}
+if (our) our.ourChoice = true;       // золотом — только подтверждённое наличие
+return list;
+};
+})();
+// ============================================================
+// KB TILE CLARITY v1 — понятные плитки топлива в советнике
+// Было: «народ · 3 подтв. · 25» — хвост «мин назад» обрезался,
+// голое число сбивало с толку. Стало: две честные строки —
+//   ♥ народ · 3 подтв.
+//   🕐 25 мин назад
+// Время последней отметки всегда с единицей и словом «назад»,
+// перенос разрешён, обрезки нет. Источник / «с места» / «спорно»
+// подписаны так же явно. Вставить в САМЫЙ КОНЕЦ app.js.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbTileClarity) return;
+window.__kbTileClarity = 1;
+
+(function css() {
+if (document.getElementById('kbTileClarityCss')) return;
+var s = document.createElement('style');
+s.id = 'kbTileClarityCss';
+s.textContent =
+'.adv-fc.kbm{gap:2px;padding:8px 6px 7px;}' +
+'.adv-fc.kbm em{display:flex;align-items:center;justify-content:center;gap:3px;max-width:100%;' +
+'white-space:normal;overflow:visible;text-overflow:clip;text-align:center;' +
+'font-size:8.5px;line-height:1.25;font-weight:700;opacity:.85;font-style:normal;}' +
+'.adv-fc.kbm em span{min-width:0;}' +
+'.adv-fc.kbm em .ic{width:9px;height:9px;flex:none;}' +
+'.adv-fc.kbm em.kbm2-time{opacity:.62;font-weight:600;}';
+document.head.appendChild(s);
+})();
+
+function fmtMin(m) {
+if (m === null || m === undefined) return '';
+if (m < 1) return 'только что';
+if (m < 60) return m + ' мин назад';
+if (m < 1440) return Math.round(m / 60) + ' ч назад';
+return Math.round(m / 1440) + ' дн назад';
+}
+
+// минуты последней отметки: народ — свежий голос по этому топливу,
+// источник — свежесть снимка, «с места» — время GPS-отметки
+function tileMinutes(it, fl, vw) {
+var now = Date.now();
+if (vw.src === 'folk') {
+var want = vw.v === true ? 'available' : 'unavailable';
+var t = 0, since = now - 24 * 3600000;
+for (var i = 0; i < allFeedback.length; i++) {
+var f = allFeedback[i];
+if (f.station_id !== it.st.id || f.fuel_type !== fl || f.feedback_type !== want) continue;
+var x = new Date(f.created_at).getTime();
+if (x >= since && x > t) t = x;
+}
+return t ? Math.max(0, Math.round((now - t) / 60000)) : null;
+}
+if (vw.src === 'scene') {
+var sc = null; try { sc = sceneMark(it.st.id, fl); } catch (e) {}
+return sc ? Math.max(0, Math.round((now - sc.t) / 60000)) : null;
+}
+if (vw.src === 'source' || vw.src === 'stale' || vw.src === 'stale-no') {
+return it.o ? getFreshnessMin(it.o) : null;
+}
+return null;
+}
+
+function provenance(vw) {
+if (vw.src === 'folk') return { ico: 'i-heart', txt: 'народ · ' + (vw.votes || 0) + (vw.v === true ? ' подтв.' : ' опр.') };
+if (vw.src === 'scene') return { ico: 'i-pin', txt: 'с места' };
+if (vw.src === 'source' || vw.src === 'stale' || vw.src === 'stale-no') return { ico: 'i-pump', txt: 'источник' };
+if (vw.src === 'conflict') return { ico: 'i-help', txt: 'народ · спорно' };
+return { ico: 'i-minus', txt: 'ждём отметок' };
+}
+
+function fixTiles() {
+if (typeof window.kbFuelView !== 'function') return; // пак объединения не стоит — не трогаем
+var pop = document.getElementById('advicePop');
+if (!pop || !pop.classList.contains('open')) return;
+var cards = pop.querySelectorAll('.adv-card');
+for (var i = 0; i < cards.length; i++) {
+var it = adviceList[i];
+if (!it) continue;
+var tiles = cards[i].querySelectorAll('.adv-fc.kbm');
+var fuels = ['92', '95', 'diesel'];
+for (var k = 0; k < tiles.length && k < 3; k++) {
+var fl = fuels[k], vw = window.kbFuelView(it.st.id, it.o, fl);
+if (!vw) continue;
+var mins = tileMinutes(it, fl, vw);
+var pv = provenance(vw);
+var mark = vw.v === true ? ' ' + icon('i-check', 'ic-s') : vw.v === false ? ' ' + icon('i-cross', 'ic-s') : '';
+var timeLine = mins !== null
+? '<em class="kbm2-time">' + icon('i-clock', 'ic-s') + '<span>' + fmtMin(mins) + '</span></em>'
+: '';
+tiles[k].innerHTML =
+'<b>' + fuelLabel(fl) + '</b>' +
+'<i>' + vw.label + mark + '</i>' +
+'<em class="kbm2-src">' + icon(pv.ico, 'ic-s') + '<span>' + escapeHtml(pv.txt) + '</span></em>' +
+timeLine;
+tiles[k].setAttribute('title', pv.txt + (mins !== null ? ' · ' + fmtMin(mins) : ''));
+}
+}
+}
+
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+var ok = _rap();
+if (ok) { try { fixTiles(); } catch (e) { console.log('tile clarity: ' + e.message); } }
+return ok;
+};
+})();
