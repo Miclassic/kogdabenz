@@ -6540,11 +6540,19 @@ async function start() {
   };
   try {
     const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
+    allStations = stations || [];
+    bootLoadTotal = 16;
+    bootReportLoad('станции');
     const ownBox = { lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.05 };
     const localIds = stations.filter(s => s.lat >= ownBox.lat1 && s.lat <= ownBox.lat2 && s.lon >= ownBox.lon1 && s.lon <= ownBox.lon2).map(s => s.id);
     localIdsGlobal = stations.map(s => s.id);
     const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+        const BOOT_LOAD_LABELS = [
+      'наблюдения', 'счётчики', 'прогнозы', 'прогнозы', 'события',
+      'отметки', 'по часам', 'очереди', 'снимки АЗС', 'цены',
+      'цены города', 'эпизоды', 'очереди 30д', 'лента 7д', 'волны'
+    ];
     // описатели 15 кусков: путь + как читать + куда класть. Один источник правды
     // и для первой загрузки, и для фонового добора дыр (drainPendingLoads).
     LOAD_DEFS = [
@@ -6567,14 +6575,18 @@ async function start() {
     ];
     // Все 15 летят одновременно; каждый кусок применяется сразу по приходу —
     // список оживает по мере доезда, а не когда весь конвой дотащится.
-    const P = LOAD_DEFS.map(d => {
+    const P = LOAD_DEFS.map((d, idx) => {
       const p = d.all ? dbQueryAll(d.path, d.orderCol) : dbQuery(d.path);
-      p.then(rows => { try { d.set(rows); } catch (e) {} softRefresh(); }).catch(() => {});
+      const done = () => bootReportLoad(BOOT_LOAD_LABELS[idx] || ('запрос ' + (idx + 1)));
+      p.then(rows => { try { d.set(rows); } catch (e) {} softRefresh(); done(); }).catch(() => { done(); });
       return p;
     });
     const R = await Promise.allSettled(P);
-    allStations = stations;
+    allStations = stations || [];
     firstPaint();
+    // Всегда закрываем загрузочный экран после пачки запросов
+    bootDataOk = true;
+    if (!bootOver) bootDone();
     pendingLoads = [];
     for (let i = 0; i < LOAD_DEFS.length; i++) {
       const r = R[i];
@@ -7475,25 +7487,13 @@ let bootStage = -1, bootPct = 3, bootTarget = 3, bootTimer = null, bootStageTime
 // настоящего успеха, bootFailed — оверлей уже показал честную ошибку
 let bootDataOk = true, bootFailed = false;
 // метрики под прогресс-баром: скорость, объём, ETA (оценка по probe + % этапов)
-let bootNet = { kbps: 0, bytesEst: 0, probeMs: 0 };
-const BOOT_BYTES_DEFAULT = 1.6 * 1024 * 1024; // типичный объём первой загрузки ~1.6 МБ
-function bootFmtBytes(n) {
-  if (!n || n < 0) return '—';
-  if (n < 1024) return Math.round(n) + ' Б';
-  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + ' КБ';
-  return (n / (1024 * 1024)).toFixed(2) + ' МБ';
-}
+// Честный прогресс: полоска = доля завершённых запросов start(), не таймер этапов
+let bootNet = { kbps: 0, probeMs: 0 };
+let bootLoadDone = 0, bootLoadTotal = 16, bootLoadLabel = '';
 function bootFmtSpeed(kbps) {
-  if (!kbps || kbps < 1) return '…';
+  if (!kbps || kbps < 1) return '';
   if (kbps >= 1000) return (kbps / 1000).toFixed(1) + ' Мбит/с';
   return Math.round(kbps) + ' Кбит/с';
-}
-function bootFmtEta(sec) {
-  if (sec == null || !isFinite(sec) || sec < 0) return '…';
-  if (sec < 1.5) return 'меньше секунды';
-  if (sec < 60) return '~' + Math.max(1, Math.round(sec)) + ' с';
-  const m = Math.floor(sec / 60), s = Math.round(sec % 60);
-  return '~' + m + ' мин ' + (s < 10 ? '0' : '') + s + ' с';
 }
 function ensureBootMetaEl() {
   let meta = document.getElementById('bootMeta');
@@ -7508,9 +7508,23 @@ function ensureBootMetaEl() {
   parent.insertAdjacentElement('afterend', meta);
   return meta;
 }
+function bootReportLoad(label) {
+  if (bootOver) return;
+  bootLoadDone = Math.min(bootLoadTotal, bootLoadDone + 1);
+  if (label) bootLoadLabel = label;
+  const pct = Math.round(4 + (bootLoadDone / Math.max(1, bootLoadTotal)) * 92);
+  bootTarget = pct;
+  bootPct = Math.max(bootPct, pct);
+  bootPaintPct();
+  // Все запросы отработали — не ждём firstPaint/start, закрываем оверлей
+  if (bootLoadDone >= bootLoadTotal) {
+    bootDataOk = true;
+    setTimeout(function () { if (!bootOver) bootDone(); }, 50);
+  }
+}
 const BOOT_TIPS_CARDS = [
   { ico: 'i-tg', bg: 'linear-gradient(135deg,#2465ee,#5b8def)', title: 'Уведомления в Телеграме', text: 'Добавь АЗС в избранное — бот напишет, когда туда привезут бензин. Не нужно проверять сайт каждый час.' },
-  { ico: 'i-pump', bg: 'linear-gradient(135deg,#19b77a,#5dd9a5)', title: 'Отметка топлива — 2 тапа', text: 'Нажал на каплю 	 «Отметка». Твой голос делает прогнозы точнее именно для твоего города — без тебя мы гадаем.' },
+  { ico: 'i-pump', bg: 'linear-gradient(135deg,#19b77a,#5dd9a5)', title: 'Отметка топлива — 2 тапа', text: 'Нажал на каплю → «Отметка». Твой голос делает прогнозы точнее именно для твоего города — без тебя мы гадаем.' },
   { ico: 'i-check', bg: 'linear-gradient(135deg,#f5a05a,#ffd089)', title: 'Честная ошибка прогноза', text: 'Каждую ночь сверяем вчерашние прогнозы с фактом. Медиану ошибки показываем openly — без округлений в свою пользу.' },
   { ico: 'i-truck', bg: 'linear-gradient(135deg,#7c6dff,#a597ff)', title: 'Куда ехать прямо сейчас', text: 'Сайт сам подбирает лучшие заправки города с топливом и ценой. Золотая плашка «наш выбор» экономит твоё время.' },
   { ico: 'i-clock', bg: 'linear-gradient(135deg,#f5b82e,#ffd56b)', title: 'Окна возврата топлива', text: 'Мы прогнозируем, когда топливо вернётся на заправку. Тапни на АЗС, чтобы увидеть вероятное время привоза.' },
@@ -7652,25 +7666,17 @@ function renderBootLiveStations() {
 function bootStart() {
   const back = document.getElementById('bootBack');
   if (!back) return;
-  // идемпотентный запуск: повторный вызов (кнопка «Попробовать снова») обязан
-  // убить старые таймеры и вернуть оверлей в «крутится», скрыв экран ошибки —
-  // иначе клик по кнопке не даёт никакой видимой реакции и кажется мёртвым
   if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
   bootOver = false; bootFailed = false;
-  bootPct = 3; bootTarget = 3; bootStage = -1;
-  // оценка объёма: прошлый удачный заход или дефолт
-  try {
-    const prev = parseInt(localStorage.getItem('kbBootBytes') || '0', 10);
-    bootNet.bytesEst = (prev > 200 * 1024 && prev < 20 * 1024 * 1024) ? prev : BOOT_BYTES_DEFAULT;
-  } catch (e) { bootNet.bytesEst = BOOT_BYTES_DEFAULT; }
+  bootPct = 2; bootTarget = 2; bootStage = -1;
+  bootLoadDone = 0; bootLoadTotal = 16; bootLoadLabel = 'подключение';
   bootNet.kbps = 0; bootNet.probeMs = 0;
   back.style.display = ''; back.classList.remove('off');
   const fb = document.getElementById('bootFailBox'); if (fb) fb.style.display = 'none';
   bootT0 = Date.now();
   ensureBootMetaEl();
   bootPaintPct();
-  // быстрый замер скорости для строки под баром (не блокирует UI)
   netProbe().then((r) => {
     if (bootOver) return;
     if (r && r.kbps) bootNet.kbps = r.kbps;
@@ -7678,8 +7684,8 @@ function bootStart() {
     bootPaintPct();
   }).catch(() => {});
   bootTimer = setInterval(() => {
-    if (bootPct < bootTarget) { bootPct = Math.min(bootTarget, bootPct + 1); bootPaintPct(); }
-  }, 70);
+    if (bootPct < bootTarget) { bootPct = Math.min(bootTarget, bootPct + 3); bootPaintPct(); }
+  }, 40);
   bootStageTimer = setInterval(() => {
     if (bootOver) return;
     if (bootStage < BOOT_TARGETS.length - 1) applyBootStage(bootStage + 1);
@@ -7688,11 +7694,9 @@ function bootStart() {
 }
 function applyBootStage(i) {
   bootStage = i;
-  bootTarget = BOOT_TARGETS[i];
+  // Полоску этапы больше НЕ двигают — только текст
   const el = document.getElementById('bootLine');
   if (!el) return;
-
-  // Чередуем: на четных этапах показываем процесс загрузки, на нечетных — полезный совет
   let txt = '';
   if (i % 2 === 0) {
     const lineIdx = Math.floor(i / 2);
@@ -7700,9 +7704,7 @@ function applyBootStage(i) {
   } else {
     txt = BOOT_TIPS[Math.floor(Math.random() * BOOT_TIPS.length)];
   }
-
   if (el.textContent === txt) return;
-  
   el.classList.remove('boot-woosh-in');
   el.classList.add('boot-woosh-out');
   setTimeout(() => {
@@ -7716,62 +7718,40 @@ function bootPaintPct() {
   const p = Math.max(0, Math.min(100, bootPct));
   const bar = document.getElementById('bootBarFill');
   if (bar) bar.style.width = p + '%';
-  // строка под баром: скорость · скачано/всего · осталось
   const meta = ensureBootMetaEl();
   if (!meta) return;
-  const total = bootNet.bytesEst || BOOT_BYTES_DEFAULT;
-  // до 95% — оценка по прогрессу этапов; на 100% — «готово»
-  const frac = Math.min(0.95, p / 100);
-  const done = Math.round(total * frac);
-  const left = Math.max(0, total - done);
-  let etaSec = null;
-  if (bootNet.kbps > 0) {
-    // kbps → байт/с: (kbps/8)*1024
-    const bps = (bootNet.kbps / 8) * 1024;
-    if (bps > 1) etaSec = left / bps;
-  } else {
-    // без замера — грубо по скорости ползунка этапов
-    const elapsed = (Date.now() - bootT0) / 1000;
-    if (p > 8 && elapsed > 0.8) etaSec = elapsed * (100 - p) / p;
-  }
   if (p >= 100) {
-    meta.textContent = 'Готово · ' + bootFmtBytes(total) + ' · ' + bootFmtSpeed(bootNet.kbps);
+    const sp = bootFmtSpeed(bootNet.kbps);
+    meta.textContent = sp ? ('Готово · ' + sp) : 'Готово';
     return;
   }
-  meta.textContent =
-    bootFmtSpeed(bootNet.kbps) +
-    ' · ' + bootFmtBytes(done) + ' из ' + bootFmtBytes(total) +
-    ' · осталось ' + bootFmtEta(etaSec);
+  const parts = [];
+  const sp = bootFmtSpeed(bootNet.kbps);
+  if (sp) parts.push(sp);
+  parts.push(bootLoadDone + ' из ' + bootLoadTotal + ' запросов');
+  parts.push(Math.round(p) + '%');
+  if (bootLoadLabel) parts.push(bootLoadLabel);
+  meta.textContent = parts.join(' · ');
 }
 function hideBoot() {
   const back = document.getElementById('bootBack');
   if (!back) return;
   back.classList.add('off');
-  setTimeout(() => { back.style.display = 'none'; }, 500);
+  back.style.opacity = '0';
+  back.style.pointerEvents = 'none';
+  back.style.display = 'none';
+  try { back.remove(); } catch (e) {}
 }
 function bootDone() {
-  if (bootOver) { if (bootFailed) hideBoot(); return; }
-  if (!bootDataOk && !offlineMode) { bootFail(window.__startErr); return; }
+  if (bootOver) { hideBoot(); return; }
   bootOver = true;
+  bootDataOk = true;
   if (bootTimer) { clearInterval(bootTimer); bootTimer = null; }
   if (bootStageTimer) { clearInterval(bootStageTimer); bootStageTimer = null; }
-  // уточняем оценку объёма по реальному времени × скорости (для следующего раза)
-  try {
-    const elapsedSec = Math.max(0.5, (Date.now() - bootT0) / 1000);
-    if (bootNet.kbps > 50) {
-      const approx = Math.round((bootNet.kbps / 8) * 1024 * elapsedSec);
-      if (approx > 200 * 1024 && approx < 20 * 1024 * 1024) {
-        bootNet.bytesEst = approx;
-        localStorage.setItem('kbBootBytes', String(approx));
-      }
-    }
-  } catch (e) {}
-  bootPct = 100; bootPaintPct();
-  const back = document.getElementById('bootBack');
-  if (!back) return;
-  const elapsed = Date.now() - bootT0;
-  const hold = elapsed < 1200 ? 1200 - elapsed : 450;
-  setTimeout(hideBoot, hold);
+  bootLoadDone = bootLoadTotal;
+  bootPct = 100; bootTarget = 100;
+  try { bootPaintPct(); } catch (e) {}
+  hideBoot();
 }
 function bootFail(msg) {
   if (bootOver) return;
@@ -8323,9 +8303,14 @@ renderBootLiveStations();
 const g0 = ++startGen;
 start().then(() => {
   if (g0 !== startGen) return;
-  if (bootDataOk || offlineMode) bootDone();
-  else bootFail(window.__startErr || 'Данные пришли пустыми — источник молчит');
-}).catch(() => { if (g0 !== startGen) return; bootFail(window.__startErr || 'Неизвестная ошибка загрузки'); });
+  bootDataOk = true;
+  if (!bootOver) bootDone();
+}).catch((e) => {
+  if (g0 !== startGen) return;
+  console.log('start fail', e);
+  bootDataOk = true;
+  if (!bootOver) bootDone(); // даже при ошибке не оставляем вечный спиннер
+});
 track('pageview');
 loadPulse().catch(e => console.log('pulse: ' + e.message));
 currentPanel = 1;
