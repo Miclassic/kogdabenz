@@ -428,7 +428,8 @@ function stationLabel(id) {
   if (!wideById[id]) return '<b>' + base + '</b>';
   return base + ' (' + (cityById[id] || 'регион') + ')';
 }
-  const tgLines = [];
+  const tgSrcLines = [];
+  const tgFolkLines = [];
 
   console.log('3) Достаю последние наблюдения для сравнения...');
   const lastByStation = {};
@@ -585,7 +586,7 @@ console.log('   Состояния дома: ' + JSON.stringify(stateCounts));
         console.log('   Журнал свидетеля (источник): ' + wRowsS.length);
       }
     } catch (e) { console.log('   ! Журнал свидетеля (источник): ' + e.message); }
-  for (const e of events) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
+  for (const e of events) tgSrcLines.push(eventStoryRu(e, stationLabel(e.station_id)));
   console.log('5.5) Обновляю суточную сводку city_daily...');
   await cityDailyRollup();
   // === ШАГ 6: превращаем народные отметки user_feedback в события ===
@@ -613,7 +614,7 @@ const unprocessed = await sbGetAll(
       source: 'user_feedback'
     }));
     await sbPost('events', fbEvents);
-    for (const e of fbEvents) tgLines.push(eventStoryRu(e, stationLabel(e.station_id)));
+    for (const e of fbEvents) tgFolkLines.push(eventStoryRu(e, stationLabel(e.station_id)));
     const ids = unprocessed.map(f => f.id).join(',');
     await sbPatch('user_feedback?id=in.(' + ids + ')', { processed_at: new Date().toISOString() });
     console.log('   Народных отметок превращено в события: ' + fbEvents.length);
@@ -923,7 +924,7 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
   }
 }
 
-  if (tgLines.length) {
+    if (tgSrcLines.length || tgFolkLines.length) {
     // Контекст города из свежих домашних отметок (факт, не прогноз)
     let known = 0, avail = 0;
     for (const row of obsRows) {
@@ -932,9 +933,24 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
     }
     const msk = new Date(Date.now() + 3 * 3600 * 1000);
     const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
-    await tg('⚡ ' + hh + ' · ' + tgLines.length +
+    const total = tgSrcLines.length + tgFolkLines.length;
+    // Народ сверху — его глазами ищешь; источник ниже. Лимит строк общий ~10.
+    let body = '';
+    let left = 10;
+    if (tgFolkLines.length) {
+      const take = tgFolkLines.slice(0, Math.min(left, 6));
+      left -= take.length;
+      body += '\n\n👥 <b>НАРОД</b> · ' + tgFolkLines.length + '\n' + take.join('\n');
+      if (tgFolkLines.length > take.length) body += '\n<i>…ещё ' + (tgFolkLines.length - take.length) + '</i>';
+    }
+    if (tgSrcLines.length && left > 0) {
+      const take = tgSrcLines.slice(0, left);
+      body += '\n\n📡 <b>ИСТОЧНИК</b> · ' + tgSrcLines.length + '\n' + take.join('\n');
+      if (tgSrcLines.length > take.length) body += '\n<i>…ещё ' + (tgSrcLines.length - take.length) + '</i>';
+    }
+    await tg('⚡ ' + hh + ' · ' + total +
       (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
-'\n' + tgLines.slice(0, 8).join('\n'), true);
+      body, true);
   }
   console.log('✅ Цикл завершён');
 }
@@ -1103,7 +1119,7 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
 if (tgLines.length) {
 const msk = new Date(Date.now() + 3 * 3600 * 1000);
 const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
-await tg('⚡ ' + hh + ' · аварийный режим (источник лежит): ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n'), true);
+await tg('⚡ ' + hh + ' · аварийный режим (источник лежит)\n\n👥 <b>НАРОД</b> · ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n'), true);
 }
 }
 main().catch(async e => {
