@@ -9965,3 +9965,121 @@ function lentiPolish() {
   setInterval(nearTick, 45000);
   setTimeout(nearTick, 15000);
 })();
+// ============================================================
+// KB MAYBE-FUEL: «отметил — у меня скрылось, у других осталось»
+// Голос этого устройства мгновенно убирает строку из его поля зрения.
+// Остальные водители видят строку и счётчик, пока сами не отметят.
+// Новое событие источника (fuel_restored) по паре снова открывает строку.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+  'use strict';
+  if (window.__kbMfHide) return;
+  window.__kbMfHide = 1;
+
+  var HKEY = 'kbMfHidden';
+  function hmap() { try { return JSON.parse(localStorage.getItem(HKEY) || '{}'); } catch (e) { return {}; } }
+  function hsave(m) { try { localStorage.setItem(HKEY, JSON.stringify(m)); } catch (e) {} }
+  function hidePair(stId, fuel) { var m = hmap(); m[stId + '|' + fuel] = Date.now(); hsave(m); }
+  function unhidePair(stId, fuel) { var m = hmap(); delete m[stId + '|' + fuel]; hsave(m); }
+
+  // окно актуальности: с последней смены статуса пары (вернулось/пропало)
+  function pairSince(stId, fuel) { return maybeSince(stId, fuel); }
+
+  // строка должна исчезнуть у ЭТОГО устройства?
+  function shouldHide(stId, fuel) {
+    var s = pairSince(stId, fuel);
+    var v = maybeFuelVotes(stId, fuel, s);
+    if (v.mine) return true; // мой голос уже в ленте (в т.ч. офлайн-очередь)
+    var h = hmap()[stId + '|' + fuel] || 0;
+    // скрытие действует, пока не случилось более новое событие по паре
+    return h > 0 && h >= s;
+  }
+
+  // ---------- снек «голос учтён · отменить» ----------
+  (function css() {
+    var s = document.createElement('style');
+    s.textContent =
+      '#mfSnack{position:fixed;left:12px;right:12px;bottom:96px;z-index:121;display:flex;align-items:center;gap:10px;' +
+      'background:#14213d;color:#fff;border-radius:16px;padding:12px 14px;font-size:12px;font-weight:700;line-height:1.4;' +
+      'box-shadow:0 12px 34px rgba(20,33,61,.35);opacity:0;transform:translateY(16px);transition:.3s cubic-bezier(.2,.8,.2,1);pointer-events:none;font-family:inherit}' +
+      '#mfSnack.on{opacity:1;transform:translateY(0);pointer-events:auto}' +
+      '#mfSnack button{margin-left:auto;flex:none;border:0;border-radius:10px;background:rgba(255,255,255,.18);color:#fff;font-weight:800;font-size:12px;padding:8px 12px;cursor:pointer;font-family:inherit}' +
+      '.mf-row{transition:opacity .22s ease,transform .22s ease}' +
+      '.mf-row.mf-out{opacity:0;transform:translateX(14px)}';
+    document.head.appendChild(s);
+  })();
+
+  function showSnack(stId, fuel, yes) {
+    var el = document.getElementById('mfSnack');
+    if (!el) { el = document.createElement('div'); el.id = 'mfSnack'; document.body.appendChild(el); }
+    el.innerHTML = '<span>Голос учтён — строка скрыта только у вас. Остальные водители её видят.</span><button type="button">Отменить</button>';
+    el.classList.add('on');
+    el.querySelector('button').onclick = function () {
+      el.classList.remove('on');
+      maybeUndoVote(stId, fuel, yes, pairSince(stId, fuel));
+    };
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.classList.remove('on'); }, 6000);
+  }
+
+  // ---------- перерисовка: убираем «мои» строки из моего поля зрения ----------
+  var _render = renderMaybeFuel;
+  renderMaybeFuel = function () {
+    _render();
+    var wrap = document.getElementById('maybeFuelPlate');
+    if (!wrap || wrap.style.display === 'none') return;
+    var rows = [].slice.call(wrap.querySelectorAll('.mf-row'));
+    var left = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var m = row.innerHTML.match(/maybeVote\('([^']+)','([^']+)'/);
+      if (!m) { left++; continue; }
+      var id = m[1], fuel = m[2];
+      row.setAttribute('data-st', id);
+      row.setAttribute('data-fuel', fuel);
+      if (shouldHide(id, fuel)) row.remove();
+      else left++;
+    }
+    if (!left) { wrap.style.display = 'none'; wrap.innerHTML = ''; }
+  };
+
+  // ---------- голос: мгновенно скрыть у себя, у других оставить ----------
+  var _vote = maybeVote;
+  maybeVote = async function (stId, fuel, yes) {
+    var s = pairSince(stId, fuel);
+    var v = maybeFuelVotes(stId, fuel, s);
+
+    // повторный тап по своему голосу = отмена (строка возвращается)
+    if (v.mine) {
+      unhidePair(stId, fuel);
+      await _vote(stId, fuel, yes);
+      renderMaybeFuel();
+      return;
+    }
+    // голосование уже закрыто консенсусом — ничего не скрываем
+    if (yes ? v.yes >= 2 : v.no >= 2) { await _vote(stId, fuel, yes); return; }
+
+    // оптимистично: запоминаем скрытие и убираем строку сразу, до ответа сети
+    hidePair(stId, fuel);
+    var wrap = document.getElementById('maybeFuelPlate');
+    if (wrap) {
+      var row = wrap.querySelector('.mf-row[data-st="' + stId + '"][data-fuel="' + fuel + '"]');
+      if (row) row.classList.add('mf-out');
+    }
+    await _vote(stId, fuel, yes); // внутри уже перерисовывает (наш врап уберёт строку)
+    renderMaybeFuel();
+    showSnack(stId, fuel, yes);
+  };
+
+  // ---------- отмена голоса: строка возвращается этому водителю ----------
+  var _undo = maybeUndoVote;
+  maybeUndoVote = async function (stId, fuel, yes, since) {
+    unhidePair(stId, fuel);
+    await _undo(stId, fuel, yes, since);
+    renderMaybeFuel();
+  };
+
+  // первый прогон: если водитель уже голосовал раньше — сразу чисто
+  setTimeout(function () { try { renderMaybeFuel(); } catch (e) {} }, 1200);
+})();
