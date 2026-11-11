@@ -1,6 +1,6 @@
 // Service Worker КогдаБенз
 // статика — stale-while-revalidate; API — network-first; плитки — cache-first
-const CACHE_VERSION = 'kogdabenz-v258'; // <-- БАМП при каждом релизе
+const CACHE_VERSION = 'kogdabenz-v259'; // <-- БАМП при каждом релизе
 const TILE_CACHE = 'kogdabenz-tiles-v136';
 const MAX_TILES = 2000;
 
