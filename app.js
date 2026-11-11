@@ -1845,10 +1845,18 @@ function cityWaveStats() {
     const a = acc[k];
     a.dBase = a.dPrev / 6;
     a.rBase = a.rPrev / 6;
-    const base = Math.max(0.5, a.dBase);
+    // Мало истории за 6 суток (dPrev) — норма ненадёжна (часто limit=5000
+    // отрезает старые события). Без нормы не ставим «волну».
+    const hasBase = a.dPrev >= 12; // ≥ ~2 событий/сут в среднем за 6 дней
+    if (!hasBase) {
+      a.level = 'calm';
+      a.noBase = true;
+      continue;
+    }
+    const base = Math.max(1, a.dBase);
     a.level = (a.d24 >= 4 && a.d24 >= 3 * base) ? 'wave'
       : (a.d24 >= 3 && a.d24 >= 2 * base) ? 'tense' : 'calm';
-    if (a.level === 'calm' && a.r24 >= 4 && a.r24 >= 3 * Math.max(0.5, a.rBase)) a.level = 'returns';
+    if (a.level === 'calm' && a.r24 >= 4 && a.r24 >= 3 * Math.max(1, a.rBase)) a.level = 'returns';
   }
   return acc;
 }
@@ -1867,10 +1875,24 @@ function waveFactExtra() {
   const r1 = v => Math.round(v * 10) / 10;
   const loud = Object.values(lastWaveStats).filter(a => a.level !== 'calm');
   if (!loud.length) return 'Все города спокойные: исчезновения и возвраты в пределах нормы.';
-  return loud.map(a =>
-    a.name + (a.key === userCityKey ? ' (твой город)' : '') + ': исчезновений ' + a.d24 + ' (норма ' + r1(a.dBase) + '/сут) — ' +
-    (a.level === 'wave' ? 'волна' : a.level === 'tense' ? 'напряжённо' : 'возвращают топливо')
-  ).join('; ');
+  const all = Object.values(lastWaveStats);
+  const loud2 = all.filter(a => a.level !== 'calm');
+  const noBase = all.filter(a => a.noBase && a.d24 > 0);
+  const parts = [];
+  if (loud2.length) {
+    parts.push(loud2.map(a =>
+      a.name + (a.key === userCityKey ? ' (твой город)' : '') + ': исчезновений ' + a.d24 +
+      ' (норма ' + r1(a.dBase) + '/сут) — ' +
+      (a.level === 'wave' ? 'волна' : a.level === 'tense' ? 'напряжённо' : 'возвращают топливо')
+    ).join('; '));
+  }
+  if (noBase.length) {
+    parts.push('Без нормы (мало истории 2–7 сут): ' + noBase.map(a =>
+      a.name + ' ' + a.d24 + ' за 24 ч'
+    ).join('; '));
+  }
+  if (!parts.length) return 'Все города спокойные: исчезновения и возвраты в пределах нормы.';
+  return parts.join('. ');
 }
 function renderWave() {
   const strip = document.getElementById('waveStrip');
@@ -7315,6 +7337,20 @@ async function flushPollQueue() {
 // полная история всегда живёт на панели «Обновления» (пятая).
 const WHATS_NEW = [
     {
+id: 'v052-heatmap-fast',
+date: '12.11.26',
+tag: 'v0.5.2',
+title: 'Тепловая карта города + лёгкий редизайн',
+img: 'v0.5.2.webp', 
+lead: 'Главная панель теперь показывает город как живую мозаику: каждая плитка — АЗС, размер и яркость — сколько событий станция собрала с полуночи, цвет — какое топливо есть сейчас, процент — доля станции в активности города. Вход стал быстрее: последний снимок данных показываем сразу, а сеть обновляет цифры фоном.',
+steps: [
+['Мозаика города на главной', 'Плитки — заправки твоего города: чем больше и ярче, тем активнее станция с 00:00 (события источника + отметки водителей). Цвет — топливо сейчас: зелёный АИ-95, оранжевый АИ-92, голубой дизель, красный «нет», серый «молчит». Внутри плитки — прозрачный штамп бренда, а в строках — окно прогноза, события и километры до тебя.'],
+['Тап по любой плитке открывает полную карточку АЗС с ценами, очередью и прогнозом. Мелкие станции меньше 5% активности не шумят в мозаике.'],
+['Быстрый вход и лёгкий редизайн', 'Сайт открывается мгновенно из снимка прошлой загрузки, а свежие данные доезжают фоном без перезагрузки. Карта грузится только когда нужна, шапка стала компактной (версия, связь, гео, уведомления), а при слабом интернете предлагается лайт-режим без карты.']
+],
+why: 'Зачем: в дефицит важно видеть не список, а картину города целиком — где топливо держится, где вымывается, какие АЗС живут активной жизнью. Мозаика даёт это с одного взгляда, а быстрый вход экономит секунды и трафик именно тогда, когда связь слабая и топливо нужно найти сейчас.'
+},
+    {
   id: 'advice-now',
   date: '12.10.26',
   tag: 'подбор',
@@ -8867,4 +8903,779 @@ function lentiPolish() {
     const next = Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate() + 1) - 3 * 3600 * 1000;
     setTimeout(function () { renderCityTreemap(); schedMidnight(); }, next - now + 5000);
   })();
+})();
+// ============================================================
+// KB RETENTION PACK v1
+// Telegram без блокировок + крючки возврата.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// Блок перехватывает tgConnect/tgOpen и оборачивает нужные функции.
+// ============================================================
+(function () {
+  'use strict';
+  if (window.__kbRetentionPack) return;
+  window.__kbRetentionPack = 1;
+
+  var BOT = (typeof TG_BOT_USERNAME === 'string' && TG_BOT_USERNAME) ? TG_BOT_USERNAME : 'kogdabenz_alert_bot';
+  var SITE = 'https://kogdabenz.ru';
+
+  var LS = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+
+  // ---------- палитра и скроллбары в стиле сайта ----------
+  (function css() {
+    var s = document.createElement('style');
+    s.textContent =
+      '.hello-pop::-webkit-scrollbar{width:8px}' +
+      '.hello-pop::-webkit-scrollbar-track{background:#eef2f8;border-radius:8px}' +
+      '.hello-pop::-webkit-scrollbar-thumb{background:#2465ee;border-radius:8px}' +
+      '.hello-pop::-webkit-scrollbar-thumb:hover{background:#1746c8}' +
+      '.kb-toast{position:fixed;left:12px;right:12px;bottom:96px;z-index:120;background:#14213d;color:#fff;border-radius:16px;padding:12px 14px;box-shadow:0 12px 34px rgba(20,33,61,.35);display:flex;align-items:center;gap:10px;font-size:13px;line-height:1.4;transform:translateY(20px);opacity:0;transition:.3s cubic-bezier(.2,.8,.2,1);pointer-events:none}' +
+      '.kb-toast.on{transform:translateY(0);opacity:1;pointer-events:auto}' +
+      '.kb-toast.ok{background:#12855c}.kb-toast.warn{background:#c26a2a}' +
+      '.kb-toast button{margin-left:auto;flex:none;border:0;border-radius:10px;background:rgba(255,255,255,.18);color:#fff;font-weight:700;font-size:12px;padding:8px 12px;cursor:pointer}' +
+      '.kb-ladder{display:flex;flex-direction:column;gap:8px;margin:10px 0}' +
+      '.kb-ladder button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border-radius:14px;padding:12px 14px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid #dfe8f2;background:#fff;color:#14213d;font-family:inherit}' +
+      '.kb-ladder button.primary{background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;border:0;box-shadow:0 6px 18px rgba(36,101,238,.35)}' +
+      '.kb-ladder button small{display:block;font-weight:500;color:inherit;opacity:.75;font-size:11px;margin-top:2px}' +
+      '.kb-code{display:flex;align-items:center;gap:8px;background:#eef4ff;border:1px dashed #bcd4ff;border-radius:12px;padding:10px 12px;margin:8px 0;font-family:ui-monospace,monospace;font-size:15px;font-weight:800;color:#1746c8;word-break:break-all}' +
+      '.kb-code button{margin-left:auto;flex:none;border:0;border-radius:8px;background:#2465ee;color:#fff;font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer}' +
+      '.kb-note{border-radius:12px;padding:10px 12px;font-size:12px;line-height:1.5;margin:8px 0}' +
+      '.kb-note.amber{background:#fff6ec;border:1px solid #f5d3b8;color:#8a5a2b}' +
+      '.kb-note.blue{background:#eef4ff;border:1px solid #bcd4ff;color:#33507e}' +
+      '.kb-probe{font-size:12px;font-weight:700;margin:6px 0;min-height:16px}' +
+      '.kb-probe.ok{color:#12855c}.kb-probe.bad{color:#c26a2a}' +
+      '.kb-adv-extra,.kb-card-extra{display:flex;gap:8px;margin-top:8px}' +
+      '.kb-adv-extra button,.kb-card-extra button{flex:1;border:1px solid #bcd4ff;background:#fff;color:#2465ee;border-radius:12px;padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}' +
+      '.kb-live{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;font-weight:700;color:#5b6b86;background:#eef2f8;border-radius:99px;padding:4px 10px}' +
+      '.kb-live i{width:7px;height:7px;border-radius:50%;background:#19b77a;animation:kbPulse 1.6s infinite}' +
+      '@keyframes kbPulse{0%,100%{opacity:1}50%{opacity:.3}}' +
+      '.kb-prefs .feedback-option.selected{background:#2465ee;color:#fff;border-color:#2465ee}' +
+      '.kb-bar{position:fixed;left:12px;right:12px;bottom:88px;z-index:96;background:#fff;border-radius:16px;padding:12px 14px;box-shadow:0 8px 28px rgba(20,40,80,.18);border:1px solid #e4ebf5;font-family:inherit}' +
+      '.kb-bar b{display:block;font-size:13px;color:#1a2b45;margin-bottom:4px}' +
+      '.kb-bar span{display:block;font-size:12px;color:#5b6b86;line-height:1.35;margin-bottom:10px}' +
+      '.kb-bar .row{display:flex;gap:8px}' +
+      '.kb-bar .row button{flex:1;border:0;border-radius:12px;padding:10px 12px;font-weight:650;font-size:13px;cursor:pointer}' +
+      '.kb-bar .yes{background:#2465ee;color:#fff}.kb-bar .no{background:#eef2f8;color:#5b6b86}';
+    document.head.appendChild(s);
+  })();
+
+  // ---------- утилиты ----------
+  function kbToast(msg, kind, actionLabel, onAction, ms) {
+    var t = document.getElementById('kbToast');
+    if (!t) { t = document.createElement('div'); t.id = 'kbToast'; t.className = 'kb-toast'; document.body.appendChild(t); }
+    t.className = 'kb-toast on' + (kind ? ' ' + kind : '');
+    t.innerHTML = '<span>' + msg + '</span>' + (actionLabel ? '<button data-kbtoast-act="1">' + actionLabel + '</button>' : '');
+    t._cb = onAction || null;
+    clearTimeout(t._tm);
+    t._tm = setTimeout(function () { t.classList.remove('on'); }, ms || 5000);
+  }
+
+  function kbCopy(text) {
+    function done() { kbToast('Скопировано', 'ok'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { fallback(); });
+    } else fallback();
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
+
+  function kbModal(id, z) {
+    var back = document.getElementById(id + 'Back'), pop = document.getElementById(id);
+    if (!back) { back = document.createElement('div'); back.id = id + 'Back'; back.className = 'hello-back'; back.style.zIndex = z; document.body.appendChild(back); }
+    if (!pop) { pop = document.createElement('div'); pop.id = id; pop.className = 'hello-pop'; pop.style.zIndex = z + 1; pop.style.maxHeight = '88vh'; pop.style.overflowY = 'auto'; document.body.appendChild(pop); }
+    var api = {
+      pop: pop, back: back,
+      open: function () { pop.classList.add('open'); back.classList.add('open'); },
+      close: function () { pop.classList.remove('open'); back.classList.remove('open'); }
+    };
+    back.onclick = api.close;
+    return api;
+  }
+
+  function kbAnyModalOpen() {
+    return ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack', 'kbTgWizBack', 'kbPrefsBack'].some(function (id) {
+      var el = document.getElementById(id); return el && el.classList.contains('open');
+    });
+  }
+
+  function kbFuelPref() { return LS.get('kbFuelPref', null); }
+  function kbFuelLabel() { var f = kbFuelPref(); return f === '92' ? 'АИ-92' : f === 'diesel' ? 'дизель' : 'АИ-95'; }
+
+  // ============================================================
+  // 1) МАСТЕР ПОДКЛЮЧЕНИЯ: iMe — способ №1 сразу, Telegram — запасной
+  var wiz = null; // {code, stId, poll, client}
+  var KB_IME_PLAY = 'https://play.google.com/store/apps/details?id=com.iMe.android';
+  var KB_IME_IOS = 'https://apps.apple.com/us/app/ime-messenger/id1450480822';
+  var KB_UA_ANDROID = /android/i.test(navigator.userAgent);
+  var KB_UA_IOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  (function kbClientCss() {
+    var s = document.createElement('style');
+    s.textContent =
+      '.kb-step-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:#14213d;margin:12px 0 6px}' +
+      '.kb-step-n{width:20px;height:20px;border-radius:50%;background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 3px 8px rgba(36,101,238,.3)}' +
+      '.kb-step-n.gray{background:#8aa0b8;box-shadow:none}' +
+      '.kb-install{display:flex;gap:8px;margin:8px 0}' +
+      '.kb-install button{flex:1;border:1px solid #bcd4ff;background:#eef4ff;color:#1746c8;border-radius:10px;padding:8px 6px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit}' +
+      '.kb-fallback{margin:12px 0 4px;border:1px solid #dfe8f2;border-radius:12px;padding:9px 12px;background:#f7f9fc}' +
+      '.kb-fallback summary{cursor:pointer;font-size:12px;font-weight:800;color:#5b6b86;list-style:none;display:flex;align-items:center;gap:8px}' +
+      '.kb-fallback summary::-webkit-details-marker{display:none}' +
+      '.kb-fallback summary::before{content:"▸";color:#8aa0b8;transition:transform .2s}' +
+      '.kb-fallback[open] summary::before{transform:rotate(90deg)}' +
+      '.kb-fallback[open] summary{margin-bottom:6px}';
+    document.head.appendChild(s);
+  })();
+
+  // сохранённый клиент нужен только для повторного открытия чата (tgOpen);
+  // мастер ВСЕГДА открывается с iMe как способом №1
+  function kbClient() { return LS.get('kbTgClient', 'ime'); }
+
+  function kbOpenClient(client, code) {
+    if (client === 'ime') {
+      track(code ? 'tg_ime_open' : 'tg_ime_launch');
+      if (KB_UA_ANDROID) {
+        var u = code
+          ? 'intent://resolve?domain=' + BOT + '&start=' + code + '#Intent;scheme=tg;package=com.iMe.android;S.browser_fallback_url=' + encodeURIComponent(KB_IME_PLAY) + ';end'
+          : 'intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=com.iMe.android;S.browser_fallback_url=' + encodeURIComponent(KB_IME_PLAY) + ';end';
+        try { window.location.href = u; } catch (e) {}
+      } else {
+        try { window.location.href = 'ime://' + (code ? 'resolve?domain=' + BOT + '&start=' + code : ''); } catch (e) {}
+      }
+    } else {
+      track('tg_native_open');
+      try { window.location.href = 'tg://resolve?domain=' + BOT + (code ? '&start=' + code : ''); } catch (e) {}
+    }
+    setTimeout(function () {
+      if (!document.hidden && !tgLinked && wiz) {
+        var h = document.getElementById('kbNativeHint');
+        if (h) h.style.display = '';
+      }
+    }, 2500);
+  }
+  function kbOpenNative(code) { kbOpenClient(wiz ? wiz.client : 'ime', code); }
+  function kbOpenBotChat() { kbOpenClient(kbClient(), null); }
+
+  function kbProbeTme() {
+    var el = document.getElementById('kbProbe');
+    if (!el) return;
+    el.className = 'kb-probe'; el.textContent = 'Проверяем, открывается ли t.me с вашего интернета…';
+    var ctrl = new AbortController();
+    var tm = setTimeout(function () { ctrl.abort(); }, 6000);
+    fetch('https://t.me/' + BOT, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
+      .then(function () { clearTimeout(tm); el.className = 'kb-probe ok'; el.textContent = '✓ t.me отвечает — обычная ссылка тоже должна открыться.'; })
+      .catch(function () { clearTimeout(tm); el.className = 'kb-probe bad'; el.textContent = '✗ Страница t.me не открывается с вашего интернета — это блокировка страницы, не Telegram. Способ №1 (iMe) работает без неё.'; });
+  }
+
+  function kbWizSuccess() {
+    if (!wiz) return;
+    clearInterval(wiz.poll); wiz.poll = null;
+    var m = kbModal('kbTgWiz', 96);
+    m.pop.innerHTML =
+      '<div class="hello-title">Готово! 🎉</div>' +
+      '<div class="help-lead">Уведомления включены. Бот напишет, когда на ваших АЗС появится или закончится топливо.</div>' +
+      '<button class="cta-btn" style="width:100%;margin-top:10px" data-kbclose="1">Отлично</button>';
+    kbToast('Telegram подключён — уведомления включены', 'ok');
+    setTimeout(function () { m.close(); wiz = null; }, 2200);
+  }
+
+  function kbWizCheck() {
+    refreshTgLink();
+    setTimeout(function () { if (tgLinked) kbWizSuccess(); else kbToast('Пока не видим подтверждения. Нажмите «Старт» в боте и попробуйте ещё раз.', 'warn'); }, 1200);
+  }
+
+  function kbRenderWizard(m, code, stId) {
+    var st = stId ? stationById(stId) : null;
+    var tme = 'https://t.me/' + BOT + '?start=' + code;
+    var web = 'https://web.telegram.org/k/#?tgaddr=' + encodeURIComponent('tg://resolve?domain=' + BOT + '&start=' + code);
+    var startCmd = '/start ' + code;
+    m.pop.innerHTML =
+      '<div class="hello-title">Подключаем уведомления</div>' +
+      '<div class="help-lead" style="margin:4px 0 8px">' +
+        (st ? 'По станции «' + escapeHtml(st.name || 'АЗС') + '. ' : '') +
+        'Бот напишет, когда появится или закончится ' + kbFuelLabel().toLowerCase() + '.' +
+      '</div>' +
+
+      // ===== СПОСОБ №1 — iMe, сразу, без выбора =====
+      '<div class="kb-step-h"><span class="kb-step-n">1</span>iMe — работает без VPN</div>' +
+      '<div class="kb-note blue" style="margin-top:0"><b>Проверено:</b> iMe — клиент Telegram с теми же чатами и ботами, но со своей сетью прокси («Стабильное соединение»). Соединение держится само, без VPN и ручных настроек.</div>' +
+      '<div class="kb-ladder">' +
+        '<button class="primary" data-kbtg-native="1">🟢 Открыть бота в iMe<small>Ссылка на бота откроется внутри iMe — без веб-страницы и без VPN</small></button>' +
+        '<div id="kbNativeHint" class="kb-note amber" style="display:none">Не открылось? Если открылся магазин — установите iMe и вернитесь сюда. Если iMe уже стоит, но открылся магазин — нажмите «Просто открыть iMe» и отправьте команду способом №2.</div>' +
+        '<button data-kbime-open="1">Просто открыть iMe<small>Запустит приложение; команду боту отправите способом №2</small></button>' +
+      '</div>' +
+      '<div class="kb-install"><button data-kbime-install="android">Установить iMe · Android</button><button data-kbime-install="ios">Установить iMe · iPhone</button></div>' +
+
+      // ===== СПОСОБ №2 — вручную, работает в любом клиенте =====
+      '<div class="kb-step-h"><span class="kb-step-n">2</span>Вручную — если ссылка не открылась</div>' +
+      '<div class="kb-note blue" style="margin-top:0">1. Откройте iMe (или Telegram) как обычно.<br>2. Найдите бота <b>@' + BOT + '</b> через поиск.<br>3. Отправьте ему команду ниже.</div>' +
+      '<div class="kb-code"><span>' + startCmd + '</span><button data-kbcopy="' + startCmd + '">Копировать</button></div>' +
+      '<div class="kb-code"><span>@' + BOT + '</span><button data-kbcopy="@' + BOT + '">Копировать</button></div>' +
+      '<button class="cta-btn" style="width:100%" data-kbtg-check="1">Я нажал «Старт» — проверить</button>' +
+
+      // ===== СПОСОБ №3 — официальный Telegram, свёрнутый запасной =====
+      '<details class="kb-fallback"><summary><span class="kb-step-n gray">3</span>Обычный Telegram — запасной вариант</summary>' +
+        '<div class="kb-probe" id="kbProbe"></div>' +
+        '<div class="kb-ladder">' +
+          '<button data-kbtg-tgopen="1">📲 Открыть в приложении Telegram<small>Если у вас он работает без VPN</small></button>' +
+          '<button data-kbtg-web="1">🌐 Веб-версия (web.telegram.org)<small>В браузере, если приложение не установлено</small></button>' +
+          '<button data-kbtg-tme="1">🔗 Обычная ссылка t.me<small>Если страница открывается с вашего интернета</small></button>' +
+        '</div>' +
+      '</details>' +
+
+      '<div class="kb-note amber"><b>Про VPN честно:</b> VPN сейчас тоже активно блокируют, поэтому мы на него не полагаемся — iMe проводит соединение сам. Если совсем глухо, помогает MTProto-прокси внутри клиента: Настройки → Данные и память → Прокси. Сомнительные VPN-приложения ставить не просим.</div>' +
+      '<div class="kb-note blue">Не получается с мессенджером? Не страшно: <b>колокольчик на сайте</b> показывает события по вашим избранным АЗС без Telegram и без VPN.</div>' +
+      '<button class="cta-btn ghost" style="width:100%;margin-top:6px" data-kbclose="1">Закрыть</button>';
+    m.pop._tme = tme; m.pop._web = web;
+    kbProbeTme();
+  }
+
+  async function kbTgConnectWizard(stId) {
+    track('tg_connect');
+    var m = kbModal('kbTgWiz', 96);
+    m.open();
+    m.pop.innerHTML = '<div class="hello-title">Подключаем уведомления</div><div class="help-lead">Готовим код связки…</div>';
+    var code = 'kb' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
+    var ok = true;
+    try { await dbInsert('tg_link_codes', [{ code: code, device_id: deviceId }]); } catch (e) { ok = false; }
+    if (!ok) {
+      m.pop.innerHTML =
+        '<div class="hello-title">Не удалось создать код</div>' +
+        '<div class="help-lead">Сеть или база не ответили. Попробуйте ещё раз.</div>' +
+        '<button class="cta-btn" style="width:100%" data-kbtg-retry="1">Попробовать снова</button>' +
+        '<button class="cta-btn ghost" style="width:100%;margin-top:6px" data-kbclose="1">Закрыть</button>';
+      m.pop._stId = stId || null;
+      return;
+    }
+    // iMe — всегда способ №1 при открытии мастера, без выбора
+    wiz = { code: code, stId: stId || null, poll: null, client: 'ime' };
+    kbRenderWizard(m, code, stId);
+    if (wiz.poll) clearInterval(wiz.poll);
+    wiz.poll = setInterval(function () {
+      refreshTgLink();
+      if (tgLinked) kbWizSuccess();
+    }, 4000);
+    setTimeout(function () { if (wiz && wiz.poll) { clearInterval(wiz.poll); wiz.poll = null; } }, 180000);
+  }
+
+  // кнопки мастера: запуск iMe, установка iMe, запасной Telegram
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var el;
+    if ((el = t.closest('[data-kbime-open]'))) { kbOpenClient('ime', null); return; }
+    if ((el = t.closest('[data-kbime-install]'))) {
+      track('tg_ime_install');
+      window.open(el.getAttribute('data-kbime-install') === 'ios' ? KB_IME_IOS : KB_IME_PLAY, '_blank');
+      return;
+    }
+    if ((el = t.closest('[data-kbtg-tgopen]'))) {
+      LS.set('kbTgClient', 'tg'); // человек явно выбрал рабочий у себя официальный клиент
+      kbOpenClient('tg', wiz ? wiz.code : null);
+      return;
+    }
+    if ((el = t.closest('[data-kbtg-web]')) || (el = t.closest('[data-kbtg-tme]'))) {
+      LS.set('kbTgClient', 'tg');
+      return; // само открытие делает делегирование пака по pop._web / pop._tme
+    }
+  }, true);
+
+  // перехват старых функций — все кнопки ТГ теперь ведут в мастер
+  tgConnect = function (fromStationId) { kbTgConnectWizard(fromStationId); };
+  tgOpen = function () { kbOpenBotChat(); };
+
+  // ============================================================
+  // 2) НАСТРОЙКИ: топливо + район. Район = геопозиция пользователя в ЕГО городе
+  //    (весь юг). «Свой район» = АЗС в радиусе вокруг точки; GPS молчит — центр города.
+  function kbKmBetween(lat1, lon1, lat2, lon2) {
+    var dLat = (lat2 - lat1) * 111, dLon = (lon2 - lon1) * 111 * Math.cos(lat1 * Math.PI / 180);
+    return Math.sqrt(dLat * dLat + dLon * dLon);
+  }
+  function kbCityCenter() { var c = cityBox(); return { lat: (c.lat1 + c.lat2) / 2, lon: (c.lon1 + c.lon2) / 2 }; }
+
+  // GPS/ручная точка — приоритет; иначе центр города пользователя, чтобы
+  // «далеко» значило далеко в ЛЮБОМ городе юга, а не только в Новороссийске.
+  var _kbLoadUserLocation = loadUserLocation;
+  loadUserLocation = function () {
+    var loc = _kbLoadUserLocation();
+    if (loc) return loc;
+    var cc = kbCityCenter();
+    return { lat: cc.lat, lon: cc.lon, t: Date.now(), kbCityAnchor: true };
+  };
+  function kbAnchor() { return loadUserLocation(); }
+  function kbHasRealGeo() { return !!_kbLoadUserLocation(); }
+  function kbRadiusKm() { var r = Number(LS.get('kbRadius', 4)); return isFinite(r) ? r : 4; }
+  function kbKmFromAnchor(st) {
+    var a = kbAnchor();
+    if (!a || !st || st.lat == null || st.lon == null) return null;
+    return kbKmBetween(a.lat, a.lon, Number(st.lat), Number(st.lon));
+  }
+  function kbInDistrict(st) {
+    var R = kbRadiusKm();
+    if (R <= 0) return true; // весь город
+    var km = kbKmFromAnchor(st);
+    return km != null && km <= R;
+  }
+
+  // Приоритет «своего района» на этапе кандидатов: далёкие АЗС не вытесняют твои.
+  var _kbAdviceCoreScore = adviceCoreScore;
+  adviceCoreScore = function (st, o, km, pred) {
+    var s = _kbAdviceCoreScore(st, o, km, pred);
+    var R = kbRadiusKm();
+    if (R <= 0 || !st) return s;
+    var kmA = kbKmFromAnchor(st);
+    if (kbInDistrict(st)) s += 120;
+    else s -= Math.min(120, 20 + (kmA == null ? 40 : (kmA - R) * 20));
+    if (km == null && kmA != null) s -= Math.min(25, kmA * 1.5);
+    return s;
+  };
+
+  // Финальная сортировка «наш выбор»: топливо + свой район + расстояние.
+  var _kbFullChoiceScore = fullChoiceScore;
+  fullChoiceScore = function (it) {
+    var s = _kbFullChoiceScore(it);
+    var p = kbFuelPref();
+    if (p && it && it.o) {
+      var col = p === '92' ? 'fuel_92_status' : p === '95' ? 'fuel_95_status' : 'diesel_status';
+      if (it.o[col] === true) s += 8;
+    }
+    var R = kbRadiusKm();
+    if (R <= 0 || !it || !it.st) return s;
+    var kmA = kbKmFromAnchor(it.st);
+    if (kbInDistrict(it.st)) s += 30;
+    else s -= Math.min(60, kmA == null ? 30 : kmA * 10);
+    if (it.km == null && kmA != null) s += 12 * (Math.max(0, Math.min(1, 1 - kmA / 15)) - 0.5);
+    return s;
+  };
+
+  // «Топ-3»: станции своего района поднимаем наверх обоих списков.
+  function kbTop3ItemId(item) {
+    var row = item.querySelector('.t3-row');
+    var oc = (row && row.getAttribute('onclick')) || '';
+    var m = oc.match(/top3Open\('([^']+)'\)/);
+    return m ? m[1] : null;
+  }
+  function kbOrderTop3() {
+    if (kbRadiusKm() <= 0) return;
+    ['top3PageNow', 'top3PageLater'].forEach(function (pid) {
+      var page = document.getElementById(pid);
+      if (!page) return;
+      var items = [].slice.call(page.children).filter(function (el) { return el.classList && el.classList.contains('t3-item'); });
+      if (items.length < 2) return;
+      items.sort(function (a, b) {
+        var sa = stationById(kbTop3ItemId(a)), sb = stationById(kbTop3ItemId(b));
+        var ma = sa && kbInDistrict(sa) ? 0 : 1, mb = sb && kbInDistrict(sb) ? 0 : 1;
+        if (ma !== mb) return ma - mb;
+        var ka = sa ? kbKmFromAnchor(sa) : null, kb2 = sb ? kbKmFromAnchor(sb) : null;
+        return (ka == null ? 99 : ka) - (kb2 == null ? 99 : kb2);
+      });
+      var sub = page.querySelector('.t3-sub');
+      items.forEach(function (el) { page.insertBefore(el, sub || null); });
+    });
+  }
+  var _kbRenderTop3 = renderTop3;
+  renderTop3 = function () { var r = _kbRenderTop3(); try { kbOrderTop3(); } catch (e) {} return r; };
+
+  // Честная строка в советнике: город + радиус «своего района».
+  var _kbRenderAdvicePop = renderAdvicePop;
+  renderAdvicePop = function () {
+    var ok = _kbRenderAdvicePop();
+    try {
+      if (ok) {
+        var lead = document.querySelector('#advicePop .help-lead');
+        if (lead && lead.innerHTML.indexOf('Район:') < 0) {
+          var R = kbRadiusKm();
+          var txt = R > 0 ? 'сначала рядом ≤' + R + ' км' : 'весь город';
+          lead.innerHTML += ' <b style="color:#2465ee">Район: ' + escapeHtml(userCityName()) + '</b> — ' + txt + (kbHasRealGeo() ? ' (по геопозиции)' : ' (от центра города)') + '.';
+        }
+      }
+    } catch (e) {}
+    return ok;
+  };
+
+  function kbAskPrefs() {
+    if (LS.get('kbPrefsAsked', false)) return;
+    var m = kbModal('kbPrefs', 94);
+    var selFuel = kbFuelPref() || '95';
+    var selRadius = kbRadiusKm();
+    function paint() {
+      var geoTxt = kbHasRealGeo()
+        ? 'Ваш район определён по геопозиции: ' + escapeHtml(userCityName()) + '. Сначала показываем АЗС рядом с вами.'
+        : 'GPS пока молчит — район считаем от центра города ' + escapeHtml(userCityName()) + '. Включите гео или поставьте точку на карте для точности.';
+      m.pop.innerHTML =
+        '<div class="hello-title">Настроим под вас за 2 тапа</div>' +
+        '<div class="help-lead" style="margin:4px 0 8px">Чтобы подбор показывал заправки рядом с вами, а не через весь город.</div>' +
+        '<div class="fb-gl">Ваше топливо</div>' +
+        '<div class="feedback-grid g3 kb-prefs" style="margin:6px 0 12px">' +
+        ['92', '95', 'diesel'].map(function (f) {
+          return '<button class="feedback-option' + (selFuel === f ? ' selected' : '') + '" data-kbpref-fuel="' + f + '">' + fuelLabel(f) + '</button>';
+        }).join('') + '</div>' +
+        '<div class="fb-gl">Ваш район — сначала рядом</div>' +
+        '<div class="kb-note blue" style="margin:0 0 6px">' + geoTxt + '</div>' +
+        '<div class="feedback-grid g4 kb-prefs" style="margin:6px 0 12px">' +
+        [2, 4, 8, 0].map(function (r) {
+          return '<button class="feedback-option' + (selRadius === r ? ' selected' : '') + '" data-kbpref-dist="' + r + '">' + (r === 0 ? 'весь город' : '≈' + r + ' км') + '</button>';
+        }).join('') + '</div>' +
+        '<button class="cta-btn" style="width:100%" data-kbpref-save="1">Готово</button>' +
+        '<button class="cta-btn ghost" style="width:100%;margin-top:6px" data-kbpref-skip="1">Пропустить</button>';
+    }
+    m.pop._save = function () {
+      LS.set('kbFuelPref', selFuel);
+      LS.set('kbRadius', selRadius);
+      LS.set('kbDistrict', ''); // старый захардкоженный район больше не используется
+      LS.set('kbPrefsAsked', true);
+      track('prefs_set');
+      m.close();
+      kbToast('Готово! Подбор и расстояния теперь от вашего района в ' + userCityName(), 'ok');
+      try { renderAdviceIfOpen(); } catch (e) {}
+      try { softRefresh(); } catch (e) {}
+      setTimeout(kbNotifOffer, 4000);
+    };
+    m.pop._pickFuel = function (f) { selFuel = f; paint(); };
+    m.pop._pickDist = function (d) { selRadius = Number(d); paint(); };
+    m.pop._skip = function () { LS.set('kbPrefsAsked', true); m.close(); setTimeout(kbNotifOffer, 4000); };
+    paint();
+    m.open();
+  }
+
+  // ============================================================
+  // 3) УВЕДОМЛЕНИЯ ПОСЛЕ ЦЕННОСТИ + живые пуши по избранным
+  // ============================================================
+  function kbNotifOffer() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'default') return;
+    if (LS.get('kbNotifAsked', false) || offlineMode) return;
+    if (document.getElementById('kbNotifBar')) return;
+    var bar = document.createElement('div');
+    bar.id = 'kbNotifBar'; bar.className = 'kb-bar';
+    bar.innerHTML =
+      '<b>Не хотите ехать вслепую?</b>' +
+      '<span>Включите уведомления — напишем, когда ' + kbFuelLabel().toLowerCase() + ' появится рядом с вами.</span>' +
+      '<div class="row"><button class="yes" data-kbnotif-yes="1">Включить</button><button class="no" data-kbnotif-no="1">Не сейчас</button></div>';
+    document.body.appendChild(bar);
+  }
+
+  function kbNotifyFavs(freshEvents) {
+    var favs = getFavorites();
+    if (!favs.length) return;
+    for (var i = 0; i < freshEvents.length; i++) {
+      var e = freshEvents[i];
+      if (favs.indexOf(e.station_id) < 0) continue;
+      if (e.event_type !== 'fuel_restored') continue;
+      var st = stationById(e.station_id);
+      var name = st ? (st.name || 'АЗС') : 'АЗС';
+      var msg = fuelLabel(e.fuel_type) + ' вернулся: ' + name;
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          var n = new Notification('КогдаБенз', { body: msg + ' · отметка свежая', icon: 'icon-192.png', tag: 'kb-' + e.station_id + '-' + e.detected_at });
+          n.onclick = function () { window.focus(); openSheet(e.station_id); };
+        } catch (err) {}
+      }
+      kbToast('⛽ ' + msg, 'ok', 'Открыть', (function (id) { return function () { openSheet(id); }; })(e.station_id), 8000);
+    }
+  }
+
+  // ============================================================
+  // 4) ЖИВОЙ ГОРОД: зрители онлайн + утренний дайджест + дежурный
+  // ============================================================
+  function kbPaintViewers(n) {
+    var host = document.getElementById('nowSub');
+    if (!host) return;
+    var el = document.getElementById('kbLiveChip');
+    if (!el) { el = document.createElement('div'); el.id = 'kbLiveChip'; host.parentNode.insertBefore(el, host.nextSibling); }
+    if (n >= 2) { el.className = 'kb-live'; el.innerHTML = '<i></i>' + n + ' водителей сейчас на сайте'; el.style.display = ''; }
+    else el.style.display = 'none';
+  }
+
+  function kbMorningDigest() {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var d = new Date();
+    if (d.getHours() !== 8 || d.getMinutes() > 20) return;
+    var today = d.toDateString();
+    if (LS.get('kbDigestDay', '') === today) return;
+    LS.set('kbDigestDay', today);
+    var fr = freshStats();
+    var last = getLastObservations(), avail = 0, tot = 0;
+    cityStationList().forEach(function (s) { var o = last[s.id]; if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) { tot++; if (o.fuel_95_status) avail++; } });
+    try { new Notification('КогдаБенз · утренняя сводка', { body: 'АИ-95 на ' + avail + ' из ' + tot + ' АЗС · свежие данные: ' + fr.fresh + ' из ' + fr.tot, icon: 'icon-192.png', tag: 'kb-digest' }); } catch (e) {}
+  }
+
+  function kbDutyNudge() {
+    var favs = getFavorites();
+    if (!favs.length) return;
+    var today = new Date().toDateString();
+    if (LS.get('kbDutyDay', '') === today) return;
+    var h = new Date().getHours();
+    if (h < 8 || h > 21) return;
+    var last = getLastObservations();
+    for (var i = 0; i < favs.length; i++) {
+      var id = favs[i], st = stationById(id);
+      if (!st) continue;
+      var o = last[id];
+      var fm = getFreshnessMin(o);
+      var fbAge = null;
+      for (var j = 0; j < allFeedback.length; j++) {
+        var f = allFeedback[j];
+        if (f.station_id !== id) continue;
+        var age = Date.now() - new Date(f.created_at).getTime();
+        if (fbAge === null || age < fbAge) fbAge = age;
+      }
+      var staleSrc = fm === null || fm > 180;
+      var staleFolk = fbAge === null || fbAge > 3 * 3600000;
+      if (staleSrc && staleFolk) {
+        LS.set('kbDutyDay', today);
+        kbToast('👀 «' + escapeHtml(st.name || 'АЗС') + '» без отметок 3 ч. Проезжаете? Обновите.', 'warn', 'Открыть', (function (sid) { return function () { openSheet(sid); }; })(id), 9000);
+        return;
+      }
+    }
+  }
+
+  // ============================================================
+  // 5) ОТКРЫТЫЕ ПЕТЛИ: «напомнить про окно»
+  // ============================================================
+  function kbSetWatch(i) {
+    var it = adviceList[i];
+    if (!it || !it.pred || !it.pred.from_time) return;
+    var p = it.pred.from_time.split(':');
+    var at = new Date(); at.setHours(Number(p[0]), Number(p[1]), 0, 0);
+    if (at.getTime() < Date.now()) at.setDate(at.getDate() + 1);
+    LS.set('kbWatchWin', { id: it.st.id, name: it.st.name || 'АЗС', fuel: it.pred.fuel_type, at: at.getTime() });
+    track('watch_window', null, it.st.id);
+    kbToast('⏰ Напомним, когда окно откроется — и проверим при следующем заходе.', 'ok');
+  }
+
+  function kbCheckWatch() {
+    var w = LS.get('kbWatchWin', null);
+    if (!w) return;
+    if (Date.now() >= w.at) {
+      LS.set('kbWatchWin', null);
+      kbToast('⏰ Окно на «' + escapeHtml(w.name) + '» открылось — проверьте наличие ' + fuelLabel(w.fuel).toLowerCase() + '.', 'ok', 'Открыть', function () { openSheet(w.id); }, 10000);
+    } else if (Date.now() - w.at > 2 * 3600000) {
+      LS.set('kbWatchWin', null);
+    }
+  }
+
+  // ============================================================
+  // 6) СТРИК И «ТВОЯ ОТМЕТКА ПОМОГЛА» после каждого вклада
+  // ============================================================
+  function kbStreakToast() {
+    var now = Date.now();
+    if (now - LS.get('kbStreakShownAt', 0) < 60000) return;
+    LS.set('kbStreakShownAt', now);
+    var days = LS.get('kbMarkDays', []);
+    var today = new Date().toDateString();
+    if (days.indexOf(today) < 0) { days.push(today); if (days.length > 60) days = days.slice(-60); LS.set('kbMarkDays', days); }
+    var streak = 0, d = new Date();
+    while (days.indexOf(d.toDateString()) >= 0) { streak++; d.setDate(d.getDate() - 1); }
+    var imp = null; try { imp = myImpact(); } catch (e) {}
+    var msg = streak >= 2 ? '🔥 ' + streak + ' дней подряд на связи!' : 'Спасибо! Отметка учтена.';
+    if (imp && imp.coVotes > 0) msg += ' Ваши отметки подтвердили ' + imp.coVotes + ' водителей.';
+    kbToast(msg, 'ok');
+  }
+
+  var _bumpContrib = bumpContrib;
+  bumpContrib = function () { var n = _bumpContrib(); try { kbStreakToast(); } catch (e) {} return n; };
+
+  // ============================================================
+  // 7) ШЕРИНГ-КАРТОЧКА: картинка + текст, бесплатный трафик
+  // ============================================================
+  function kbWrapText(g, text, x, y, maxW, lh) {
+    var words = String(text).split(' '), line = '';
+    for (var i = 0; i < words.length; i++) {
+      var test = line ? line + ' ' + words[i] : words[i];
+      if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); y += lh; line = words[i]; }
+      else line = test;
+    }
+    if (line) g.fillText(line, x, y);
+    return y;
+  }
+
+  function kbShareCardBlob(st, lines, brandCol) {
+    return new Promise(function (res) {
+      var W = 1080, H = 566;
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var g = cv.getContext('2d');
+      var grad = g.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, brandCol || '#2465ee'); grad.addColorStop(1, '#14213d');
+      g.fillStyle = grad; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,.10)';
+      g.beginPath(); g.arc(W - 120, 110, 220, 0, 7); g.fill();
+      g.fillStyle = '#fff'; g.font = '700 40px system-ui,sans-serif';
+      g.fillText('КогдаБенз · живая карта топлива', 60, 88);
+      g.font = '800 62px system-ui,sans-serif';
+      kbWrapText(g, st.name || 'АЗС', 60, 185, W - 120, 68);
+      g.font = '600 40px system-ui,sans-serif';
+      lines.forEach(function (l, i) { g.fillText(l, 60, 330 + i * 54); });
+      g.font = '700 32px system-ui,sans-serif'; g.fillStyle = 'rgba(255,255,255,.85)';
+      g.fillText('kogdabenz.ru', 60, H - 52);
+      cv.toBlob(function (b) { res(b); }, 'image/png');
+    });
+  }
+
+  async function kbShare(stId) {
+    var st = stationById(stId); if (!st) return;
+    var o = getLastObservations()[stId];
+    var trust = o ? availTrustworthy(o) : false;
+    var fuels = [];
+    if (o) {
+      if (trust && o.fuel_95_status === true) fuels.push('АИ-95');
+      if (trust && o.fuel_92_status === true) fuels.push('АИ-92');
+      if (trust && o.diesel_status === true) fuels.push('дизель');
+    }
+    var fuelTxt = fuels.length ? fuels.join(', ') + ' есть' : 'наличие уточняется';
+    var pref = kbFuelPref() || '95';
+    var col = pref === '92' ? 'price_92' : pref === 'diesel' ? 'price_diesel' : 'price_95';
+    var p = allLastPrice[stId];
+    var priceTxt = p && p[col] != null ? Number(p[col]).toFixed(1) + ' ₽' : '';
+    var fm = getFreshnessMin(o);
+    var freshTxt = fm === null ? '' : 'обновлено ' + (fm < 60 ? fm + ' мин' : Math.round(fm / 60) + ' ч') + ' назад';
+    var lq = liveQueueCount(stId);
+    var qTxt = lq ? lq + ' вод. в очереди' : (o && o.queue_level === 'high' ? 'очередь' : 'очередей не видно');
+    var lines = [fuelTxt + (priceTxt ? ' · ' + priceTxt : ''), qTxt, freshTxt].filter(Boolean);
+    var url = SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=station';
+    var text = '⛽ ' + (st.name || 'АЗС') + (st.address ? ', ' + st.address : '') + ': ' + lines.join(' · ');
+    track('share_tap', null, stId);
+    try {
+      if (navigator.share) {
+        var payload = { title: 'КогдаБенз', text: text, url: url };
+        if (navigator.canShare) {
+          try {
+            var bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || '#2465ee';
+            var blob = await kbShareCardBlob(st, lines, bc);
+            if (blob) {
+              var file = new File([blob], 'kogdabenz.png', { type: 'image/png' });
+              if (navigator.canShare({ files: [file] })) payload.files = [file];
+            }
+          } catch (e) {}
+        }
+        await navigator.share(payload);
+        track('share_done', null, stId);
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    kbCopy(text + '\n' + url);
+    kbToast('Текст скопирован — отправьте в чат водителям', 'ok');
+  }
+
+  // кнопки «Поделиться»/«Напомнить» в советнике и карточке АЗС
+  var _renderAdvicePop = renderAdvicePop;
+  renderAdvicePop = function () {
+    var ok = _renderAdvicePop();
+    try {
+      if (ok) {
+        var pop = document.getElementById('advicePop');
+        if (pop) pop.querySelectorAll('.adv-card').forEach(function (card, i) {
+          var it = adviceList[i];
+          if (!it || card.querySelector('.kb-adv-extra')) return;
+          var ex = document.createElement('div');
+          ex.className = 'kb-adv-extra';
+          var watch = (it.pred && adviceWinState(it.pred) === 'soon')
+            ? '<button data-kbwatch="' + i + '">⏰ Напомнить про окно</button>' : '';
+          ex.innerHTML = '<button data-kbshare="' + it.st.id + '">📤 Поделиться</button>' + watch;
+          card.appendChild(ex);
+        });
+      }
+    } catch (e) {}
+    return ok;
+  };
+
+  var _stationCard = stationCard;
+  stationCard = function (st, obs, pred) {
+    var h = _stationCard(st, obs, pred);
+    var extra = '<div class="kb-card-extra" style="padding:0 14px 14px"><button data-kbshare="' + st.id + '">📤 Поделиться заправкой</button></div>';
+    return h.replace('</article>', extra + '</article>');
+  };
+
+  // ============================================================
+  // 8) ХУКИ: после top-3/onboarding, живой цикл, делегирование
+  // ============================================================
+  var kbValueSeen = false;
+  var _track = track;
+  track = function (ev, panel, stationId, durationSec, extra) {
+    _track(ev, panel, stationId, durationSec, extra);
+    if ((ev === 'top3_loaded' || ev === 'advisor_open') && !kbValueSeen) {
+      kbValueSeen = true;
+      setTimeout(function () {
+        if (kbAnyModalOpen()) return;
+        if (!LS.get('kbPrefsAsked', false)) kbAskPrefs();
+        else kbNotifOffer();
+      }, 2500);
+    }
+  };
+
+  var kbLastLive = Date.now();
+  async function kbLiveTick() {
+    if (document.hidden || offlineMode || !allStations.length) return;
+    try {
+      var since = new Date(Date.now() - 40 * 60000).toISOString();
+      var ev = await dbQuery('/rest/v1/events?event_type=in.(fuel_restored,fuel_disappeared)&detected_at=gte.' + since + '&select=station_id,event_type,fuel_type,detected_at&order=detected_at.desc&limit=200');
+      var known = {};
+      allWaveEvents.forEach(function (e) { known[e.station_id + '|' + e.event_type + '|' + e.detected_at] = 1; });
+      var fresh = (ev || []).filter(function (e) { return !known[e.station_id + '|' + e.event_type + '|' + e.detected_at]; });
+      if (fresh.length) {
+        allWaveEvents = fresh.concat(allWaveEvents);
+        try { softRefresh(); } catch (e) {}
+        kbNotifyFavs(fresh.filter(function (e) { return new Date(e.detected_at).getTime() > kbLastLive; }));
+      }
+      kbLastLive = Date.now();
+    } catch (e) {}
+    try {
+      var since5 = new Date(Date.now() - 5 * 60000).toISOString();
+      var rows = await dbQuery('/rest/v1/site_hits?select=session_id&event=eq.heartbeat&created_at=gte.' + since5 + '&limit=1000');
+      var uniq = {};
+      (rows || []).forEach(function (r) { uniq[r.session_id] = 1; });
+      kbPaintViewers(Object.keys(uniq).length);
+    } catch (e) {}
+    kbCheckWatch();
+    kbDutyNudge();
+    kbMorningDigest();
+  }
+
+  // единое делегирование всех кнопок пака
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var el;
+    if ((el = t.closest('[data-kbtoast-act]'))) { var tt = document.getElementById('kbToast'); if (tt && tt._cb) tt._cb(); if (tt) tt.classList.remove('on'); return; }
+    if ((el = t.closest('[data-kbcopy]'))) { kbCopy(el.getAttribute('data-kbcopy')); return; }
+    if ((el = t.closest('[data-kbtg-native]'))) { if (wiz) kbOpenNative(wiz.code); return; }
+    if ((el = t.closest('[data-kbtg-web]'))) { var pw = document.getElementById('kbTgWiz'); if (pw && pw._web) window.open(pw._web, '_blank'); return; }
+    if ((el = t.closest('[data-kbtg-tme]'))) { var pt = document.getElementById('kbTgWiz'); if (pt && pt._tme) window.open(pt._tme, '_blank'); return; }
+    if ((el = t.closest('[data-kbtg-check]'))) { kbWizCheck(); return; }
+    if ((el = t.closest('[data-kbtg-retry]'))) { var pr = document.getElementById('kbTgWiz'); kbTgConnectWizard(pr ? pr._stId : null); return; }
+    if ((el = t.closest('[data-kbclose]'))) { var mm = t.closest('.hello-pop'); if (mm) { mm.classList.remove('open'); var b = document.getElementById(mm.id + 'Back'); if (b) b.classList.remove('open'); } if (wiz && wiz.poll) { clearInterval(wiz.poll); wiz.poll = null; } return; }
+    if ((el = t.closest('[data-kbshare]'))) { kbShare(el.getAttribute('data-kbshare')); return; }
+    if ((el = t.closest('[data-kbwatch]'))) { kbSetWatch(Number(el.getAttribute('data-kbwatch'))); return; }
+    if ((el = t.closest('[data-kbpref-fuel]'))) { var pf = document.getElementById('kbPrefs'); if (pf && pf._pickFuel) pf._pickFuel(el.getAttribute('data-kbpref-fuel')); return; }
+    if ((el = t.closest('[data-kbpref-dist]'))) { var pd = document.getElementById('kbPrefs'); if (pd && pd._pickDist) pd._pickDist(el.getAttribute('data-kbpref-dist')); return; }
+    if ((el = t.closest('[data-kbpref-save]'))) { var ps = document.getElementById('kbPrefs'); if (ps && ps._save) ps._save(); return; }
+    if ((el = t.closest('[data-kbpref-skip]'))) { var pk = document.getElementById('kbPrefs'); if (pk && pk._skip) pk._skip(); return; }
+    if ((el = t.closest('[data-kbnotif-yes]'))) {
+      LS.set('kbNotifAsked', true);
+      var bar = document.getElementById('kbNotifBar'); if (bar) bar.remove();
+      Notification.requestPermission().then(function (p) {
+        track(p === 'granted' ? 'notif_granted' : 'notif_denied');
+        if (p === 'granted') kbToast('Уведомления включены. Напишем, когда топливо появится рядом.', 'ok');
+      });
+      return;
+    }
+    if ((el = t.closest('[data-kbnotif-no]'))) { LS.set('kbNotifAsked', true); var bn = document.getElementById('kbNotifBar'); if (bn) bn.remove(); return; }
+  }, true);
+
+  // возвращаемся из Telegram — сразу проверяем связку
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && wiz) { refreshTgLink(); setTimeout(function () { if (tgLinked) kbWizSuccess(); }, 800); }
+  });
+
+  // ---------- запуск ----------
+  kbCheckWatch();
+  setTimeout(kbLiveTick, 12000);
+  setInterval(kbLiveTick, 4 * 60000);
 })();
