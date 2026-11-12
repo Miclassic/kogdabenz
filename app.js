@@ -1112,120 +1112,161 @@ async function loadAdviceReactionsForList(list) {
 
 async function handleAdviceReaction(stationId, type, btn) {
 const mine = adviceReactionMine[stationId] || {};
-// повторный тап по своей реакции = отмена голоса
-if (mine[type]) {
-await cancelAdviceReaction(stationId, type);
-return;
-}
-// если реакция не ставилась, но есть народный голос (поставленный вручную), не отменяем
 const folkKey = type === 'like' ? 'folk_yes' : type === 'dislike' ? 'folk_no' : null;
-if (folkKey && mine[folkKey]) { if (btn) openWhyChip(btn, 'advvote'); return; }
-if (type === 'doubt' && mine.doubt) { if (btn) openWhyChip(btn, 'advvote'); return; }
+
+// Повторный тап = снять голос (и like, и народный), без мелкого chip сбоку
+if (mine[type] || (folkKey && mine[folkKey])) {
+  if (mine[type]) await cancelAdviceReaction(stationId, type);
+  else {
+    // был только folk_yes/folk_no — снимаем через тот же cancel, подставив type
+    mine[type] = true;
+    await cancelAdviceReaction(stationId, type);
+  }
+  return;
+}
+
 const it = adviceList.find(x => x.st.id === stationId);
 if (!it) return;
-// 👍 "Класс" — если не в избранном, предлагаем добавить
+
+// Первый лайк и не в избранном — попап (уже с z-index поверх советника)
 if (type === 'like' && !isFavorite(stationId)) {
-showReactionPopup(it, type);
-return;
-}
-// 👎 "Плохо" — спрашиваем причину
-if (type === 'dislike') {
-showReactionPopup(it, type);
-return;
-}
-// 🤔 "Сомнение" — спрашиваем что смущает
-if (type === 'doubt') {
-showReactionPopup(it, type);
-return;
+  showReactionPopup(it, type);
+  return;
 }
 // если уже в избранном и лайк — просто считаем
 submitReaction(it, type, null);
 }
 
 async function cancelAdviceReaction(stationId, type) {
-const mine = adviceReactionMine[stationId];
-if (!mine || !mine[type]) return;
-const ids = adviceReactionIds[stationId] || {};
-const rec = ids[type] || {};
-// удаляем реакцию из базы
-if (rec.reactionId) {
-await dbDelete('advice_reactions', 'id=eq.' + rec.reactionId);
-} else {
-// фолбэк: удаляем по фильтрам
-await dbDelete('advice_reactions', 'station_id=eq.' + stationId + '&device_id=eq.' + deviceId + '&reaction_type=eq.' + type);
-}
-// удаляем народную отметку, если она была создана этой реакцией
-if (rec.fbId) {
-await dbDelete('user_feedback', 'id=eq.' + rec.fbId);
-// также удалим из локального allFeedback
-const idx = allFeedback.findIndex(f => String(f.id) === String(rec.fbId));
-if (idx >= 0) allFeedback.splice(idx, 1);
-}
-// обновляем локальный кэш
-delete mine[type];
-if (type === 'like') delete mine.folk_yes;
-if (type === 'dislike') delete mine.folk_no;
-try {
-const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}');
-if (mm[stationId]) { delete mm[stationId][type]; localStorage.setItem('kbAdvMine', JSON.stringify(mm)); }
-} catch (e) {}
-const s = adviceReactions[stationId];
-if (s) {
-s[type + '_count'] = Math.max(0, (s[type + '_count'] || 0) - 1);
-if (type === 'like') s.folk_yes = Math.max(0, (s.folk_yes || 0) - 1);
-if (type === 'dislike') s.folk_no = Math.max(0, (s.folk_no || 0) - 1);
-}
-renderAdvicePop();
-track('advice_reaction_cancel', null, stationId);
+  const mine = adviceReactionMine[stationId];
+  if (!mine || !mine[type]) return;
+  const ids = adviceReactionIds[stationId] || {};
+  const rec = ids[type] || {};
+
+  if (rec.reactionId) {
+    await dbDelete('advice_reactions', 'id=eq.' + rec.reactionId);
+  } else {
+    await dbDelete('advice_reactions', 'station_id=eq.' + stationId + '&device_id=eq.' + deviceId + '&reaction_type=eq.' + type);
+  }
+
+  if (rec.fbId) {
+    await dbDelete('user_feedback', 'id=eq.' + rec.fbId);
+    const idx = allFeedback.findIndex(f => String(f.id) === String(rec.fbId));
+    if (idx >= 0) allFeedback.splice(idx, 1);
+  } else if (type === 'like' || type === 'dislike') {
+    // фолбэк: убрать последнюю свою available/unavailable по станции
+    const want = type === 'like' ? 'available' : 'unavailable';
+    for (let i = 0; i < allFeedback.length; i++) {
+      const f = allFeedback[i];
+      if (f.station_id === stationId && f.device_id === deviceId && f.feedback_type === want) {
+        if (f.id) await dbDelete('user_feedback', 'id=eq.' + f.id);
+        allFeedback.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  delete mine[type];
+  if (type === 'like') delete mine.folk_yes;
+  if (type === 'dislike') delete mine.folk_no;
+  try {
+    const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}');
+    if (mm[stationId]) {
+      delete mm[stationId][type];
+      if (type === 'like') delete mm[stationId].folk_yes;
+      if (type === 'dislike') delete mm[stationId].folk_no;
+      localStorage.setItem('kbAdvMine', JSON.stringify(mm));
+    }
+  } catch (e) {}
+
+  const s = adviceReactions[stationId];
+  if (s) {
+    s[type + '_count'] = Math.max(0, (s[type + '_count'] || 0) - 1);
+    if (type === 'like') s.folk_yes = Math.max(0, (s.folk_yes || 0) - 1);
+    if (type === 'dislike') s.folk_no = Math.max(0, (s.folk_no || 0) - 1);
+    // главное для цифры на кнопке
+    if (s.folk_fuel) {
+      const it = (typeof adviceList !== 'undefined' && adviceList)
+        ? adviceList.find(x => x.st && x.st.id === stationId) : null;
+      const fuel = it && typeof adviceFocusFuel === 'function'
+        ? adviceFocusFuel(it)
+        : '95';
+      const g = s.folk_fuel[fuel];
+      if (g) {
+        if (type === 'like') g.yes = Math.max(0, (g.yes || 0) - 1);
+        if (type === 'dislike') g.no = Math.max(0, (g.no || 0) - 1);
+      }
+    }
+  }
+  delete ids[type];
+  renderAdvicePop();
+  track('advice_reaction_cancel', null, stationId);
 }
 function showReactionPopup(it, type) {
-const pop = document.getElementById('reactPop');
-const back = document.getElementById('reactBack');
-if (!pop || !back) return;
-const st = it.st;
-const emojiIcon = icon(REACTION_ICON[type]);
-const label = REACTION_LABEL[type];
-let body = '';
-if (type === 'like') {
-// объяснение пользы избранного
-body = '<div class="react-sub">Отличный выбор! Чтобы не искать эту АЗС каждый раз и получать уведомления о привозе топлива — добавьте её в избранное.</div>' +
-'<div class="react-opts">' +
-'<button class="react-opt" data-fav="1">' +
-icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
-'<button class="react-opt" data-fav="0">' +
-icon('i-check') + ' Просто отметить «Да, топливо есть»</button>' +
-'</div>';
-} else if (type === 'dislike') {
-body = '<div class="react-sub">Что не так с этой АЗС? Ваш ответ поможет другим водителям.</div>' +
-'<div class="react-opts" id="reactOpts">' +
-DISLIKE_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
-'</div>' +
-'<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
-} else if (type === 'doubt') {
-body = '<div class="react-sub">Что смущает? Такие голоса помогают нам калибровать модель.</div>' +
-'<div class="react-opts" id="reactOpts">' +
-DOUBT_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
-'</div>' +
-'<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
-}
-pop.innerHTML = '<div class="react-head"><span class="react-ico">' + emojiIcon + '</span>' +
-'<div><div class="react-title">' + label + '</div>' +
-'<div class="react-sub">' + escapeHtml(st.name || 'АЗС') + '</div></div></div>' +
-body +
-'<div class="react-actions">' +
-(type === 'like' ? '' : '<button class="cta-btn" id="reactSend" data-send="1" disabled>Отправить</button>') +
-'<button class="cta-btn ghost" onclick="closeReactPop()">Отмена</button></div>';
-pop.dataset.type = type;
-pop.dataset.stationId = st.id;
-pop.classList.add('open');
-back.classList.add('open');
-if (type !== 'like') {
-const ta = document.getElementById('reactText');
-if (ta) ta.addEventListener('input', () => {
-const btn = document.getElementById('reactSend');
-if (btn) btn.disabled = !ta.value.trim() && !pop.dataset.reason;
-});
-}
+  let pop = document.getElementById('reactPop');
+  let back = document.getElementById('reactBack');
+  if (!pop || !back) {
+    console.log('reactPop/reactBack не найдены в DOM');
+    return;
+  }
+  // В конец body — поверх всего, что было создано раньше (советник и т.д.)
+  try {
+    document.body.appendChild(back);
+    document.body.appendChild(pop);
+  } catch (e) {}
+
+  const st = it.st;
+  const emojiIcon = icon(REACTION_ICON[type]);
+  const label = REACTION_LABEL[type];
+  let body = '';
+  if (type === 'like') {
+    body = '<div class="react-sub">Отличный выбор! Чтобы не искать эту АЗС каждый раз и получать уведомления о привозе топлива — добавьте её в избранное.</div>' +
+      '<div class="react-opts">' +
+      '<button class="react-opt" data-fav="1">' +
+      icon('i-heart') + ' Добавить в избранное и получить уведомление</button>' +
+      '<button class="react-opt" data-fav="0">' +
+      icon('i-check') + ' Просто отметить «Да, топливо есть»</button>' +
+      '</div>';
+  } else if (type === 'dislike') {
+    body = '<div class="react-sub">Что не так с этой АЗС? Ваш ответ поможет другим водителям.</div>' +
+      '<div class="react-opts" id="reactOpts">' +
+      DISLIKE_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
+      '</div>' +
+      '<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
+  } else if (type === 'doubt') {
+    body = '<div class="react-sub">Что смущает? Такие голоса помогают нам калибровать модель.</div>' +
+      '<div class="react-opts" id="reactOpts">' +
+      DOUBT_REASONS.map(r => '<button class="react-opt" data-r="' + r.key + '" onclick="pickReactReason(this)">' + r.text + '</button>').join('') +
+      '</div>' +
+      '<textarea class="react-text" id="reactText" placeholder="Подробности (необязательно)"></textarea>';
+  }
+  pop.innerHTML = '<div class="react-head"><span class="react-ico">' + emojiIcon + '</span>' +
+    '<div><div class="react-title">' + label + '</div>' +
+    '<div class="react-sub">' + escapeHtml(st.name || 'АЗС') + '</div></div></div>' +
+    body +
+    '<div class="react-actions">' +
+    (type === 'like' ? '' : '<button class="cta-btn" id="reactSend" data-send="1" disabled>Отправить</button>') +
+    '<button class="cta-btn ghost" onclick="closeReactPop()">Отмена</button></div>';
+  pop.dataset.type = type;
+  pop.dataset.stationId = st.id;
+
+  // Жёстко поверх советника (200) и карточки (220)
+  back.style.cssText = 'position:fixed;inset:0;z-index:400;background:rgba(15,27,51,.45);display:block;pointer-events:auto;';
+  pop.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:401;' +
+    'width:min(340px,calc(100vw - 32px));max-height:min(80vh,560px);overflow:auto;' +
+    'background:#fff;border-radius:18px;padding:16px;box-shadow:0 20px 50px rgba(15,27,51,.35);' +
+    'display:block;pointer-events:auto;font-family:inherit;';
+
+  pop.classList.add('open');
+  back.classList.add('open');
+
+  if (type !== 'like') {
+    const ta = document.getElementById('reactText');
+    if (ta) ta.addEventListener('input', () => {
+      const btn = document.getElementById('reactSend');
+      if (btn) btn.disabled = !ta.value.trim() && !pop.dataset.reason;
+    });
+  }
 }
 // === клики реакций и попапа через делегирование: id живёт в data-атрибуте,
 // inline-onclick больше нет — клик не может «умереть» от кавычек ===
@@ -1260,8 +1301,15 @@ function pickReactReason(btn) {
 function closeReactPop() {
   const pop = document.getElementById('reactPop');
   const back = document.getElementById('reactBack');
-  if (pop) { pop.classList.remove('open'); delete pop.dataset.reason; delete pop.dataset.type; delete pop.dataset.stationId; }
-  if (back) back.classList.remove('open');
+  if (pop) {
+    pop.classList.remove('open');
+    delete pop.dataset.reason; delete pop.dataset.type; delete pop.dataset.stationId;
+    pop.style.cssText = '';
+  }
+  if (back) {
+    back.classList.remove('open');
+    back.style.cssText = '';
+  }
 }
 
 async function submitReactionFromPopup(stationId, type, reason, alsoFavorite) {
@@ -1600,11 +1648,12 @@ function openSheetAboveAdvice(id) {
   const st = allStations.find(s => s.id === id); if (!st) return;
   track('open_station_card', null, id); learnFromAction(id, 'card_open');
   const obs = getLastObservations()[id];
-  disposeCardMap(); // см. openSheet: глушим карту до перезаписи sheetBody
+  disposeCardMap();
   document.getElementById('sheetBody').innerHTML = stationCard(st, obs, pickPrediction(id, obs));
   const sheet = document.getElementById('sheet'); const back = document.getElementById('sheetBack');
-  if (sheet) { sheet.style.zIndex = '92'; sheet.classList.add('open'); }
-  if (back) { back.style.zIndex = '91'; back.classList.add('open'); }
+  // Выше советника (200/201), ниже react-попапа (240/241)
+  if (sheet) { sheet.style.zIndex = '220'; sheet.classList.add('open'); }
+  if (back) { back.style.zIndex = '219'; back.classList.add('open'); }
   requestAnimationFrame(() => mountCardMap(st));
 }
 // === Избранное на сервере + подписка на Телеграм ===
@@ -11036,4 +11085,19 @@ mn.parentNode.insertBefore(b, mn.nextSibling); // под вкладками
 build();
 // если шапка/вкладки пересоберутся позже — держим подсказки на месте
 setTimeout(build, 800);
+})();
+// ============================================================
+// React-попап поверх шторки «Куда ехать»
+// Иначе #reactBack открывается ПОД #adviceBack — виден только край слева
+// ============================================================
+(function () {
+  if (document.getElementById('kbReactAboveAdviceCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbReactAboveAdviceCss';
+  s.textContent =
+    '#reactBack.open{z-index:240 !important;pointer-events:auto !important;}' +
+    '#reactPop.open{z-index:241 !important;pointer-events:auto !important;}' +
+    '#adviceBack.open{z-index:200 !important;}' +
+    '#advicePop.open{z-index:201 !important;}';
+  document.head.appendChild(s);
 })();
