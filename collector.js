@@ -304,6 +304,126 @@ function reliabilityOf(histAny) {
   }
   return Math.round(100 * n / histAny.length) / 100;
 }
+// === САЙТ: визиты и действия водителей для хозяйского чата ===
+// Читаем site_hits с прошлого водяного знака (bot_meta.hits_notify_at) и
+// подмешиваем сводку в ТО ЖЕ сообщение, что уходит по событиям топлива.
+const HITS_RU = {
+  pageview:            ['👀', 'открыли сайт'],
+  panel_view:          ['📖', 'листали панели'],
+  open_station_card:   ['⛽', 'открывали карточку АЗС'],
+  click_where_to_go:   ['🧭', 'жали «Куда ехать»'],
+  route_built:         ['🛣️', 'построили маршрут'],
+  feedback_submit:     ['🙏', 'оставили отметку'],
+  advice_reaction:     ['👍', 'реакция на совет'],
+  advice_folk_vote:    ['🗳️', 'голос в советнике'],
+  fav_add:             ['❤️', 'добавили в избранное'],
+  fav_add_advice:      ['❤️', 'избранное из совета'],
+  fav_add_route_offer: ['❤️', 'избранное после маршрута'],
+  tg_connect:          ['🔗', 'нажали «Телеграм»'],
+  tg_linked:           ['✅', 'связка с ботом'],
+  pwa_install:         ['📲', 'установили приложение'],
+  share_tap:           ['📤', 'нажали «Поделиться»'],
+  notif_granted:       ['🔔', 'включили уведомления'],
+  prefs_set:           ['⚙️', 'настроили под себя'],
+  watch_window:        ['⏰', 'напомнить про окно'],
+  near_nudge_show:     ['📍', 'показали «вы рядом»'],
+  feedback_undo:       ['↩️', 'отменили отметку'],
+  advisor_open:        ['🎯', 'показали советник'],
+  top3_loaded:         ['📊', 'показали топ-3']
+};
+const HITS_ORDER = ['panel_view','open_station_card','click_where_to_go','route_built',
+  'feedback_submit','advice_reaction','advice_folk_vote','fav_add','fav_add_advice',
+  'fav_add_route_offer','tg_connect','tg_linked','pwa_install','share_tap',
+  'notif_granted','prefs_set','watch_window','near_nudge_show','feedback_undo',
+  'advisor_open','top3_loaded'];
+const HITS_SKIP = ['pageview','heartbeat','session_end','visibility_hidden','visibility_visible'];
+const HITS_CITY_RU = {
+  novorossiysk:'Новороссийск', gelendzhik:'Геленджик', anapa:'Анапа', krymsk:'Крымск',
+  krasnodar:'Краснодар', sochi:'Сочи', tuapse:'Туапсе', armavir:'Армавир',
+  maykop:'Майкоп', rostov:'Ростов-на-Дону', stavropol:'Ставрополь'
+};
+function hitsDur(sec) {
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return s + ' сек';
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + ' мин';
+  return Math.floor(m / 60) + ' ч ' + (m % 60) + ' мин';
+}
+async function siteHitsDigest(nameById) {
+  try {
+    const now = Date.now();
+    const wm = await sbGet('/rest/v1/bot_meta?key=eq.hits_notify_at&select=value');
+    const prev = wm.length ? wm[0].value : new Date(now - 15 * 60000).toISOString();
+    const rows = await sbGet(
+      '/rest/v1/site_hits?created_at=gt.' + encodeURIComponent(prev) +
+      '&event=neq.heartbeat&select=session_id,event,station_id,city_key,duration_sec' +
+      '&order=created_at.asc&limit=3000'
+    );
+    await sbPost('bot_meta?on_conflict=key', [{
+      key: 'hits_notify_at',
+      value: new Date(now).toISOString(),
+      updated_at: new Date(now).toISOString()
+    }], 'return=minimal,resolution=merge-duplicates');
+    if (!rows.length) return '';
+
+    const sessions = new Set(), cnt = {}, stCount = {}, citySess = {}, durs = [];
+    let visits = 0;
+    for (const r of rows) {
+      if (r.session_id) sessions.add(r.session_id);
+      cnt[r.event] = (cnt[r.event] || 0) + 1;
+      if (r.event === 'pageview') visits++;
+      if (r.city_key && r.session_id) {
+        (citySess[r.city_key] = citySess[r.city_key] || new Set()).add(r.session_id);
+      }
+      if ((r.event === 'open_station_card' || r.event === 'click_where_to_go') && r.station_id) {
+        stCount[r.station_id] = (stCount[r.station_id] || 0) + 1;
+      }
+      // duration_sec у session_end упакован: общее*10000 + видимое
+      if (r.event === 'session_end' && r.duration_sec !== null && r.duration_sec !== undefined) {
+        const d = Number(r.duration_sec);
+        const vis = d >= 10000 ? d % 10000 : d;
+        if (vis > 0 && vis < 7200) durs.push(vis);
+      }
+    }
+
+    const lines = [];
+    let shown = 0;
+    for (const k of HITS_ORDER) {
+      if (!cnt[k] || shown >= 8) continue;
+      const ru = HITS_RU[k];
+      lines.push(ru[0] + ' ' + ru[1] + ': ' + cnt[k]);
+      shown++;
+    }
+    let rest = 0;
+    for (const k of Object.keys(cnt)) {
+      if (HITS_SKIP.indexOf(k) >= 0) continue;
+      if (HITS_ORDER.indexOf(k) < 0 || shown < HITS_ORDER.indexOf(k) + 1) {
+        if (HITS_ORDER.indexOf(k) < 0) rest += cnt[k];
+      }
+    }
+    if (rest) lines.push('• прочие действия: ' + rest);
+
+    if (durs.length) {
+      durs.sort((a, b) => a - b);
+      lines.push('⏱ время на сайте (медиана): ' + hitsDur(durs[Math.floor(durs.length / 2)]));
+    }
+    const topCity = Object.keys(citySess).sort((a, b) => citySess[b].size - citySess[a].size).slice(0, 3);
+    if (topCity.length) {
+      lines.push('🏙 ' + topCity.map(k => (HITS_CITY_RU[k] || k) + ' ' + citySess[k].size).join(' · '));
+    }
+    const topSt = Object.keys(stCount).sort((a, b) => stCount[b] - stCount[a]).slice(0, 2);
+    if (topSt.length && nameById) {
+      lines.push('⛽ чаще смотрели: ' + topSt.map(id =>
+        String(nameById[id] || 'АЗС').split(' · ')[0] + ' — ' + stCount[id]).join(', '));
+    }
+
+    return '🌐 <b>САЙТ</b> · водителей: ' + sessions.size + ' · заходов: ' + (visits || sessions.size) +
+      (lines.length ? '\n' + lines.join('\n') : '');
+  } catch (e) {
+    console.log('   ! Сайт-дайджест: ' + e.message);
+    return '';
+  }
+}
 async function main() {
   // джиттер до 45 сек: не стучим синхронно с волнами атаки и другими клиентами
   await new Promise(res => setTimeout(res, Math.floor(Math.random() * 45000)));
@@ -924,34 +1044,36 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
   }
 }
 
-    if (tgSrcLines.length || tgFolkLines.length) {
-    // Контекст города из свежих домашних отметок (факт, не прогноз)
-    let known = 0, avail = 0;
-    for (const row of obsRows) {
-      if (!homeIdSet.has(row.station_id)) continue;
-      if (row.fuel_95_status !== null && row.fuel_95_status !== undefined) { known++; if (row.fuel_95_status) avail++; }
-    }
-    const msk = new Date(Date.now() + 3 * 3600 * 1000);
-    const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
-    const total = tgSrcLines.length + tgFolkLines.length;
-    // Народ сверху — его глазами ищешь; источник ниже. Лимит строк общий ~10.
-    let body = '';
-    let left = 10;
-    if (tgFolkLines.length) {
-      const take = tgFolkLines.slice(0, Math.min(left, 6));
-      left -= take.length;
-      body += '\n\n👥 <b>НАРОД</b> · ' + tgFolkLines.length + '\n' + take.join('\n');
-      if (tgFolkLines.length > take.length) body += '\n<i>…ещё ' + (tgFolkLines.length - take.length) + '</i>';
-    }
-    if (tgSrcLines.length && left > 0) {
-      const take = tgSrcLines.slice(0, left);
-      body += '\n\n📡 <b>ИСТОЧНИК</b> · ' + tgSrcLines.length + '\n' + take.join('\n');
-      if (tgSrcLines.length > take.length) body += '\n<i>…ещё ' + (tgSrcLines.length - take.length) + '</i>';
-    }
-    await tg('⚡ ' + hh + ' · ' + total +
-      (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
-      body, true);
-  }
+    const hitsBlock = await siteHitsDigest(nameById);
+if (tgSrcLines.length || tgFolkLines.length || hitsBlock) {
+// Контекст города из свежих домашних отметок (факт, не прогноз)
+let known = 0, avail = 0;
+for (const row of obsRows) {
+  if (!homeIdSet.has(row.station_id)) continue;
+  if (row.fuel_95_status !== null && row.fuel_95_status !== undefined) { known++; if (row.fuel_95_status) avail++; }
+}
+const msk = new Date(Date.now() + 3 * 3600 * 1000);
+const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
+const total = tgSrcLines.length + tgFolkLines.length;
+// Народ сверху — его глазами ищешь; источник ниже. Лимит строк общий ~10.
+let body = '';
+let left = 10;
+if (tgFolkLines.length) {
+  const take = tgFolkLines.slice(0, Math.min(left, 6));
+  left -= take.length;
+  body += '\n\n👥 <b>НАРОД</b> · ' + tgFolkLines.length + '\n' + take.join('\n');
+  if (tgFolkLines.length > take.length) body += '\n<i>…ещё ' + (tgFolkLines.length - take.length) + '</i>';
+}
+if (tgSrcLines.length && left > 0) {
+  const take = tgSrcLines.slice(0, left);
+  body += '\n\n📡 <b>ИСТОЧНИК</b> · ' + tgSrcLines.length + '\n' + take.join('\n');
+  if (tgSrcLines.length > take.length) body += '\n<i>…ещё ' + (tgSrcLines.length - take.length) + '</i>';
+}
+if (hitsBlock) body += '\n\n' + hitsBlock;
+await tg('⚡ ' + hh + (total ? ' · ' + total : '') +
+  (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
+  body, true);
+}
   console.log('✅ Цикл завершён');
 }
 
@@ -1116,10 +1238,14 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
     console.log('   ! Уборка суток -' + d + ': ' + e.message);
   }
 }
-if (tgLines.length) {
+const hitsBlock = await siteHitsDigest(nameById);
+if (tgLines.length || hitsBlock) {
 const msk = new Date(Date.now() + 3 * 3600 * 1000);
 const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
-await tg('⚡ ' + hh + ' · аварийный режим (источник лежит)\n\n👥 <b>НАРОД</b> · ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n'), true);
+let body = '';
+if (tgLines.length) body += '\n\n👥 <b>НАРОД</b> · ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n');
+if (hitsBlock) body += '\n\n' + hitsBlock;
+await tg('⚡ ' + hh + ' · аварийный режим (источник лежит)' + body, true);
 }
 }
 main().catch(async e => {
