@@ -9474,9 +9474,9 @@ function lentiPolish() {
     if (days.indexOf(today) < 0) { days.push(today); if (days.length > 60) days = days.slice(-60); LS.set('kbMarkDays', days); }
     var streak = 0, d = new Date();
     while (days.indexOf(d.toDateString()) >= 0) { streak++; d.setDate(d.getDate() - 1); }
-    var imp = null; try { imp = myImpact(); } catch (e) {}
+    // coVotes — накопление за все прошлые отметки; в тосте после ОДНОЙ отметки
+    // выглядит как «только что подтвердили» — не показываем. Накопление остаётся в «город живёт».
     var msg = streak >= 2 ? '🔥 ' + streak + ' дней подряд на связи!' : 'Спасибо! Отметка учтена.';
-    if (imp && imp.coVotes > 0) msg += ' Ваши отметки подтвердили ' + imp.coVotes + ' водителей.';
     kbToast(msg, 'ok');
   }
 
@@ -9534,8 +9534,35 @@ function lentiPolish() {
     var col = pref === '92' ? 'price_92' : pref === 'diesel' ? 'price_diesel' : 'price_95';
     var p = allLastPrice[stId];
     var priceTxt = p && p[col] != null ? Number(p[col]).toFixed(1) + ' ₽' : '';
+    // Народ за 6 ч: если источник тухлый — в шер пишем народ, а не «150 ч назад»
+    var folkYes = 0, folkNo = 0, folkLatest = 0;
+    var folkFloor = Date.now() - 6 * 3600000;
+    try {
+      for (var fi = 0; fi < allFeedback.length; fi++) {
+        var fb = allFeedback[fi];
+        if (fb.station_id !== stId) continue;
+        if (fb.feedback_type !== 'available' && fb.feedback_type !== 'unavailable') continue;
+        var ft = new Date(fb.created_at).getTime();
+        if (ft < folkFloor) continue;
+        if (fb.feedback_type === 'available') folkYes++; else folkNo++;
+        if (ft > folkLatest) folkLatest = ft;
+      }
+    } catch (e) {}
+    if (!fuels.length && folkYes > folkNo && folkYes >= 1) {
+      fuelTxt = 'водители: топливо есть';
+    } else if (!fuels.length && folkNo > folkYes && folkNo >= 1) {
+      fuelTxt = 'водители: топлива нет';
+    }
     var fm = getFreshnessMin(o);
-    var freshTxt = fm === null ? '' : 'обновлено ' + (fm < 60 ? fm + ' мин' : Math.round(fm / 60) + ' ч') + ' назад';
+    var freshTxt = '';
+    if (fm !== null && fm <= 360) {
+      freshTxt = 'обновлено ' + (fm < 60 ? fm + ' мин' : Math.round(fm / 60) + ' ч') + ' назад';
+    } else if (folkLatest) {
+      var fmin = Math.round((Date.now() - folkLatest) / 60000);
+      freshTxt = 'отметки водителей: ' + (fmin < 60 ? fmin + ' мин' : Math.round(fmin / 60) + ' ч') + ' назад';
+    } else if (fm !== null && fm > 360) {
+      freshTxt = 'данных источника давно нет';
+    }
     var lq = liveQueueCount(stId);
     var qTxt = lq ? lq + ' вод. в очереди' : (o && o.queue_level === 'high' ? 'очередь' : 'очередей не видно');
     var lines = [fuelTxt + (priceTxt ? ' · ' + priceTxt : ''), qTxt, freshTxt].filter(Boolean);
@@ -10548,19 +10575,24 @@ return best;
 }
 
 function fmtWhen(ts) {
+// Одно время: свежее — «N мин/ч назад», старше 2 ч — «сегодня, 02:03»
+var m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+if (m < 1) return 'только что';
+if (m < 60) return m + ' мин назад';
+if (m < 120) return Math.round(m / 60) + ' ч назад';
 var d = new Date(ts), now = new Date();
 var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
 var yest = new Date(now.getTime() - 86400000);
 var day = d.toDateString() === now.toDateString() ? 'сегодня'
 : d.toDateString() === yest.toDateString() ? 'вчера'
 : pad(d.getDate()) + '.' + pad(d.getMonth() + 1);
-var m = Math.max(0, Math.round((Date.now() - ts) / 60000));
-var ago = m < 1 ? 'только что' : m < 60 ? m + ' мин назад' : m < 1440 ? Math.round(m / 60) + ' ч назад' : Math.round(m / 1440) + ' дн назад';
-return day + ', ' + hm + ' · ' + ago;
+return day + ', ' + hm;
 }
 
 function lineHtml(stId) {
 var info = myInfo(stId);
+// Личная плашка не должна висеть 24 ч при молчащем источнике
+if (info && Date.now() - info.ts > 3 * 3600000) info = null;
 if (!info) {
 return '<div class="kb-rt hint">' + icon('i-clock', 'ic-s') +
 '<span class="kb-rt-txt"><span>Вашей отметки пока нет — нажмите кнопку выше, и здесь появится время вашего голоса.</span></span></div>';
