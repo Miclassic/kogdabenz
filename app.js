@@ -4283,6 +4283,7 @@ function openAdviceNow() {
   if (!renderAdvicePop()) { pagerGo(3); return; } // советовать нечего — список АЗС
   document.getElementById('advicePop').classList.add('open');
   document.getElementById('adviceBack').classList.add('open');
+  try { track('advisor_open', adviceList ? adviceList.length : 0); } catch (e) {}
 }
 function openLifeNow() {
   try { renderLifePop(); } catch (e) { return; }
@@ -5161,7 +5162,7 @@ function renderNow() {
 
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(advice.station.name || 'АЗС') +
         kmLabel + '   ' + advice.confidence + '%';
-      cta.onclick = () => { track('click_where_to_go', null, advice.station.id); rememberAdvice(); learnFromAction(advice.station.id, 'advice_click'); openSheet(advice.station.id); };
+      cta.onclick = () => { track('click_where_to_go', null, advice.station.id); rememberAdvice(); learnFromAction(advice.station.id, 'advice_click'); openAdviceNow(); };
     }
     else if (best) {
       // === НОВАЯ ЛОГИКА: проверяем geoRequested ===
@@ -5172,7 +5173,7 @@ function renderNow() {
       cta.innerHTML = icon('i-spark') + 'Куда ехать: ' + escapeHtml(best.name || 'АЗС') +
         kmLabel +
         (bestReason === 'fuel' ? '   топливо есть' : bestReason === 'diesel' ? '   дизель есть' : '');
-      cta.onclick = () => { track('click_where_to_go', null, best.id); rememberAdvice(); learnFromAction(best.id, 'advice_click'); openSheet(best.id); };
+      cta.onclick = () => { track('click_where_to_go', null, best.id); rememberAdvice(); learnFromAction(best.id, 'advice_click'); openAdviceNow(); };
     }
     else { cta.innerHTML = icon('i-spark') + 'Прогнозы созревают'; cta.onclick = () => pagerGo(3); }
   }
