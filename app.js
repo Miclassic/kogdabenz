@@ -1013,7 +1013,16 @@ const mine = adviceReactionMine[stId] || {};
 const rejected = isRejected(stId, adviceFocusFuel(it));
 const rejectWarn = countRejections(stId, adviceFocusFuel(it)) >= 3 && !rejected;
 const reactionBtn = (type) => {
-const mineKey = type === 'like' ? (mine.like || mine.folk_yes) : type === 'dislike' ? (mine.dislike || mine.folk_no) : mine.doubt;
+// Ореол «мой голос» только если отметка свежая (≤3 ч) — как полоска «Ваша отметка».
+// Иначе: счётчик народа остаётся, кнопка не горит как нажатая.
+let mineKey = type === 'like' ? (mine.like || mine.folk_yes) : type === 'dislike' ? (mine.dislike || mine.folk_no) : mine.doubt;
+if (mineKey) {
+  try {
+    const info = (typeof myInfo === 'function') ? myInfo(stId) : null;
+    const want = type === 'like' ? ['like', 'folk_yes'] : type === 'dislike' ? ['dislike', 'folk_no'] : ['doubt'];
+    if (!info || want.indexOf(info.type) < 0 || Date.now() - info.ts > 3 * 3600000) mineKey = false;
+  } catch (e) { /* myInfo может быть ниже по файлу при первом парсе — тогда ореол по старому флагу */ }
+}
 const mineClass = mineKey ? ' mine' : '';
 const rejectClass = rejected ? ' reject' : '';
 const cnt = type === 'like' ? (ff.yes || 0) : type === 'dislike' ? (ff.no || 0) : (s[type + '_count'] || 0);
@@ -1299,35 +1308,54 @@ mine[type] = true;
 try { const mm = JSON.parse(localStorage.getItem('kbAdvMine') || '{}'); const mrow = mm[stId] = mm[stId] || {}; mrow[type] = true; localStorage.setItem('kbAdvMine', JSON.stringify(mm)); } catch (e) {}
 const s = adviceReactions[stId] = adviceReactions[stId] || { like_count:0, dislike_count:0, doubt_count:0, folk_yes:0, folk_no:0 };
 s[type + '_count'] = (s[type + '_count'] || 0) + 1;
-// если like — записываем как народную отметку available: реакция вливается в народные голоса
+// it.f в советнике: 'yes'|'part'|'diesel', а folk_fuel/БД ждут '95'|'92'|'diesel'
+const fuel = (typeof adviceFocusFuel === 'function')
+  ? adviceFocusFuel(it)
+  : (it.f === 'yes' || it.f === '95') ? '95'
+  : (it.f === 'part' || it.f === '92') ? '92'
+  : (it.f === 'diesel') ? 'diesel' : '95';
+
+s.folk_fuel = s.folk_fuel || {};
+const g = s.folk_fuel[fuel] = s.folk_fuel[fuel] || { yes: 0, no: 0 };
+
 if (type === 'like') {
-const onSite = await onSiteFields(it.st);
-try {
-const fbRows = await dbInsertReturning('user_feedback', Object.assign({
-station_id: stId, device_id: deviceId,
-feedback_type: 'available', fuel_type: it.f || '95',
-queue_size: null, comment_text: null
-}, onSite));
-if (fbRows && fbRows.length && ids[type]) ids[type].fbId = fbRows[0].id;
-} catch (e) {}
-mine.folk_yes = true;
-s.folk_yes = (s.folk_yes || 0) + 1;
+  const onSite = await onSiteFields(it.st);
+  const row = Object.assign({
+    station_id: stId, device_id: deviceId,
+    feedback_type: 'available', fuel_type: fuel,
+    queue_size: null, comment_text: null,
+    created_at: new Date().toISOString()
+  }, onSite);
+  try {
+    const fbRows = await dbInsertReturning('user_feedback', row);
+    if (fbRows && fbRows.length && ids[type]) ids[type].fbId = fbRows[0].id;
+    if (fbRows && fbRows[0]) row.id = fbRows[0].id;
+  } catch (e) {}
+  allFeedback.unshift(row);
+  mine.folk_yes = true;
+  s.folk_yes = (s.folk_yes || 0) + 1;
+  g.yes = (g.yes || 0) + 1;
 }
-// если dislike — сразу записываем как народную отметку unavailable (это усиливает порог)
+
 if (type === 'dislike') {
-const onSite = await onSiteFields(it.st);
-try {
-const fbRows = await dbInsertReturning('user_feedback', Object.assign({
-station_id: stId, device_id: deviceId,
-feedback_type: 'unavailable', fuel_type: it.f || '95',
-queue_size: null, comment_text: reason ? ('реакция: ' + reason) : null
-}, onSite));
-if (fbRows && fbRows.length && ids[type]) ids[type].fbId = fbRows[0].id;
-} catch (e) {}
-mine.folk_no = true;
-s.folk_no = (s.folk_no || 0) + 1;
+  const onSite = await onSiteFields(it.st);
+  const row = Object.assign({
+    station_id: stId, device_id: deviceId,
+    feedback_type: 'unavailable', fuel_type: fuel,
+    queue_size: null, comment_text: reason ? ('реакция: ' + reason) : null,
+    created_at: new Date().toISOString()
+  }, onSite);
+  try {
+    const fbRows = await dbInsertReturning('user_feedback', row);
+    if (fbRows && fbRows.length && ids[type]) ids[type].fbId = fbRows[0].id;
+    if (fbRows && fbRows[0]) row.id = fbRows[0].id;
+  } catch (e) {}
+  allFeedback.unshift(row);
+  mine.folk_no = true;
+  s.folk_no = (s.folk_no || 0) + 1;
+  g.no = (g.no || 0) + 1;
 }
-// перерисовываем советник
+
 renderAdvicePop();
 track('advice_reaction', null, stId);
 }
