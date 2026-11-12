@@ -10461,3 +10461,519 @@ if (ok) { try { fixTiles(); } catch (e) { console.log('tile clarity: ' + e.messa
 return ok;
 };
 })();
+// ============================================================
+// KB REACTION TIME v1 — время вашей отметки реакции в советнике
+// Полоска под кнопками «Да / Не соответствует / уточнить»:
+//   🕐 Ваша отметка «Да, топливо есть» · сегодня, 02:03 · 38 мин назад
+// Источники времени: локальный журнал этого устройства, народные
+// отметки allFeedback и сервер advice_reactions (для прошлых сессий).
+// Полоска живёт только пока голос актуален: при смене статуса топлива
+// (сброс голосов) она исчезает вместе с кольцами «мой голос».
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbReactionTime) return;
+window.__kbReactionTime = 1;
+
+var LS_KEY = 'kbAdvMineAt';
+var serverAt = {};          // stId -> {type: ts} с сервера
+var serverLoaded = false;
+var H = 3600000;
+
+function lsGet() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch (e) { return {}; } }
+function lsSet(m) { try { localStorage.setItem(LS_KEY, JSON.stringify(m)); } catch (e) {} }
+function setAt(stId, type, ts) { var m = lsGet(); var r = m[stId] = m[stId] || {}; r[type] = ts; lsSet(m); }
+function delAt(stId, type) { var m = lsGet(); if (m[stId]) { delete m[stId][type]; lsSet(m); } }
+function pad(n) { return String(n).padStart(2, '0'); }
+
+// ---------- палитра сайта ----------
+(function css() {
+if (document.getElementById('kbReactionTimeCss')) return;
+var s = document.createElement('style');
+s.id = 'kbReactionTimeCss';
+s.textContent =
+'.kb-rt{display:flex;align-items:center;gap:8px;margin:8px 0 0;padding:8px 12px;border-radius:12px;' +
+'font-size:11px;line-height:1.35;font-weight:700;border:1px solid transparent;}' +
+'.kb-rt .ic{width:13px;height:13px;flex:none;}' +
+'.kb-rt-txt{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;}' +
+'.kb-rt-txt b{font-weight:800;}' +
+'.kb-rt-txt i{font-style:normal;font-weight:600;opacity:.8;font-variant-numeric:tabular-nums;}' +
+'.kb-rt.yes{background:#e5f8ef;border-color:#bfe8d4;color:#12855c;}' +
+'.kb-rt.no{background:#fdecec;border-color:#f3b7b3;color:#c2403f;}' +
+'.kb-rt.doubt{background:#fff6ec;border-color:#f5d3b8;color:#c26a2a;}' +
+'.kb-rt.hint{background:#eef2f8;border-color:#dfe8f2;color:#7487a7;font-weight:600;}';
+document.head.appendChild(s);
+})();
+
+// ---------- время последней народной отметки этого устройства ----------
+function folkAt(stId, wantYes) {
+var t = 0;
+for (var i = 0; i < allFeedback.length; i++) {
+var f = allFeedback[i];
+if (f.station_id !== stId || f.device_id !== deviceId) continue;
+if (f.feedback_type !== (wantYes ? 'available' : 'unavailable')) continue;
+var x = new Date(f.created_at).getTime();
+if (x < Date.now() - 24 * H) continue;
+var ch = pairLastChange(stId, f.fuel_type || '95');
+if (ch && x <= ch) continue;
+if (x > t) t = x;
+}
+return t || null;
+}
+
+// ---------- собираем актуальную «мою» отметку с временем ----------
+var META = {
+like:     { cls: 'yes',   label: 'Да, топливо есть' },
+dislike:  { cls: 'no',    label: 'Не соответствует' },
+doubt:    { cls: 'doubt', label: 'Нужно уточнить' },
+folk_yes: { cls: 'yes',   label: 'Топливо есть · народ' },
+folk_no:  { cls: 'no',    label: 'Топлива нет · народ' }
+};
+function myInfo(stId) {
+var mine = adviceReactionMine[stId] || {};
+var local = lsGet()[stId] || {};
+var srv = serverAt[stId] || {};
+var best = null;
+function consider(type, ts) {
+if (!ts) return;
+if (!best || ts > best.ts) best = { type: type, ts: ts };
+}
+if (mine.like) consider('like', local.like || srv.like || folkAt(stId, true));
+if (mine.dislike) consider('dislike', local.dislike || srv.dislike || folkAt(stId, false));
+if (mine.doubt) consider('doubt', local.doubt || srv.doubt);
+if (mine.folk_yes) consider('folk_yes', local.folk_yes || folkAt(stId, true));
+if (mine.folk_no) consider('folk_no', local.folk_no || folkAt(stId, false));
+return best;
+}
+
+function fmtWhen(ts) {
+var d = new Date(ts), now = new Date();
+var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+var yest = new Date(now.getTime() - 86400000);
+var day = d.toDateString() === now.toDateString() ? 'сегодня'
+: d.toDateString() === yest.toDateString() ? 'вчера'
+: pad(d.getDate()) + '.' + pad(d.getMonth() + 1);
+var m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+var ago = m < 1 ? 'только что' : m < 60 ? m + ' мин назад' : m < 1440 ? Math.round(m / 60) + ' ч назад' : Math.round(m / 1440) + ' дн назад';
+return day + ', ' + hm + ' · ' + ago;
+}
+
+function lineHtml(stId) {
+var info = myInfo(stId);
+if (!info) {
+return '<div class="kb-rt hint">' + icon('i-clock', 'ic-s') +
+'<span class="kb-rt-txt"><span>Вашей отметки пока нет — нажмите кнопку выше, и здесь появится время вашего голоса.</span></span></div>';
+}
+var m = META[info.type] || META.like;
+return '<div class="kb-rt ' + m.cls + '">' + icon('i-clock', 'ic-s') +
+'<span class="kb-rt-txt"><b>Ваша отметка «' + m.label + '»</b><i>' + fmtWhen(info.ts) + '</i></span></div>';
+}
+
+// ---------- вставка ровно в выделенное место ----------
+function paint() {
+var pop = document.getElementById('advicePop');
+if (!pop || !pop.classList.contains('open')) return;
+var cards = pop.querySelectorAll('.adv-card');
+for (var i = 0; i < cards.length; i++) {
+var it = adviceList[i];
+if (!it) continue;
+var reactions = cards[i].querySelector('.adv-reactions');
+if (!reactions) continue;
+var html = lineHtml(it.st.id);
+var old = cards[i].querySelector('.kb-rt');
+if (old) old.outerHTML = html;
+else reactions.insertAdjacentHTML('afterend', html);
+}
+}
+
+// ---------- сервер: времена моих реакций прошлых сессий ----------
+async function loadServer() {
+if (serverLoaded) return;
+serverLoaded = true;
+try {
+var ids = cityStationList().map(function (s) { return s.id; });
+if (!ids.length) return;
+var since = new Date(Date.now() - ADVICE_VOTE_TTL_MS).toISOString();
+var rows = await dbQuery('/rest/v1/advice_reactions?device_id=eq.' + encodeURIComponent(deviceId) +
+'&station_id=in.(' + ids.join(',') + ')&created_at=gte.' + since +
+'&select=station_id,reaction_type,created_at&order=created_at.desc&limit=500');
+(rows || []).forEach(function (r) {
+var t = new Date(r.created_at).getTime();
+var g = serverAt[r.station_id] = serverAt[r.station_id] || {};
+if (!g[r.reaction_type] || t > g[r.reaction_type]) g[r.reaction_type] = t;
+});
+paint();
+} catch (e) { serverLoaded = false; }
+}
+
+// ---------- перехваты: фиксируем время в момент голоса ----------
+var _submit = submitReaction;
+submitReaction = async function (it, type, reason) {
+var r = await _submit(it, type, reason);
+var now = Date.now();
+setAt(it.st.id, type, now);
+if (type === 'like') setAt(it.st.id, 'folk_yes', now);
+if (type === 'dislike') setAt(it.st.id, 'folk_no', now);
+paint();
+return r;
+};
+var _cancel = cancelAdviceReaction;
+cancelAdviceReaction = async function (stationId, type) {
+var r = await _cancel(stationId, type);
+delAt(stationId, type);
+if (type === 'like') delAt(stationId, 'folk_yes');
+if (type === 'dislike') delAt(stationId, 'folk_no');
+paint();
+return r;
+};
+var _folk = handleFolkVote;
+handleFolkVote = async function (stationId, type) {
+var r = await _folk(stationId, type);
+setAt(stationId, type === 'yes' ? 'folk_yes' : 'folk_no', Date.now());
+paint();
+return r;
+};
+
+// ---------- отрисовка советника + живое «мин назад» ----------
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+var ok = _rap();
+if (ok) { try { paint(); loadServer(); } catch (e) {} }
+return ok;
+};
+setInterval(function () {
+if (document.hidden) return;
+var pop = document.getElementById('advicePop');
+if (pop && pop.classList.contains('open')) paint();
+}, 30000);
+})();
+// ============================================================
+// KB HINTS + STATUS v1 — подсказки жестов + объяснение значков шапки
+// 1) Две полосы-подсказки ровно в выделенных местах:
+//    над вкладками — «карточку можно крутить», под вкладками —
+//    «панели можно перелистывать». Ключевые слова синие, по полосе
+//    пробегает лёгкий блик (в лайте и при reduced-motion — без блика).
+// 2) Геопин покраснел — сам всплывает лёгкий попап «почему красный».
+//    Тап по пину — полное объяснение: что значит значок, что делать.
+// 3) Тап по капле — что такое соединение + лайт-версия для слабых
+//    устройств и медленного интернета (скорость определяется автоматически).
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbHintsStatus) return;
+window.__kbHintsStatus = 1;
+
+// ---------- палитра сайта ----------
+(function css() {
+if (document.getElementById('kbHintsStatusCss')) return;
+var s = document.createElement('style');
+s.id = 'kbHintsStatusCss';
+s.textContent =
+'.kb-hint{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;margin:6px 2px;padding:7px 12px;' +
+'border-radius:12px;border:1px solid #dfe8f2;background:linear-gradient(90deg,#eef4ff 0%,#f8fafd 55%,#eef4ff 100%);' +
+'color:#5b6b86;font-size:10.5px;font-weight:600;line-height:1.35;text-align:center;overflow:hidden;font-family:inherit;}' +
+'.kb-hint .ic{width:13px;height:13px;flex:none;color:#2465ee;}' +
+'.kb-hint b.kb-hint-key{color:#2465ee;font-weight:800;}' +
+'.kb-hint::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;' +
+'background:linear-gradient(105deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.85) 45%,rgba(188,212,255,.55) 60%,rgba(255,255,255,0) 100%);' +
+'transform:translateX(-130%) skewX(-18deg);animation:kbHintShine 6s ease-in-out infinite;}' +
+'.kb-hint.kb-hint-b::after{animation-delay:3s;}' +
+'@keyframes kbHintShine{0%{transform:translateX(-130%) skewX(-18deg);opacity:0;}10%{opacity:1;}' +
+'42%{transform:translateX(260%) skewX(-18deg);opacity:0;}100%{transform:translateX(260%) skewX(-18deg);opacity:0;}}' +
+'body.kb-lite .kb-hint::after{animation:none;opacity:0;}' +
+'@media (prefers-reduced-motion:reduce){.kb-hint::after{animation:none;opacity:0;}}' +
+'.kb-ip{position:fixed;z-index:130;width:min(320px,calc(100vw - 16px));background:#fff;border:1px solid #dfe8f2;border-radius:16px;' +
+'box-shadow:0 14px 40px rgba(20,33,61,.22);padding:12px 14px;font-family:inherit;opacity:0;transform:translateY(-6px);' +
+'transition:.22s cubic-bezier(.2,.8,.2,1);pointer-events:none;max-height:min(62vh,480px);overflow-y:auto;}' +
+'.kb-ip.on{opacity:1;transform:translateY(0);pointer-events:auto;}' +
+'.kb-ip.auto{width:min(290px,calc(100vw - 16px));}' +
+'.kb-ip::-webkit-scrollbar{width:7px;}' +
+'.kb-ip::-webkit-scrollbar-track{background:#eef2f8;border-radius:8px;}' +
+'.kb-ip::-webkit-scrollbar-thumb{background:#2465ee;border-radius:8px;}' +
+'.kb-ip-x{position:absolute;top:8px;right:8px;width:24px;height:24px;border:0;border-radius:8px;background:#eef2f8;color:#5b6b86;' +
+'font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;}' +
+'.kb-ip-head{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#14213d;margin:0 22px 6px 0;}' +
+'.kb-ip-head .ic{width:16px;height:16px;flex:none;}' +
+'.kb-ip-status{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;border-radius:10px;padding:6px 9px;margin:0 0 8px;}' +
+'.kb-ip-status.ok{background:#e5f8ef;color:#12855c;}' +
+'.kb-ip-status.bad{background:#fdecec;color:#c2403f;}' +
+'.kb-ip-status i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;}' +
+'.kb-ip-body{font-size:11.5px;line-height:1.5;color:#5b6b86;font-weight:600;}' +
+'.kb-ip-body b{color:#14213d;}' +
+'.kb-ip-note{margin-top:8px;border-radius:10px;padding:8px 10px;background:#eef4ff;border:1px solid #bcd4ff;color:#33507e;}' +
+'.kb-ip-note.amber{background:#fff6ec;border-color:#f5d3b8;color:#8a5a2b;}' +
+'.kb-ip-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;}' +
+'.kb-ip-actions button{flex:1;min-width:90px;border:0;border-radius:10px;padding:8px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;}' +
+'.kb-ip-actions .p{background:#2465ee;color:#fff;}' +
+'.kb-ip-actions .g{background:#eef2f8;color:#5b6b86;}' +
+'.kb-ip-actions .b{background:#eef4ff;color:#1746c8;border:1px solid #bcd4ff;}';
+document.head.appendChild(s);
+})();
+
+// ---------- 1) полосы-подсказки в выделенных местах ----------
+var ICO_ROTATE = '<svg class="ic ic-s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/></svg>';
+var ICO_SWIPE = '<svg class="ic ic-s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5"/><path d="M16 7l5 5-5 5"/></svg>';
+function buildHints() {
+if (document.getElementById('kbHintA')) return;
+var a = document.createElement('div');
+a.id = 'kbHintA'; a.className = 'kb-hint';
+a.innerHTML = ICO_ROTATE + '<span>Карточку выше можно <b class="kb-hint-key">крутить</b> — ведите пальцем вбок, внутри 4 сцены</span>';
+var b = document.createElement('div');
+b.id = 'kbHintB'; b.className = 'kb-hint kb-hint-b';
+b.innerHTML = ICO_SWIPE + '<span>Панели можно <b class="kb-hint-key">перелистывать</b> — свайп вбок или тап по вкладкам</span>';
+var mn = document.getElementById('mnWrap');
+if (mn && mn.parentNode) {
+mn.parentNode.insertBefore(a, mn);           // полоса над вкладками
+mn.parentNode.insertBefore(b, mn.nextSibling); // полоса под вкладками
+return;
+}
+var lb = document.getElementById('lentiBox');
+if (lb && lb.parentNode) {
+lb.parentNode.insertBefore(a, lb.nextSibling);
+lb.parentNode.insertBefore(b, a.nextSibling);
+}
+}
+
+// ---------- общий лёгкий попап ----------
+var popEl = null, popTimer = null, popKind = null, popAnchor = null;
+function ensurePop() {
+if (popEl) return;
+popEl = document.createElement('div');
+popEl.className = 'kb-ip';
+popEl.setAttribute('role', 'dialog');
+document.body.appendChild(popEl);
+popEl.addEventListener('pointerenter', function () { clearTimeout(popTimer); });
+popEl.addEventListener('pointerleave', function () {
+if (popEl.classList.contains('auto') && popEl.classList.contains('on')) popTimer = setTimeout(closePop, 4000);
+});
+}
+function place(anchor) {
+if (!popEl || !anchor) return;
+var r = anchor.getBoundingClientRect();
+popEl.style.top = Math.max(8, r.bottom + 10) + 'px';
+var w = popEl.offsetWidth || 300;
+var right = window.innerWidth - r.right;
+right = Math.max(8, Math.min(right, window.innerWidth - w - 8));
+popEl.style.right = right + 'px';
+}
+function openPop(kind, anchor, html, auto) {
+ensurePop();
+popKind = kind; popAnchor = anchor;
+popEl.classList.toggle('auto', !!auto);
+popEl.innerHTML = '<button class="kb-ip-x" data-kbhs="close" aria-label="Закрыть">×</button>' + html;
+popEl.classList.add('on');
+place(anchor);
+clearTimeout(popTimer);
+if (auto) popTimer = setTimeout(closePop, 9000);
+}
+function closePop() {
+clearTimeout(popTimer);
+if (popEl) popEl.classList.remove('on');
+popKind = null;
+}
+window.addEventListener('resize', function () { if (popEl && popEl.classList.contains('on')) place(popAnchor); });
+
+// ---------- 2) геопин: почему красный + что это вообще ----------
+function geoState() {
+var btn = document.getElementById('slimGeo');
+return { red: !!(btn && btn.classList.contains('geo-err')) };
+}
+function geoReason() {
+try {
+if (typeof geoSuspect !== 'undefined' && geoSuspect) return { key: 'suspect', title: 'GPS под подозрением', text: 'Похоже на глушилки: точка прыгнула или точность низкая. Город и расстояния не меняем, пока вы не подтвердите точку.' };
+if (typeof geoFailed !== 'undefined' && geoFailed) return { key: 'failed', title: 'GPS не ответил', text: 'Браузер не смог определить точку за отведённое время. Расстояния считаются от центра города, маршрут может быть неточным.' };
+} catch (e) {}
+return { key: 'err', title: 'Точка не подтверждена', text: 'Геолокация сейчас не даёт надёжной точки — расстояния могут считаться от центра города.' };
+}
+function geoPopHtml(auto) {
+var st = geoState(), r = geoReason();
+var ico = '<span style="color:' + (st.red ? '#c2403f' : '#12855c') + ';display:inline-flex">' + icon('i-pin', 'ic-s') + '</span>';
+if (auto) {
+return '<div class="kb-ip-head" style="color:#c2403f">' + ico + 'Почему значок красный?</div>' +
+'<div class="kb-ip-body"><b>' + r.title + '.</b> ' + r.text +
+'<div class="kb-ip-note amber">Тап по значку — что это вообще и что делать.</div></div>' +
+'<div class="kb-ip-actions"><button class="b" data-kbhs="manual">Указать точку</button><button class="g" data-kbhs="close">Понятно</button></div>';
+}
+return '<div class="kb-ip-head">' + ico + 'Геолокация: что значит значок</div>' +
+'<div class="kb-ip-status ' + (st.red ? 'bad' : 'ok') + '"><i></i>' + (st.red ? 'Сейчас красный — точке не доверяем' : 'Сейчас зелёный — точка в порядке') + '</div>' +
+'<div class="kb-ip-body">Значок в шапке показывает, доверяем ли мы вашей точке прямо сейчас: от неё считаются расстояния, «рядом с тобой» и маршрут.' +
+(st.red
+? '<div class="kb-ip-note amber"><b>' + r.title + '.</b> ' + r.text + '</div>'
+: '<div class="kb-ip-note">GPS ответил, точка в рабочей зоне юга — расстояния считаются от вас.</div>') +
+'<div class="kb-ip-note"><b>Если красный:</b> поставьте точку вручную — карта → чип «указать своё местоположение» → тап по карте. Или обновите GPS кнопкой ниже.</div></div>' +
+'<div class="kb-ip-actions"><button class="p" data-kbhs="gps">Обновить GPS</button><button class="b" data-kbhs="manual">Указать точку</button><button class="g" data-kbhs="close">Понятно</button></div>';
+}
+function showGeoPop(auto) {
+var btn = document.getElementById('slimGeo');
+if (!btn) return;
+if (auto && popEl && popEl.classList.contains('on')) return; // не перебиваем открытый попап
+openPop('geo', btn, geoPopHtml(auto), auto);
+}
+function anyModalOpen() {
+return ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack', 'reactBack', 'scoreBack', 'tgOfferBack', 'liteBack', 'kbTgWizBack', 'kbPrefsBack', 'slimNotifBack'].some(function (id) {
+var el = document.getElementById(id); return el && el.classList.contains('open');
+});
+}
+var lastGeoRed = null, lastAutoAt = 0, autoTries = 0;
+function maybeAutoGeo() {
+var r = geoReason();
+try {
+if (sessionStorage.getItem('kbGeoAuto_' + r.key)) return;
+if (Date.now() - lastAutoAt < 60000) return;
+} catch (e) {}
+if (anyModalOpen()) { if (autoTries++ < 5) setTimeout(maybeAutoGeo, 6000); return; }
+autoTries = 0;
+try { sessionStorage.setItem('kbGeoAuto_' + r.key, '1'); } catch (e) {}
+lastAutoAt = Date.now();
+showGeoPop(true);
+}
+function watchGeo() {
+var red = geoState().red;
+if (lastGeoRed === null) { lastGeoRed = red; if (red) maybeAutoGeo(); return; }
+if (red && !lastGeoRed) maybeAutoGeo();
+lastGeoRed = red;
+}
+
+// ---------- 3) капля: соединение + лайт-версия ----------
+function dropState() {
+var btn = document.getElementById('slimDrop');
+return { ok: !!(btn && btn.classList.contains('drop-ok')), err: !!(btn && btn.classList.contains('drop-err')) };
+}
+function dropPopHtml() {
+var st = dropState();
+var ico = '<span style="color:' + (st.err ? '#c2403f' : '#2465ee') + ';display:inline-flex">' + icon('i-drop', 'ic-s') + '</span>';
+var liteOn = false; try { liteOn = !!liteMode; } catch (e) {}
+return '<div class="kb-ip-head">' + ico + 'Соединение с сервером</div>' +
+'<div class="kb-ip-status ' + (st.err ? 'bad' : 'ok') + '"><i></i>' + (st.err ? 'Сервер не отвечает' : 'Соединение стабильное') + '</div>' +
+'<div class="kb-ip-body">Капля — связь сайта с базой данных КогдаБенз. Проверяем автоматически каждые 30 секунд; тап по капле — проверка прямо сейчас.' +
+(st.err
+? '<div class="kb-ip-note amber">Показываем последний снимок данных. Ваши отметки сохранятся и уйдут сами, когда связь вернётся.</div>'
+: '<div class="kb-ip-note">Отметки, прогнозы и цены доезжают без задержек — можно спокойно пользоваться.</div>') +
+'<div class="kb-ip-note"><b>⚡ Лайт-версия.</b> Для слабых устройств и медленного интернета. Скорость соединения определяется автоматически — при слабом сайте сайт сам предложит лайт: без карты и тяжёлых анимаций, но с данными, прогнозами и отметками.' +
+(liteOn ? ' Сейчас лайт включён.' : '') + '</div></div>' +
+'<div class="kb-ip-actions"><button class="p" data-kbhs="check">Проверить сейчас</button><button class="b" data-kbhs="lite">' + (liteOn ? 'Выключить лайт' : 'Включить лайт') + '</button><button class="g" data-kbhs="close">Понятно</button></div>';
+}
+function showDropPop() {
+var btn = document.getElementById('slimDrop');
+if (!btn) return;
+openPop('drop', btn, dropPopHtml(), false);
+}
+
+// ---------- действия ----------
+function handleAction(k) {
+if (k === 'close') { closePop(); return; }
+if (k === 'gps') { closePop(); try { findNearby(); } catch (e) {} return; }
+if (k === 'manual') {
+closePop();
+try { pagerGo(2); ensureMap(); if (!manualMode) toggleManualLoc(); } catch (e) {}
+return;
+}
+if (k === 'check') {
+try { checkServerHealth().then(function () { if (popKind === 'drop') showDropPop(); }); } catch (e) {}
+return;
+}
+if (k === 'lite') {
+try { liteSet(!liteMode); } catch (e) {}
+if (popKind === 'drop') showDropPop();
+return;
+}
+}
+
+// ---------- перехваты тапов по значкам + делегирование кнопок ----------
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+if (t.closest('#slimGeo')) { e.preventDefault(); e.stopImmediatePropagation(); showGeoPop(false); return; }
+if (t.closest('#slimDrop')) { e.preventDefault(); e.stopImmediatePropagation(); showDropPop(); return; }
+var a = t.closest('[data-kbhs]');
+if (a) { handleAction(a.getAttribute('data-kbhs')); return; }
+}, true);
+document.addEventListener('pointerdown', function (e) {
+if (!popEl || !popEl.classList.contains('on')) return;
+var t = e.target;
+if (t.closest && (t.closest('.kb-ip') || t.closest('#slimGeo') || t.closest('#slimDrop'))) return;
+closePop();
+}, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+
+// ---------- запуск ----------
+buildHints();
+setTimeout(watchGeo, 2500);
+setInterval(watchGeo, 3000);
+})();
+// ============================================================
+// KB HINTS ATTACH v3 — аккуратный воздух (без лишних дыр) + анимация
+// Отступы подобраны так, чтобы подсказки прилегали к своим 
+// элементам, но не слипались с ними.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbHintsAttach) return;
+window.__kbHintsAttach = 1;
+
+(function css() {
+if (document.getElementById('kbHintsAttachCss')) return;
+var s = document.createElement('style');
+s.id = 'kbHintsAttachCss';
+s.textContent =
+'#mnWrap{margin: 4px 0 6px !important;}' +
+// Анимация (10 секунд)
+'.kb-hint2{position:relative;z-index:4; animation: kbHintCycle 10s cubic-bezier(0.4, 0, 0.2, 1) infinite;}' +
+// Умеренные отступы (по 4-6px)
+'.kb-hint2.a{margin: 2px 12px 4px;}' +
+'.kb-hint2.b{margin: 4px 12px 6px;}' +
+'.kb-hint2::before{content:"";position:absolute;top:-5px;left:50%;width:10px;height:10px;' +
+'transform:translateX(-50%) rotate(45deg);background:#eef4ff;border-left:1px solid #dfe8f2;border-top:1px solid #dfe8f2;z-index:1;}' +
+'.kb-hint2-in{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;' +
+'padding:6px 10px;border:1px solid #dfe8f2;border-radius:10px;' +
+'background:linear-gradient(90deg,#eef4ff 0%,#f8fafd 55%,#eef4ff 100%);' +
+'color:#5b6b86;font-size:10px;font-weight:600;line-height:1.3;text-align:center;overflow:hidden;font-family:inherit;}' +
+'.kb-hint2-in .ic{width:12px;height:12px;flex:none;color:#2465ee;}' +
+'.kb-hint2-in b{color:#2465ee;font-weight:800;}' +
+'.kb-hint2-in::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;' +
+'background:linear-gradient(105deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.85) 45%,rgba(188,212,255,.5) 60%,rgba(255,255,255,0) 100%);' +
+'transform:translateX(-130%) skewX(-18deg);animation:kbHint2Shine 6s ease-in-out infinite;}' +
+'.kb-hint2.b .kb-hint2-in::after{animation-delay:3s;}' +
+'@keyframes kbHint2Shine{0%{transform:translateX(-130%) skewX(-18deg);opacity:0;}10%{opacity:1;}' +
+'42%{transform:translateX(260%) skewX(-18deg);opacity:0;}100%{transform:translateX(260%) skewX(-18deg);opacity:0;}}' +
+// Цикл исчезновения и появления
+'@keyframes kbHintCycle{' +
+'0%, 100% { opacity: 0; visibility: hidden; transform: translateY(-5px); }' +
+'10%, 90% { opacity: 1; visibility: visible; transform: translateY(0); }' +
+'}' +
+'body.kb-lite .kb-hint2-in::after{animation:none;opacity:0;}' +
+'@media (prefers-reduced-motion:reduce){.kb-hint2-in::after{animation:none;opacity:0;}.kb-hint2{animation:none;opacity:1;visibility:visible;transform:none;}}';
+document.head.appendChild(s);
+})();
+
+var ICO_ROTATE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/></svg>';
+var ICO_SWIPE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5"/><path d="M16 7l5 5-5 5"/></svg>';
+
+function build() {
+// старые «висящие» полосы убираем
+['kbHintA', 'kbHintB'].forEach(function (id) {
+var el = document.getElementById(id);
+if (el && el.parentNode) el.parentNode.removeChild(el);
+});
+if (document.getElementById('kbHint2A')) return;
+var mn = document.getElementById('mnWrap');
+if (!mn || !mn.parentNode) return;
+
+var a = document.createElement('div');
+a.id = 'kbHint2A'; a.className = 'kb-hint2 a';
+a.innerHTML = '<div class="kb-hint2-in">' + ICO_ROTATE + '<span>Карточку выше можно <b>крутить</b> — ведите пальцем вбок, внутри 4 сцены</span></div>';
+
+var b = document.createElement('div');
+b.id = 'kbHint2B'; b.className = 'kb-hint2 b';
+b.innerHTML = '<div class="kb-hint2-in">' + ICO_SWIPE + '<span>Панели можно <b>перелистывать</b> — свайп вбок или тап по вкладкам</span></div>';
+
+mn.parentNode.insertBefore(a, mn);            // над вкладками
+mn.parentNode.insertBefore(b, mn.nextSibling); // под вкладками
+}
+
+build();
+// если шапка/вкладки пересоберутся позже — держим подсказки на месте
+setTimeout(build, 800);
+})();
