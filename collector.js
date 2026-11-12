@@ -313,6 +313,8 @@ const HITS_RU = {
   open_station_card:   ['⛽', 'открывали карточку АЗС'],
   click_where_to_go:   ['🧭', 'жали «Куда ехать»'],
   route_built:         ['🛣️', 'построили маршрут'],
+  go_intent:           ['🚗', 'поехали («Поеду сюда»)'],
+  price_click:         ['💰', 'смотрели цену'],
   feedback_submit:     ['🙏', 'оставили отметку'],
   advice_reaction:     ['👍', 'реакция на совет'],
   advice_folk_vote:    ['🗳️', 'голос в советнике'],
@@ -331,10 +333,10 @@ const HITS_RU = {
   advisor_open:        ['🎯', 'показали советник'],
   top3_loaded:         ['📊', 'показали топ-3']
 };
-const HITS_ORDER = ['panel_view','open_station_card','click_where_to_go','route_built',
-  'feedback_submit','advice_reaction','advice_folk_vote','fav_add','fav_add_advice',
-  'fav_add_route_offer','tg_connect','tg_linked','pwa_install','share_tap',
-  'notif_granted','prefs_set','watch_window','near_nudge_show','feedback_undo',
+const HITS_ORDER = ['panel_view','open_station_card','click_where_to_go','go_intent',
+  'price_click','route_built','feedback_submit','advice_reaction','advice_folk_vote',
+  'fav_add','fav_add_advice','fav_add_route_offer','tg_connect','tg_linked','pwa_install',
+  'share_tap','notif_granted','prefs_set','watch_window','near_nudge_show','feedback_undo',
   'advisor_open','top3_loaded'];
 const HITS_SKIP = ['pageview','heartbeat','session_end','visibility_hidden','visibility_visible'];
 const HITS_CITY_RU = {
@@ -407,6 +409,9 @@ async function siteHitsDigest(nameById) {
       durs.sort((a, b) => a - b);
       lines.push('⏱ время на сайте (медиана): ' + hitsDur(durs[Math.floor(durs.length / 2)]));
     }
+    // глубина просмотра: карточек АЗС на одного водителя за цикл
+    var cardsN = cnt['open_station_card'] || 0;
+    if (sessions.size) lines.push('📚 глубина: ' + (Math.round(10 * cardsN / sessions.size) / 10) + ' карточек на водителя');
     const topCity = Object.keys(citySess).sort((a, b) => citySess[b].size - citySess[a].size).slice(0, 3);
     if (topCity.length) {
       lines.push('🏙 ' + topCity.map(k => (HITS_CITY_RU[k] || k) + ' ' + citySess[k].size).join(' · '));

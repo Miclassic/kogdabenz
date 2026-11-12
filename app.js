@@ -712,7 +712,7 @@ function adviceQueueText(id, o) {
   if (high && age != null) return 'очередь стоит ' + ageRu(age);
   if (high) return 'очередь сейчас';
   if (demandOf(id) >= 12) return 'очередь была недавно';
-  return 'очередей не видно';
+  return 'об очереди не сообщали';
 }
 // цена focus-топлива + дельта к городу (метрика объективности выбора)
 function adviceFocusFuel(it) {
@@ -2550,7 +2550,7 @@ const hasDt = (trust && obs && obs.diesel_status === true) || !!scene['diesel'] 
   const lq = liveQueueCount(station.id);
   const qAge = queueAgeMin(station.id);
   const qHigh = obs && obs.queue_level === 'high';
-  let qTxt = 'очередей не видно';
+  let qTxt = 'об очереди не сообщали';
   if (lq) qTxt = lq + ' вод. стоят сейчас';
   else if (qHigh && qAge !== null) qTxt = 'очередь стоит ' + ageRu(qAge);
   else if (qHigh) qTxt = 'на станции очередь';
@@ -2624,7 +2624,7 @@ vSub = (obs && obs.data_freshness_minutes !== null && obs.data_freshness_minutes
   if (lq) { qVal = 'Сейчас стоят'; qSub = lq + ' вод. в очереди'; qCls = 'r'; }
   else if (qHigh) { qVal = 'Высокая'; qSub = qAge !== null ? 'стоит ' + ageRu(qAge) : 'очередь сейчас'; qCls = 'r'; }
   else if (fw) { qCls = fw.confidence < 40 ? 'g' : fw.confidence < 65 ? 'y' : 'r'; qVal = fw.confidence < 40 ? 'Низкая' : fw.confidence < 65 ? 'Средняя' : 'Высокая'; qSub = 'окно ' + fw.window; }
-  else { qVal = 'Низкая'; qSub = 'очередей не видно'; qCls = 'g'; }
+  else { qVal = 'Низкая'; qSub = 'об очереди не сообщали'; qCls = 'g'; }
   let upVal = '—';
   if (obs && obs.timestamp) {
     const d = new Date(obs.timestamp); const now = new Date();
@@ -9642,7 +9642,7 @@ function lentiPolish() {
       freshTxt = 'данных источника давно нет';
     }
     var lq = liveQueueCount(stId);
-    var qTxt = lq ? lq + ' вод. в очереди' : (o && o.queue_level === 'high' ? 'очередь' : 'очередей не видно');
+    var qTxt = lq ? lq + ' вод. в очереди' : (o && o.queue_level === 'high' ? 'очередь' : 'об очереди не сообщали');
     var lines = [fuelTxt + (priceTxt ? ' · ' + priceTxt : ''), qTxt, freshTxt].filter(Boolean);
     var url = SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=station';
     var text = '⛽ ' + (st.name || 'АЗС') + (st.address ? ', ' + st.address : '') + ': ' + lines.join(' · ');
@@ -11101,4 +11101,278 @@ setTimeout(build, 800);
     '#adviceBack.open{z-index:200 !important;}' +
     '#advicePop.open{z-index:201 !important;}';
   document.head.appendChild(s);
+})();
+// ============================================================
+// KB GO INTENT v1 — «Поеду сюда»: молчаливый успех стал метрикой
+// 1) Главная кнопка советника — «Поеду сюда» (фиксирует go_intent)
+// 2) Маршрут — маленькая иконка (сценарий туриста, не главный)
+// 3) «~N мин» рядом с километрами (эвристика 25 км/ч, без внешних API)
+// 4) Подсказка «Тапни карточку — цены, очередь и свежесть»
+// 5) price_click: тап по цене в советнике и в карточке АЗС
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbGoIntent) return;
+window.__kbGoIntent = 1;
+
+(function css() {
+  var s = document.createElement('style');
+  s.id = 'kbGoIntentCss';
+  s.textContent =
+    '.adv-actions{align-items:stretch !important;}' +
+    '.adv-actions .kb-go-btn{flex:1.25 !important;background:linear-gradient(135deg,#2fd39a,#19b77a 55%,#12855c) !important;color:#fff !important;box-shadow:0 6px 16px rgba(25,183,122,.35) !important;font-weight:800 !important;}' +
+    '.adv-actions .kb-go-btn.done{background:linear-gradient(135deg,#12855c,#0e6b49) !important;box-shadow:none !important;}' +
+    '.kb-go-route{flex:0 0 40px !important;width:40px !important;min-width:40px !important;display:flex !important;align-items:center !important;justify-content:center !important;border:1px solid #dfe8f2 !important;border-radius:12px !important;background:#f2f4f7 !important;color:#2465ee !important;cursor:pointer !important;padding:0 !important;}' +
+    '.kb-go-route .ic{width:16px !important;height:16px !important;}' +
+    '.kb-go-eta{font-style:normal;font-weight:700;opacity:.75;margin-left:4px;white-space:nowrap;}' +
+    '.kb-go-hint{display:flex;align-items:center;gap:6px;margin:6px 2px 8px;padding:7px 10px;border-radius:10px;background:#eef4ff;border:1px solid #dfe8f2;color:#5b6b86;font-size:10.5px;font-weight:600;line-height:1.35;}' +
+    '.kb-go-hint .ic{width:13px;height:13px;flex:none;color:#2465ee;}' +
+    'body.kb-night .kb-go-hint{background:rgba(91,157,255,.08);border-color:rgba(148,180,255,.18);color:#93a0b8;}' +
+    'body.kb-night .kb-go-route{background:rgba(148,180,255,.08) !important;border-color:rgba(148,180,255,.18) !important;color:#9dc4ff !important;}' +
+    '.kb-go-toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,12px);z-index:300;max-width:calc(100vw - 32px);background:#12855c;color:#fff;border-radius:14px;padding:10px 16px;font-size:12.5px;font-weight:700;box-shadow:0 12px 32px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:.3s cubic-bezier(.2,.8,.2,1);text-align:center;}' +
+    '.kb-go-toast.on{opacity:1;transform:translate(-50%,0);}';
+  document.head.appendChild(s);
+})();
+
+function goToast(msg) {
+  var t = document.getElementById('kbGoToast');
+  if (!t) { t = document.createElement('div'); t.id = 'kbGoToast'; t.className = 'kb-go-toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function () { t.classList.remove('on'); }, 2600);
+}
+function goDone(id) { try { return !!sessionStorage.getItem('kbGo_' + id); } catch (e) { return false; } }
+function goMark(id) { try { sessionStorage.setItem('kbGo_' + id, String(Date.now())); } catch (e) {} }
+
+// главная кнопка: фиксируем намерение, не закрывая окно
+window.kbGoIntent = function (i) {
+  var it = adviceList[i];
+  if (!it) return;
+  if (goDone(it.st.id)) { goToast('Уже отмечено: «Поеду сюда» · ' + (it.st.name || 'АЗС')); return; }
+  goMark(it.st.id);
+  track('go_intent', null, it.st.id);
+  try { learnFromAction(it.st.id, 'advice_click'); rememberAdvice(); } catch (e) {}
+  var pop = document.getElementById('advicePop');
+  var card = pop && pop.querySelectorAll('.adv-card')[i];
+  var b = card && card.querySelector('.kb-go-btn');
+  if (b) { b.classList.add('done'); b.innerHTML = '✓ Поеду'; }
+  goToast('🚗 Решение отмечено: «Поеду сюда» · ' + (it.st.name || 'АЗС'));
+};
+
+function applyGo() {
+  var pop = document.getElementById('advicePop');
+  if (!pop || !pop.classList.contains('open')) return;
+
+  // подсказка один раз на окно
+  if (!pop.querySelector('.kb-go-hint')) {
+    var lead = pop.querySelector('.help-lead');
+    var h = document.createElement('div');
+    h.className = 'kb-go-hint';
+    h.innerHTML = icon('i-help', 'ic-s') + '<span>Тапни «Карточка» — цены, очередь и свежесть данных по АЗС.</span>';
+    if (lead && lead.parentNode) lead.parentNode.insertBefore(h, lead.nextSibling);
+  }
+
+  var cards = pop.querySelectorAll('.adv-card');
+  for (var i = 0; i < cards.length; i++) {
+    var it = adviceList[i];
+    if (!it) continue;
+    var card = cards[i];
+
+    // иерархия кнопок: Поеду сюда → Карточка → Слежу → маршрут-иконка
+    var act = card.querySelector('.adv-actions');
+    if (act && !act.dataset.kbgo) {
+      act.dataset.kbgo = '1';
+      var fav = isFavorite(it.st.id);
+      var done = goDone(it.st.id);
+      act.innerHTML =
+        '<button class="cta-btn kb-go-btn' + (done ? ' done' : '') + '" onclick="kbGoIntent(' + i + ')">' + (done ? '✓ Поеду' : 'Поеду сюда') + '</button>' +
+        '<button class="cta-btn ghost" onclick="adviceCard(' + i + ')">' + icon('i-pump', 'ic-s') + 'Карточка</button>' +
+        '<button class="cta-btn ghost' + (fav ? ' on' : '') + '" onclick="adviceWatch(' + i + ')">' + icon('i-heart', 'ic-s') + (fav ? 'Слежу' : 'Слежу') + '</button>' +
+        '<button class="kb-go-route" title="На карте + маршрут" aria-label="На карте + маршрут" onclick="adviceRoute(' + i + ')">' + icon('i-nav') + '</button>';
+    }
+
+    // «~N мин» рядом с км: городская эвристика 25 км/ч
+    if (it.km != null && !card.querySelector('.kb-go-eta')) {
+      var metas = card.querySelectorAll('.adv-meta');
+      for (var k = 0; k < metas.length; k++) {
+        var tx = (metas[k].textContent || '').trim();
+        if (/^[\d.,]+\s*(км|м)$/.test(tx)) {
+          var min = Math.max(2, Math.round(it.km * 2.4));
+          metas[k].insertAdjacentHTML('beforeend', '<i class="kb-go-eta">· ~' + min + ' мин</i>');
+          break;
+        }
+      }
+    }
+  }
+}
+
+// после каждой перерисовки советника (обёртка поверх всех паков)
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+  var ok = _rap();
+  if (ok) { try { applyGo(); } catch (e) { console.log('go intent: ' + e.message); } }
+  return ok;
+};
+
+// price_click: тап по цене в советнике и в карточке АЗС
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var pv = t.closest('.adv-price-v') || t.closest('.adv-facts .adv-meta');
+  if (pv && /₽/.test(pv.textContent || '')) {
+    var card = pv.closest('.adv-card');
+    if (card) {
+      var idx = [].indexOf.call(document.querySelectorAll('#advicePop .adv-card'), card);
+      var it = adviceList[idx];
+      if (it) track('price_click', null, it.st.id);
+    }
+    return;
+  }
+  var pr = t.closest('.pr-row');
+  if (pr) {
+    var fav = document.querySelector('#sheetBody .favorite');
+    var sid = fav && fav.getAttribute('data-station-id');
+    if (sid) track('price_click', null, sid);
+  }
+}, true);
+
+// если окно уже открыто в момент установки пака
+setTimeout(function () { try { applyGo(); } catch (e) {} }, 800);
+})();
+// ============================================================
+// KB OUR WHY v1 — «наш выбор» объясняет себя за 10 секунд
+// 1) Верхнее длинное описание советника (.help-lead) скрыто.
+// 2) В карточке «наш выбор» — золотая плашка-цитата ниже шапки:
+//    4 короткие строки «почему», только самое нужное водителю.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbOurWhy) return;
+window.__kbOurWhy = 1;
+
+(function css() {
+  var s = document.createElement('style');
+  s.id = 'kbOurWhyCss';
+  s.textContent =
+    '#advicePop .help-lead{display:none !important;}' +
+    '.kb-why-our{position:relative;display:flex;gap:10px;margin:10px 0 2px;padding:10px 12px;border-radius:14px;' +
+    'background:linear-gradient(135deg,#fff8e6,#fff3d6 55%,#ffedc2);border:1px solid #f3cf7a;' +
+    'box-shadow:0 4px 14px rgba(232,155,22,.18), inset 0 1px 0 rgba(255,255,255,.7);}' +
+    '.kb-why-our::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:99px;background:linear-gradient(180deg,#ffe08a,#f5b82e);}' +
+    '.kb-why-our-q{flex:0 0 auto;font-size:22px;line-height:1;color:#e89b16;font-family:Georgia,serif;}' +
+    '.kb-why-our-t{font-size:9px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#8a5a2b;margin-bottom:4px;}' +
+    '.kb-why-our ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;}' +
+    '.kb-why-our li{font-size:10.5px;line-height:1.35;font-style:italic;color:#5a3b00;font-weight:600;display:flex;gap:6px;align-items:flex-start;}' +
+    '.kb-why-our li b{font-weight:800;font-style:normal;color:#7a4d00;}' +
+    '.kb-why-our li .ic{width:12px;height:12px;flex:none;margin-top:1px;color:#e89b16;}' +
+    'body.kb-night .kb-why-our{background:linear-gradient(135deg,#2a2415,#241d10 55%,#1d170c);border-color:rgba(240,180,41,.45);box-shadow:0 4px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);}' +
+    'body.kb-night .kb-why-our-t{color:#f0b429;}' +
+    'body.kb-night .kb-why-our li{color:#e8d9b0;}' +
+    'body.kb-night .kb-why-our li b{color:#ffd56b;}' +
+    'body.kb-night .kb-why-our-q{color:#f0b429;}';
+  document.head.appendChild(s);
+})();
+
+function focusFuel(it) { try { return adviceFocusFuel(it); } catch (e) { return it.f === 'yes' ? '95' : it.f === 'part' ? '92' : 'diesel'; } }
+function fuelView(it, fl) { try { if (window.kbFuelView) return window.kbFuelView(it.st.id, it.o, fl); } catch (e) {} return null; }
+function folkYes(it, fl) { var s = adviceReactions[it.st.id]; return (s && s.folk_fuel && s.folk_fuel[fl]) ? (s.folk_fuel[fl].yes || 0) : 0; }
+function fmtKm(km) { return km < 1 ? Math.round(km * 1000) + ' м' : km.toFixed(1) + ' км'; }
+function eta(km) { return Math.max(2, Math.round(km * 2.4)); }
+function fmtMin(m) { return m < 60 ? m + ' мин' : Math.round(m / 60) + ' ч'; }
+function latestFolkMin(it, fl) {
+  var t = 0, since = Date.now() - 24 * 3600000;
+  for (var i = 0; i < allFeedback.length; i++) {
+    var f = allFeedback[i];
+    if (f.station_id !== it.st.id || f.fuel_type !== fl || f.feedback_type !== 'available') continue;
+    var x = new Date(f.created_at).getTime();
+    if (x >= since && x > t) t = x;
+  }
+  return t ? Math.max(0, Math.round((Date.now() - t) / 60000)) : null;
+}
+function priceInfo(it, fl) {
+  var col = fl === '92' ? 'price_92' : fl === '95' ? 'price_95' : 'price_diesel';
+  var ck = fl === '92' ? 'p92' : fl === '95' ? 'p95' : 'pdt';
+  var p = allLastPrice[it.st.id], v = p ? p[col] : null;
+  if (v == null) return null;
+  var cur = priceHourly.find(function (r) { return r[ck] != null; });
+  return { v: Number(v), d: cur ? Number(v) - Number(cur[ck]) : null };
+}
+function queueClear(it) {
+  try { return !liveQueueCount(it.st.id) && !(it.o && it.o.queue_level === 'high') && demandOf(it.st.id) < 12; } catch (e) { return false; }
+}
+
+function buildReasons(it) {
+  var R = [], fl = focusFuel(it), vw = fuelView(it, fl), votes = folkYes(it, fl);
+  if (it.kind === 'now') {
+    var src = vw ? vw.src : '';
+    var srcTxt = src === 'scene' ? 'с места' : src === 'source' ? 'источник' : src === 'folk' ? 'народ' : 'сейчас';
+    var t = 'Топливо <b>есть сейчас</b> · ' + srcTxt;
+    if (src === 'folk' && votes) t += ' (' + votes + ' подтв.)';
+    R.push({ ico: 'i-pump', txt: t });
+  }
+  if (it.km != null) {
+    var closest = adviceList.every(function (o) { return o === it || o.km == null || it.km <= o.km; });
+    R.push({ ico: 'i-pin', txt: (closest ? '<b>Ближе всех</b>: ' : 'Рядом: ') + fmtKm(it.km) + ' · ~' + eta(it.km) + ' мин' });
+  }
+  var sr = null;
+  try {
+    var sOrder = [fl, '95', '92', 'diesel'];
+    for (var si = 0; si < sOrder.length; si++) {
+      var cand = scoreRow(it.st.id, sOrder[si]);
+      if (cand && cand.evidence !== 'none' && cand.score != null) { sr = cand; break; }
+    }
+  } catch (e) {}
+  if (sr && sr.score >= 50) {
+    var sw = scWord(sr.score, sr.evidence)[0];
+    R.push({ ico: 'i-spark', txt: 'КогдаБенз Score <b>' + sr.score + '/100</b> · ' + sw.charAt(0).toLowerCase() + sw.slice(1) });
+  }
+  var pi = priceInfo(it, fl);
+  if (pi) {
+    if (pi.d != null && pi.d <= -0.05) R.push({ ico: 'i-rub', txt: '<b>Дешевле города</b> на ' + Math.abs(pi.d).toFixed(1) + '₽' });
+    else if (pi.d != null && Math.abs(pi.d) < 0.05) R.push({ ico: 'i-rub', txt: 'Цена в рынке: <b>' + pi.v.toFixed(1) + '₽</b>' });
+  }
+  if (queueClear(it)) R.push({ ico: 'i-queue', txt: '<b>Об очереди не сообщали</b>' });
+  var fm = latestFolkMin(it, fl);
+  if (fm != null && fm <= 180) R.push({ ico: 'i-clock', txt: 'Подтверждено <b>' + fmtMin(fm) + ' назад</b>' });
+  else { var sm = getFreshnessMin(it.o); if (sm != null && sm <= 360) R.push({ ico: 'i-clock', txt: 'Данные источника <b>свежие</b>' }); }
+  if (it.pred) {
+    var ws = adviceWinState(it.pred);
+    if (ws === 'open') R.push({ ico: 'i-clock', txt: 'Окно привоза <b>открыто</b>' });
+    else if (ws === 'soon') R.push({ ico: 'i-clock', txt: 'Окно привоза <b>скоро</b>' });
+  }
+  return R.slice(0, 4);
+}
+
+function addQuote() {
+  var pop = document.getElementById('advicePop');
+  if (!pop || !pop.classList.contains('open')) return;
+  var cards = pop.querySelectorAll('.adv-card');
+  for (var i = 0; i < cards.length; i++) {
+    var it = adviceList[i];
+    if (!it || !it.ourChoice) continue;
+    var card = cards[i];
+    if (card.querySelector('.kb-why-our')) continue;
+    var reasons = buildReasons(it);
+    if (!reasons.length) continue;
+    var el = document.createElement('div');
+    el.className = 'kb-why-our';
+    el.innerHTML = '<div class="kb-why-our-q">❝</div><div style="flex:1;min-width:0">' +
+      '<div class="kb-why-our-t">Почему «наш выбор»</div><ul>' +
+      reasons.map(function (r) { return '<li>' + icon(r.ico, 'ic-s') + '<span>' + r.txt + '</span></li>'; }).join('') +
+      '</ul></div>';
+    var grid = card.querySelector('.adv-fuelgrid');
+    if (grid) card.insertBefore(el, grid); else card.appendChild(el);
+  }
+}
+
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+  var ok = _rap();
+  if (ok) { try { addQuote(); } catch (e) { console.log('our why: ' + e.message); } }
+  return ok;
+};
+setTimeout(addQuote, 600);
 })();
