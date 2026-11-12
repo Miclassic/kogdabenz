@@ -2,1825 +2,596 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>КогдаБенз — Аналитика</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg0: #0b0d12;
-    --bg1: #12161f;
-    --bg2: #181d29;
-    --card: #151a24;
-    --card2: #1b2130;
-    --line: rgba(255,255,255,.06);
-    --line2: rgba(255,255,255,.10);
-    --ink: #eef2f8;
-    --muted: #8b93a7;
-    --muted2: #b4bccf;
-    --accent: #f5a524;
-    --accent2: #ffc857;
-    --cyan: #3ddea8;
-    --blue: #5b8cff;
-    --pink: #ff6b9d;
-    --red: #ff5c5c;
-    --green: #3ddea8;
-    --orange: #f5a524;
-    --purple: #8b7cf7;
-    --r: 20px;
-    --shadow: 0 12px 40px rgba(0,0,0,.35);
-    --p1: rgba(91,140,255,.12);
-    --p2: rgba(245,165,36,.12);
-    --p3: rgba(61,222,168,.10);
-    --p4: rgba(139,124,247,.12);
-  }
-
-  html, body { height: 100%; margin: 0; }
-  body {
-    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg0);
-    color: var(--ink);
-    line-height: 1.45;
-    -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  body::before {
-    content: '';
-    position: fixed; inset: 0; pointer-events: none; z-index: 0;
-    background:
-      radial-gradient(900px 500px at 10% -10%, rgba(245,165,36,.14), transparent 55%),
-      radial-gradient(700px 420px at 100% 0%, rgba(91,140,255,.12), transparent 50%),
-      radial-gradient(600px 400px at 50% 100%, rgba(61,222,168,.08), transparent 45%);
-  }
-
-  .val, .tbl td, .bar-val, .tf-num, .score-val, .utility-score b, .emo-cnt, .f-step-val b { font-variant-numeric: tabular-nums; }
-
-  .app {
-    min-height: 100vh; min-height: 100dvh;
-    display: flex; flex-direction: column;
-    position: relative; z-index: 1;
-    padding-bottom: calc(110px + env(safe-area-inset-bottom, 0px));
-  }
-
-  /* === ШАПКА === */
-  .topbar {
-    flex: none; display: flex; align-items: center; gap: 10px;
-    padding: 12px 14px 10px; flex-wrap: wrap;
-    position: sticky; top: 0; z-index: 20;
-    background: rgba(11,13,18,.82);
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid var(--line);
-  }
-  .logo {
-    width: 42px; height: 42px; border-radius: 14px;
-    background: linear-gradient(135deg, #f5a524, #ff7a3d);
-    color: #1a1205; display: grid; place-items: center; font-size: 20px; flex-shrink: 0;
-    box-shadow: 0 8px 22px rgba(245,165,36,.35);
-  }
-  .t-title { font-size: 17px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.15; }
-  .t-title span { color: var(--muted); font-weight: 700; }
-  .t-sub { font-size: 11px; color: var(--muted); font-weight: 600; }
-  .spacer { flex: 1; }
-  .report-btn {
-    border: 0; border-radius: 14px; padding: 10px 14px;
-    background: linear-gradient(135deg, #f5a524, #ffc857);
-    color: #1a1205; font-size: 12px; font-weight: 800; cursor: pointer; font-family: inherit;
-    box-shadow: 0 8px 20px rgba(245,165,36,.28); white-space: nowrap;
-  }
-  .report-btn:active { transform: scale(.97); }
-  .badge-upd {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: var(--card2); border: 1px solid var(--line2);
-    border-radius: 999px; padding: 8px 12px; font-size: 10px; font-weight: 700; color: var(--muted2);
-    white-space: nowrap;
-  }
-  .badge-upd::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 3px rgba(61,222,168,.18); }
-  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
-
-  /* === ЭКРАНЫ === */
-  .screen-area {
-    flex: 1 1 auto;
-    width: 100%; max-width: 720px; margin: 0 auto;
-    padding: 10px 12px 28px;
-    overflow-x: hidden;
-  }
-  .screen { display: none; }
-  .screen.active { display: block; }
-  .screen-inner { transform: none !important; width: 100% !important; max-width: 100%; }
-
-  .scr-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 2px 2px 14px; }
-  .scr-title { font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
-  .scr-sub { width: 100%; order: 3; font-size: 11px; color: var(--muted); font-weight: 600; }
-  .scr-emo { margin-left: auto; font-size: 28px; opacity: .9; filter: saturate(1.1); }
-
-  /* === ТАББАР === */
-  .tabbar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-    display: flex; justify-content: center;
-    padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px));
-    pointer-events: none;
-    background: linear-gradient(to top, rgba(11,13,18,.96) 55%, rgba(11,13,18,0));
-  }
-  .tabbar-in {
-    pointer-events: auto;
-    display: flex; width: 100%; max-width: 520px;
-    background: #0f131b; border: 1px solid var(--line2);
-    border-radius: 22px; padding: 5px;
-    box-shadow: 0 16px 40px rgba(0,0,0,.45);
-  }
-  .tab {
-    flex: 1 1 0; min-width: 0; border: 0; background: transparent; color: #7f879a;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 8px 1px; border-radius: 16px; cursor: pointer;
-    font-family: inherit; font-weight: 800; font-size: 9px;
-    white-space: nowrap; overflow: hidden;
-  }
-  .tab .ti { font-size: 16px; line-height: 1; }
-  .tab.active {
-    background: linear-gradient(180deg, rgba(245,165,36,.18), rgba(245,165,36,.08));
-    color: var(--accent2);
-    box-shadow: inset 0 0 0 1px rgba(245,165,36,.25);
-  }
-
-  /* === КАРТОЧКИ === */
-  .card {
-    background: linear-gradient(180deg, var(--card2), var(--card));
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    box-shadow: var(--shadow);
-    padding: 14px;
-    min-width: 0; max-width: 100%;
-    overflow: hidden;
-  }
-  .card h3 {
-    margin: 0 0 12px; font-size: 13px; font-weight: 800; letter-spacing: -0.1px;
-    display: flex; align-items: center; gap: 8px; color: var(--ink);
-  }
-  .hicon {
-    width: 28px; height: 28px; border-radius: 10px;
-    background: rgba(245,165,36,.12); color: var(--accent);
-    display: grid; place-items: center; font-size: 14px; flex: none;
-  }
-  .hchip { margin-left: auto; font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: .3px; }
-  .grid { display: grid; gap: 12px; align-content: start; }
-  .col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-
-  .g-summary { grid-template-columns: 1fr; grid-template-areas: "verdict" "kpi" "marks" "traffic"; }
-  .g-summary #verdict-container { grid-area: verdict; }
-  .g-summary .kpi-grid { grid-area: kpi; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .g-summary .traffic-card { grid-area: traffic; }
-  .g-summary .marks-strip { grid-area: marks; }
-  .g-adv, .g-react, .g-traf, .g-aud, .g-ver, .qgrid { grid-template-columns: 1fr; }
-  .g-traf .span3, .g-aud .span2, .g-ver .tiles4, .g-ver .span2 { grid-column: auto; }
-
-  /* === ПЛИТКИ === */
-  .kpi, .tile {
-    background: rgba(255,255,255,.03);
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    padding: 12px;
-    display: flex; flex-direction: column; gap: 4px;
-    min-width: 0;
-  }
-  .tile.p1, .kpi.p1 { background: var(--p1); border-color: rgba(91,140,255,.18); }
-  .tile.p2, .kpi.p2 { background: var(--p2); border-color: rgba(245,165,36,.18); }
-  .tile.p3, .kpi.p3 { background: var(--p3); border-color: rgba(61,222,168,.16); }
-  .tile.p4, .kpi.p4 { background: var(--p4); border-color: rgba(139,124,247,.18); }
-  .t-ico { font-size: 16px; line-height: 1; }
-  .lbl { font-size: 10px; font-weight: 800; letter-spacing: .35px; text-transform: uppercase; color: var(--muted); }
-  .val { font-size: 22px; font-weight: 800; letter-spacing: -0.6px; line-height: 1.1; color: var(--ink); }
-  .sub { font-size: 10.5px; color: var(--muted); font-weight: 600; }
-  .chip { align-self: flex-start; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 8px; }
-  .chip.pos { background: rgba(61,222,168,.14); color: #7dffc8; }
-  .chip.neg { background: rgba(255,92,92,.14); color: #ff9b9b; }
-  .chip.neu { background: rgba(255,255,255,.06); color: var(--muted2); }
-  .tiles { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
-  .tiles.t2 { grid-template-columns: 1fr 1fr; }
-  .tiles.t3, .tiles.t4 { grid-template-columns: 1fr 1fr; }
-
-  /* === ВЕРДИКТ === */
-  .verdict-card { position: relative; overflow: hidden; }
-  .verdict-card::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: linear-gradient(180deg, var(--accent), var(--cyan));
-  }
-  .verdict-card.good::before { background: var(--cyan); }
-  .verdict-card.warn::before { background: var(--accent); }
-  .verdict-card.bad::before { background: var(--red); }
-  .verdict-panel { display: grid; grid-template-columns: 1fr; gap: 14px; justify-items: center; text-align: center; }
-  .verdict-lists { width: 100%; text-align: left; }
-  .score-ring {
-    width: 100px; height: 100px; border-radius: 50%;
-    background: conic-gradient(var(--accent) var(--score-deg, 70%), rgba(255,255,255,.08) 0);
-    display: grid; place-items: center; position: relative; margin: 0 auto;
-  }
-  .verdict-card.good .score-ring { background: conic-gradient(var(--cyan) var(--score-deg, 70%), rgba(255,255,255,.08) 0); }
-  .verdict-card.warn .score-ring { background: conic-gradient(var(--accent) var(--score-deg, 70%), rgba(255,255,255,.08) 0); }
-  .verdict-card.bad .score-ring { background: conic-gradient(var(--red) var(--score-deg, 70%), rgba(255,255,255,.08) 0); }
-  .score-ring::before { content: ''; position: absolute; inset: 9px; background: var(--card); border-radius: 50%; border: 1px solid var(--line); }
-  .score-val { position: relative; font-size: 26px; font-weight: 800; letter-spacing: -1px; }
-  .score-val small { font-size: 11px; color: var(--muted); font-weight: 800; }
-  .score-label { margin-top: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
-  .verdict-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .v-list-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin-bottom: 8px; }
-  .v-list-col ul { list-style: none; display: flex; flex-direction: column; gap: 6px; padding: 0; margin: 0; }
-  .v-list-col li { font-size: 12px; font-weight: 650; color: var(--muted2); display: flex; gap: 7px; line-height: 1.35; }
-  .v-list-col li::before { content: '•'; font-size: 16px; line-height: 1; }
-  .v-good li::before { color: var(--cyan); }
-  .v-bad li::before { color: var(--red); }
-
-  /* === ТРАФИК === */
-  .tf-headrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .tf-headrow h3 { margin: 0; }
-  .tf-tabs { display: flex; gap: 2px; background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
-  .tf-tab {
-    border: 0; background: transparent; border-radius: 9px; padding: 5px 12px;
-    font-size: 11px; font-weight: 800; color: var(--muted); cursor: pointer; font-family: inherit;
-  }
-  .tf-tab.active { background: rgba(245,165,36,.16); color: var(--accent2); }
-  .tf-head { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 4px; flex-wrap: wrap; }
-  .tf-num { font-size: 24px; font-weight: 800; letter-spacing: -0.6px; }
-  .tf-num small { font-size: 11px; color: var(--muted); font-weight: 700; margin-left: 6px; }
-  .tf-badge { font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 8px; }
-  .tf-badge.up { background: rgba(61,222,168,.14); color: #7dffc8; }
-  .tf-badge.down { background: rgba(255,92,92,.14); color: #ff9b9b; }
-  .tf-badge.neutral { background: rgba(255,255,255,.06); color: var(--muted2); }
-  .chart-wrap { height: 160px; max-width: 100%; overflow: hidden; }
-  .tf-svg { display: block; width: 100%; max-width: 100%; }
-
-  /* === БАРЫ === */
-  .bars { display: flex; flex-direction: column; gap: 9px; max-width: 100%; }
-  .bar-row { display: grid; grid-template-columns: minmax(72px, 32%) 1fr 48px; gap: 8px; align-items: center; min-width: 0; }
-  .bar-lbl { font-size: 11px; font-weight: 700; color: var(--muted2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-  .bar-track { height: 8px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; min-width: 0; }
-  .bar-fill { height: 100%; border-radius: 99px; transition: width .6s cubic-bezier(.4,0,.2,1); }
-  .f-primary { background: linear-gradient(90deg, #5b8cff, #8b7cf7); }
-  .f-success { background: linear-gradient(90deg, #1faa78, #3ddea8); }
-  .f-warning { background: linear-gradient(90deg, #d4890f, #f5a524); }
-  .f-danger { background: linear-gradient(90deg, #d64545, #ff5c5c); }
-  .f-purple { background: linear-gradient(90deg, #6d5fd4, #8b7cf7); }
-  .bar-val { font-size: 11px; font-weight: 800; text-align: right; color: var(--ink); }
-  .bar-val small { color: var(--muted); font-size: 10px; font-weight: 700; }
-
-  /* === СОВЕТНИК === */
-  .utility-card {
-    background: linear-gradient(145deg, #2a2214 0%, #1a160e 40%, #12141c 100%);
-    border: 1px solid rgba(245,165,36,.22);
-    color: #fff;
-    box-shadow: 0 16px 40px rgba(245,165,36,.12);
-  }
-  .utility-card h3 { color: #fff; }
-  .utility-card .hicon { background: rgba(245,165,36,.16); color: var(--accent2); }
-  .u-head { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .3px; text-transform: uppercase; opacity: .95; flex-wrap: wrap; }
-  .u-badge { padding: 3px 8px; background: rgba(245,165,36,.18); border-radius: 8px; font-size: 10px; color: var(--accent2); }
-  .u-ring-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin: 14px 0; }
-  .utility-ring { width: 112px; height: 112px; position: relative; flex-shrink: 0; }
-  .utility-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-  .utility-ring .track { fill: none; stroke: rgba(255,255,255,.12); stroke-width: 8; }
-  .utility-ring .fill { fill: none; stroke: var(--accent); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 377; stroke-dashoffset: 377; transition: stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1); }
-  .utility-score { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .utility-score b { font-size: 30px; font-weight: 800; letter-spacing: -1px; line-height: 1; }
-  .utility-score small { font-size: 10px; font-weight: 700; opacity: .8; margin-top: 3px; }
-  .utility-word { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; }
-  .utility-desc { font-size: 12px; font-weight: 650; opacity: .85; margin-top: 6px; line-height: 1.4; }
-  .ub-grid { display: grid; grid-template-columns: 1fr; gap: 12px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.08); }
-  .ub-item { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
-  .ub-bar { height: 4px; background: rgba(255,255,255,.1); border-radius: 99px; overflow: hidden; }
-  .ub-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 99px; }
-  .ub-val { font-size: 10.5px; font-weight: 800; display: flex; justify-content: space-between; gap: 6px; }
-  .ub-val small { opacity: .7; font-weight: 700; }
-  .fsteps { display: flex; flex-direction: column; gap: 12px; }
-  .f-step { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; }
-  .f-step-num {
-    width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center;
-    background: rgba(245,165,36,.12); color: var(--accent); font-size: 12px; font-weight: 800;
-  }
-  .f-step-name { font-size: 12px; font-weight: 800; }
-  .f-step-bar { height: 6px; background: rgba(255,255,255,.06); border-radius: 99px; overflow: hidden; }
-  .f-step-bar > div { height: 100%; border-radius: 99px; background: linear-gradient(90deg, #5b8cff, #8b7cf7); }
-  .f-step-val { font-size: 12px; font-weight: 800; text-align: right; min-width: 52px; line-height: 1.25; }
-  .f-step-val b { display: block; color: var(--ink); }
-  .f-step-val small { display: block; color: var(--muted); font-size: 10px; font-weight: 700; }
-
-  /* === ТАБЛИЦЫ: горизонтальный скролл внутри, не вылезают за экран === */
-  .tbl-wrap { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -2px; padding-bottom: 4px; }
-  .tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; min-width: 420px; }
-  .tbl th {
-    text-align: left; font-size: 10px; font-weight: 800; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .3px; padding: 8px 8px; border-bottom: 1px solid var(--line2);
-    white-space: nowrap;
-  }
-  .tbl td { padding: 9px 8px; border-bottom: 1px solid var(--line); color: var(--muted2); font-weight: 700; white-space: nowrap; }
-  .tbl tr:last-child td { border-bottom: 0; }
-
-  /* === HEATMAP: скролл по X === */
-  .heatmap-wrap { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
-  .heatmap {
-    border-collapse: collapse; font-size: 9px;
-    width: max-content; max-width: none;
-  }
-  .heatmap th, .heatmap td { padding: 2px; border: 0; text-align: center; color: var(--muted); font-weight: 800; }
-  .heatmap .hour-label { font-weight: 800; color: var(--muted); }
-  .heatmap .day-label { font-weight: 800; color: var(--muted2); text-align: left; padding-right: 6px; font-size: 10px; }
-  .heat-cell { width: 14px; height: 14px; border-radius: 4px; display: block; background: rgba(255,255,255,.04); }
-
-  /* === ОПРОСЫ === */
-  .q-title { font-size: 12.5px; font-weight: 800; margin-bottom: 10px; color: var(--ink); }
-  .note {
-    margin-top: 10px; padding: 10px 12px;
-    background: rgba(91,140,255,.08); border-left: 3px solid var(--blue);
-    border-radius: 0 12px 12px 0; font-size: 11px; color: var(--muted2); font-weight: 650; line-height: 1.45;
-  }
-  .fav-card .note { background: rgba(61,222,168,.08); border-left-color: var(--cyan); }
-  .err { padding: 14px; background: rgba(255,92,92,.1); border: 1px solid rgba(255,92,92,.25); border-radius: 14px; color: #ff9b9b; font-weight: 800; font-size: 12px; }
-  .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: var(--muted); font-size: 13px; font-weight: 700; }
-  .spinner { width: 22px; height: 22px; border: 3px solid rgba(255,255,255,.08); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; margin-right: 10px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .empty { text-align: center; padding: 24px; color: var(--muted); font-size: 12px; font-weight: 700; }
-  .subhead { margin: 14px 0 8px; font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
-
-  @media (min-width: 720px) {
-    .screen-area { padding: 14px 16px 24px; max-width: 840px; }
-    .g-summary { grid-template-columns: 1.1fr 0.9fr; grid-template-areas: "verdict kpi" "marks marks" "traffic traffic"; }
-    .verdict-panel { grid-template-columns: 118px 1fr; text-align: left; justify-items: stretch; }
-    .g-adv, .g-react { grid-template-columns: 1fr 1fr; }
-    .tiles.t4 { grid-template-columns: repeat(4, 1fr); }
-    .ub-grid { grid-template-columns: 1fr 1fr; }
-    .u-ring-wrap { flex-direction: row; align-items: center; }
-  }
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg0:#0b0d12;--bg1:#12161f;--card:#151a24;--card2:#1b2130;
+--line:rgba(255,255,255,.06);--line2:rgba(255,255,255,.10);
+--ink:#eef2f8;--muted:#8b93a7;--muted2:#b4bccf;
+--accent:#f5a524;--accent2:#ffc857;--cyan:#3ddea8;--blue:#5b8cff;
+--pink:#ff6b9d;--red:#ff5c5c;--green:#3ddea8;--orange:#f5a524;--purple:#8b7cf7;
+--r:20px;--shadow:0 12px 40px rgba(0,0,0,.35);
+--p1:rgba(91,140,255,.12);--p2:rgba(245,165,36,.12);--p3:rgba(61,222,168,.10);--p4:rgba(139,124,247,.12);
+}
+html,body{height:100%}
+body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg0);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 500px at 10% -10%,rgba(245,165,36,.14),transparent 55%),radial-gradient(700px 420px at 100% 0%,rgba(91,140,255,.12),transparent 50%),radial-gradient(600px 400px at 50% 100%,rgba(61,222,168,.08),transparent 45%)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:9px}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#f5a524,#c77f0a);border-radius:9px;border:2px solid var(--bg0)}
+::-webkit-scrollbar-thumb:hover{background:#ffc857}
+*{scrollbar-width:thin;scrollbar-color:#c77f0a rgba(255,255,255,.04)}
+.val,.tbl td,.bar-val,.tf-num,.score-val,.utility-score b,.emo-cnt,.f-step-val b{font-variant-numeric:tabular-nums}
+.app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;position:relative;z-index:1;padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
+.topbar{flex:none;display:flex;align-items:center;gap:10px;padding:12px 14px 10px;flex-wrap:wrap;position:sticky;top:0;z-index:20;background:rgba(11,13,18,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#f5a524,#ff7a3d);color:#1a1205;display:grid;place-items:center;font-size:20px;flex-shrink:0;box-shadow:0 8px 22px rgba(245,165,36,.35)}
+.t-title{font-size:17px;font-weight:800;letter-spacing:-.4px;line-height:1.15}
+.t-title span{color:var(--muted);font-weight:700}
+.t-sub{font-size:11px;color:var(--muted);font-weight:600}
+.spacer{flex:1}
+.report-btn{border:0;border-radius:14px;padding:10px 14px;background:linear-gradient(135deg,#f5a524,#ffc857);color:#1a1205;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 20px rgba(245,165,36,.28);white-space:nowrap;transition:transform .15s}
+.report-btn:active{transform:scale(.97)}
+.badge-upd{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line2);border-radius:999px;padding:8px 12px;font-size:10px;font-weight:700;color:var(--muted2);white-space:nowrap}
+.badge-upd::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 3px rgba(61,222,168,.18);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.screen-area{flex:1 1 auto;width:100%;max-width:720px;margin:0 auto;padding:10px 12px 28px;overflow-x:hidden}
+.screen{display:none}
+.screen.active{display:block}
+.screen.active .card,.screen.active .kpi,.screen.active .tile{animation:rise .45s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.scr-head{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:2px 2px 14px}
+.scr-title{font-size:18px;font-weight:800;letter-spacing:-.4px}
+.scr-sub{width:100%;order:3;font-size:11px;color:var(--muted);font-weight:600}
+.scr-emo{margin-left:auto;font-size:28px;opacity:.9}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));pointer-events:none;background:linear-gradient(to top,rgba(11,13,18,.96) 55%,rgba(11,13,18,0))}
+.tabbar-in{pointer-events:auto;display:flex;width:100%;max-width:560px;background:#0f131b;border:1px solid var(--line2);border-radius:22px;padding:5px;box-shadow:0 16px 40px rgba(0,0,0,.45);overflow-x:auto}
+.tab{flex:1 0 auto;min-width:52px;border:0;background:transparent;color:#7f879a;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:16px;cursor:pointer;font-family:inherit;font-weight:800;font-size:9px;white-space:nowrap;transition:color .2s,background .2s}
+.tab .ti{font-size:16px;line-height:1}
+.tab.active{background:linear-gradient(180deg,rgba(245,165,36,.18),rgba(245,165,36,.08));color:var(--accent2);box-shadow:inset 0 0 0 1px rgba(245,165,36,.25)}
+.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;min-width:0;max-width:100%;overflow:hidden}
+.card h3{margin:0 0 12px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;color:var(--ink)}
+.hicon{width:28px;height:28px;border-radius:10px;background:rgba(245,165,36,.12);color:var(--accent);display:grid;place-items:center;font-size:14px;flex:none}
+.hchip{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.3px}
+.grid{display:grid;gap:12px;align-content:start}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.g-summary{grid-template-columns:1fr;grid-template-areas:"verdict" "kpi" "marks" "traffic"}
+.g-summary #verdict-container{grid-area:verdict}
+.g-summary .kpi-grid{grid-area:kpi;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g-summary .traffic-card{grid-area:traffic}
+.g-summary .marks-strip{grid-area:marks}
+.g-adv,.g-react,.g-traf,.g-aud,.g-ver,.qgrid{grid-template-columns:1fr}
+.kpi,.tile{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.tile.p1,.kpi.p1{background:var(--p1);border-color:rgba(91,140,255,.18)}
+.tile.p2,.kpi.p2{background:var(--p2);border-color:rgba(245,165,36,.18)}
+.tile.p3,.kpi.p3{background:var(--p3);border-color:rgba(61,222,168,.16)}
+.tile.p4,.kpi.p4{background:var(--p4);border-color:rgba(139,124,247,.18)}
+.t-ico{font-size:16px;line-height:1}
+.lbl{font-size:10px;font-weight:800;letter-spacing:.35px;text-transform:uppercase;color:var(--muted)}
+.val{font-size:22px;font-weight:800;letter-spacing:-.6px;line-height:1.1;color:var(--ink)}
+.sub{font-size:10.5px;color:var(--muted);font-weight:600}
+.chip{align-self:flex-start;font-size:10px;font-weight:800;padding:3px 8px;border-radius:8px}
+.chip.pos{background:rgba(61,222,168,.14);color:#7dffc8}
+.chip.neg{background:rgba(255,92,92,.14);color:#ff9b9b}
+.chip.neu{background:rgba(255,255,255,.06);color:var(--muted2)}
+.tiles{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.tiles.t3,.tiles.t4{grid-template-columns:1fr 1fr}
+.verdict-card{position:relative;overflow:hidden}
+.verdict-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent),var(--cyan))}
+.verdict-card.good::before{background:var(--cyan)}
+.verdict-card.warn::before{background:var(--accent)}
+.verdict-card.bad::before{background:var(--red)}
+.verdict-panel{display:grid;grid-template-columns:1fr;gap:14px;justify-items:center;text-align:center}
+.score-ring{width:100px;height:100px;border-radius:50%;background:conic-gradient(var(--accent) var(--score-deg,70%),rgba(255,255,255,.08) 0);display:grid;place-items:center;position:relative;margin:0 auto}
+.verdict-card.good .score-ring{background:conic-gradient(var(--cyan) var(--score-deg,70%),rgba(255,255,255,.08) 0)}
+.verdict-card.bad .score-ring{background:conic-gradient(var(--red) var(--score-deg,70%),rgba(255,255,255,.08) 0)}
+.score-ring::before{content:'';position:absolute;inset:9px;background:var(--card);border-radius:50%;border:1px solid var(--line)}
+.score-val{position:relative;font-size:26px;font-weight:800;letter-spacing:-1px}
+.score-val small{font-size:11px;color:var(--muted);font-weight:800}
+.score-label{margin-top:8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.verdict-lists{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:left}
+.v-list-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:8px}
+.v-list-col ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.v-list-col li{font-size:12px;font-weight:650;color:var(--muted2);display:flex;gap:7px;line-height:1.35}
+.v-list-col li::before{content:'•';font-size:16px;line-height:1}
+.v-good li::before{color:var(--cyan)}
+.v-bad li::before{color:var(--red)}
+.tf-headrow{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tf-headrow h3{margin:0}
+.tf-tabs{display:flex;gap:2px;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:3px}
+.tf-tab{border:0;background:transparent;border-radius:9px;padding:5px 12px;font-size:11px;font-weight:800;color:var(--muted);cursor:pointer;font-family:inherit}
+.tf-tab.active{background:rgba(245,165,36,.16);color:var(--accent2)}
+.tf-head{display:flex;align-items:baseline;gap:10px;margin:8px 0 4px;flex-wrap:wrap}
+.tf-num{font-size:24px;font-weight:800;letter-spacing:-.6px}
+.tf-num small{font-size:11px;color:var(--muted);font-weight:700;margin-left:6px}
+.tf-badge{font-size:10px;font-weight:800;padding:4px 10px;border-radius:8px}
+.tf-badge.up{background:rgba(61,222,168,.14);color:#7dffc8}
+.tf-badge.down{background:rgba(255,92,92,.14);color:#ff9b9b}
+.tf-badge.neutral{background:rgba(255,255,255,.06);color:var(--muted2)}
+.chart-wrap{height:160px;max-width:100%;overflow:hidden}
+.tf-svg{display:block;width:100%;max-width:100%}
+.bars{display:flex;flex-direction:column;gap:9px;max-width:100%}
+.bar-row{display:grid;grid-template-columns:minmax(72px,32%) 1fr 48px;gap:8px;align-items:center;min-width:0}
+.bar-lbl{font-size:11px;font-weight:700;color:var(--muted2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.bar-track{height:8px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;min-width:0}
+.bar-fill{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.f-primary{background:linear-gradient(90deg,#5b8cff,#8b7cf7)}
+.f-success{background:linear-gradient(90deg,#1faa78,#3ddea8)}
+.f-warning{background:linear-gradient(90deg,#d4890f,#f5a524)}
+.f-danger{background:linear-gradient(90deg,#d64545,#ff5c5c)}
+.f-purple{background:linear-gradient(90deg,#6d5fd4,#8b7cf7)}
+.bar-val{font-size:11px;font-weight:800;text-align:right;color:var(--ink)}
+.bar-val small{color:var(--muted);font-size:10px;font-weight:700}
+.utility-card{background:linear-gradient(145deg,#2a2214 0%,#1a160e 40%,#12141c 100%);border:1px solid rgba(245,165,36,.22);color:#fff;box-shadow:0 16px 40px rgba(245,165,36,.12)}
+.utility-card h3{color:#fff}
+.u-head{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;flex-wrap:wrap}
+.u-badge{padding:3px 8px;background:rgba(245,165,36,.18);border-radius:8px;font-size:10px;color:var(--accent2)}
+.u-ring-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:14px 0}
+.utility-ring{width:112px;height:112px;position:relative;flex-shrink:0}
+.utility-ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.utility-ring .track{fill:none;stroke:rgba(255,255,255,.12);stroke-width:8}
+.utility-ring .fill{fill:none;stroke:var(--accent);stroke-width:8;stroke-linecap:round;stroke-dasharray:377;stroke-dashoffset:377;transition:stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)}
+.utility-score{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.utility-score b{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1}
+.utility-score small{font-size:10px;font-weight:700;opacity:.8;margin-top:3px}
+.utility-word{font-size:16px;font-weight:800}
+.utility-desc{font-size:12px;font-weight:650;opacity:.85;margin-top:6px;line-height:1.4}
+.ub-grid{display:grid;grid-template-columns:1fr;gap:12px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}
+.ub-item{display:flex;flex-direction:column;gap:5px;min-width:0}
+.ub-bar{height:4px;background:rgba(255,255,255,.1);border-radius:99px;overflow:hidden}
+.ub-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px}
+.ub-val{font-size:10.5px;font-weight:800;display:flex;justify-content:space-between;gap:6px}
+.ub-val small{opacity:.7;font-weight:700}
+.fsteps{display:flex;flex-direction:column;gap:12px}
+.f-step{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center}
+.f-step-num{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:rgba(245,165,36,.12);color:var(--accent);font-size:12px;font-weight:800}
+.f-step-name{font-size:12px;font-weight:800}
+.f-step-bar{height:6px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden}
+.f-step-bar span,.f-step-bar>div{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#5b8cff,#8b7cf7)}
+.f-step-val{font-size:12px;font-weight:800;text-align:right;min-width:52px;line-height:1.25}
+.f-step-val b{display:block;color:var(--ink)}
+.f-step-val small{display:block;color:var(--muted);font-size:10px;font-weight:700}
+.emo-tile{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:16px;padding:14px 10px;text-align:center;display:flex;flex-direction:column;gap:3px}
+.emo-tile.like{background:rgba(61,222,168,.08);border-color:rgba(61,222,168,.2)}
+.emo-tile.dislike{background:rgba(255,92,92,.08);border-color:rgba(255,92,92,.2)}
+.emo-tile.doubt{background:rgba(245,165,36,.08);border-color:rgba(245,165,36,.2)}
+.emo-big{font-size:26px;line-height:1}
+.emo-cnt{font-size:22px;font-weight:800}
+.emo-lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.emo-pct{font-size:11px;font-weight:800;color:var(--muted2)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:99px;background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:11px;font-weight:700;color:var(--muted2);margin:3px 4px 3px 0}
+.pill .cnt{font-weight:800;color:var(--accent2)}
+.pill.red{border-color:rgba(255,92,92,.3)}
+.pill.red .cnt{color:#ff9b9b}
+.pill.amber{border-color:rgba(245,165,36,.3)}
+.subhead{margin:14px 0 8px;font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.subhead.red{color:#ff9b9b}
+.subhead.amber{color:var(--accent2)}
+.tbl-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -2px;padding-bottom:4px}
+.tbl{width:100%;border-collapse:collapse;font-size:11.5px;min-width:420px}
+.tbl th{text-align:left;font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;padding:8px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.tbl td{padding:9px 8px;border-bottom:1px solid var(--line);color:var(--muted2);font-weight:700;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:0}
+.heatmap-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+.heatmap{border-collapse:collapse;font-size:9px;width:max-content;max-width:none}
+.heatmap th,.heatmap td{padding:2px;border:0;text-align:center;color:var(--muted);font-weight:800}
+.heatmap .day-label{color:var(--muted2);text-align:left;padding-right:6px;font-size:10px}
+.heat-cell{width:14px;height:14px;border-radius:4px;display:block;background:rgba(255,255,255,.04)}
+.q-title{font-size:12.5px;font-weight:800;margin-bottom:10px;color:var(--ink)}
+.note{margin-top:10px;padding:10px 12px;background:rgba(91,140,255,.08);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;font-size:11px;color:var(--muted2);font-weight:650;line-height:1.45}
+.fav-card .note{background:rgba(61,222,168,.08);border-left-color:var(--cyan)}
+.err{padding:14px;background:rgba(255,92,92,.1);border:1px solid rgba(255,92,92,.25);border-radius:14px;color:#ff9b9b;font-weight:800;font-size:12px}
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);font-size:13px;font-weight:700}
+.spinner{width:22px;height:22px;border:3px solid rgba(255,255,255,.08);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:24px;color:var(--muted);font-size:12px;font-weight:700}
+@media(min-width:720px){
+.screen-area{padding:14px 16px 24px;max-width:840px}
+.g-summary{grid-template-columns:1.1fr .9fr;grid-template-areas:"verdict kpi" "marks marks" "traffic traffic"}
+.verdict-panel{grid-template-columns:118px 1fr;text-align:left;justify-items:stretch}
+.g-adv,.g-react{grid-template-columns:1fr 1fr}
+.tiles.t4{grid-template-columns:repeat(4,1fr)}
+.ub-grid{grid-template-columns:1fr 1fr}
+.u-ring-wrap{flex-direction:row;align-items:center}
+}
 </style>
 </head>
 <body>
 <div class="app">
-
-  <div class="topbar">
-    <span class="logo">⛽</span>
-    <div>
-      <div class="t-title">КогдаБенз <span style="color:var(--muted);font-weight:800">Аналитика</span></div>
-      <div class="t-sub">Анонимная статистика использования сайта</div>
-    </div>
-    <div class="spacer"></div>
-    <button class="report-btn" onclick="downloadReport()">⬇ Скачать отчёт</button>
-    <div class="badge-upd" id="updBadge">Обновлено только что</div>
-  </div>
-
-  <main class="screen-area" id="screenArea">
-
-    <section class="screen active" id="scr-summary">
-      <div class="screen-inner">
-        <div class="scr-head"><div class="scr-title">⭐ Сводка проекта</div><div class="scr-sub">главные цифры за сегодня и 30 дней</div><div class="scr-emo">⛽</div></div>
-        <div class="grid g-summary">
-          <div class="card verdict-card" id="verdict-container"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>
-          <div class="kpi-grid" id="kpiGrid"></div>
-          <div class="card marks-strip" id="marksStrip" style="display:none"></div>
-          <div class="card traffic-card">
-            <div class="tf-headrow">
-              <h3><span class="hicon">📈</span>Пользователи по периодам</h3>
-              <div class="tf-tabs">
-                <button class="tf-tab active" data-range="24h" onclick="loadTraffic('24h')">24ч</button>
-                <button class="tf-tab" data-range="7d" onclick="loadTraffic('7d')">1Н</button>
-                <button class="tf-tab" data-range="30d" onclick="loadTraffic('30d')">1М</button>
-              </div>
-            </div>
-            <div class="tf-head" id="trafficHead"></div>
-            <div class="chart-wrap" id="trafficChart"><div class="loading"><div class="spinner"></div></div></div>
-            <div class="note"><b>session_id</b> — анонимный ID устройства (уникальный пользователь).</div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-advisor"><div class="screen-inner" id="inner-advisor"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-    <section class="screen" id="scr-react"><div class="screen-inner" id="inner-react"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-    <section class="screen" id="scr-traffic"><div class="screen-inner" id="inner-traffic"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-    <section class="screen" id="scr-aud"><div class="screen-inner" id="inner-aud"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-    <section class="screen" id="scr-poll"><div class="screen-inner" id="inner-poll"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-    <section class="screen" id="scr-ver"><div class="screen-inner" id="inner-ver"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-    <section class="screen" id="scr-marks"><div class="screen-inner" id="inner-marks"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
-
-  </main>
-
-  <nav class="tabbar">
-    <div class="tabbar-in">
-      <button class="tab active" data-tab="summary" onclick="switchTab('summary')"><span class="ti">⭐</span>Сводка</button>
-      <button class="tab" data-tab="advisor" onclick="switchTab('advisor')"><span class="ti">🧭</span>Советник</button>
-      <button class="tab" data-tab="react" onclick="switchTab('react')"><span class="ti">🎯</span>Реакции</button>
-      <button class="tab" data-tab="traffic" onclick="switchTab('traffic')"><span class="ti">📈</span>Трафик</button>
-      <button class="tab" data-tab="aud" onclick="switchTab('aud')"><span class="ti">👥</span>Аудитория</button>
-      <button class="tab" data-tab="poll" onclick="switchTab('poll')"><span class="ti">💬</span>Опросы</button>
-      <button class="tab" data-tab="ver" onclick="switchTab('ver')"><span class="ti">🔄</span>Версии</button>
-      <button class="tab" data-tab="marks" onclick="switchTab('marks')"><span class="ti">🙏</span>Отметки</button>
-    </div>
-  </nav>
+<div class="topbar">
+<span class="logo">⛽</span>
+<div>
+<div class="t-title">КогдаБенз <span>Аналитика</span></div>
+<div class="t-sub">Анонимная статистика использования сайта</div>
 </div>
-
+<div class="spacer"></div>
+<button class="report-btn" onclick="downloadReport()">⬇ Скачать отчёт</button>
+<div class="badge-upd" id="updBadge">Обновлено только что</div>
+</div>
+<main class="screen-area" id="screenArea">
+<section class="screen active" id="scr-summary"><div class="screen-inner">
+<div class="scr-head"><div class="scr-title">⭐ Сводка проекта</div><div class="scr-sub">главные цифры за сегодня и 30 дней</div><div class="scr-emo">⛽</div></div>
+<div class="grid g-summary">
+<div class="card verdict-card" id="verdict-container"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>
+<div class="kpi-grid" id="kpiGrid"></div>
+<div class="card marks-strip" id="marksStrip" style="display:none"></div>
+<div class="card traffic-card">
+<div class="tf-headrow"><h3><span class="hicon">📈</span>Пользователи по периодам</h3>
+<div class="tf-tabs"><button class="tf-tab active" data-range="24h" onclick="loadTraffic('24h')">24ч</button><button class="tf-tab" data-range="7d" onclick="loadTraffic('7d')">1Н</button><button class="tf-tab" data-range="30d" onclick="loadTraffic('30d')">1М</button></div></div>
+<div class="tf-head" id="trafficHead"></div>
+<div class="chart-wrap" id="trafficChart"><div class="loading"><div class="spinner"></div></div></div>
+<div class="note"><b>session_id</b> — анонимный ID устройства (уникальный пользователь).</div>
+</div>
+</div>
+</div></section>
+<section class="screen" id="scr-advisor"><div class="screen-inner" id="inner-advisor"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+<section class="screen" id="scr-react"><div class="screen-inner" id="inner-react"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+<section class="screen" id="scr-traffic"><div class="screen-inner" id="inner-traffic"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+<section class="screen" id="scr-aud"><div class="screen-inner" id="inner-aud"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+<section class="screen" id="scr-poll"><div class="screen-inner" id="inner-poll"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+<section class="screen" id="scr-ver"><div class="screen-inner" id="inner-ver"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+<section class="screen" id="scr-marks"><div class="screen-inner" id="inner-marks"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
+</main>
+<nav class="tabbar"><div class="tabbar-in">
+<button class="tab active" data-tab="summary" onclick="switchTab('summary')"><span class="ti">⭐</span>Сводка</button>
+<button class="tab" data-tab="advisor" onclick="switchTab('advisor')"><span class="ti">🧭</span>Советник</button>
+<button class="tab" data-tab="react" onclick="switchTab('react')"><span class="ti">🎯</span>Реакции</button>
+<button class="tab" data-tab="traffic" onclick="switchTab('traffic')"><span class="ti">📈</span>Трафик</button>
+<button class="tab" data-tab="aud" onclick="switchTab('aud')"><span class="ti">👥</span>Аудитория</button>
+<button class="tab" data-tab="poll" onclick="switchTab('poll')"><span class="ti">💬</span>Опросы</button>
+<button class="tab" data-tab="ver" onclick="switchTab('ver')"><span class="ti">🔄</span>Версии</button>
+<button class="tab" data-tab="marks" onclick="switchTab('marks')"><span class="ti">🙏</span>Отметки</button>
+</div></nav>
+</div>
 <script>
-const SUPABASE_URL = 'https://api.kogdabenz.ru';
-const SUPABASE_KEY = 'eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
-const DASH_SECRET = 'kb-dash-2026-x9f3k';
-
-let REPORT = {};
-let ADVANCED_REPORT = {};
-let ADVISOR_DETAILED = {};
-let BEHAVIOR_REPORT = null;
-let trafficCache = {};
-let trafficRange = '24h';
-let marksCache = {};
-let marksRange = '24h';
-let MARKS_30D = null;
-const MARK_TYPE_RU = {
-  available: ['⛽', 'Топливо есть'],
-  unavailable: ['🔴', 'Топлива нет'],
-  delivery: ['🚛', 'Привоз заметили'],
-  queue: ['🚗', 'Очередь со стороны'],
-  in_queue: ['🚗', 'Стоит в очереди'],
-  low: ['🟢', 'Свободно'],
-  free: ['🟢', 'Свободно']
-};
-const MARK_FUEL_RU = { '92': 'АИ-92', '95': 'АИ-95', 'diesel': 'Дизель', 'all': 'Все топлива', 'none': 'Без типа топлива' };
-
-const POLL_Q = {
-  arrive_truth: 'Подъехали к заправке — информация совпала?',
-  usability: 'Сайтом удобно пользоваться?',
-  map_clear: 'Карта понятна?',
-  forecast_true: 'Прогнозы сбываются?',
-  marks_why: 'Почему оставляете отметки?',
-  stars: 'Оценка сайта',
-  advice_outcome: 'Результат совета «Куда ехать»'
-};
-
-const POLL_A = {
-  match: 'Всё совпало', almost: 'Почти совпало', wrong: 'Не совпало', notyet: 'Ещё не проверял',
-  great: 'Очень удобно', ok: 'В целом удобно', confuse: 'Иногда путаюсь', bad: 'Неудобно',
-  glance: 'Да, с первого взгляда', legend: 'Подсматриваю в легенду', no: 'Не понимаю',
-  always: 'Почти всегда', half: 'Примерно через раз', rare: 'Редко',
-  help: 'Хочу помочь городу', sometimes: 'Иногда', whynot: 'Не понимаю зачем', hard: 'Неудобно',
-  fuel: 'Доехал и заправился', miss: 'Не как ожидал', notwent: 'Ещё не доехал', noadv: 'Не воспользовался'
-};
-
-const OUTCOME_LABELS = {
-  fuel: ['⛽', 'Доехал и заправился', 'fuel'],
-  miss: ['😕', 'Не как ожидал', 'miss'],
-  notwent: ['🕐', 'Ещё не доехал', 'notwent'],
-  noadv: ['🚫', 'Не воспользовался советом', 'noadv']
-};
-
-const DISLIKE_LABELS = {
-  no_fuel: 'Топлива нет',
-  queue: 'Очередь',
-  price: 'Цена завышена',
-  other: 'Другое'
-};
-
-const DOUBT_LABELS = {
-  old_data: 'Данные старые',
-  not_true: 'Не похоже на правду',
-  other: 'Другое'
-};
-
-const EVENT_RU = {
-  pageview: ['👀', 'Открыли сайт'],
-  panel_view: ['📖', 'Листали панели'],
-  open_station_card: ['⛽', 'Открывали карточку АЗС'],
-  click_where_to_go: ['🧭', 'Жали «Куда ехать»'],
-  feedback_submit: ['🙏', 'Оставляли отметку'],
-  advice_reaction: ['🎯', 'Реакция на совет'],
-  advice_folk_vote: ['🗳️', 'Народный голос в совете'],
-··route_built: ['🛣️', 'Построили маршрут'],
-··go_intent: ['🚗', 'Поеду сюда (намерение)'],
-··price_click: ['💰', 'Смотрели цену']
-};
-
-const CITY_RU = {
-  novorossiysk: 'Новороссийск', gelendzhik: 'Геленджик', anapa: 'Анапа',
-  krymsk: 'Крымск', krasnodar: 'Краснодар', sochi: 'Сочи',
-  tuapse: 'Туапсе', armavir: 'Армавир', maykop: 'Майкоп',
-  rostov: 'Ростов-на-Дону', taganrog: 'Таганрог', stavropol: 'Ставрополь',
-  volgograd: 'Волгоград', moscow: 'Москва', spb: 'Санкт-Петербург'
-};
-
-function cityRu(c) {
-  if (CITY_RU[c]) return CITY_RU[c];
-  if (c === 'unknown' || !c) return 'Не определён';
-  return c.charAt(0).toUpperCase() + c.slice(1);
+const SUPABASE_URL='https://api.kogdabenz.ru';
+const SUPABASE_KEY='eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
+const DASH_SECRET='kb-dash-2026-x9f3k';
+let REPORT={},ADVANCED_REPORT={},ADVISOR_DETAILED={},BEHAVIOR_REPORT=null;
+let trafficCache={},trafficRange='24h',marksCache={},marksRange='24h',MARKS_30D=null;
+const MARK_TYPE_RU={available:['⛽','Топливо есть'],unavailable:['🔴','Топлива нет'],delivery:['🚛','Привоз заметили'],queue:['🚗','Очередь со стороны'],in_queue:['🚗','Стоит в очереди'],low:['🟢','Свободно'],free:['🟢','Свободно']};
+const MARK_FUEL_RU={'92':'АИ-92','95':'АИ-95','diesel':'Дизель','all':'Все топлива','none':'Без типа топлива'};
+const POLL_Q={arrive_truth:'Подъехали к заправке — информация совпала?',usability:'Сайтом удобно пользоваться?',map_clear:'Карта понятна?',forecast_true:'Прогнозы сбываются?',marks_why:'Почему оставляете отметки?',stars:'Оценка сайта',advice_outcome:'Результат совета «Куда ехать»'};
+const POLL_A={match:'Всё совпало',almost:'Почти совпало',wrong:'Не совпало',notyet:'Ещё не проверял',great:'Очень удобно',ok:'В целом удобно',confuse:'Иногда путаюсь',bad:'Неудобно',glance:'Да, с первого взгляда',legend:'Подсматриваю в легенду',no:'Не понимаю',always:'Почти всегда',half:'Примерно через раз',rare:'Редко',help:'Хочу помочь городу',sometimes:'Иногда',whynot:'Не понимаю зачем',hard:'Неудобно',fuel:'Доехал и заправился',miss:'Не как ожидал',notwent:'Ещё не доехал',noadv:'Не воспользовался'};
+const OUTCOME_LABELS={fuel:['⛽','Доехал и заправился','fuel'],miss:['😕','Не как ожидал','miss'],notwent:['🕐','Ещё не доехал','notwent'],noadv:['🚫','Не воспользовался советом','noadv']};
+const DISLIKE_LABELS={no_fuel:'Топлива нет',queue:'Очередь',price:'Цена завышена',other:'Другое'};
+const DOUBT_LABELS={old_data:'Данные старые',not_true:'Не похоже на правду',other:'Другое'};
+const EVENT_RU={pageview:['👀','Открыли сайт'],panel_view:['📖','Листали панели'],open_station_card:['⛽','Открывали карточку АЗС'],click_where_to_go:['🧭','Жали «Куда ехать»'],feedback_submit:['🙏','Оставляли отметку'],advice_reaction:['🎯','Реакция на совет'],advice_folk_vote:['🗳️','Народный голос в совете'],route_built:['🛣️','Построили маршрут'],go_intent:['🚗','Поеду сюда (намерение)'],price_click:['💰','Смотрели цену']};
+const CITY_RU={novorossiysk:'Новороссийск',gelendzhik:'Геленджик',anapa:'Анапа',krymsk:'Крымск',krasnodar:'Краснодар',sochi:'Сочи',tuapse:'Туапсе',armavir:'Армавир',maykop:'Майкоп',rostov:'Ростов-на-Дону',taganrog:'Таганрог',stavropol:'Ставрополь',volgograd:'Волгоград',moscow:'Москва',spb:'Санкт-Петербург'};
+function cityRu(c){if(CITY_RU[c])return CITY_RU[c];if(c==='unknown'||!c)return 'Не определён';return c.charAt(0).toUpperCase()+c.slice(1);}
+function sourceRu(s){if(!s)return 'Неизвестно';const l=s.toLowerCase();if(l==='direct'||l==='напрямую')return 'Прямые заходы';if(l.startsWith('utm: ')){if(l.includes('yandex')||l.includes('ya'))return 'Яндекс (Реклама)';if(l.includes('google'))return 'Google (Реклама)';return 'Реклама: '+s.slice(5).split(' / ')[0];}if(l.startsWith('ref: ')){let h=l.slice(5).replace(/^(https?:\/\/)?(www\.)?/,'');if(h.startsWith('yandex')||h.startsWith('ya.ru'))return 'Яндекс (Поиск)';if(h.startsWith('google'))return 'Google (Поиск)';if(h.includes('vk.com')||h.includes('vk.ru'))return 'ВКонтакте';if(h.includes('t.me')||h.includes('telegram'))return 'Телеграм';if(h.includes('dzen.ru'))return 'Дзен';if(h.includes('mail.ru'))return 'Mail.ru';return h.split('/')[0];}return s;}
+function num(v){return (v===null||v===undefined)?0:v;}
+function formatNumber(n){if(n>=1000000)return (n/1000000).toFixed(1)+'M';if(n>=1000)return (n/1000).toFixed(1)+'K';return String(n);}
+function fmtDur(s){if(s===null||s===undefined)return '—';s=Math.round(s);if(s<60)return s+' с';const m=Math.floor(s/60),r=s%60;if(m<60)return m+' м '+r+' с';return Math.floor(m/60)+' ч '+(m%60)+' м';}
+function p2(n){return String(n).padStart(2,'0');}
+function scrHead(e,t,s){return '<div class="scr-head"><div class="scr-title">'+t+'</div><div class="scr-sub">'+s+'</div><div class="scr-emo">'+e+'</div></div>';}
+function layoutHeights(){const a=document.getElementById('screenArea');if(a)a.style.height='';}
+function fitScreen(){layoutHeights();}
+function switchTab(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id==='scr-'+id));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));if(id==='summary'&&trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);if(id==='marks'&&marksCache[marksRange])drawMarksCharts();fitScreen();try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
+function rpc(name,body){return fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(body||{secret:DASH_SECRET})});}
+async function load(){
+try{
+const [statsRes,pollRes,advisorRes,hooksRes,engRes,srcfRes,advDetRes,updRes,marksRes]=await Promise.all([
+rpc('dash_stats'),rpc('dash_poll_stats'),rpc('dash_advisor_stats'),rpc('dash_hooks_stats'),rpc('dash_engagement_stats'),rpc('dash_source_funnel'),rpc('dash_advisor_detailed'),rpc('dash_update_stats'),rpc('dash_marks_stats',{secret:DASH_SECRET,p_range:'30d'})]);
+if(!statsRes.ok||!pollRes.ok||!advisorRes.ok||!hooksRes.ok||!engRes.ok||!srcfRes.ok)throw new Error('HTTP error');
+const [stats,poll,advisor,hooks,eng,srcf,advDet,upd,marks30]=await Promise.all([statsRes.json(),pollRes.json(),advisorRes.json(),hooksRes.json(),engRes.json(),srcfRes.json(),advDetRes.ok?advDetRes.json():Promise.resolve({}),updRes.ok?updRes.json():Promise.resolve({}),marksRes.ok?marksRes.json():Promise.resolve({})]);
+MARKS_30D=(marks30&&!marks30.error)?marks30:null;if(MARKS_30D)marksCache['30d']=MARKS_30D;
+if(stats.error)throw new Error('Invalid token');
+ADVISOR_DETAILED=advDet.error?{}:advDet;
+render(stats,poll,advisor,hooks,eng,srcf,upd);
+}catch(e){document.getElementById('verdict-container').innerHTML='<div class="err">Ошибка загрузки: '+e.message+'</div>';}
 }
-
-function sourceRu(s) {
-  if (!s) return 'Неизвестно';
-  const lowerS = s.toLowerCase();
-  if (lowerS === 'direct' || lowerS === 'напрямую') return 'Прямые заходы';
-  if (lowerS.startsWith('utm: ')) {
-    if (lowerS.includes('yandex') || lowerS.includes('ya')) return 'Яндекс (Реклама)';
-    if (lowerS.includes('google')) return 'Google (Реклама)';
-    return 'Реклама: ' + s.slice(5).split(' / ')[0];
-  }
-  if (lowerS.startsWith('ref: ')) {
-    let host = lowerS.slice(5).replace(/^(https?:\/\/)?(www\.)?/, '');
-    if (host.startsWith('yandex') || host.startsWith('ya.ru')) return 'Яндекс (Поиск)';
-    if (host.startsWith('google')) return 'Google (Поиск)';
-    if (host.includes('vk.com') || host.includes('vk.ru')) return 'ВКонтакте';
-    if (host.includes('t.me') || host.includes('telegram')) return 'Телеграм';
-    if (host.includes('dzen.ru')) return 'Дзен';
-    if (host.includes('mail.ru')) return 'Mail.ru';
-    return host.split('/')[0];
-  }
-  return s;
+function render(stats,poll,advisor,hooks,eng,srcf,upd){
+REPORT={stats,poll,advisor,hooks,eng,srcf,upd};
+const ub=document.getElementById('updBadge');
+if(ub){const t=new Date(Date.now()+3*3600*1000);ub.textContent='Обновлено в '+p2(t.getUTCHours())+':'+p2(t.getUTCMinutes())+' МСК';}
+const ret=stats.retention||{};
+const nowMSK=new Date(Date.now()+3*3600*1000);
+const hoursElapsed=Math.max(1,nowMSK.getUTCHours()+nowMSK.getUTCMinutes()/60);
+const dayAlmostDone=nowMSK.getUTCHours()>=20;
+let dauBadge;
+if(stats.dau_yesterday<=0)dauBadge='<div class="chip neu">нет данных за вчера</div>';
+else if(hoursElapsed<6)dauBadge='<div class="chip neu">данные набираются с полуночи</div>';
+else if(dayAlmostDone){const d=(stats.dau_today-stats.dau_yesterday)/stats.dau_yesterday*100;dauBadge='<div class="chip '+(d>0?'pos':d<0?'neg':'neu')+'">'+(d>0?'↑':d<0?'↓':'±')+' '+Math.abs(d).toFixed(1)+'% vs вчера</div>';}
+else{const pace=(stats.dau_today/hoursElapsed)/(stats.dau_yesterday/24)*100-100;dauBadge='<div class="chip '+(pace>0?'pos':pace<0?'neg':'neu')+'">'+(pace>0?'↑':pace<0?'↓':'±')+' '+Math.abs(pace).toFixed(0)+'% темп к вчера</div>';}
+let kpi='';
+kpi+='<div class="kpi p1"><div class="t-ico">👥</div><div class="lbl">Пользователи за 30 дней</div><div class="val">'+formatNumber(num(stats.mau_30d))+'</div><div class="sub">Уникальных ID</div></div>';
+kpi+='<div class="kpi p2"><div class="t-ico">📅</div><div class="lbl">Пользователей сегодня</div><div class="val">'+num(stats.dau_today)+'</div>'+dauBadge+'<div class="sub">вчера целиком: '+num(stats.dau_yesterday)+'</div></div>';
+kpi+='<div class="kpi p3"><div class="t-ico">✨</div><div class="lbl">Новые (за 7 дней)</div><div class="val">'+formatNumber(num(ret.new_7d))+'</div><div class="sub">Вернувшихся: '+formatNumber(num(ret.returning_7d))+'</div></div>';
+kpi+='<div class="kpi p4"><div class="t-ico">🚦</div><div class="lbl">Всего визитов</div><div class="val">'+formatNumber(num(stats.total_sessions))+'</div><div class="sub">Действий: '+formatNumber(num(stats.total_hits))+'</div></div>';
+document.getElementById('kpiGrid').innerHTML=kpi;
+renderMarksStrip();
+document.getElementById('inner-advisor').innerHTML=buildAdvisor();
+document.getElementById('inner-react').innerHTML=buildReactions();
+document.getElementById('inner-traffic').innerHTML=buildTrafficLists();
+document.getElementById('inner-aud').innerHTML=buildAudience();
+document.getElementById('inner-poll').innerHTML=buildPolls();
+document.getElementById('inner-ver').innerHTML=buildUpdates(upd);
+loadMarks(marksRange);loadTraffic(trafficRange);
+requestAnimationFrame(()=>{
+const fill=document.querySelector('.utility-ring .fill');
+if(fill&&ADVISOR_DETAILED.utility){fill.style.strokeDashoffset=377-(377*ADVISOR_DETAILED.utility.score/100);}
+document.querySelectorAll('.ub-bar span').forEach(el=>{const w=el.dataset.w;if(w)requestAnimationFrame(()=>el.style.width=w+'%');});
+document.querySelectorAll('.f-step-bar span').forEach(el=>{const w=el.dataset.w;if(w)requestAnimationFrame(()=>el.style.width=w+'%');});
+fitScreen();});
+renderVerdict();loadAdvancedStats();
 }
-
-function num(v) { return (v === null || v === undefined) ? 0 : v; }
-
-function formatNumber(n) {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-  return n.toString();
+function buildAdvisor(){
+const d=ADVISOR_DETAILED;
+if(!d||!d.totals)return scrHead('🧭','Советник «Куда ехать»','коэффициент полезности и воронка')+'<div class="grid g-adv"><div class="card"><h3><span class="hicon">🧭</span>Советник</h3><div class="err">Детали советника не загрузились: функция dash_advisor_detailed не отвечает.</div></div></div>';
+const u0=d.utility||{};const funnel=d.funnel||[];const reactionsArr=d.reactions||[];
+const totalReact=reactionsArr.reduce((s,r)=>s+(r.cnt||0),0);
+const u=Object.assign({},u0);
+if(totalReact===0&&typeof u.engagement==='number'){const eng=u.engagement||0,conv=u.conversion||0,loy=u.loyalty||0;u.satisfaction=null;u.score=Math.round((eng*30+conv*25+loy*25)/80*10)/10;u._noReact=true;}
+let word,desc,wordColor;
+if(u.score===undefined||u.score===null){word='Нет данных';desc='Коэффициент полезности ещё не посчитан.';wordColor='#eef2f8';}
+else if((u.engagement||0)<8){word='Мало открывают совет';desc='Главная дыра — вход: до советника доходит мало людей. Сначала усильте вход.';wordColor='#ffd27a';}
+else if(u.score>=75){word='Отличный советник';desc='Водители доверяют совету и возвращаются к избранным АЗС.';wordColor='#7dffc8';}
+else if(u.score>=55){word='Хороший советник';desc='Больше половины метрик в норме, есть точки роста.';wordColor='#9db7ff';}
+else if(u.score>=35){word='Средний советник';desc='Водители пользуются, но часто сомневаются.';wordColor='#ffd27a';}
+else{word='Слабый советник';desc='Нужно пересмотреть алгоритм подбора.';wordColor='#ffb0b0';}
+if((d.totals.shown||0)<30&&u.score!==undefined){word='Копим данные';desc='Пока '+d.totals.shown+' показов — для точной метрики нужно минимум 30.';wordColor='#c5cbe0';}
+const components=[{key:'engagement',label:'Вовлечённость',sub:'кликнули совет',w:30},{key:'conversion',label:'Конверсия',sub:'построили маршрут',w:25},{key:'satisfaction',label:'Удовлетворённость',sub:'👍 среди реакций',w:20},{key:'loyalty',label:'Лояльность',sub:'добавили в избранное',w:25}];
+let html=scrHead('🧭','Советник «Куда ехать»','коэффициент полезности и воронка');
+html+='<div class="grid g-adv"><div class="card utility-card"><div class="u-head">🧭 Коэффициент полезности <span class="u-badge">30 дней</span></div>';
+html+='<div class="u-ring-wrap"><div class="utility-ring"><svg viewBox="0 0 140 140"><circle class="track" cx="70" cy="70" r="60"/><circle class="fill" cx="70" cy="70" r="60" style="stroke-dashoffset:377"/></svg><div class="utility-score"><b>'+(u.score!==undefined?u.score.toFixed(1).replace('.',','):'—')+'</b><small>из 100</small></div></div>';
+html+='<div><div class="utility-word" style="color:'+wordColor+'">'+word+'</div><div class="utility-desc">'+desc+'</div></div></div>';
+html+='<div class="ub-grid">';
+components.forEach(c=>{const raw=u[c.key];const has=typeof raw==='number';const val=has?raw:0;const wl=(c.key==='satisfaction'&&u._noReact)?'нет данных':('×'+c.w+'%');
+html+='<div class="ub-item"><div class="ub-val"><span>'+c.label+'</span><small>'+wl+'</small></div><div class="ub-bar"><span data-w="'+(has?val:0)+'" style="width:0%"></span></div><div class="ub-val"><b>'+(has?val.toFixed(1):'—')+'</b><small>'+c.sub+'</small></div></div>';});
+html+='</div></div><div class="col"><div class="card"><h3><span class="hicon">🎯</span>Воронка: от захода до маршрута</h3><div class="fsteps">';
+funnel.forEach((s,i)=>{const pct=s.pct||0;html+='<div class="f-step"><div class="f-step-num">'+(i+1)+'</div><div><div class="f-step-name">'+s.step+'</div><div class="f-step-bar"><span data-w="'+pct+'" style="width:0%"></span></div></div><div class="f-step-val"><b>'+formatNumber(s.sessions)+'</b><small>'+(Math.round(pct*10)/10)+'%</small></div></div>';});
+html+='</div><div class="note">Воронка показывает, на каком шаге советник теряет водителей.</div></div>';
+const adv=REPORT.advisor||{};
+if(adv&&!adv.error&&adv.total_advice>0){html+='<div class="tiles t3"><div class="tile p1"><div class="t-ico">🎯</div><div class="lbl">Принятие советов</div><div class="val">'+(adv.acceptance_rate||0).toFixed(1)+'%</div></div><div class="tile p2"><div class="t-ico">🧭</div><div class="lbl">Всего советов</div><div class="val">'+formatNumber(adv.total_advice)+'</div></div><div class="tile p3"><div class="t-ico">🛣️</div><div class="lbl">Маршрутов</div><div class="val">'+formatNumber(adv.route_built_count)+'</div></div></div>';}
+if(d.fav_from_advice>0){const t=d.totals||{};const favRate=t.clicks>0?Math.round(d.fav_from_advice/t.clicks*100):0;
+html+='<div class="card fav-card"><h3><span class="hicon">❤️</span>Советник → избранное</h3><div class="tiles t2"><div class="tile p3"><div class="lbl">Добавили из совета</div><div class="val" style="color:#7dffc8">'+d.fav_from_advice+'</div></div><div class="tile p3"><div class="lbl">Конверсия</div><div class="val" style="color:#7dffc8">'+favRate+'%</div></div></div><div class="note">Золотой показатель: водитель хочет получать уведомления по этой АЗС. Цель — выше 8%.</div></div>';}
+html+='</div></div>';return html;
 }
-
-function fmtDur(s) {
-  if (s === null || s === undefined) return '—';
-  s = Math.round(s);
-  if (s < 60) return s + ' с';
-  const m = Math.floor(s / 60), r = s % 60;
-  if (m < 60) return m + ' м ' + r + ' с';
-  return Math.floor(m / 60) + ' ч ' + (m % 60) + ' м';
+function buildReactions(){
+const d=ADVISOR_DETAILED;const reactions=(d&&d.reactions)||[];const dislikeReasons=(d&&d.dislike_reasons)||[];const doubtReasons=(d&&d.doubt_reasons)||[];const outcomes=(d&&d.outcomes)||[];const folkVotes=(d&&d.folk_votes)||[];const topStations=(d&&d.top_stations)||[];
+const totalReactions=reactions.reduce((s,r)=>s+r.cnt,0);const totalOutcomes=outcomes.reduce((s,o)=>s+o.cnt,0);const totalFolk=folkVotes.reduce((s,f)=>s+f.cnt,0);
+if(!totalReactions&&!totalOutcomes&&!totalFolk&&!topStations.length)return scrHead('🎯','Реакции и исходы','что водители думают о советах')+'<div class="grid g-react"><div class="card"><div class="empty">Пока нет реакций и исходов поездок.</div></div></div>';
+let html=scrHead('🎯','Реакции и исходы','что водители думают о советах');html+='<div class="grid g-react">';
+if(totalReactions>0){html+='<div class="card"><h3><span class="hicon">🎯</span>Реакции водителей<span class="hchip">ВСЕГО: '+totalReactions+'</span></h3><div class="tiles t3">';
+reactions.forEach(r=>{const pct=Math.round(r.cnt/totalReactions*100);html+='<div class="emo-tile '+r.type+'"><div class="emo-big">'+(r.type==='like'?'👍':r.type==='dislike'?'👎':'')+'</div><div class="emo-cnt">'+r.cnt+'</div><div class="emo-lbl">'+(r.type==='like'?'Класс':r.type==='dislike'?'Плохо':'Сомнение')+'</div><div class="emo-pct">'+pct+'%</div></div>';});
+html+='</div>';
+if(dislikeReasons.length){html+='<div class="subhead red">👎 Почему «Плохо»:</div><div>';dislikeReasons.forEach(r=>{html+='<span class="pill red"><span class="cnt">'+r.cnt+'</span>'+(DISLIKE_LABELS[r.reason]||r.reason)+'</span>';});html+='</div>';}
+if(doubtReasons.length){html+='<div class="subhead amber">🤔 Почему сомневаются:</div><div>';doubtReasons.forEach(r=>{html+='<span class="pill amber"><span class="cnt">'+r.cnt+'</span>'+(DOUBT_LABELS[r.reason]||r.reason)+'</span>';});html+='</div>';}
+html+='<div class="note">Реакции калибруют алгоритм: много «Топлива нет» — устаревшие данные; много «Данные старые» — источник редко обновляет станцию.</div></div>';}
+if(totalOutcomes>0){html+='<div class="card"><h3><span class="hicon">🛣️</span>Исходы поездок<span class="hchip">'+totalOutcomes+' ОТВЕТОВ</span></h3><div class="tiles t4">';
+outcomes.forEach(o=>{const info=OUTCOME_LABELS[o.answer_key]||['•',o.answer_key,'notwent'];const pct=Math.round(o.cnt/totalOutcomes*100);html+='<div class="emo-tile '+info[2]+'"><div class="emo-big">'+info[0]+'</div><div class="emo-cnt">'+o.cnt+'</div><div class="emo-lbl">'+info[1]+'</div><div class="emo-pct">'+pct+'%</div></div>';});
+html+='</div>';const fuelCnt=outcomes.find(o=>o.answer_key==='fuel');const hitRate=fuelCnt?Math.round(fuelCnt.cnt/totalOutcomes*100):0;
+html+='<div class="note"><b>Коэффициент попадания: '+hitRate+'%</b> — столько водителей реально заправились по совету.</div></div>';}
+html+='<div class="card"><h3><span class="hicon">🗳️</span>Народные голоса в совете</h3>';
+if(totalFolk>0){const yesCnt=(folkVotes.find(f=>f.type==='yes')||{}).cnt||0;const noCnt=(folkVotes.find(f=>f.type==='no')||{}).cnt||0;const maxF=Math.max(yesCnt,noCnt,1);
+html+='<div class="bars"><div class="bar-row"><div class="bar-lbl">✅ Подтверждают</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(yesCnt/maxF*100)+'%"></div></div><div class="bar-val">'+yesCnt+'</div></div><div class="bar-row"><div class="bar-lbl">❌ Опровергают</div><div class="bar-track"><div class="bar-fill f-danger" style="width:'+(noCnt/maxF*100)+'%"></div></div><div class="bar-val">'+noCnt+'</div></div></div><div class="note">Доля подтверждений: <b>'+Math.round(yesCnt/totalFolk*100)+'%</b>.</div>';}
+else html+='<div class="empty">Пока нет голосов</div>';
+html+='</div><div class="card"><h3><span class="hicon">⛽</span>Топ АЗС по кликам</h3>';
+if(topStations.length){const mx=Math.max(...topStations.map(s=>s.clicks));html+='<div class="bars">';topStations.slice(0,6).forEach(s=>{html+='<div class="bar-row"><div class="bar-lbl">'+(s.name||'Без названия')+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(s.clicks/mx*100)+'%"></div></div><div class="bar-val">'+s.clicks+'</div></div>';});html+='</div>';}
+else html+='<div class="empty">Пока нет данных</div>';
+html+='</div></div>';return html;
 }
-
-function p2(n) { return String(n).padStart(2, '0'); }
-
-function scrHead(emo, title, sub) {
-  return '<div class="scr-head"><div class="scr-title">' + title + '</div><div class="scr-sub">' + sub + '</div><div class="scr-emo">' + emo + '</div></div>';
+function buildTrafficLists(){
+const stats=REPORT.stats||{};let html=scrHead('🚗','Трафик и пути','действия, источники, города');html+='<div class="grid g-traf">';
+const funnel=stats.funnel||[];
+html+='<div class="card"><h3><span class="hicon">🎯</span>Действия пользователей</h3>';
+if(funnel.length){const mx=Math.max(...funnel.map(f=>f.sessions));html+='<div class="bars">';funnel.forEach(f=>{const e=EVENT_RU[f.event]||['•',f.event];html+='<div class="bar-row"><div class="bar-lbl">'+e[0]+' '+e[1]+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(f.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(f.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+html+='</div>';
+const rawSources=stats.sources||[];const gm={};rawSources.forEach(i=>{const n=sourceRu(i.source);gm[n]=(gm[n]||0)+i.sessions;});
+const sources=Object.keys(gm).map(k=>({source:k,sessions:gm[k]})).sort((a,b)=>b.sessions-a.sessions);
+html+='<div class="card"><h3><span class="hicon">🔗</span>Источники трафика</h3>';
+if(sources.length){const mx=Math.max(...sources.map(s=>s.sessions));html+='<div class="bars">';sources.slice(0,10).forEach(s=>{html+='<div class="bar-row"><div class="bar-lbl">'+s.source+'</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(s.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(s.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+html+='</div>';
+const cities=stats.cities||[];
+html+='<div class="card"><h3><span class="hicon">🏙️</span>География пользователей</h3>';
+if(cities.length){const mx=Math.max(...cities.map(c=>c.sessions));html+='<div class="bars">';cities.forEach(c=>{html+='<div class="bar-row"><div class="bar-lbl">'+cityRu(c.city)+'</div><div class="bar-track"><div class="bar-fill f-warning" style="width:'+(c.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(c.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+html+='</div>';
+const list=REPORT.srcf||[];
+html+='<div class="card"><h3><span class="hicon">🧭</span>Воронка по источникам<span class="hchip">7 ДНЕЙ</span></h3>';
+if(list.length){const cell=(n,r)=>r.visits?n+' <small style="color:var(--muted)">('+Math.round(100*n/r.visits)+'%)</small>':String(n);
+html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Источник</th><th>Открыли</th><th>Листали</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
+list.forEach(r=>{html+='<tr><td><b>'+r.source+'</b></td><td>'+r.visits+'</td><td>'+cell(r.panels,r)+'</td><td>'+cell(r.cards,r)+'</td><td>'+cell(r.advice,r)+'</td><td>'+cell(r.marks,r)+'</td><td>'+cell(r.installs,r)+'</td></tr>';});
+html+='</table></div>';}else html+='<div class="empty">Пока нет данных</div>';
+html+='</div></div>';return html;
 }
-
-// Мобильный скролл: высота области и scale больше не нужны
-function layoutHeights() {
-  const area = document.getElementById('screenArea');
-  if (area) area.style.height = '';
+function buildAudience(){
+const hooks=REPORT.hooks||{};const eng=REPORT.eng||{};const adv=ADVANCED_REPORT||{};const beh=(BEHAVIOR_REPORT&&!BEHAVIOR_REPORT.error)?BEHAVIOR_REPORT:null;const bt=beh?(beh.totals||{}):{};
+let html=scrHead('👥','Аудитория','привычки, удержание и активность');html+='<div class="grid g-aud">';
+const H={};(hooks.hooks||[]).forEach(r=>H[r.event]=r);
+const hc=(i,p,l,s,r)=>'<div class="tile '+p+'"><div class="t-ico">'+i+'</div><div class="lbl">'+l+'</div><div class="val">'+(r?r.sessions:0)+'</div><div class="sub">'+s+(r?r.hits:0)+'</div></div>';
+html+='<div class="card"><h3><span class="hicon">🪝</span>Крючки привычки</h3><div class="tiles t2">'+hc('📲','p1','PWA установок','событий: ',H.pwa_install)+hc('✈️','p2','Кнопка «Телеграм»','нажатий: ',H.tg_connect)+hc('✅','p3','Связка подтверждена','включений: ',H.tg_linked)+hc('❤️','p4','«В избранное»','событий: ',H.fav_add)+'</div></div>';
+const d=eng.dur||{};const medTotal=bt.median_total_sec!=null?bt.median_total_sec:d.p50;const medVisible=bt.median_visible_sec;
+html+='<div class="card"><h3><span class="hicon">⏱️</span>Время сеанса</h3><div class="tiles t3"><div class="tile p1"><div class="t-ico">🕐</div><div class="lbl">Медиана сеанса</div><div class="val">'+fmtDur(medTotal)+'</div></div><div class="tile p2"><div class="t-ico">👁</div><div class="lbl">Активное время</div><div class="val">'+(medVisible!=null?fmtDur(medVisible):'—')+'</div></div><div class="tile p3"><div class="t-ico">📱</div><div class="lbl">Время в фоне</div><div class="val">'+(medTotal!=null&&medVisible!=null?fmtDur(Math.max(0,medTotal-medVisible)):'—')+'</div></div></div>';
+if(!beh)html+='<div class="note">Активное время появится после SQL dash_session_behavior.</div>';
+html+='</div>';
+const favg=(eng.freq_avg==null)?'—':Number(eng.freq_avg).toFixed(2).replace('.',',');
+html+='<div class="card"><h3><span class="hicon">🔁</span>Привычка: частота и время</h3><div class="tiles t3"><div class="tile p1"><div class="lbl">Заходов в день</div><div class="val">'+favg+'</div></div><div class="tile p2"><div class="lbl">Медиана времени</div><div class="val">'+fmtDur(d.p50)+'</div></div><div class="tile p3"><div class="lbl">Сессии &gt;2 мин</div><div class="val">'+(d.share_long!==undefined?d.share_long+'%':'—')+'</div></div></div></div>';
+if(beh){const sessions=num(bt.sessions);const withTop3=num(bt.with_top3);const top3Only=num(bt.top3_only);const withAction=num(bt.with_action);const shortSuccess=num(bt.short_success);const pct=n=>sessions>0?Math.round(100*n/sessions):0;
+html+='<div class="card"><h3><span class="hicon">⚡</span>Поведение сеансов<span class="hchip">30 ДНЕЙ</span></h3><div class="tiles t4" style="margin-bottom:12px"><div class="tile p1"><div class="lbl">Всего сеансов</div><div class="val">'+formatNumber(sessions)+'</div></div><div class="tile p2"><div class="lbl">Увидели топ-3</div><div class="val">'+formatNumber(withTop3)+'</div><div class="sub">'+pct(withTop3)+'%</div></div><div class="tile p3"><div class="lbl">Топ-3 и ушли</div><div class="val" style="color:#7dffc8">'+formatNumber(top3Only)+'</div><div class="sub">'+pct(top3Only)+'% · часто успех</div></div><div class="tile p4"><div class="lbl">Были действия</div><div class="val">'+formatNumber(withAction)+'</div><div class="sub">'+pct(withAction)+'%</div></div></div>';
+const buckets=beh.duration_buckets||[];
+if(buckets.length){const mx=Math.max(...buckets.map(x=>x.cnt),1);html+='<div class="subhead">Длина сеанса</div><div class="bars">';buckets.forEach(x=>{const cls=(String(x.label).indexOf('≤10')>=0||String(x.label).indexOf('≤20')>=0)?'f-success':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+x.label+'</div><div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div><div class="note">Зелёные короткие корзины — успешный быстрый поиск топлива.</div>';}
+html+='</div>';}
+const b=adv.bounce;
+html+='<div class="card"><h3><span class="hicon">🚪</span>Уходы и глубина</h3>';
+if(b&&!b.error&&b.total_sessions>0){const mx=Math.max(...(b.buckets||[]).map(x=>x.cnt),1);html+='<div class="tiles t2" style="margin-bottom:12px"><div class="tile p2"><div class="lbl">Показатель отказов</div><div class="val" style="color:#ff9b9b">'+b.bounce_rate+'%</div></div><div class="tile p1"><div class="lbl">Всего сессий</div><div class="val">'+b.total_sessions+'</div></div></div><div class="bars">';(b.buckets||[]).forEach(x=>{const cls=x.label.includes('уход')?'f-danger':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+x.label+'</div><div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
+html+='</div>';
+const cohort=adv.cohort;
+html+='<div class="card"><h3><span class="hicon">🔄</span>Возвращаемость (когорты)</h3>';
+if(cohort&&!cohort.error&&cohort.length){html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Дата</th><th>Пришло</th><th>На сл. день</th><th>Через 7 дн</th></tr>';cohort.forEach(c=>{const d1=Math.round(100*c.day1/c.total_users);const d7=Math.round(100*c.day7/c.total_users);const col=d1>=15?'var(--green)':'var(--red)';const ds=new Date(c.cohort_date).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'});html+='<tr><td><b>'+ds+'</b></td><td>'+c.total_users+'</td><td><span style="color:'+col+';font-weight:800">'+c.day1+' ('+d1+'%)</span></td><td><span style="color:var(--blue);font-weight:800">'+c.day7+' ('+d7+'%)</span></td></tr>';});html+='</table></div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
+html+='</div>';
+const heat=adv.heatmap;
+html+='<div class="card"><h3><span class="hicon">🔥</span>Активность по дням и часам</h3>';
+if(heat&&!heat.error&&heat.length){let mx=1;heat.forEach(h=>{if(h.users>mx)mx=h.users;});const dn=['','Пн','Вт','Ср','Чт','Пт','Сб','Вс'];let m=Array(8).fill(0).map(()=>Array(24).fill(0));heat.forEach(h=>{m[h.day_num][h.hour_num]=h.users;});
+html+='<div class="heatmap-wrap"><table class="heatmap"><tr><th></th>';for(let h=0;h<24;h++)html+='<th>'+h+'</th>';html+='</tr>';for(let dd=1;dd<=7;dd++){html+='<tr><td class="day-label">'+dn[dd]+'</td>';for(let h=0;h<24;h++){const v=m[dd][h];const o=Math.max(.05,v/mx);html+='<td><div class="heat-cell" style="background:rgba(245,165,36,'+o+')" title="'+v+' польз."></div></td>';}html+='</tr>';}html+='</table></div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
+html+='</div></div>';return html;
 }
-
-function fitScreen() {
-  layoutHeights();
-  const scr = document.querySelector('.screen.active');
-  if (!scr) return;
-  const inner = scr.querySelector('.screen-inner');
-  if (!inner) return;
-  inner.style.transform = '';
-  inner.style.width = '';
+function buildPolls(){
+const poll=REPORT.poll;
+if(!poll||poll.error||!poll.total_answers)return scrHead('💬','Опросы водителей','прямые ответы пользователей')+'<div class="grid"><div class="card"><div class="empty">Пока нет ответов на опросы.</div></div></div>';
+let html=scrHead('💬','Опросы водителей','прямые ответы пользователей');html+='<div class="grid"><div class="tiles t3"><div class="kpi p1"><div class="lbl">Всего ответов</div><div class="val">'+formatNumber(poll.total_answers)+'</div></div><div class="kpi p2"><div class="lbl">Респондентов</div><div class="val">'+formatNumber(poll.unique_respondents)+'</div></div>'+(poll.avg_stars!=null?'<div class="kpi p4"><div class="lbl">Средняя оценка</div><div class="val">'+poll.avg_stars.toFixed(1)+' ★</div></div>':'')+'</div><div class="qgrid">';
+(poll.answers_by_question||[]).forEach(q=>{if(q.question_key==='advice_outcome')return;const qt=POLL_Q[q.question_key]||q.question_key;const total=q.answers.reduce((s,a)=>s+a.cnt,0);const mx=Math.max(...q.answers.map(a=>a.cnt));
+html+='<div class="card"><div class="q-title">'+qt+'</div><div class="bars">';q.answers.forEach(a=>{const at=q.question_key==='stars'?a.answer_key.replace('star','').split('_')[0]+' ★':(POLL_A[a.answer_key]||a.answer_key);const pct=total>0?Math.round(a.cnt/total*100):0;const bc=pct>=50?'f-success':pct>=25?'f-warning':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+at+'</div><div class="bar-track"><div class="bar-fill '+bc+'" style="width:'+(a.cnt/mx*100)+'%"></div></div><div class="bar-val">'+a.cnt+' <small>('+pct+'%)</small></div></div>';});html+='</div></div>';});
+html+='</div></div>';return html;
 }
-
-function switchTab(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'scr-' + id));
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
-  if (id === 'summary' && trafficCache[trafficRange]) drawTraffic(trafficCache[trafficRange]);
-  if (id === 'marks' && marksCache[marksRange]) drawMarksCharts();
-  fitScreen();
-  try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
+function buildUpdates(upd){
+if(!upd||upd.error)return scrHead('📦','Версии сайта','кто и когда обновился')+'<div class="grid g-ver"><div class="card"><div class="err">Метрика обновлений не отвечает: функция dash_update_stats не создана.</div></div></div>';
+const tile=(i,p,l,v,s)=>'<div class="tile '+p+'"><div class="t-ico">'+i+'</div><div class="lbl">'+l+'</div><div class="val">'+v+'</div>'+(s?'<div class="sub">'+s+'</div>':'')+'</div>';
+let html=scrHead('📦','Версии сайта','кто и когда обновился');html+='<div class="grid g-ver"><div class="tiles t4">'+tile('📅','p1','Обновилось · 7 дн',num(upd.devices_7d))+tile('🗓️','p2','Обновилось · 30 дн',num(upd.devices_30d))+tile('🤖','p3','Автообновлений',num(upd.total_sw))+tile('🖱️','p4','Кликов «Обновить»',num(upd.total_clicks))+'</div>';
+const tr=upd.by_transition||[];
+html+='<div class="card"><h3><span class="hicon">🔀</span>Переходы между версиями'+(upd.current_latest?'<span class="hchip">ПОСЛЕДНЯЯ: '+upd.current_latest+'</span>':'')+'</h3>';
+if(tr.length){const mx=Math.max(...tr.map(x=>x.cnt),1);html+='<div class="bars">';tr.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl" style="color:var(--ink)">'+(x.old_v||'?')+' → '+x.new_v+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.devices+' <small>устр.</small></div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет переходов</div>';
+html+='</div>';
+const days=upd.by_day||[];
+html+='<div class="card"><h3><span class="hicon">📅</span>По дням (14 дней)</h3>';
+if(days.length){const mx=Math.max(...days.map(x=>x.devices),1);html+='<div class="bars">';days.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl">'+x.d.slice(8,10)+'.'+x.d.slice(5,7)+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(x.devices/mx*100)+'%"></div></div><div class="bar-val">'+x.devices+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+html+='</div>';
+const rec=upd.recent||[];
+html+='<div class="card"><h3><span class="hicon">🕐</span>Последние обновления</h3>';
+if(rec.length){html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Когда</th><th>Переход</th></tr>';rec.forEach(x=>{const t=x.t||x.created_at||null;const ov=x.old_v||x.old_version||null;const nv=x.new_v||x.new_version||null;if(!ov&&!nv)return;const d=t?new Date(new Date(t).getTime()+3*3600*1000):null;const s=d?p2(d.getUTCDate())+'.'+p2(d.getUTCMonth()+1)+' '+p2(d.getUTCHours())+':'+p2(d.getUTCMinutes()):'—';html+='<tr><td>'+s+'</td><td><b>'+(ov||'?')+' → '+(nv||'?')+'</b></td></tr>';});html+='</table></div>';}else html+='<div class="empty">Пока ни одно устройство не зафиксировано на новой версии.</div>';
+html+='<div class="note">Автообновление фиксируется при первом заходе на новую версию; «Обновить сейчас» — явный клик.</div></div></div>';return html;
 }
-
-async function load() {
-  try {
-    const H = { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) };
-    const [statsRes, pollRes, advisorRes, hooksRes, engRes, srcfRes, advDetRes, updRes, marksRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_poll_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_hooks_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_engagement_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_source_funnel', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_advisor_detailed', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_update_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_marks_stats', { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET, p_range: '30d' }) })
-    ]);
-
-    if (!statsRes.ok || !pollRes.ok || !advisorRes.ok || !hooksRes.ok || !engRes.ok || !srcfRes.ok) throw new Error('HTTP error');
-
-    const [stats, poll, advisor, hooks, eng, srcf, advDet, upd, marks30] = await Promise.all([statsRes.json(), pollRes.json(), advisorRes.json(), hooksRes.json(), engRes.json(), srcfRes.json(), advDetRes.ok ? advDetRes.json() : Promise.resolve({}), updRes.ok ? updRes.json() : Promise.resolve({}), marksRes.ok ? marksRes.json() : Promise.resolve({})]);
-    MARKS_30D = (marks30 && !marks30.error) ? marks30 : null;
-    if (MARKS_30D) marksCache['30d'] = MARKS_30D;
-    if (stats.error) throw new Error('Invalid token');
-
-    ADVISOR_DETAILED = advDet.error ? {} : advDet;
-    render(stats, poll, advisor, hooks, eng, srcf, upd);
-  } catch (e) {
-    document.getElementById('verdict-container').innerHTML = '<div class="err">Ошибка загрузки: ' + e.message + '</div>';
-  }
+function renderMarksStrip(){
+const el=document.getElementById('marksStrip');if(!el)return;
+if(!MARKS_30D||!MARKS_30D.totals){el.style.display='none';return;}
+const t=MARKS_30D.totals;const marks=num(t.marks),devices=num(t.devices),onSite=num(t.on_site);const cities=MARKS_30D.by_city||[];const pct=marks>0?Math.round(100*onSite/marks):0;
+el.style.display='';
+el.innerHTML='<h3><span class="hicon">🙏</span>Народные отметки · 30 дней</h3><div class="tiles t4"><div class="tile p1"><div class="lbl">Всего отметок</div><div class="val">'+marks+'</div></div><div class="tile p2"><div class="lbl">Водителей</div><div class="val">'+devices+'</div></div><div class="tile p3"><div class="lbl">С места с GPS</div><div class="val">'+pct+'%</div></div><div class="tile p4"><div class="lbl">Городов</div><div class="val">'+cities.length+'</div></div></div>';
 }
-
-function render(stats, poll, advisor, hooks, eng, srcf, upd) {
-  REPORT = { stats, poll, advisor, hooks, eng, srcf, upd };
-
-  const ub = document.getElementById('updBadge');
-  if (ub) {
-    const t = new Date(Date.now() + 3 * 3600 * 1000);
-    ub.textContent = 'Обновлено в ' + String(t.getUTCHours()).padStart(2, '0') + ':' + String(t.getUTCMinutes()).padStart(2, '0') + ' МСК';
-  }
-
-  // KPI
-  const ret = stats.retention || {};
-  const nowMSK = new Date(Date.now() + 3 * 3600 * 1000);
-  const hoursElapsed = Math.max(1, nowMSK.getUTCHours() + nowMSK.getUTCMinutes() / 60);
-  const dayAlmostDone = nowMSK.getUTCHours() >= 20;
-  let dauBadge;
-  if (stats.dau_yesterday <= 0) {
-    dauBadge = '<div class="chip neu">нет данных за вчера</div>';
-  } else if (hoursElapsed < 6) {
-    dauBadge = '<div class="chip neu">данные набираются с полуночи</div>';
-  } else if (dayAlmostDone) {
-    const d = (stats.dau_today - stats.dau_yesterday) / stats.dau_yesterday * 100;
-    dauBadge = '<div class="chip ' + (d > 0 ? 'pos' : d < 0 ? 'neg' : 'neu') + '">' + (d > 0 ? '↑' : d < 0 ? '↓' : '±') + ' ' + Math.abs(d).toFixed(1) + '% vs вчера</div>';
-  } else {
-    const pace = (stats.dau_today / hoursElapsed) / (stats.dau_yesterday / 24) * 100 - 100;
-    dauBadge = '<div class="chip ' + (pace > 0 ? 'pos' : pace < 0 ? 'neg' : 'neu') + '">' + (pace > 0 ? '↑' : pace < 0 ? '↓' : '±') + ' ' + Math.abs(pace).toFixed(0) + '% темп к вчера</div>';
-  }
-
-  let kpi = '';
-  kpi += '<div class="kpi p1"><div class="t-ico">👥</div><div class="lbl">Пользователи за 30 дней</div><div class="val">' + formatNumber(num(stats.mau_30d)) + '</div><div class="sub">Уникальных ID</div></div>';
-  kpi += '<div class="kpi p2"><div class="t-ico">📅</div><div class="lbl">Пользователей сегодня</div><div class="val">' + num(stats.dau_today) + '</div>' + dauBadge + '<div class="sub">С полуночи · вчера целиком: ' + num(stats.dau_yesterday) + '</div></div>';
-  kpi += '<div class="kpi p3"><div class="t-ico">✨</div><div class="lbl">Новые (за 7 дней)</div><div class="val">' + formatNumber(num(ret.new_7d)) + '</div><div class="sub">Вернувшихся: ' + formatNumber(num(ret.returning_7d)) + '</div></div>';
-  kpi += '<div class="kpi p4"><div class="t-ico">🚦</div><div class="lbl">Всего визитов</div><div class="val">' + formatNumber(num(stats.total_sessions)) + '</div><div class="sub">Действий: ' + formatNumber(num(stats.total_hits)) + '</div></div>';
-  document.getElementById('kpiGrid').innerHTML = kpi;
-  renderMarksStrip();
-
-  document.getElementById('inner-advisor').innerHTML = buildAdvisor();
-  document.getElementById('inner-react').innerHTML = buildReactions();
-  document.getElementById('inner-traffic').innerHTML = buildTrafficLists();
-  document.getElementById('inner-aud').innerHTML = buildAudience();
-  document.getElementById('inner-poll').innerHTML = buildPolls();
-  document.getElementById('inner-ver').innerHTML = buildUpdates(upd);
-  loadMarks(marksRange);
-
-  loadTraffic(trafficRange);
-
-  requestAnimationFrame(() => {
-    const fill = document.querySelector('.utility-ring .fill');
-    if (fill && ADVISOR_DETAILED.utility) {
-      const offset = 377 - (377 * ADVISOR_DETAILED.utility.score / 100);
-      fill.style.strokeDashoffset = offset;
-    }
-    document.querySelectorAll('.ub-bar span').forEach(el => {
-      const w = el.dataset.w;
-      if (w) requestAnimationFrame(() => el.style.width = w + '%');
-    });
-    document.querySelectorAll('.f-step-bar span').forEach(el => {
-      const w = el.dataset.w;
-      if (w) requestAnimationFrame(() => el.style.width = w + '%');
-    });
-    fitScreen();
-  });
-
-  renderVerdict();
-  loadAdvancedStats();
+function renderVerdict(){
+const c=document.getElementById('verdict-container');if(!c||!REPORT.stats)return;
+const s=REPORT.stats,adv=ADVANCED_REPORT,advDet=ADVISOR_DETAILED,f=s.funnel||[],src=s.sources||[];
+let score=5,pros=[],cons=[],statusClass='warn';
+if(adv.bounce&&adv.bounce.total_sessions){const br=adv.bounce.bounce_rate;if(br<=18){score+=1.2;pros.push('Хорошее удержание (отказы '+br+'%).');}else if(br<=35){score+=.3;pros.push('Приемлемые отказы ('+br+'%).');}else if(br<=50){score-=.4;cons.push('Повышенные отказы ('+br+'%).');}else{score-=1.2;cons.push('Очень высокие отказы ('+br+'%).');}}
+const pv=(f.find(x=>x.event==='pageview')||{}).sessions||0;const cardEv=(f.find(x=>x.event==='open_station_card')||{}).sessions||0;
+if(pv>0){const cc=Math.round(cardEv/pv*100);if(cc>=8){score+=.5;pros.push('Конверсия в карточку '+cc+'%.');}else{score-=.5;cons.push('Только '+cc+'% смотрят карточки.');}}
+if(adv.cohort&&adv.cohort.length>1){const mc=adv.cohort[1];if(mc&&mc.total_users>10){const rr=Math.round(100*mc.day1/mc.total_users);if(rr>=10){score+=1;pros.push('Возвращаемость '+rr+'%.');}else if(rr>=5){score+=.3;}else{score-=.8;cons.push('Мало возвратов: '+rr+'%.');}}}
+const ya=(src.find(x=>x.source.toLowerCase().includes('utm')&&x.source.toLowerCase().includes('yandex'))||{}).sessions||0;
+if(ya>0){score+=.3;pros.push('Реклама приводит трафик ('+ya+').');}
+if(advDet.utility&&advDet.totals&&advDet.totals.shown>30){const util=advDet.utility.score;if(util>=65){score+=1.5;pros.push('Советник отличный ('+util.toFixed(0)+'/100).');}else if(util>=45){score+=.5;}else if(util>0){score-=.5;cons.push('Советник слабый ('+util.toFixed(0)+'/100).');}}
+if(MARKS_30D&&MARKS_30D.totals){const mt=MARKS_30D.totals,mks=num(mt.marks),dev=num(mt.devices),ons=num(mt.on_site);const op=mks>0?Math.round(100*ons/mks):0;
+if(mks>=100){score+=.5;pros.push('Толпа живая: '+mks+' отметок.');}else if(mks>=30){score+=.2;}else if(mks>0){score-=.3;cons.push('Толпа молчит: '+mks+' отметок.');}else{score-=.5;cons.push('Народных отметок нет.');}
+if(dev>=20){score+=.3;}else if(mks>0&&dev<=3){score-=.3;cons.push('Отметки ставят всего '+dev+' водителя.');}
+if(mks>0){if(op>=25){score+=.4;pros.push(op+'% отметок с GPS.');}else if(op<10){score-=.3;cons.push('Мало отметок с GPS ('+op+'%).');}}}
+score=Math.max(1,Math.min(10,score));
+if(score>=7.5)statusClass='good';else if(score>=4.5)statusClass='warn';else statusClass='bad';
+const fs=score.toFixed(1).replace('.',',');const deg=(score/10)*100;
+const sw=statusClass==='good'?'Отличный старт':statusClass==='warn'?'Есть над чем работать':'Критическая ситуация';
+c.className='card verdict-card '+statusClass;
+c.innerHTML='<div class="verdict-panel"><div><div class="score-ring" style="--score-deg:'+deg+'%"><div class="score-val">'+fs+'<small>/10</small></div></div><div class="score-label">'+sw+'</div></div><div class="verdict-lists"><div class="v-list-col v-good"><div class="v-list-title">Что работает отлично</div><ul>'+(pros.length?pros.map(p=>'<li>'+p+'</li>').join(''):'<li>Копим данные.</li>')+'</ul></div><div class="v-list-col v-bad"><div class="v-list-title">На что обратить внимание</div><ul>'+(cons.length?cons.map(x=>'<li>'+x+'</li>').join(''):'<li>Все показатели в норме.</li>')+'</ul></div></div></div>';
+fitScreen();
 }
-
-// === ЭКРАН: СОВЕТНИК ===
-function buildAdvisor() {
-  const d = ADVISOR_DETAILED;
-  if (!d || !d.totals) {
-    return scrHead('🧭', 'Советник «Куда ехать»', 'коэффициент полезности и воронка') +
-      '<div class="grid g-adv"><div class="card"><h3><span class="hicon">🧭</span>Советник «Куда ехать»</h3>' +
-      '<div class="err">Детали советника не загрузились: серверная функция dash_advisor_detailed не отвечает. ' +
-      'Реакции и голоса пишутся в базу, но дашборд не может их достать. ' +
-      'Лечение: создать функцию в psql и выполнить systemctl restart postgrest.</div></div></div>';
-  }
-  const u0 = d.utility || {};
-  const funnel = d.funnel || [];
-  const reactionsArr = d.reactions || [];
-  const totalReact = reactionsArr.reduce(function (s, r) { return s + (r.cnt || 0); }, 0);
-
-  // Пересчёт score без фиктивной satisfaction при 0 реакций
-  const u = Object.assign({}, u0);
-  if (totalReact === 0 && typeof u.engagement === 'number') {
-    const eng = u.engagement || 0, conv = u.conversion || 0, loy = u.loyalty || 0;
-    // веса 30/25/25 без satisfaction (20) → нормируем на 80
-    u.satisfaction = null;
-    u.score = Math.round((eng * 30 + conv * 25 + loy * 25) / 80 * 10) / 10;
-    u._noReact = true;
-  }
-
-  let word, desc, wordColor;
-  if (u.score === undefined || u.score === null) {
-    word = 'Нет данных'; desc = 'Коэффициент полезности ещё не посчитан: мало событий советника.'; wordColor = '#eef2f8';
-  } else if ((u.engagement || 0) < 8) {
-    word = 'Мало открывают совет';
-    desc = 'Главная дыра — вход: до советника доходит мало людей (вовлечённость ' + (u.engagement || 0).toFixed(1) + '%). Среди тех, кто открыл, конверсия в маршрут нормальная. Сначала усильте вход, не только алгоритм подбора.';
-    wordColor = '#ffd27a';
-  } else if (u.score >= 75) { word = 'Отличный советник'; desc = 'Водители доверяют совету, строят маршруты и возвращаются к избранным АЗС'; wordColor = '#7dffc8'; }
-  else if (u.score >= 55) { word = 'Хороший советник'; desc = 'Больше половины метрик в норме, но есть точки роста'; wordColor = '#9db7ff'; }
-  else if (u.score >= 35) { word = 'Средний советник'; desc = 'Водители пользуются, но часто сомневаются или не едут по совету'; wordColor = '#ffd27a'; }
-  else { word = 'Слабый советник'; desc = 'Нужно пересмотреть алгоритм подбора — люди не доверяют советам'; wordColor = '#ffb0b0'; }
-
-  const lowData = (d.totals.shown || 0) < 30;
-  if (lowData && u.score !== undefined) {
-    word = 'Копим данные';
-    desc = 'Пока ' + (d.totals.shown || 0) + ' показов — для точной метрики нужно минимум 30. Текущее значение ориентировочное.';
-    wordColor = '#c5cbe0';
-  }
-
-  const components = [
-    { key: 'engagement', label: 'Вовлечённость', sub: 'кликнули совет', w: 30 },
-    { key: 'conversion', label: 'Конверсия', sub: 'построили маршрут', w: 25 },
-    { key: 'satisfaction', label: 'Удовлетворённость', sub: '👍 среди реакций', w: 20 },
-    { key: 'loyalty', label: 'Лояльность', sub: 'добавили в избранное', w: 25 }
-  ];
-
-  let html = scrHead('🧭', 'Советник «Куда ехать»', 'коэффициент полезности и воронка');
-  html += '<div class="grid g-adv">';
-
-  html += '<div class="card utility-card">';
-  html += '<div class="u-head">🧭 Коэффициент полезности советника <span class="u-badge">30 дней</span></div>';
-  html += '<div class="u-ring-wrap">';
-  html += '<div class="utility-ring"><svg viewBox="0 0 140 140"><circle class="track" cx="70" cy="70" r="60"/><circle class="fill" cx="70" cy="70" r="60" style="stroke-dashoffset: 377"/></svg>';
-  html += '<div class="utility-score"><b>' + (u.score !== undefined ? u.score.toFixed(1).replace('.', ',') : '—') + '</b><small>из 100</small></div></div>';
-  html += '<div><div class="utility-word" style="color:' + wordColor + '">' + word + '</div>';
-  html += '<div class="utility-desc">' + desc + '</div></div></div>';
-  html += '<div class="ub-grid">';
-  components.forEach(c => {
-    const raw = u[c.key];
-    const has = typeof raw === 'number';
-    const val = has ? raw : 0;
-    const wlabel = (c.key === 'satisfaction' && u._noReact) ? 'нет данных' : ('×' + c.w + '%');
-    html += '<div class="ub-item"><div class="ub-val"><span>' + c.label + '</span><small>' + wlabel + '</small></div>';
-    html += '<div class="ub-bar"><span data-w="' + (has ? val : 0) + '" style="width:0%"></span></div>';
-    html += '<div class="ub-val"><b>' + (has ? val.toFixed(1) : '—') + '</b><small>' + (u._noReact && c.key === 'satisfaction' ? 'нет реакций в отчёте' : c.sub) + '</small></div></div>';
-  });
-  html += '</div></div>';
-
-  html += '<div class="col">';
-  html += '<div class="card"><h3><span class="hicon">🎯</span>Воронка: от захода до маршрута</h3><div class="fsteps">';
-  funnel.forEach((s, i) => {
-    const pct = s.pct || 0;
-    html += '<div class="f-step"><div class="f-step-num">' + (i + 1) + '</div>';
-    html += '<div><div class="f-step-name">' + s.step + '</div>';
-    html += '<div class="f-step-bar"><span data-w="' + pct + '" style="width:0%"></span></div></div>';
-    html += '<div class="f-step-val"><b>' + formatNumber(s.sessions) + '</b><small>' + (Math.round(pct * 10) / 10) + '%</small></div></div>';
-  });
-  html += '</div>';
-  html += '<div class="note">Воронка показывает, на каком шаге советник теряет водителей. Большой обрыв после «Клик Куда ехать» → карточки не убеждают. После «Открыли карточку» → не хватает доверия к данным.</div>';
-  html += '</div>';
-
-  const adv = REPORT.advisor || {};
-  if (adv && !adv.error && adv.total_advice > 0) {
-    html += '<div class="tiles t3">';
-    html += '<div class="tile p1"><div class="t-ico">🎯</div><div class="lbl">Принятие советов</div><div class="val">' + (adv.acceptance_rate || 0).toFixed(1) + '%</div></div>';
-    html += '<div class="tile p2"><div class="t-ico">🧭</div><div class="lbl">Всего советов</div><div class="val">' + formatNumber(adv.total_advice) + '</div></div>';
-    html += '<div class="tile p3"><div class="t-ico">🛣️</div><div class="lbl">Построено маршрутов</div><div class="val">' + formatNumber(adv.route_built_count) + '</div></div>';
-    html += '</div>';
-  }
-
-  if (d.fav_from_advice > 0) {
-    const t = d.totals || {};
-    const favRate = t.clicks > 0 ? Math.round(d.fav_from_advice / t.clicks * 100) : 0;
-    html += '<div class="card fav-card"><h3><span class="hicon">❤️</span>Советник → избранное</h3>';
-    html += '<div class="tiles t2">';
-    html += '<div class="tile p3"><div class="t-ico">❤️</div><div class="lbl" style="color:#047857">Добавили в избранное из совета</div><div class="val" style="color:#047857">' + d.fav_from_advice + '</div></div>';
-    html += '<div class="tile p3"><div class="t-ico">💚</div><div class="lbl" style="color:#047857">Конверсия в избранное</div><div class="val" style="color:#047857">' + favRate + '%</div><div class="sub" style="color:#047857">от кликнувших совет</div></div>';
-    html += '</div>';
-    html += '<div class="note"><b>Золотой показатель советника.</b> Если водитель добавил АЗС из совета в избранное — совет попал в точку настолько, что человек хочет получать уведомления по этой заправке. Цель — выше 8%.</div>';
-    html += '</div>';
-  }
-
-  html += '</div></div>';
-  return html;
+async function loadAdvancedStats(){
+try{
+const [bR,cR,hR,behR]=await Promise.all([rpc('dash_bounce_stats'),rpc('dash_retention_cohorts'),rpc('dash_time_heatmap'),rpc('dash_session_behavior')]);
+const bounce=await bR.json(),cohort=await cR.json(),heat=await hR.json();const beh=behR.ok?await behR.json():{error:'HTTP '+behR.status};
+ADVANCED_REPORT={bounce,cohort,heatmap:heat};BEHAVIOR_REPORT=beh;
+document.getElementById('inner-aud').innerHTML=buildAudience();renderVerdict();fitScreen();
+}catch(e){document.getElementById('inner-aud').innerHTML='<div class="card"><div class="err">Не удалось загрузить доп. статистику: '+e.message+'</div></div>';}
 }
-
-// === ЭКРАН: РЕАКЦИИ / ИСХОДЫ / ГОЛОСА / ТОП АЗС ===
-function buildReactions() {
-  const d = ADVISOR_DETAILED;
-  const reactions = (d && d.reactions) || [];
-  const dislikeReasons = (d && d.dislike_reasons) || [];
-  const doubtReasons = (d && d.doubt_reasons) || [];
-  const outcomes = (d && d.outcomes) || [];
-  const folkVotes = (d && d.folk_votes) || [];
-  const topStations = (d && d.top_stations) || [];
-  const totalReactions = reactions.reduce((s, r) => s + r.cnt, 0);
-  const totalOutcomes = outcomes.reduce((s, o) => s + o.cnt, 0);
-  const totalFolk = folkVotes.reduce((s, f) => s + f.cnt, 0);
-
-  if (totalReactions === 0 && totalOutcomes === 0 && totalFolk === 0 && topStations.length === 0) {
-    return scrHead('🎯', 'Реакции и исходы', 'что водители думают о советах') +
-      '<div class="grid g-react"><div class="card"><h3><span class="hicon">🎯</span>Реакции водителей</h3><div class="empty">Пока нет реакций и исходов поездок по совету. Данные появятся, когда водители начнут оценивать советы.</div></div></div>';
-  }
-
-  let html = scrHead('🎯', 'Реакции и исходы', 'что водители думают о советах');
-  html += '<div class="grid g-react">';
-
-  if (totalReactions > 0) {
-    html += '<div class="card"><h3><span class="hicon">🎯</span>Реакции водителей на карточки совета<span class="hchip">ВСЕГО: ' + totalReactions + ' РЕАКЦИЙ</span></h3>';
-    html += '<div class="tiles t3">';
-    reactions.forEach(r => {
-      const pct = totalReactions > 0 ? Math.round(r.cnt / totalReactions * 100) : 0;
-      html += '<div class="emo-tile ' + r.type + '"><div class="emo-big">' + (r.type === 'like' ? '👍' : r.type === 'dislike' ? '👎' : '🤔') + '</div>';
-      html += '<div class="emo-cnt">' + r.cnt + '</div>';
-      html += '<div class="emo-lbl">' + (r.type === 'like' ? 'Класс' : r.type === 'dislike' ? 'Плохо' : 'Сомнение') + '</div>';
-      html += '<div class="emo-pct">' + pct + '%</div></div>';
-    });
-    html += '</div>';
-    if (dislikeReasons.length > 0) {
-      html += '<div class="subhead red">👎 Почему ставят «Плохо»:</div><div>';
-      dislikeReasons.forEach(r => {
-        html += '<span class="pill red"><span class="cnt">' + r.cnt + '</span>' + (DISLIKE_LABELS[r.reason] || r.reason) + '</span>';
-      });
-      html += '</div>';
-    }
-    if (doubtReasons.length > 0) {
-      html += '<div class="subhead amber">🤔 Почему сомневаются:</div><div>';
-      doubtReasons.forEach(r => {
-        html += '<span class="pill amber"><span class="cnt">' + r.cnt + '</span>' + (DOUBT_LABELS[r.reason] || r.reason) + '</span>';
-      });
-      html += '</div>';
-    }
-    html += '<div class="note">Реакции помогают калибровать алгоритм: много «👎 Топлива нет» → советник предлагает АЗС с устаревшими данными. Много «🤔 Данные старые» → источник редко обновляет эту станцию.</div>';
-    html += '</div>';
-  }
-
-  if (totalOutcomes > 0) {
-    html += '<div class="card"><h3><span class="hicon">🛣️</span>Чем закончились поездки по совету<span class="hchip">' + totalOutcomes + ' ОТВЕТОВ</span></h3>';
-    html += '<div class="tiles t4">';
-    outcomes.forEach(o => {
-      const info = OUTCOME_LABELS[o.answer_key] || ['•', o.answer_key, 'notwent'];
-      const pct = Math.round(o.cnt / totalOutcomes * 100);
-      html += '<div class="emo-tile ' + info[2] + '"><div class="emo-big">' + info[0] + '</div>';
-      html += '<div class="emo-cnt">' + o.cnt + '</div>';
-      html += '<div class="emo-lbl">' + info[1] + '</div>';
-      html += '<div class="emo-pct" style="color:' + (info[2] === 'fuel' ? '#047857' : info[2] === 'miss' ? '#b45309' : info[2] === 'noadv' ? '#b91c1c' : '#6b7280') + '">' + pct + '%</div></div>';
-    });
-    html += '</div>';
-    const fuelCnt = outcomes.find(o => o.answer_key === 'fuel');
-    const hitRate = fuelCnt ? Math.round(fuelCnt.cnt / totalOutcomes * 100) : 0;
-    html += '<div class="note"><b>Коэффициент попадания: ' + hitRate + '%</b> — столько водителей реально заправились по совету. Если ниже 40% — советник часто промахивается (топливо кончается до приезда). Опрос приходит через 45 минут – 3 дня после клика «Куда ехать».</div>';
-    html += '</div>';
-  }
-
-  html += '<div class="card"><h3><span class="hicon">🗳️</span>Народные голоса в совете</h3>';
-  if (totalFolk > 0) {
-    const yesCnt = folkVotes.find(f => f.type === 'yes') ? folkVotes.find(f => f.type === 'yes').cnt : 0;
-    const noCnt = folkVotes.find(f => f.type === 'no') ? folkVotes.find(f => f.type === 'no').cnt : 0;
-    const maxF = Math.max(yesCnt, noCnt, 1);
-    const folkHitRate = Math.round(yesCnt / totalFolk * 100);
-    html += '<div class="bars">';
-    html += '<div class="bar-row"><div class="bar-lbl">✅ Подтверждают наличие</div><div class="bar-track"><div class="bar-fill f-success" style="width:' + (yesCnt / maxF * 100) + '%"></div></div><div class="bar-val">' + yesCnt + '</div></div>';
-    html += '<div class="bar-row"><div class="bar-lbl">❌ Опровергают</div><div class="bar-track"><div class="bar-fill f-danger" style="width:' + (noCnt / maxF * 100) + '%"></div></div><div class="bar-val">' + noCnt + '</div></div>';
-    html += '</div>';
-    html += '<div class="note">Доля подтверждений: <b>' + folkHitRate + '%</b>. Голос «✅ Подтверждают» усиливает эту АЗС в советнике, «❌ Опровергают» — снижает её рейтинг.</div>';
-  } else {
-    html += '<div class="empty">Пока нет голосов в советнике</div>';
-  }
-  html += '</div>';
-
-  html += '<div class="card"><h3><span class="hicon">⛽</span>Топ АЗС по кликам из совета</h3>';
-  if (topStations.length > 0) {
-    const maxClicks = Math.max(...topStations.map(s => s.clicks));
-    html += '<div class="bars">';
-    topStations.slice(0, 6).forEach(s => {
-      const width = (s.clicks / maxClicks * 100);
-      html += '<div class="bar-row"><div class="bar-lbl">' + (s.name || 'Без названия') + '</div><div class="bar-track"><div class="bar-fill f-purple" style="width:' + (width || 0) + '%"></div></div><div class="bar-val">' + s.clicks + '</div></div>';
-    });
-    html += '</div>';
-    html += '<div class="note">Станции, на которые чаще всего кликали из советника за 30 дней. Если в топе станции, которые регулярно получают 👎 — алгоритм их переоценивает.</div>';
-  } else {
-    html += '<div class="empty">Пока нет данных</div>';
-  }
-  html += '</div>';
-
-  html += '</div>';
-  return html;
+function downloadReport(){
+const R=REPORT;if(!R.stats){alert('Данные ещё не загрузились.');return;}
+const L=[];const now=new Date(Date.now()+3*3600*1000);
+const stamp=now.getUTCFullYear()+'-'+p2(now.getUTCMonth()+1)+'-'+p2(now.getUTCDate())+'_'+p2(now.getUTCHours())+p2(now.getUTCMinutes());
+L.push('КОГДАБЕНЗ — ОТЧЁТ ВЛАДЕЛЬЦА');
+L.push('Сформирован: '+p2(now.getUTCDate())+'.'+p2(now.getUTCMonth()+1)+'.'+now.getUTCFullYear()+' '+p2(now.getUTCHours())+':'+p2(now.getUTCMinutes())+' МСК');L.push('');
+const ve=document.querySelector('.verdict-panel');
+if(ve){L.push('== ОБЩИЙ ВЕРДИКТ ==');L.push('Оценка: '+ve.querySelector('.score-val').textContent.replace('/10','')+'/10');ve.querySelectorAll('.v-good li').forEach(li=>L.push('  + '+li.textContent));ve.querySelectorAll('.v-bad li').forEach(li=>L.push('  - '+li.textContent));L.push('');}
+if(ADVISOR_DETAILED.utility&&ADVISOR_DETAILED.totals){const u=ADVISOR_DETAILED.utility,t=ADVISOR_DETAILED.totals;
+L.push('== СОВЕТНИК ==');L.push('Полезность: '+u.score+'/100');L.push('  Вовлечённость: '+u.engagement+'%');L.push('  Конверсия: '+u.conversion+'%');L.push('  Удовлетворённость: '+u.satisfaction+'%');L.push('  Лояльность: '+u.loyalty+'%');L.push('Показов: '+t.shown+', кликов: '+t.clicks+', карточек: '+t.cards+', маршрутов: '+t.routes);L.push('');}
+const s=R.stats,ret=s.retention||{};
+L.push('== ПОКАЗАТЕЛИ ==');L.push('30 дней: '+num(s.mau_30d));L.push('Сегодня: '+num(s.dau_today)+' (вчера '+num(s.dau_yesterday)+')');L.push('Новых 7д: '+num(ret.new_7d)+', вернувшихся: '+num(ret.returning_7d));L.push('Визитов: '+num(s.total_sessions)+', действий: '+num(s.total_hits));L.push('');
+const f=s.funnel||[];
+if(f.length){L.push('== ВОРОНКА ==');const base=f[0].sessions||0;f.forEach(x=>{const e=EVENT_RU[x.event]?EVENT_RU[x.event][1]:x.event;L.push(e+': '+x.sessions+(base?' ('+Math.round(100*x.sessions/base)+'%)':''));});L.push('');}
+const p=R.poll;
+if(p&&!p.error&&p.total_answers){L.push('== ОПРОСЫ ==');L.push('Ответов: '+p.total_answers);(p.answers_by_question||[]).forEach(q=>{const total=q.answers.reduce((sm,x)=>sm+x.cnt,0);L.push('  '+(POLL_Q[q.question_key]||q.question_key));q.answers.forEach(an=>{const txt=q.question_key==='stars'?an.answer_key:(POLL_A[an.answer_key]||an.answer_key);L.push('    '+txt+': '+an.cnt+' ('+(total?Math.round(100*an.cnt/total):0)+'%)');});});}
+const blob=new Blob(['\ufeff'+L.join('\r\n')],{type:'text/plain;charset=utf-8'});
+const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='kogdabenz_otchet_'+stamp+'.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
-
-// === ЭКРАН: ТРАФИК ===
-function buildTrafficLists() {
-  const stats = REPORT.stats || {};
-  let html = scrHead('🚗', 'Трафик и пути', 'действия, источники, города');
-  html += '<div class="grid g-traf">';
-
-  const funnel = stats.funnel || [];
-  html += '<div class="card"><h3><span class="hicon">🎯</span>Действия пользователей</h3>';
-  if (funnel.length > 0) {
-    const maxFunnel = Math.max(...funnel.map(f => f.sessions));
-    html += '<div class="bars">';
-    funnel.forEach(f => {
-      const event = EVENT_RU[f.event] || ['•', f.event];
-      const width = (f.sessions / maxFunnel * 100);
-      html += '<div class="bar-row"><div class="bar-lbl">' + event[0] + ' ' + event[1] + '</div><div class="bar-track"><div class="bar-fill f-primary" style="width:' + width + '%"></div></div><div class="bar-val">' + formatNumber(f.sessions) + '</div></div>';
-    });
-    html += '</div>';
-  } else html += '<div class="empty">Пока нет данных</div>';
-  html += '</div>';
-
-  const rawSources = stats.sources || [];
-  const groupedSourcesMap = {};
-  rawSources.forEach(item => {
-    const ruName = sourceRu(item.source);
-    if (!groupedSourcesMap[ruName]) groupedSourcesMap[ruName] = 0;
-    groupedSourcesMap[ruName] += item.sessions;
-  });
-  const sources = Object.keys(groupedSourcesMap)
-    .map(k => ({ source: k, sessions: groupedSourcesMap[k] }))
-    .sort((a, b) => b.sessions - a.sessions);
-  html += '<div class="card"><h3><span class="hicon">🔗</span>Источники трафика</h3>';
-  if (sources.length > 0) {
-    const maxSrc = Math.max(...sources.map(s => s.sessions));
-    html += '<div class="bars">';
-    sources.slice(0, 10).forEach(s => {
-      const width = (s.sessions / maxSrc * 100);
-      html += '<div class="bar-row"><div class="bar-lbl">' + s.source + '</div><div class="bar-track"><div class="bar-fill f-success" style="width:' + width + '%"></div></div><div class="bar-val">' + formatNumber(s.sessions) + '</div></div>';
-    });
-    html += '</div>';
-  } else html += '<div class="empty">Пока нет данных</div>';
-  html += '</div>';
-
-  const cities = stats.cities || [];
-  html += '<div class="card"><h3><span class="hicon">🏙️</span>География пользователей</h3>';
-  if (cities.length > 0) {
-    const maxCity = Math.max(...cities.map(c => c.sessions));
-    html += '<div class="bars">';
-    cities.forEach(c => {
-      const width = (c.sessions / maxCity * 100);
-      html += '<div class="bar-row"><div class="bar-lbl">' + cityRu(c.city) + '</div><div class="bar-track"><div class="bar-fill f-warning" style="width:' + width + '%"></div></div><div class="bar-val">' + formatNumber(c.sessions) + '</div></div>';
-    });
-    html += '</div>';
-  } else html += '<div class="empty">Пока нет данных</div>';
-  html += '</div>';
-
-  const list = REPORT.srcf || [];
-  html += '<div class="card span3"><h3><span class="hicon">🧭</span>Воронка по источникам<span class="hchip">7 ДНЕЙ</span></h3>';
-  if (list.length) {
-    const cell = (n, r) => r.visits ? n + ' <small style="color:var(--muted);font-size:10px;">(' + Math.round(100 * n / r.visits) + '%)</small>' : String(n);
-    html += '<table class="tbl"><tr><th>Источник</th><th>Открыли</th><th>Листали</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
-    for (const r of list) {
-      html += '<tr><td><b>' + r.source + '</b></td><td>' + r.visits + '</td><td>' + cell(r.panels, r) + '</td><td>' + cell(r.cards, r) + '</td><td>' + cell(r.advice, r) + '</td><td>' + cell(r.marks, r) + '</td><td>' + cell(r.installs, r) + '</td></tr>';
-    }
-    html += '</table>';
-  } else html += '<div class="empty">Пока нет данных</div>';
-  html += '</div>';
-
-  html += '</div>';
-  return html;
+async function loadMarks(range){
+marksRange=range;const box=document.getElementById('inner-marks');if(!box)return;
+if(!marksCache[range]){box.innerHTML='<div class="card"><div class="loading"><div class="spinner"></div><span>Загрузка отметок...</span></div></div>';
+try{const r=await rpc('dash_marks_stats',{secret:DASH_SECRET,p_range:range});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.error)throw new Error(d.error);marksCache[range]=d;}
+catch(e){box.innerHTML='<div class="card"><div class="err">Отметки не загрузились: '+e.message+'</div></div>';return;}}
+box.innerHTML=buildMarks();drawMarksCharts();fitScreen();
 }
-
-// === ЭКРАН: АУДИТОРИЯ ===
-function buildAudience() {
-  const hooks = REPORT.hooks || {};
-  const eng = REPORT.eng || {};
-  const adv = ADVANCED_REPORT || {};
-  const beh = (BEHAVIOR_REPORT && !BEHAVIOR_REPORT.error) ? BEHAVIOR_REPORT : null;
-  const bt = beh ? (beh.totals || {}) : {};
-  let html = scrHead('👥', 'Аудитория', 'привычки, удержание и активность');
-  html += '<div class="grid g-aud">';
-
-  const H = {};
-  for (const r of (hooks.hooks || [])) H[r.event] = r;
-  const hcard = (ico, pc, label, sub, r) => '<div class="tile ' + pc + '"><div class="t-ico">' + ico + '</div><div class="lbl">' + label + '</div><div class="val">' + (r ? r.sessions : 0) + '</div><div class="sub">' + sub + (r ? r.hits : 0) + '</div></div>';
-  html += '<div class="card"><h3><span class="hicon">🪝</span>Крючки привычки</h3><div class="tiles t2">' +
-    hcard('📲', 'p1', 'PWA установок', 'событий: ', H.pwa_install) +
-    hcard('✈️', 'p2', 'Кнопка «Телеграм»', 'нажатий: ', H.tg_connect) +
-    hcard('✅', 'p3', 'Связка подтверждена', 'включений: ', H.tg_linked) +
-    hcard('❤️', 'p4', '«В избранное»', 'событий: ', H.fav_add) +
-    '</div></div>';
-
-  const d = eng.dur || {};
-  const medTotal = bt.median_total_sec != null ? bt.median_total_sec : d.p50;
-  const medVisible = bt.median_visible_sec;
-  const medActive = bt.median_active_sec;
-  html += '<div class="card"><h3><span class="hicon">⏱️</span>Время сеанса (три метрики)</h3><div class="tiles t3">' +
-    '<div class="tile p1"><div class="t-ico">🕐</div><div class="lbl">Медиана сеанса</div><div class="val">' + fmtDur(medTotal) + '</div><div class="sub">от открытия до ухода</div></div>' +
-    '<div class="tile p2"><div class="t-ico">👁</div><div class="lbl">Активное время</div><div class="val">' + (medVisible != null ? fmtDur(medVisible) : '—') + '</div><div class="sub">вкладка видима + действия</div></div>' +
-    '<div class="tile p3"><div class="t-ico">📱</div><div class="lbl">Время в фоне</div><div class="val">' +
-      (medTotal != null && medVisible != null ? fmtDur(Math.max(0, medTotal - medVisible)) : '—') +
-    '</div><div class="sub">сайт открыт, но не виден</div></div>' +
-    '</div>';
-  if (!beh) {
-    html += '<div class="note">Активное время и время в фоне появятся после внедрения Page Visibility API + heartbeat на клиенте и SQL <b>dash_session_behavior</b>.</div>';
-  }
-  html += '</div>';
-
-  const favg = (eng.freq_avg === null || eng.freq_avg === undefined) ? '—' : Number(eng.freq_avg).toFixed(2).replace('.', ',');
-  html += '<div class="card"><h3><span class="hicon">⏱️</span>Привычка: частота и время</h3><div class="tiles t3">' +
-    '<div class="tile p1"><div class="t-ico">🔁</div><div class="lbl">Заходов в день</div><div class="val">' + favg + '</div></div>' +
-    '<div class="tile p2"><div class="t-ico">⏱️</div><div class="lbl">Медиана времени</div><div class="val">' + fmtDur(d.p50) + '</div></div>' +
-    '<div class="tile p3"><div class="t-ico">⏳</div><div class="lbl">Сессии &gt;2 мин</div><div class="val">' + (d.share_long !== undefined ? d.share_long + '%' : '—') + '</div></div>' +
-    '</div></div>';
-
-  html += '<div class="card"><h3><span class="hicon">💡</span>Интерпретация коротких сессий</h3>' +
-    '<div class="note" style="margin-top:0"><b>Важно:</b> если пользователь увидел топ-3 АЗС с нужным топливом и закрыл сайт за 8–15 секунд — это успешный сценарий, а не отказ. Обычный bounce_rate вводит в заблуждение. Нужны три отдельных метрики:<br>' +
-    '• время сеанса (от открытия до закрытия),<br>' +
-    '• активное время (вкладка видима + есть взаимодействие),<br>' +
-    '• время в фоне.<br>' +
-    'Без событий <code>top3_loaded</code> / <code>station_visible</code> нельзя отличить «не заинтересовался» от «получил ответ и уехал».</div></div>';
-
-  if (beh) {
-    const sessions = num(bt.sessions);
-    const withTop3 = num(bt.with_top3);
-    const top3Only = num(bt.top3_only);
-    const withAdvisor = num(bt.with_advisor);
-    const withAction = num(bt.with_action);
-    const shortSuccess = num(bt.short_success);
-    const pct = (n) => sessions > 0 ? Math.round(100 * n / sessions) : 0;
-
-    html += '<div class="card span2"><h3><span class="hicon">⚡</span>Поведение сеансов<span class="hchip">30 ДНЕЙ</span></h3>';
-    html += '<div class="tiles t4" style="margin-bottom:12px">' +
-      '<div class="tile p1"><div class="t-ico">👥</div><div class="lbl">Всего сеансов</div><div class="val">' + formatNumber(sessions) + '</div></div>' +
-      '<div class="tile p2"><div class="t-ico">⛽</div><div class="lbl">Увидели топ-3</div><div class="val">' + formatNumber(withTop3) + '</div><div class="sub">' + pct(withTop3) + '%</div></div>' +
-      '<div class="tile p3"><div class="t-ico">⚡</div><div class="lbl">Топ-3 и ушли</div><div class="val" style="color:#047857">' + formatNumber(top3Only) + '</div><div class="sub">' + pct(top3Only) + '% · часто успех</div></div>' +
-      '<div class="tile p4"><div class="t-ico">🎯</div><div class="lbl">Были действия</div><div class="val">' + formatNumber(withAction) + '</div><div class="sub">' + pct(withAction) + '%</div></div>' +
-      '</div>';
-    html += '<div class="tiles t2" style="margin-bottom:12px">' +
-      '<div class="tile p3"><div class="t-ico">⚡</div><div class="lbl">Короткий успех ≤20 с</div><div class="val" style="color:#047857">' + formatNumber(shortSuccess) + '</div><div class="sub">' + pct(shortSuccess) + '% сеансов</div></div>' +
-      '<div class="tile p1"><div class="t-ico">🧭</div><div class="lbl">Открыли советник</div><div class="val">' + formatNumber(withAdvisor) + '</div><div class="sub">' + pct(withAdvisor) + '%</div></div>' +
-      '</div>';
-
-    const funnel = beh.funnel || [];
-    if (funnel.length) {
-      const maxF = Math.max(...funnel.map(x => x.sessions), 1);
-      html += '<div class="subhead">Воронка поведения</div><div class="bars">';
-      funnel.forEach(x => {
-        const width = (x.sessions / maxF * 100);
-        html += '<div class="bar-row"><div class="bar-lbl">' + x.step + '</div><div class="bar-track"><div class="bar-fill f-primary" style="width:' + width + '%"></div></div><div class="bar-val">' + formatNumber(x.sessions) + ' <small>' + (x.pct != null ? x.pct + '%' : '') + '</small></div></div>';
-      });
-      html += '</div>';
-    }
-
-    const buckets = beh.duration_buckets || [];
-    if (buckets.length) {
-      const maxB = Math.max(...buckets.map(x => x.cnt), 1);
-      html += '<div class="subhead">Длина сеанса (видимое время)</div><div class="bars">';
-      buckets.forEach(x => {
-        const width = (x.cnt / maxB * 100);
-        const cls = (String(x.label).indexOf('≤10') >= 0 || String(x.label).indexOf('≤20') >= 0) ? 'f-success' : 'f-primary';
-        html += '<div class="bar-row"><div class="bar-lbl">' + x.label + '</div><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + width + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>';
-      });
-      html += '</div>';
-      html += '<div class="note">Зелёные короткие корзины — кандидаты в успешный быстрый поиск топлива (особенно если был top3_loaded).</div>';
-    }
-    html += '</div>';
-  } else {
-    html += '<div class="card span2"><h3><span class="hicon">⚡</span>Поведение сеансов</h3>' +
-      '<div class="note" style="margin-top:0">Блок появится после SQL-функции <b>dash_session_behavior</b> и деплоя обновлённого <b>app.js</b> (события top3_loaded, visibility_*, heartbeat).<br>' +
-      (BEHAVIOR_REPORT && BEHAVIOR_REPORT.error ? 'Сейчас ошибка: ' + BEHAVIOR_REPORT.error : 'Функция пока не отвечает.') +
-      '</div></div>';
-  }
-
-  const b = adv.bounce;
-  html += '<div class="card"><h3><span class="hicon">🚪</span>Уходы и глубина просмотра</h3>';
-  if (b && !b.error && b.total_sessions > 0) {
-    const maxB = Math.max(...(b.buckets || []).map(x => x.cnt), 1);
-    html += '<div class="tiles t2" style="margin-bottom:12px">' +
-      '<div class="tile p2"><div class="t-ico">🚪</div><div class="lbl">Показатель отказов</div><div class="val" style="color:#B91C1C">' + b.bounce_rate + '%</div><div class="sub">Ушли за первые 10 секунд</div></div>' +
-      '<div class="tile p1"><div class="t-ico">📊</div><div class="lbl">Всего сессий</div><div class="val">' + b.total_sessions + '</div></div>' +
-      '</div><div class="bars">';
-    (b.buckets || []).forEach(x => {
-      const width = (x.cnt / maxB * 100);
-      const cls = x.label.includes('уход') ? 'f-danger' : 'f-primary';
-      html += '<div class="bar-row"><div class="bar-lbl">' + x.label + '</div><div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + width + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>';
-    });
-    html += '</div>';
-  } else html += '<div class="empty">Данные ещё не загрузились или их нет</div>';
-  html += '</div>';
-
-  const cohort = adv.cohort;
-  html += '<div class="card"><h3><span class="hicon">🔄</span>Возвращаемость (когорты)</h3>';
-  if (cohort && !cohort.error && cohort.length > 0) {
-    html += '<table class="tbl"><tr><th>Дата прихода</th><th>Пришло</th><th>На сл. день</th><th>Через 7 дней</th></tr>';
-    cohort.forEach(c => {
-      const d1Pct = Math.round(100 * c.day1 / c.total_users);
-      const d7Pct = Math.round(100 * c.day7 / c.total_users);
-      const d1Color = d1Pct >= 15 ? 'var(--green)' : 'var(--red)';
-      const dateStr = new Date(c.cohort_date).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
-      html += '<tr><td><b>' + dateStr + '</b></td><td>' + c.total_users + '</td><td><span style="color:' + d1Color + ';font-weight:800">' + c.day1 + ' (' + d1Pct + '%)</span></td><td><span style="color:var(--primary);font-weight:800">' + c.day7 + ' (' + d7Pct + '%)</span></td></tr>';
-    });
-    html += '</table>';
-  } else html += '<div class="empty">Данные ещё не загрузились или их нет</div>';
-  html += '</div>';
-
-  const heat = adv.heatmap;
-  html += '<div class="card span2"><h3><span class="hicon">🔥</span>Активность по дням и часам</h3>';
-  if (heat && !heat.error && heat.length > 0) {
-    let maxUsers = 1;
-    heat.forEach(h => { if (h.users > maxUsers) maxUsers = h.users; });
-    const daysNames = ['', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-    let matrix = Array(8).fill(0).map(() => Array(24).fill(0));
-    heat.forEach(h => { matrix[h.day_num][h.hour_num] = h.users; });
-    html += '<table class="heatmap"><tr><th></th>';
-    for (let h = 0; h < 24; h++) html += '<th class="hour-label">' + h + '</th>';
-    html += '</tr>';
-    for (let dd = 1; dd <= 7; dd++) {
-      html += '<tr><td class="day-label">' + daysNames[dd] + '</td>';
-      for (let h = 0; h < 24; h++) {
-        const val = matrix[dd][h];
-        const opacity = Math.max(0.05, val / maxUsers);
-        html += '<td><div class="heat-cell" style="background:rgba(245, 165, 36, ' + opacity + ')" title="' + val + ' польз."></div></td>';
-      }
-      html += '</tr>';
-    }
-    html += '</table>';
-  } else html += '<div class="empty">Данные ещё не загрузились или их нет</div>';
-  html += '</div>';
-
-  html += '</div>';
-  return html;
+function buildMarks(){
+const d=marksCache[marksRange]||{};const t=d.totals||{};const RL={'2h':'2 часа','24h':'24 часа','7d':'1 неделя','30d':'1 месяц'};
+let html=scrHead('🙏','Народные отметки','кто, сколько, когда и где отмечал · '+RL[marksRange]);
+html+='<div class="card"><div class="tf-headrow"><h3><span class="hicon">🙏</span>Активность отметок</h3><div class="tf-tabs">'+['2h','24h','7d','30d'].map(r=>'<button class="tf-tab'+(r===marksRange?' active':'')+'" onclick="loadMarks(\''+r+'\')">'+RL[r]+'</button>').join('')+'</div></div>';
+html+='<div class="tiles t4" style="margin:12px 0 14px"><div class="tile p1"><div class="lbl">Всего отметок</div><div class="val">'+num(t.marks)+'</div></div><div class="tile p2"><div class="lbl">Водителей</div><div class="val">'+num(t.devices)+'</div></div><div class="tile p3"><div class="lbl">Уникальных АЗС</div><div class="val">'+num(t.stations)+'</div></div><div class="tile p4"><div class="lbl">С места с GPS</div><div class="val">'+num(t.on_site)+'</div></div></div>';
+html+='<div class="q-title">График активности (лог-шкала)</div><div id="marksChart" style="height:180px"></div><div class="q-title" style="margin-top:14px">В какое время отмечают (МСК)</div><div id="marksHour" style="height:140px"></div><div class="note">Лог-шкала: каждая линия сетки в 10 раз выше. Водители и станции анонимны.</div></div>';
+html+='<div class="grid g-react" style="margin-top:12px"><div class="card"><h3><span class="hicon">🎯</span>На что ставили отметки</h3>';
+const bt=d.by_type||[];
+if(bt.length){const tot=bt.reduce((s,x)=>s+x.cnt,0);html+='<div class="tiles t2">';bt.forEach(x=>{const i=MARK_TYPE_RU[x.kind]||['❓',x.kind];html+='<div class="tile p1"><div class="t-ico">'+i[0]+'</div><div class="lbl">'+i[1]+'</div><div class="val">'+x.cnt+'</div><div class="sub">'+Math.round(100*x.cnt/tot)+'%</div></div>';});html+='</div>';
+const bf=d.by_fuel||[];if(bf.length){html+='<div class="subhead">По топливу</div><div class="tiles t2">';bf.forEach(x=>{html+='<div class="tile p3"><div class="lbl">'+(MARK_FUEL_RU[x.fuel]||x.fuel)+'</div><div class="val">'+x.cnt+'</div></div>';});html+='</div>';}}
+else html+='<div class="empty">Нет отметок за период</div>';
+html+='</div><div class="card"><h3><span class="hicon">🏙️</span>В каких городах отмечали</h3>';
+const bc=d.by_city||[];
+if(bc.length){const mx=Math.max(...bc.map(x=>x.cnt));html+='<div class="bars">';bc.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl">'+x.city+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Нет отметок за период</div>';
+html+='</div><div class="card"><h3><span class="hicon">⛽</span>Топ отмечаемых АЗС</h3>';
+const ts=d.top_stations||[];
+if(ts.length){const mx=Math.max(...ts.map(x=>x.cnt));html+='<div class="bars">';ts.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl">'+x.name+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Нет отметок за период</div>';
+html+='</div></div>';return html;
 }
-
-// === ЭКРАН: ОПРОСЫ ===
-function buildPolls() {
-  const poll = REPORT.poll;
-  if (!poll || poll.error || !poll.total_answers) {
-    return scrHead('💬', 'Опросы водителей', 'прямые ответы пользователей') +
-      '<div class="grid"><div class="card"><h3><span class="hicon">💬</span>Опросы водителей</h3><div class="empty">Пока нет ответов на опросы.</div></div></div>';
-  }
-  let html = scrHead('💬', 'Опросы водителей', 'прямые ответы пользователей');
-  html += '<div class="grid">';
-  html += '<div class="tiles t3">';
-  html += '<div class="kpi p1"><div class="t-ico">💬</div><div class="lbl">Всего ответов</div><div class="val">' + formatNumber(poll.total_answers) + '</div></div>';
-  html += '<div class="kpi p2"><div class="t-ico">👤</div><div class="lbl">Уникальных респондентов</div><div class="val">' + formatNumber(poll.unique_respondents) + '</div></div>';
-  if (poll.avg_stars !== null && poll.avg_stars !== undefined) html += '<div class="kpi p4"><div class="t-ico">⭐</div><div class="lbl">Средняя оценка</div><div class="val">' + poll.avg_stars.toFixed(1) + ' ★</div></div>';
-  html += '</div>';
-
-  html += '<div class="qgrid">';
-  (poll.answers_by_question || []).forEach(q => {
-    if (q.question_key === 'advice_outcome') return;
-    const qText = POLL_Q[q.question_key] || q.question_key;
-    const total = q.answers.reduce((s, a) => s + a.cnt, 0);
-    const maxCnt = Math.max(...q.answers.map(a => a.cnt));
-    html += '<div class="card"><div class="q-title">' + qText + '</div><div class="bars">';
-    q.answers.forEach(a => {
-      let aText = q.question_key === 'stars' ? a.answer_key.replace('star', '').split('_')[0] + ' ★' : (POLL_A[a.answer_key] || a.answer_key);
-      const pct = total > 0 ? Math.round(a.cnt / total * 100) : 0;
-      const width = (a.cnt / maxCnt * 100);
-      const barClass = pct >= 50 ? 'f-success' : pct >= 25 ? 'f-warning' : 'f-primary';
-      html += '<div class="bar-row"><div class="bar-lbl">' + aText + '</div><div class="bar-track"><div class="bar-fill ' + barClass + '" style="width:' + width + '%"></div></div><div class="bar-val">' + a.cnt + ' <small>(' + pct + '%)</small></div></div>';
-    });
-    html += '</div></div>';
-  });
-  html += '</div></div>';
-  return html;
+function drawMarksCharts(){
+const d=marksCache[marksRange];if(!d)return;
+const box=document.getElementById('marksChart');
+if(box){const series=d.series||[];const W=Math.max(300,box.clientWidth||700),H=Math.max(120,box.clientHeight||180),PL=6,PR=34,PT=10,PB=20;const iw=W-PL-PR,ih=H-PT-PB;const maxV=Math.max(1,...series.map(p=>p.cnt));const maxL=Math.log10(maxV+1);
+const y=v=>PT+ih-(Math.log10(v+1)/maxL)*ih;const x=i=>PL+(series.length===1?iw/2:i*iw/(series.length-1));
+let line='';series.forEach((p,i)=>{line+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cnt).toFixed(1);});
+const area=series.length?line+'L'+x(series.length-1).toFixed(1)+' '+(PT+ih)+'L'+x(0).toFixed(1)+' '+(PT+ih)+'Z':'';
+let grid='';[1,10,100,1000].forEach(v=>{if(v>maxV*3)return;const gy=y(v).toFixed(1);grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(W-PR)+'" y2="'+gy+'" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="'+(W-PR+5)+'" y="'+(Number(gy)+4)+'" font-size="9" font-weight="700" fill="#8b93a7">'+v+'</text>';});
+let xl='';const step=Math.max(1,Math.round(series.length/4));
+for(let i=0;i<series.length;i+=step){const dt=new Date(new Date(series[i].t).getTime()+3*3600*1000);const s=(marksRange==='7d'||marksRange==='30d')?p2(dt.getUTCDate())+'.'+p2(dt.getUTCMonth()+1):p2(dt.getUTCHours())+':'+p2(dt.getUTCMinutes());xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-4)+'" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">'+s+'</text>';}
+box.innerHTML=series.length?'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%"><defs><linearGradient id="mkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".2"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#mkGrad)"/><path d="'+line+'" fill="none" stroke="#f5a524" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>':'<div class="empty">Нет отметок за период</div>';}
+const hbox=document.getElementById('marksHour');
+if(hbox){const bh=d.by_hour||[];const arr=Array(24).fill(0);bh.forEach(x=>{arr[x.hour]=x.cnt;});const W=Math.max(300,hbox.clientWidth||700),H=Math.max(100,hbox.clientHeight||140),PL=4,PR=4,PT=8,PB=18;const iw=W-PL-PR,ih=H-PT-PB;const maxV=Math.max(1,...arr);const bw=iw/24;
+let cols='';arr.forEach((v,hh)=>{const hg=(v/maxV)*ih;const isMax=v===maxV&&v>0;cols+='<rect x="'+(PL+hh*bw+1).toFixed(1)+'" y="'+(PT+ih-hg).toFixed(1)+'" width="'+Math.max(2,bw-2).toFixed(1)+'" height="'+Math.max(v>0?2:0,hg).toFixed(1)+'" rx="3" fill="'+(isMax?'#f5a524':'rgba(245,165,36,.35)')+'"/>';});
+let xl='';for(let hh=0;hh<24;hh+=3)xl+='<text x="'+(PL+hh*bw+bw/2).toFixed(1)+'" y="'+(H-4)+'" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">'+p2(hh)+'</text>';
+const peak=arr.indexOf(Math.max(...arr));
+hbox.innerHTML='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%">'+cols+xl+'</svg><div class="sub" style="margin-top:6px">Пик активности: '+p2(peak)+':00–'+p2((peak+1)%24)+':00 МСК</div>';}
 }
-
-// === ЭКРАН: ВЕРСИИ ===
-function buildUpdates(upd) {
-  if (!upd || upd.error) {
-    return scrHead('📦', 'Версии сайта', 'кто и когда обновился') +
-      '<div class="grid g-ver"><div class="card"><h3><span class="hicon">🔄</span>Обновления версии сайта</h3>' +
-      '<div class="err">Метрика обновлений не отвечает: функция dash_update_stats не создана или вернула ошибку. Лечение: выполнить SQL создания функции в psql и systemctl restart postgrest.</div></div></div>';
-  }
-  const tile = (ico, pc, label, value, sub) => '<div class="tile ' + pc + '"><div class="t-ico">' + ico + '</div><div class="lbl">' + label + '</div><div class="val">' + value + '</div>' + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
-  let html = scrHead('📦', 'Версии сайта', 'кто и когда обновился');
-  html += '<div class="grid g-ver">';
-
-  html += '<div class="tiles t4 tiles4">' +
-    tile('📅', 'p1', 'Устройств обновилось · 7 дн', num(upd.devices_7d)) +
-    tile('🗓️', 'p2', 'Устройств обновилось · 30 дн', num(upd.devices_30d)) +
-    tile('🤖', 'p3', 'Всего автообновлений', num(upd.total_sw), 'заходов на новую версию') +
-    tile('🖱️', 'p4', 'Кликов «Обновить сейчас»', num(upd.total_clicks), 'кнопка в окне обновления') +
-    '</div>';
-
-  const tr = upd.by_transition || [];
-  html += '<div class="card"><h3><span class="hicon">🔀</span>Переходы между версиями' + (upd.current_latest ? '<span class="hchip">ПОСЛЕДНЯЯ: ' + upd.current_latest + '</span>' : '') + '</h3>';
-  if (tr.length) {
-    const maxT = Math.max(...tr.map(x => x.cnt), 1);
-    html += '<div class="bars">';
-    tr.forEach(x => {
-      html += '<div class="bar-row"><div class="bar-lbl" style="font-weight:800;color:var(--ink)">' + (x.old_v || '?') + ' <span style="color:var(--muted)">→</span> ' + x.new_v + '</div>' +
-        '<div class="bar-track"><div class="bar-fill f-purple" style="width:' + (x.cnt / maxT * 100) + '%"></div></div>' +
-        '<div class="bar-val">' + x.devices + ' <small>устр.</small></div></div>';
-    });
-    html += '</div>';
-  } else html += '<div class="empty">Пока нет переходов</div>';
-  html += '</div>';
-
-  const days = upd.by_day || [];
-  html += '<div class="card"><h3><span class="hicon">📅</span>По дням (14 дней)</h3>';
-  if (days.length) {
-    const maxD = Math.max(...days.map(x => x.devices), 1);
-    html += '<div class="bars">';
-    days.forEach(x => {
-      html += '<div class="bar-row"><div class="bar-lbl">' + x.d.slice(8, 10) + '.' + x.d.slice(5, 7) + '</div>' +
-        '<div class="bar-track"><div class="bar-fill f-primary" style="width:' + (x.devices / maxD * 100) + '%"></div></div>' +
-        '<div class="bar-val">' + x.devices + ' <small>устр.</small></div></div>';
-    });
-    html += '</div>';
-  } else html += '<div class="empty">Пока нет данных</div>';
-  html += '</div>';
-
-  const rec = upd.recent || [];
-  html += '<div class="card span2"><h3><span class="hicon">🕐</span>Последние обновления</h3>';
-  if (rec.length) {
-    html += '<table class="tbl"><tr><th>Когда</th><th>Переход</th></tr>';
-    rec.forEach(x => {
-      const tRaw = x.t || x.created_at || x.ts || x.when || null;
-      const ov = x.old_v || x.old_version || x.from_version || x.from_v || x.from || null;
-      const nv = x.new_v || x.new_version || x.to_version || x.to_v || x.to || null;
-      if (!ov && !nv) return; // пустая строка: не показываем «?» и «undefined»
-      const d = tRaw ? new Date(new Date(tRaw).getTime() + 3 * 3600 * 1000) : null;
-      const s = d ? String(d.getUTCDate()).padStart(2, '0') + '.' + String(d.getUTCMonth() + 1).padStart(2, '0') + ' <span style="color:var(--muted);margin-left:4px">' + String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0') + '</span>' : '—';
-      html += '<tr><td>' + s + '</td><td><b>' + (ov || '?') + ' → ' + (nv || '?') + '</b></td></tr>';
-    });
-    html += '</table>';
-  } else {
-    html += '<div class="empty">Пока ни одно устройство не зафиксировано на новой версии. Данные появятся после первого захода на обновлённый сайт.</div>';
-  }
-  html += '<div class="note">Автообновление фиксируется, когда устройство впервые загружает новую версию (браузер сравнивает сохранённую и текущую версию). «Обновить сейчас» — явный клик по кнопке в окне обновления. Устройства считаются анонимно по device_id.</div>';
-  html += '</div>';
-
-  html += '</div>';
-  return html;
+async function loadTraffic(range){
+trafficRange=range;document.querySelectorAll('.tf-tab').forEach(t=>t.classList.toggle('active',t.dataset.range===range));
+if(trafficCache[range]){drawTraffic(trafficCache[range]);return;}
+const box=document.getElementById('trafficChart');if(!box)return;
+box.innerHTML='<div class="loading"><div class="spinner"></div></div>';
+try{const r=await rpc('dash_traffic_series',{secret:DASH_SECRET,p_range:range});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.error)throw new Error(d.error);trafficCache[range]=d;drawTraffic(d);}
+catch(e){box.innerHTML='<div class="note">График трафика недоступен: '+e.message+'</div>';}
 }
-
-// === ПОЛОСА НАРОДНЫХ ОТМЕТОК В СВОДКЕ ===
-function renderMarksStrip() {
-  const el = document.getElementById('marksStrip');
-  if (!el) return;
-  if (!MARKS_30D || !MARKS_30D.totals) { el.style.display = 'none'; return; }
-  const t = MARKS_30D.totals;
-  const marks = num(t.marks), devices = num(t.devices), onSite = num(t.on_site);
-  const cities = MARKS_30D.by_city || [];
-  const onSitePct = marks > 0 ? Math.round(100 * onSite / marks) : 0;
-  const topCity = cities.length ? cities[0].city + ': ' + cities[0].cnt : '—';
-  el.style.display = '';
-  el.innerHTML = '<h3><span class="hicon">🙏</span>Народные отметки · 30 дней<span class="hchip">ВЛИЯЕТ НА ОБЩУЮ ОЦЕНКУ</span></h3>' +
-    '<div class="tiles t4">' +
-    '<div class="tile p1"><div class="t-ico">🙏</div><div class="lbl">Всего отметок</div><div class="val">' + marks + '</div><div class="sub">за 30 дней</div></div>' +
-    '<div class="tile p2"><div class="t-ico">👤</div><div class="lbl">Отмечали водители</div><div class="val">' + devices + '</div><div class="sub">уникальных device_id</div></div>' +
-    '<div class="tile p3"><div class="t-ico">📍</div><div class="lbl">С места с GPS</div><div class="val">' + onSitePct + '%</div><div class="sub">' + onSite + ' из ' + marks + '</div></div>' +
-    '<div class="tile p4"><div class="t-ico">🏙️</div><div class="lbl">Города с отметками</div><div class="val">' + cities.length + '</div><div class="sub">лидер: ' + topCity + '</div></div>' +
-    '</div>';
+function trafficAxis(range){
+const out=[];const now=new Date();
+if(range==='24h'){const st=new Date(now);st.setUTCMinutes(0,0,0);st.setUTCHours(st.getUTCHours()-23);for(let i=0;i<24;i++)out.push({t:new Date(st.getTime()+i*3600000),users:0,hits:0});}
+else{const days=range==='7d'?7:30;const st=new Date(now);st.setUTCHours(0,0,0,0);st.setUTCDate(st.getUTCDate()-(days-1));for(let i=0;i<days;i++)out.push({t:new Date(st.getTime()+i*86400000),users:0,hits:0});}
+return out;
 }
-// === ВЕРДИКТ ===
-function renderVerdict() {
-  const container = document.getElementById('verdict-container');
-  if (!container || !REPORT.stats) return;
-
-  const s = REPORT.stats;
-  const adv = ADVANCED_REPORT;
-  const advDet = ADVISOR_DETAILED;
-  const f = s.funnel || [];
-  const src = s.sources || [];
-
-  let score = 5.0;
-  let pros = [];
-  let cons = [];
-  let statusClass = 'warn';
-
-  if (adv.bounce && adv.bounce.total_sessions) {
-  const br = adv.bounce.bounce_rate;
-  // Короткие сессии после показа топ-3 часто = успех, а не отказ
-  if (br <= 18) {
-    score += 1.2;
-    pros.push('Хорошее удержание (отказы ' + br + '%). Учитываем, что быстрый уход после топ-3 — нормальный сценарий.');
-  } else if (br <= 35) {
-    score += 0.3;
-    pros.push('Приемлемые отказы (' + br + '%). Часть коротких сессий — успешный поиск топлива.');
-  } else if (br <= 50) {
-    score -= 0.4;
-    cons.push('Повышенные отказы (' + br + '%). Нужно проверить, видят ли люди топ-3.');
-  } else {
-    score -= 1.2;
-    cons.push('Очень высокие отказы (' + br + '%). Возможны проблемы с загрузкой или релевантностью топ-3.');
-  }
+function bucketKey(d,range){const dd=p2(d.getUTCDate()),mm=p2(d.getUTCMonth()+1);return range==='24h'?d.getUTCFullYear()+'-'+mm+'-'+dd+'T'+p2(d.getUTCHours())+':00:00Z':d.getUTCFullYear()+'-'+mm+'-'+dd+'T00:00:00Z';}
+function drawTraffic(d){
+const range=d.range||trafficRange;const axis=trafficAxis(range);const byKey={};(d.buckets||[]).forEach(b=>byKey[b.t]=b);
+axis.forEach(p=>{const b=byKey[bucketKey(p.t,range)];if(b){p.users=Number(b.users)||0;p.hits=Number(b.hits)||0;}});
+const head=document.getElementById('trafficHead');
+if(head){const cur=num(d.cur_users),prev=num(d.prev_users);const pr=range==='24h'?'24 часа':range==='7d'?'неделю':'месяц';const delta=prev>0?Math.round((cur-prev)/prev*100):null;
+head.innerHTML='<div class="tf-num">'+cur+'<small>пользователей за '+pr+'</small></div>'+(delta===null?'<span class="tf-badge neutral">нет данных за прошлый период</span>':'<span class="tf-badge '+(delta>0?'up':delta<0?'down':'neutral')+'">'+(delta>0?'+':delta<0?'−':'±')+Math.abs(delta)+'% к прошлому</span>');}
+const box=document.getElementById('trafficChart');if(!box)return;
+const W=Math.max(320,box.clientWidth||800),H=Math.max(140,box.clientHeight||220),PL=8,PR=36,PT=14,PB=22;const iw=W-PL-PR,ih=H-PT-PB;const maxV=Math.max(1,...axis.map(p=>p.users));
+const x=i=>PL+(axis.length===1?iw/2:i*iw/(axis.length-1));const y=v=>PT+ih-(v/maxV)*ih;
+let line='';axis.forEach((p,i)=>{line+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.users).toFixed(1);});
+const area=line+'L'+x(axis.length-1).toFixed(1)+' '+(PT+ih)+'L'+x(0).toFixed(1)+' '+(PT+ih)+'Z';
+let grid='';[maxV,Math.ceil(maxV/2),0].forEach(v=>{const gy=y(v).toFixed(1);grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(W-PR)+'" y2="'+gy+'" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="'+(W-PR+6)+'" y="'+(Number(gy)+4)+'" font-size="10" font-weight="700" fill="#8b93a7">'+v+'</text>';});
+let xl='';const step=Math.max(1,Math.round(axis.length/4));
+for(let i=0;i<axis.length;i+=step){const dt=new Date(axis[i].t.getTime()+3*3600000);const s=range==='24h'?p2(dt.getUTCHours())+':00':p2(dt.getUTCDate())+'.'+p2(dt.getUTCMonth()+1);xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-6)+'" font-size="10" font-weight="700" fill="#8b93a7" text-anchor="middle">'+s+'</text>';}
+const li=axis.length-1;
+box.innerHTML='<svg class="tf-svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'"><defs><linearGradient id="tfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".18"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#tfGrad)"/><path d="'+line+'" fill="none" stroke="#f5a524" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+x(li).toFixed(1)+'" cy="'+y(axis[li].users).toFixed(1)+'" r="5" fill="#f5a524" stroke="#fff" stroke-width="2.5"/>'+xl+'</svg>';
+fitScreen();
 }
-
-  const pv = f.find(x => x.event === 'pageview') ? f.find(x => x.event === 'pageview').sessions : 0;
-  const cardEv = f.find(x => x.event === 'open_station_card') ? f.find(x => x.event === 'open_station_card').sessions : 0;
-  if (pv > 0) {
-    const cardConv = Math.round(cardEv / pv * 100);
-    if (cardConv >= 8) { score += 0.5; pros.push('Хорошая конверсия: ' + cardConv + '% доходят до карточки АЗС.'); }
-    else { score -= 0.5; cons.push('Воронка теряет людей: только ' + cardConv + '% смотрят карточки.'); }
-  }
-
-  if (adv.cohort && adv.cohort.length > 1) {
-    const matureCohort = adv.cohort[1];
-    if (matureCohort && matureCohort.total_users > 10) {
-      const retRate = Math.round(100 * matureCohort.day1 / matureCohort.total_users);
-      if (retRate >= 10) { score += 1.0; pros.push('Лояльная аудитория: ' + retRate + '% возвращаются на след. день.'); }
-      else if (retRate >= 5) { score += 0.3; pros.push('Нормальная возвращаемость: ' + retRate + '% на след. день.'); }
-      else { score -= 0.8; cons.push('Мало возвратов: ' + retRate + '% на след. день.'); }
-    }
-  }
-
-  const yaAds = src.find(x => x.source.toLowerCase().includes('utm') && x.source.toLowerCase().includes('yandex')) ? src.find(x => x.source.toLowerCase().includes('utm') && x.source.toLowerCase().includes('yandex')).sessions : 0;
-  if (yaAds > 0) {
-    score += 0.3; pros.push('Реклама приводит трафик (' + yaAds + ' визитов).');
-  }
-
-  if (advDet.utility && advDet.totals && advDet.totals.shown > 30) {
-    const util = advDet.utility.score;
-    const totals = advDet.totals;
-    const favRate = totals.clicks > 0 ? (advDet.fav_from_advice / totals.clicks * 100) : 0;
-
-    const outcomes = advDet.outcomes || [];
-    const totalOutcomes = outcomes.reduce((sm, o) => sm + o.cnt, 0);
-    const fuelOutcome = outcomes.find(o => o.answer_key === 'fuel');
-    const hitRate = fuelOutcome && totalOutcomes > 0 ? (fuelOutcome.cnt / totalOutcomes * 100) : null;
-
-    const reactions = advDet.reactions || [];
-    const totalReactions = reactions.reduce((sm, r) => sm + r.cnt, 0);
-    const likes = reactions.find(r => r.type === 'like') ? reactions.find(r => r.type === 'like').cnt : 0;
-    const dislikes = reactions.find(r => r.type === 'dislike') ? reactions.find(r => r.type === 'dislike').cnt : 0;
-
-    if (util >= 65) {
-      score += 1.5;
-      pros.push('🧭 Советник отличный (' + util.toFixed(0) + '/100): ' + favRate.toFixed(1) + '% добавляют АЗС в избранное из совета.');
-    } else if (util >= 45) {
-      score += 0.5;
-      pros.push('🧭 Советник работает (оценка ' + util.toFixed(0) + '/100).');
-    } else if (util > 0) {
-      score -= 0.5;
-      cons.push('🧭 Советник слабый (' + util.toFixed(0) + '/100): водители не доверяют советам.');
-    }
-
-    if (hitRate !== null && totalOutcomes >= 5) {
-      if (hitRate >= 50) {
-        score += 1.0;
-        pros.push('🎯 Точность советов ' + Math.round(hitRate) + '%: ' + fuelOutcome.cnt + ' из ' + totalOutcomes + ' водителей реально заправились по совету.');
-      } else if (hitRate >= 30) {
-        score += 0.3;
-        pros.push('🎯 Попадание советов среднее: ' + Math.round(hitRate) + '% заправились по совету.');
-      } else {
-        score -= 0.8;
-        cons.push('🎯 Советы часто промахиваются: только ' + Math.round(hitRate) + '% заправились по совету. Топливо кончается до приезда.');
-      }
-    }
-
-    if (totalReactions >= 5) {
-      const dislikeRate = Math.round(dislikes / totalReactions * 100);
-      if (dislikeRate > 40) {
-        score -= 0.8;
-        cons.push('👎 ' + dislikeRate + '% реакций — «Плохо»: водители разочарованы советами.');
-      } else if (dislikeRate <= 20 && likes > dislikes * 2) {
-        score += 0.5;
-        pros.push('👍 ' + likes + ' лайков против ' + dislikes + ' дизлайков: советы нравятся.');
-      }
-    }
-  }
-
-// народные отметки (30 дней) — ключевое из вкладки «Отметки»
-  if (MARKS_30D && MARKS_30D.totals) {
-    const mt = MARKS_30D.totals;
-    const mks = num(mt.marks), dev = num(mt.devices), ons = num(mt.on_site);
-    const cityCnt = (MARKS_30D.by_city || []).length;
-    const onsPct = mks > 0 ? Math.round(100 * ons / mks) : 0;
-    if (mks >= 100) { score += 0.5; pros.push('🙏 Толпа живая: ' + mks + ' отметок за 30 дней.'); }
-    else if (mks >= 30) { score += 0.2; pros.push('🙏 Толпа разогревается: ' + mks + ' отметок за 30 дней.'); }
-    else if (mks > 0) { score -= 0.3; cons.push('🙏 Толпа молчит: лишь ' + mks + ' отметок за 30 дней.'); }
-    else { score -= 0.5; cons.push('🙏 Народных отметок за 30 дней нет — сайт живёт только источником.'); }
-    if (dev >= 20) { score += 0.3; pros.push('👤 Отметки ставят ' + dev + ' разных водителей — не одиночное мнение.'); }
-    else if (mks > 0 && dev <= 3) { score -= 0.3; cons.push('👤 Отметки ставят всего ' + dev + ' водителя — риск одиночного обманщика.'); }
-    if (mks > 0) {
-      if (onsPct >= 25) { score += 0.4; pros.push('📍 ' + onsPct + '% отметок с места с GPS — высокое доверие к толпе.'); }
-      else if (onsPct < 10) { score -= 0.3; cons.push('📍 Лишь ' + onsPct + '% отметок с места с GPS — доверие к толпе низкое.'); }
-    }
-    if (cityCnt >= 3) { score += 0.2; pros.push('🏙️ Отметки из ' + cityCnt + ' городов — толпа шире домашнего бокса.'); }
-  }
-  score = Math.max(1.0, Math.min(10.0, score));
-  if (score >= 7.5) statusClass = 'good';
-  else if (score >= 4.5) statusClass = 'warn';
-  else statusClass = 'bad';
-
-  const finalScore = score.toFixed(1).replace('.', ',');
-  const scoreDeg = (score / 10) * 100;
-  const statusWord = statusClass === 'good' ? 'Отличный старт' : statusClass === 'warn' ? 'Есть над чем работать' : 'Критическая ситуация';
-
-  container.className = 'card verdict-card ' + statusClass;
-  container.innerHTML =
-    '<div class="verdict-panel ' + statusClass + '">' +
-    '<div class="score-box">' +
-    '<div class="score-ring" style="--score-deg: ' + scoreDeg + '%"><div class="score-val">' + finalScore + '<small>/10</small></div></div>' +
-    '<div class="score-label">' + statusWord + '</div>' +
-    '</div>' +
-    '<div class="verdict-content">' +
-    '<div class="verdict-lists">' +
-    '<div class="v-list-col v-good"><div class="v-list-title">Что работает отлично</div><ul>' + (pros.length ? pros.map(p => '<li>' + p + '</li>').join('') : '<li>Пока нет явных успехов, копим данные.</li>') + '</ul></div>' +
-    '<div class="v-list-col v-bad"><div class="v-list-title">На что обратить внимание</div><ul>' + (cons.length ? cons.map(c => '<li>' + c + '</li>').join('') : '<li>Все показатели в норме!</li>') + '</ul></div>' +
-    '</div></div></div>';
-  fitScreen();
-}
-
-async function loadAdvancedStats() {
-  try {
-    const H = { method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: DASH_SECRET }) };
-    const [bounceRes, cohortRes, heatmapRes, behRes] = await Promise.all([
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_bounce_stats', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_retention_cohorts', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_time_heatmap', H),
-      fetch(SUPABASE_URL + '/rest/v1/rpc/dash_session_behavior', H)
-    ]);
-    const bounceData = await bounceRes.json();
-    const cohortData = await cohortRes.json();
-    const heatmapData = await heatmapRes.json();
-    const behData = behRes.ok ? await behRes.json() : { error: 'HTTP ' + behRes.status };
-    ADVANCED_REPORT = { bounce: bounceData, cohort: cohortData, heatmap: heatmapData };
-    BEHAVIOR_REPORT = behData;
-    if (bounceData.error || cohortData.error || heatmapData.error) {
-      console.error("SQL Errors:", bounceData.error, cohortData.error, heatmapData.error);
-    }
-    document.getElementById('inner-aud').innerHTML = buildAudience();
-    renderVerdict();
-    fitScreen();
-  } catch (e) {
-    document.getElementById('inner-aud').innerHTML = '<div class="card"><div class="err">Не удалось загрузить доп. статистику: ' + e.message + '</div></div>';
-  }
-}
-
-// === ОТЧЁТ ===
-function downloadReport() {
-  const R = REPORT;
-  if (!R.stats) { alert('Данные ещё не загрузились.'); return; }
-  const L = [];
-  const now = new Date(Date.now() + 3 * 3600 * 1000);
-  const stamp = now.getUTCFullYear() + '-' + p2(now.getUTCMonth() + 1) + '-' + p2(now.getUTCDate()) + '_' + p2(now.getUTCHours()) + p2(now.getUTCMinutes());
-  L.push('КОГДАБЕНЗ   ОТЧЁТ ВЛАДЕЛЬЦА');
-  L.push('Сформирован: ' + p2(now.getUTCDate()) + '.' + p2(now.getUTCMonth() + 1) + '.' + now.getUTCFullYear() + ' ' + p2(now.getUTCHours()) + ':' + p2(now.getUTCMinutes()) + ' МСК');
-  L.push('');
-
-  const verdictEl = document.querySelector('.verdict-panel');
-  if (verdictEl) {
-    L.push('== ОБЩИЙ ВЕРДИКТ ==');
-    L.push('Оценка: ' + verdictEl.querySelector('.score-val').textContent.replace('/10', '') + '/10');
-    verdictEl.querySelectorAll('.v-good li').forEach(li => L.push('  + ' + li.textContent));
-    verdictEl.querySelectorAll('.v-bad li').forEach(li => L.push('  - ' + li.textContent));
-    L.push('');
-  }
-
-  if (ADVISOR_DETAILED.utility && ADVISOR_DETAILED.totals) {
-    const u = ADVISOR_DETAILED.utility;
-    const t = ADVISOR_DETAILED.totals;
-    L.push('== СОВЕТНИК «КУДА ЕХАТЬ» (ПОДРОБНО) ==');
-    L.push('Коэффициент полезности: ' + u.score + '/100');
-    L.push('    Вовлечённость (кликнули совет): ' + u.engagement + '% (вес 30%)');
-    L.push('    Конверсия (построили маршрут): ' + u.conversion + '% (вес 25%)');
-    L.push('    Удовлетворённость (лайки): ' + u.satisfaction + '% (вес 20%)');
-    L.push('    Лояльность (добавили в избранное): ' + u.loyalty + '% (вес 25%)');
-    L.push('');
-    L.push('Воронка за 30 дней:');
-    L.push('  Зашли на сайт: ' + t.shown);
-    L.push('  Клик «Куда ехать»: ' + t.clicks + ' (' + (t.shown ? Math.round(t.clicks / t.shown * 100) : 0) + '%)');
-    L.push('  Открыли карточку АЗС: ' + t.cards);
-    L.push('  Построили маршрут: ' + t.routes + ' (' + (t.clicks ? Math.round(t.routes / t.clicks * 100) : 0) + '% от кликнувших)');
-    L.push('');
-    L.push('Реакции (всего ' + (t.likes + t.dislikes + t.doubts) + '):');
-    L.push('  👍 Класс: ' + t.likes);
-    L.push('  👎 Плохо: ' + t.dislikes);
-    L.push('  🤔 Сомнение: ' + t.doubts);
-    if (ADVISOR_DETAILED.dislike_reasons) {
-      L.push('  Причины «Плохо»:');
-      ADVISOR_DETAILED.dislike_reasons.forEach(r => L.push('      ' + (DISLIKE_LABELS[r.reason] || r.reason) + ': ' + r.cnt));
-    }
-    if (ADVISOR_DETAILED.doubt_reasons) {
-      L.push('  Причины «Сомнение»:');
-      ADVISOR_DETAILED.doubt_reasons.forEach(r => L.push('      ' + (DOUBT_LABELS[r.reason] || r.reason) + ': ' + r.cnt));
-    }
-    if (ADVISOR_DETAILED.fav_from_advice > 0) {
-      const favRate = t.clicks > 0 ? (ADVISOR_DETAILED.fav_from_advice / t.clicks * 100).toFixed(1) : 0;
-      L.push('');
-      L.push('Добавили в избранное из совета: ' + ADVISOR_DETAILED.fav_from_advice + ' (' + favRate + '% от кликнувших)');
-    }
-    if (ADVISOR_DETAILED.outcomes && ADVISOR_DETAILED.outcomes.length) {
-      const total = ADVISOR_DETAILED.outcomes.reduce((s, o) => s + o.cnt, 0);
-      L.push('');
-      L.push('Исходы поездок по совету (' + total + ' ответов):');
-      ADVISOR_DETAILED.outcomes.forEach(o => {
-        const label = OUTCOME_LABELS[o.answer_key] ? OUTCOME_LABELS[o.answer_key][1] : o.answer_key;
-        L.push('    ' + label + ': ' + o.cnt + ' (' + Math.round(o.cnt / total * 100) + '%)');
-      });
-      const fuel = ADVISOR_DETAILED.outcomes.find(o => o.answer_key === 'fuel');
-      if (fuel) L.push('  → Коэффициент попадания: ' + Math.round(fuel.cnt / total * 100) + '% реально заправились по совету');
-    }
-    if (ADVISOR_DETAILED.top_stations && ADVISOR_DETAILED.top_stations.length) {
-      L.push('');
-      L.push('Топ АЗС по кликам из совета:');
-      ADVISOR_DETAILED.top_stations.slice(0, 5).forEach(s => L.push('    ' + s.name + ': ' + s.clicks + ' кликов'));
-    }
-    L.push('');
-  }
-
-  const s = R.stats, ret = s.retention || {};
-  L.push('== ПОКАЗАТЕЛИ ==');
-  L.push('Пользователей за 30 дней: ' + num(s.mau_30d));
-  L.push('Сегодня: ' + num(s.dau_today) + ' (вчера ' + num(s.dau_yesterday) + ')');
-  L.push('Новых за 7 дней: ' + num(ret.new_7d) + ', вернувшихся: ' + num(ret.returning_7d));
-  L.push('Всего визитов: ' + num(s.total_sessions) + ', действий: ' + num(s.total_hits));
-  L.push('');
-  L.push('== ТРАФИК ==');
-  for (const rg of ['24h', '7d', '30d']) {
-    const t = trafficCache[rg];
-    if (!t) continue;
-    const cur = num(t.cur_users), prev = num(t.prev_users);
-    const d = prev > 0 ? Math.round((cur - prev) / prev * 100) : null;
-    L.push((rg === '24h' ? '24 часа' : rg === '7d' ? '7 дней' : '30 дней') + ': ' + cur + ' польз.' + (d !== null ? ' (' + (d > 0 ? '+' : '') + d + '% к пред. периоду)' : ''));
-  }
-  const f = s.funnel || [];
-  if (f.length) {
-    L.push(''); L.push('== ВОРОНКА ДЕЙСТВИЙ ==');
-    const base = f[0] ? f[0].sessions : 0;
-    for (const x of f) {
-      const e = EVENT_RU[x.event] ? EVENT_RU[x.event][1] : x.event;
-      L.push(e + ': ' + x.sessions + (base ? ' (' + Math.round(100 * x.sessions / base) + '%)' : ''));
-    }
-  }
-  const p = R.poll;
-  if (p && !p.error && p.total_answers) {
-    L.push(''); L.push('== ОПРОСЫ ==');
-    L.push('Ответов: ' + p.total_answers + ', респондентов: ' + p.unique_respondents);
-    for (const q of (p.answers_by_question || [])) {
-      const total = q.answers.reduce((sm, x) => sm + x.cnt, 0);
-      L.push('  ' + (POLL_Q[q.question_key] || q.question_key));
-      for (const an of q.answers) {
-        const txt = q.question_key === 'stars' ? an.answer_key : (POLL_A[an.answer_key] || an.answer_key);
-        L.push('   ' + txt + ': ' + an.cnt + ' (' + (total ? Math.round(100 * an.cnt / total) : 0) + '%)');
-      }
-    }
-  }
-  const blob = new Blob(['\ufeff' + L.join('\r\n')], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = 'kogdabenz_otchet_' + stamp + '.txt';
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-
-// === ВКЛАДКА: НАРОДНЫЕ ОТМЕТКИ ===
-async function loadMarks(range) {
-  marksRange = range;
-  const box = document.getElementById('inner-marks');
-  if (!box) return;
-  if (!marksCache[range]) {
-    box.innerHTML = '<div class="card"><div class="loading"><div class="spinner"></div><span>Загрузка отметок...</span></div></div>';
-    try {
-      const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_marks_stats', {
-        method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: DASH_SECRET, p_range: range })
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
-      if (d.error) throw new Error(d.error);
-      marksCache[range] = d;
-    } catch (e) {
-      box.innerHTML = '<div class="card"><div class="err">Отметки не загрузились: ' + e.message + '. Создай функцию dash_marks_stats в psql и выполни systemctl restart postgrest.</div></div>';
-      return;
-    }
-  }
-  box.innerHTML = buildMarks();
-  drawMarksCharts();
-  fitScreen();
-}
-
-function buildMarks() {
-  const d = marksCache[marksRange] || {};
-  const t = d.totals || {};
-  const RL = { '2h': '2 часа', '24h': '24 часа', '7d': '1 неделя', '30d': '1 месяц' };
-  let html = scrHead('🙏', 'Народные отметки', 'кто, сколько, когда и где отмечал · ' + RL[marksRange]);
-  html += '<div class="card"><div class="tf-headrow"><h3><span class="hicon">🙏</span>Активность отметок</h3><div class="tf-tabs">' +
-    ['2h', '24h', '7d', '30d'].map(r => '<button class="tf-tab' + (r === marksRange ? ' active' : '') + '" onclick="loadMarks(\'' + r + '\')">' + RL[r] + '</button>').join('') +
-    '</div></div>';
-  html += '<div class="tiles t4" style="margin:12px 0 14px">' +
-    '<div class="tile p1"><div class="t-ico">🙏</div><div class="lbl">Всего отметок</div><div class="val">' + num(t.marks) + '</div></div>' +
-    '<div class="tile p2"><div class="t-ico">👤</div><div class="lbl">Уникальных водителей</div><div class="val">' + num(t.devices) + '</div></div>' +
-    '<div class="tile p3"><div class="t-ico">⛽</div><div class="lbl">Уникальных АЗС</div><div class="val">' + num(t.stations) + '</div></div>' +
-    '<div class="tile p4"><div class="t-ico">📍</div><div class="lbl">С места с GPS</div><div class="val">' + num(t.on_site) + '</div></div>' +
-    '</div>';
-  html += '<div class="q-title">График активности (лог-шкала)</div><div id="marksChart" style="height:180px"></div>';
-  html += '<div class="q-title" style="margin-top:14px">В какое время отмечают (МСК)</div><div id="marksHour" style="height:140px"></div>';
-  html += '<div class="note">Лог-шкала: каждая следующая линия сетки в 10 раз выше (1 → 10 → 100). Водители и станции анонимны (device_id).</div>';
-  html += '</div>';
-
-  html += '<div class="grid g-react" style="margin-top:12px">';
-  html += '<div class="card"><h3><span class="hicon">🎯</span>На что ставили отметки</h3>';
-  const bt = d.by_type || [];
-  if (bt.length) {
-    const tot = bt.reduce((s, x) => s + x.cnt, 0);
-    html += '<div class="tiles t2">';
-    bt.forEach(x => {
-      const info = MARK_TYPE_RU[x.kind] || ['❓', x.kind];
-      html += '<div class="tile p1"><div class="t-ico">' + info[0] + '</div><div class="lbl">' + info[1] + '</div><div class="val">' + x.cnt + '</div><div class="sub">' + Math.round(100 * x.cnt / tot) + '% отметок</div></div>';
-    });
-    html += '</div>';
-    const bf = d.by_fuel || [];
-    if (bf.length) {
-      html += '<div class="subhead">По топливу</div><div class="tiles t2">';
-      bf.forEach(x => { html += '<div class="tile p3"><div class="lbl">' + (MARK_FUEL_RU[x.fuel] || x.fuel) + '</div><div class="val">' + x.cnt + '</div></div>'; });
-      html += '</div>';
-    }
-  } else html += '<div class="empty">Нет отметок за период</div>';
-  html += '</div>';
-
-  html += '<div class="card"><h3><span class="hicon">🏙️</span>В каких городах отмечали</h3>';
-  const bc = d.by_city || [];
-  if (bc.length) {
-    const mx = Math.max(...bc.map(x => x.cnt));
-    html += '<div class="bars">';
-    bc.forEach(x => { html += '<div class="bar-row"><div class="bar-lbl">' + x.city + '</div><div class="bar-track"><div class="bar-fill f-purple" style="width:' + (x.cnt / mx * 100) + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>'; });
-    html += '</div>';
-  } else html += '<div class="empty">Нет отметок за период</div>';
-  html += '</div>';
-
-  html += '<div class="card"><h3><span class="hicon">⛽</span>Топ отмечаемых АЗС</h3>';
-  const ts = d.top_stations || [];
-  if (ts.length) {
-    const mx = Math.max(...ts.map(x => x.cnt));
-    html += '<div class="bars">';
-    ts.forEach(x => { html += '<div class="bar-row"><div class="bar-lbl">' + x.name + '</div><div class="bar-track"><div class="bar-fill f-primary" style="width:' + (x.cnt / mx * 100) + '%"></div></div><div class="bar-val">' + x.cnt + '</div></div>'; });
-    html += '</div>';
-  } else html += '<div class="empty">Нет отметок за период</div>';
-  html += '</div>';
-  html += '</div>';
-  return html;
-}
-
-function drawMarksCharts() {
-  const d = marksCache[marksRange];
-  if (!d) return;
-  const box = document.getElementById('marksChart');
-  if (box) {
-    const series = d.series || [];
-    const W = Math.max(300, box.clientWidth || 700), H = Math.max(120, box.clientHeight || 180), PL = 6, PR = 34, PT = 10, PB = 20;
-    const iw = W - PL - PR, ih = H - PT - PB;
-    const maxV = Math.max(1, ...series.map(p => p.cnt));
-    const maxL = Math.log10(maxV + 1);
-    const y = v => PT + ih - (Math.log10(v + 1) / maxL) * ih;
-    const x = i => PL + (series.length === 1 ? iw / 2 : i * iw / (series.length - 1));
-    let line = '';
-    series.forEach((p, i) => { line += (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.cnt).toFixed(1); });
-    const area = series.length ? line + 'L' + x(series.length - 1).toFixed(1) + ' ' + (PT + ih) + 'L' + x(0).toFixed(1) + ' ' + (PT + ih) + 'Z' : '';
-    let grid = '';
-    [1, 10, 100, 1000].forEach(v => {
-      if (v > maxV * 3) return;
-      const gy = y(v).toFixed(1);
-      grid += '<line x1="' + PL + '" y1="' + gy + '" x2="' + (W - PR) + '" y2="' + gy + '" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="' + (W - PR + 5) + '" y="' + (Number(gy) + 4) + '" font-size="9" font-weight="700" fill="#8b93a7">' + v + '</text>';
-    });
-    grid += '<line x1="' + PL + '" y1="' + (PT + ih) + '" x2="' + (W - PR) + '" y2="' + (PT + ih) + '" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="' + (W - PR + 5) + '" y="' + (PT + ih + 4) + '" font-size="9" font-weight="700" fill="#8b93a7">0</text>';
-    let xl = '';
-    const step = Math.max(1, Math.round(series.length / 4));
-    for (let i = 0; i < series.length; i += step) {
-      const dt = new Date(new Date(series[i].t).getTime() + 3 * 3600 * 1000);
-      const s = (marksRange === '7d' || marksRange === '30d') ? String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0') : String(dt.getUTCHours()).padStart(2, '0') + ':' + String(dt.getUTCMinutes()).padStart(2, '0');
-      xl += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 4) + '" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">' + s + '</text>';
-    }
-    box.innerHTML = series.length ? '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="display:block;width:100%">' +
-      '<defs><linearGradient id="mkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".2"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>' +
-      grid + '<path d="' + area + '" fill="url(#mkGrad)"/><path d="' + line + '" fill="none" stroke="#f5a524" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>'
-      : '<div class="empty">Нет отметок за период</div>';
-  }
-  const hbox = document.getElementById('marksHour');
-  if (hbox) {
-    const bh = d.by_hour || [];
-    const arr = Array(24).fill(0);
-    bh.forEach(x => { arr[x.hour] = x.cnt; });
-    const W = Math.max(300, hbox.clientWidth || 700), H = Math.max(100, hbox.clientHeight || 140), PL = 4, PR = 4, PT = 8, PB = 18;
-    const iw = W - PL - PR, ih = H - PT - PB;
-    const maxV = Math.max(1, ...arr);
-    const bw = iw / 24;
-    let cols = '';
-    arr.forEach((v, hh) => {
-      const hg = (v / maxV) * ih;
-      const isMax = v === maxV && v > 0;
-      cols += '<rect x="' + (PL + hh * bw + 1).toFixed(1) + '" y="' + (PT + ih - hg).toFixed(1) + '" width="' + Math.max(2, bw - 2).toFixed(1) + '" height="' + Math.max(v > 0 ? 2 : 0, hg).toFixed(1) + '" rx="3" fill="' + (isMax ? '#f5a524' : 'rgba(245,165,36,.35)') + '"/>';
-    });
-    let xl = '';
-    for (let hh = 0; hh < 24; hh += 3) xl += '<text x="' + (PL + hh * bw + bw / 2).toFixed(1) + '" y="' + (H - 4) + '" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">' + String(hh).padStart(2, '0') + '</text>';
-    const peak = arr.indexOf(Math.max(...arr));
-    hbox.innerHTML = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" style="display:block;width:100%">' + cols + xl + '</svg>' +
-      '<div class="sub" style="margin-top:6px">Пик активности: ' + String(peak).padStart(2, '0') + ':00–' + String((peak + 1) % 24).padStart(2, '0') + ':00 МСК</div>';
-  }
-}
-// === ГРАФИК ТРАФИКА ===
-async function loadTraffic(range) {
-  trafficRange = range;
-  document.querySelectorAll('.tf-tab').forEach(t => t.classList.toggle('active', t.dataset.range === range));
-  if (trafficCache[range]) { drawTraffic(trafficCache[range]); return; }
-  const box = document.getElementById('trafficChart');
-  if (!box) return;
-  box.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/dash_traffic_series', {
-      method: 'POST', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: DASH_SECRET, p_range: range })
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const d = await r.json();
-    if (d.error) throw new Error(d.error);
-    trafficCache[range] = d;
-    drawTraffic(d);
-  } catch (e) {
-    box.innerHTML = '<div class="note">График трафика недоступен: ' + e.message + '</div>';
-  }
-}
-
-function trafficAxis(range) {
-  const out = [];
-  const now = new Date();
-  if (range === '24h') {
-    const start = new Date(now); start.setUTCMinutes(0, 0, 0); start.setUTCHours(start.getUTCHours() - 23);
-    for (let i = 0; i < 24; i++) out.push({ t: new Date(start.getTime() + i * 3600000), users: 0, hits: 0 });
-  } else {
-    const days = range === '7d' ? 7 : 30;
-    const start = new Date(now); start.setUTCHours(0, 0, 0, 0); start.setUTCDate(start.getUTCDate() - (days - 1));
-    for (let i = 0; i < days; i++) out.push({ t: new Date(start.getTime() + i * 86400000), users: 0, hits: 0 });
-  }
-  return out;
-}
-
-function bucketKey(d, range) {
-  const dd = String(d.getUTCDate()).padStart(2, '0'), mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  return range === '24h'
-    ? d.getUTCFullYear() + '-' + mm + '-' + dd + 'T' + String(d.getUTCHours()).padStart(2, '0') + ':00:00Z'
-    : d.getUTCFullYear() + '-' + mm + '-' + dd + 'T00:00:00Z';
-}
-
-function drawTraffic(d) {
-  const range = d.range || trafficRange;
-  const axis = trafficAxis(range);
-  const byKey = {};
-  for (const b of (d.buckets || [])) byKey[b.t] = b;
-  for (const p of axis) {
-    const b = byKey[bucketKey(p.t, range)];
-    if (b) { p.users = Number(b.users) || 0; p.hits = Number(b.hits) || 0; }
-  }
-  const head = document.getElementById('trafficHead');
-  if (head) {
-    const cur = num(d.cur_users), prev = num(d.prev_users);
-    const periodRu = range === '24h' ? '24 часа' : range === '7d' ? 'неделю' : 'месяц';
-    const delta = prev > 0 ? Math.round((cur - prev) / prev * 100) : null;
-    head.innerHTML = '<div class="tf-num">' + cur + '<small>пользователей за ' + periodRu + '</small></div>' +
-      (delta === null ? '<span class="tf-badge neutral">нет данных за прошлый период</span>' :
-        '<span class="tf-badge ' + (delta > 0 ? 'up' : delta < 0 ? 'down' : 'neutral') + '">' +
-        (delta > 0 ? '+' : delta < 0 ? '−' : '±') + Math.abs(delta) + '% к прошлому</span>');
-  }
-  const box = document.getElementById('trafficChart');
-  if (!box) return;
-  const W = Math.max(320, box.clientWidth || 800), H = Math.max(140, box.clientHeight || 220), PL = 8, PR = 36, PT = 14, PB = 22;
-  const iw = W - PL - PR, ih = H - PT - PB;
-  const maxV = Math.max(1, ...axis.map(p => p.users));
-  const x = i => PL + (axis.length === 1 ? iw / 2 : i * iw / (axis.length - 1));
-  const y = v => PT + ih - (v / maxV) * ih;
-  let line = '';
-  axis.forEach((p, i) => { line += (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.users).toFixed(1); });
-  const area = line + 'L' + x(axis.length - 1).toFixed(1) + ' ' + (PT + ih) + 'L' + x(0).toFixed(1) + ' ' + (PT + ih) + 'Z';
-  let grid = '';
-  [maxV, Math.ceil(maxV / 2), 0].forEach(v => {
-    const gy = y(v).toFixed(1);
-    grid += '<line x1="' + PL + '" y1="' + gy + '" x2="' + (W - PR) + '" y2="' + gy + '" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/>' +
-      '<text x="' + (W - PR + 6) + '" y="' + (Number(gy) + 4) + '" font-size="10" font-weight="700" fill="#8b93a7">' + v + '</text>';
-  });
-  let xl = '';
-  const stepLbl = Math.max(1, Math.round(axis.length / 4));
-  for (let i = 0; i < axis.length; i += stepLbl) {
-    const dt = new Date(axis[i].t.getTime() + 3 * 3600000);
-    const s = range === '24h' ? String(dt.getUTCHours()).padStart(2, '0') + ':00' : String(dt.getUTCDate()).padStart(2, '0') + '.' + String(dt.getUTCMonth() + 1).padStart(2, '0');
-    xl += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" font-size="10" font-weight="700" fill="#8b93a7" text-anchor="middle">' + s + '</text>';
-  }
-  const lastI = axis.length - 1;
-  box.innerHTML = '<svg class="tf-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' +
-    '<defs><linearGradient id="tfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".18"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>' +
-    grid + '<path d="' + area + '" fill="url(#tfGrad)"/>' +
-    '<path d="' + line + '" fill="none" stroke="#f5a524" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>' +
-    '<circle cx="' + x(lastI).toFixed(1) + '" cy="' + y(axis[lastI].users).toFixed(1) + '" r="5" fill="#f5a524" stroke="#fff" stroke-width="2.5"/>' + xl + '</svg>';
-  fitScreen();
-}
-
-window.addEventListener('resize', function () {
-  layoutHeights();
-  if (trafficCache[trafficRange]) drawTraffic(trafficCache[trafficRange]);
-  if (marksCache[marksRange] && document.getElementById('scr-marks').classList.contains('active')) drawMarksCharts();
-  fitScreen();
-});
-window.addEventListener('orientationchange', function () {
-  setTimeout(function () { layoutHeights(); fitScreen(); }, 150);
-});
-
-if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitScreen());
-
-// --- mobile overflow: wrap wide tables & heatmaps after render ---
-(function () {
-  function wrapWide() {
-    document.querySelectorAll('.card table.tbl, .card table').forEach(function (t) {
-      if (t.closest('.tbl-wrap')) return;
-      var w = document.createElement('div');
-      w.className = 'tbl-wrap';
-      t.parentNode.insertBefore(w, t);
-      w.appendChild(t);
-    });
-    document.querySelectorAll('.heatmap').forEach(function (h) {
-      if (h.closest('.heatmap-wrap')) return;
-      var w = document.createElement('div');
-      w.className = 'heatmap-wrap';
-      h.parentNode.insertBefore(w, h);
-      w.appendChild(h);
-    });
-  }
-  var _fit = fitScreen;
-  fitScreen = function () { _fit(); try { wrapWide(); } catch (e) {} };
-  var _sw = switchTab;
-  switchTab = function (id) { _sw(id); setTimeout(wrapWide, 30); };
-  setTimeout(wrapWide, 500);
-  setInterval(wrapWide, 3000);
-})();
-
-
+window.addEventListener('resize',()=>{layoutHeights();if(trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);if(marksCache[marksRange]&&document.getElementById('scr-marks').classList.contains('active'))drawMarksCharts();fitScreen();});
+window.addEventListener('orientationchange',()=>setTimeout(()=>{layoutHeights();fitScreen();},150));
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>fitScreen());
 layoutHeights();
 load();
 </script>
