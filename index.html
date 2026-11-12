@@ -10,8 +10,13 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2465ee">
+<script>
+(function(){try{var p=localStorage.getItem('kbTheme')||'auto';var h=new Date().getHours();var n=(p==='night')||(p!=='day'&&(h>=18||h<5));if(n)document.documentElement.classList.add('kb-night-pending');}catch(e){}})();
+</script>
+<style>html.kb-night-pending,html.kb-night-pending body{background:#0a0c12!important;color:#e8edf7}</style>
+
 <meta name="description" content="КогдаБенз — карта наличия топлива на АЗС юга России: где есть АИ-95, АИ-92 и дизель сейчас, когда вернётся пропавшее, очереди и цены. Данные каждые 10 минут.">
-<!-- KB_VERSION: v0.5.3-->
+<!-- KB_VERSION: v0.5.4-->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="КогдаБенз">
@@ -32,6 +37,383 @@
 <!-- /Yandex.Metrika counter -->
 <style>
 :root { --text:#14213d; --muted:#71809c; --blue:#397cff; --green:#19b77a; --red:#ef5350; --border:#e6ebf4; --shadow:0 12px 35px rgba(38,69,120,.09); }
+
+/* ========== PREMIUM NIGHT MODE ========== */
+:root {
+  --n-bg0: #0a0c12;
+  --n-bg1: #10141d;
+  --n-card: #151a24;
+  --n-card2: #1a2030;
+  --n-ink: #e8edf7;
+  --n-muted: #8b94a8;
+  --n-line: rgba(255,255,255,.08);
+  --n-line2: rgba(255,255,255,.12);
+  --n-blue: #5b9dff;
+  --n-blue2: #3d7ef0;
+  --n-amber: #f0b429;
+  --n-green: #3ddea8;
+  --n-red: #ff6b6b;
+  --n-shadow: 0 16px 40px rgba(0,0,0,.45);
+}
+body.kb-night {
+  color: var(--n-ink);
+  background:
+    radial-gradient(ellipse 80% 50% at 85% -10%, rgba(91,157,255,.14), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 0% 40%, rgba(240,180,41,.07), transparent 50%),
+    linear-gradient(160deg, #0a0c12 0%, #0e121a 50%, #0a0e16 100%);
+}
+body.kb-night .page { color: var(--n-ink); }
+body.kb-night .panel {
+  background: linear-gradient(180deg, var(--n-card2), var(--n-card));
+  border-color: var(--n-line);
+  box-shadow: var(--n-shadow);
+}
+body.kb-night .logo-title { color: var(--n-ink); }
+body.kb-night .logo-title span {
+  background: linear-gradient(90deg, #6aadff, #f0b429);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+body.kb-night .logo-subtitle { color: var(--n-muted); }
+body.kb-night .location {
+  background: rgba(26,32,48,.9);
+  border-color: var(--n-line2);
+  color: var(--n-ink);
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+}
+body.kb-night .header-div { background: var(--n-line2); }
+body.kb-night .tagline-slogan { color: var(--n-ink); }
+body.kb-night .tagline-slogan span { color: var(--n-blue); }
+body.kb-night .tagline-text { color: var(--n-muted); }
+body.kb-night .search {
+  background: var(--n-card2) !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink);
+}
+body.kb-night .search input {
+  color: var(--n-ink) !important;
+  background: transparent !important;
+}
+body.kb-night .search input::placeholder { color: var(--n-muted); }
+body.kb-night .listhead, body.kb-night .listhead span, body.kb-night .listhead small { color: var(--n-muted); }
+body.kb-night .nowcard-title, body.kb-night .p1-t .nowcard-title { color: var(--n-ink); }
+body.kb-night .nowcard-sub, body.kb-night .p1-t .nowcard-sub { color: var(--n-muted); }
+body.kb-night .ctl-chip, body.kb-night .loc-chip {
+  background: rgba(255,255,255,.05);
+  border-color: var(--n-line2);
+  color: var(--n-muted);
+}
+body.kb-night .ctl-chip.on, body.kb-night .ctl-chip.active {
+  background: rgba(91,157,255,.15);
+  border-color: rgba(91,157,255,.35);
+  color: var(--n-blue);
+}
+body.kb-night .pager-dots i { background: rgba(255,255,255,.15); }
+body.kb-night .pager-dots i.on { background: var(--n-blue); }
+body.kb-night .pager-arrow {
+  background: rgba(21,26,36,.92);
+  border-color: var(--n-line2);
+  color: var(--n-ink);
+}
+body.kb-night .sheet, body.kb-night .hello-pop, body.kb-night .install-pop,
+body.kb-night .poll-pop, body.kb-night .react-pop, body.kb-night .advice-pop,
+body.kb-night .life-pop, body.kb-night .wn-pop, body.kb-night .sc-pop, body.kb-night .mail-pop {
+  background: var(--n-card2) !important;
+  color: var(--n-ink);
+  border: 1px solid var(--n-line2);
+  box-shadow: 0 28px 70px rgba(0,0,0,.55);
+}
+body.kb-night .hello-back, body.kb-night .install-back, body.kb-night .poll-back,
+body.kb-night .sheet-backdrop, body.kb-night .react-back, body.kb-night .update-back {
+  background: rgba(5,8,14,.62) !important;
+}
+body.kb-night .hello-title, body.kb-night .install-title, body.kb-night .poll-title,
+body.kb-night .help-h, body.kb-night .help-q { color: var(--n-ink); }
+body.kb-night .hello-list, body.kb-night .help-a, body.kb-night .install-sub,
+body.kb-night .poll-sub, body.kb-night .help-lead { color: var(--n-muted); }
+body.kb-night .hello-list b, body.kb-night .help-q { color: var(--n-ink); }
+body.kb-night .help-item, body.kb-night .install-step {
+  background: rgba(255,255,255,.04);
+  border-color: var(--n-line);
+  color: var(--n-muted);
+}
+body.kb-night .cta-btn {
+  box-shadow: 0 10px 28px rgba(61,126,240,.35);
+}
+body.kb-night .cta-btn.ghost {
+  background: rgba(255,255,255,.06);
+  color: var(--n-ink);
+  border: 1px solid var(--n-line2);
+  box-shadow: none;
+}
+body.kb-night .status { color: var(--n-muted); }
+body.kb-night .boot-back {
+  background: radial-gradient(ellipse at 50% 20%, rgba(91,157,255,.12), transparent 50%), #0a0c12 !important;
+}
+body.kb-night .boot-title-new, body.kb-night .boot-line { color: var(--n-ink); }
+body.kb-night .boot-line { color: var(--n-muted); }
+body.kb-night .update-pop {
+  background: var(--n-card2);
+  color: var(--n-ink);
+  border: 1px solid var(--n-line2);
+}
+body.kb-night .update-title { color: var(--n-ink); }
+body.kb-night .update-sub { color: var(--n-muted); }
+body.kb-night .legend-cap, body.kb-night .hm-legend span { color: var(--n-muted); }
+body.kb-night .map-legend { color: var(--n-muted); }
+body.kb-night #map { filter: none; }
+body.kb-night .mn-tab, body.kb-night .mnWrap button {
+  color: var(--n-muted);
+}
+/* station rows / cards often use light bg via classes */
+body.kb-night .srow, body.kb-night .station-row, body.kb-night .card-row,
+body.kb-night .list-card, body.kb-night .st-card {
+  background: rgba(255,255,255,.04) !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .why-pop {
+  background: var(--n-card2) !important;
+  color: var(--n-ink);
+  border: 1px solid var(--n-line2);
+  box-shadow: var(--n-shadow);
+}
+
+/* === Night: советник, теплокарта, уведомления, новинки, шапка === */
+body.kb-night .advice-pop,
+body.kb-night #advicePop {
+  background: #121722 !important;
+  color: var(--n-ink) !important;
+  border: 1px solid var(--n-line2) !important;
+}
+body.kb-night .advice-pop .hello-title,
+body.kb-night #advicePop .hello-title { color: var(--n-ink) !important; }
+body.kb-night .advice-pop .help-lead,
+body.kb-night #advicePop .help-lead { color: var(--n-muted) !important; }
+body.kb-night .adv-card {
+  background: linear-gradient(180deg, #1a2130, #151a24) !important;
+  border-color: var(--n-line2) !important;
+  box-shadow: 0 10px 28px rgba(0,0,0,.35) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .adv-card.best {
+  border-color: rgba(91,157,255,.4) !important;
+  background: linear-gradient(180deg, #1a2438, #151a24) !important;
+}
+body.kb-night .adv-card.our {
+  border-color: rgba(240,180,41,.45) !important;
+  background: linear-gradient(180deg, #2a2418, #1a1810) !important;
+}
+body.kb-night .adv-name, body.kb-night .adv-rank { color: var(--n-ink) !important; }
+body.kb-night .adv-addr, body.kb-night .adv-meta { color: var(--n-muted) !important; }
+body.kb-night .adv-reaction {
+  background: rgba(255,255,255,.05) !important;
+  border-color: var(--n-line2) !important;
+  color: var(--n-muted2, #b4bccf) !important;
+  box-shadow: none !important;
+}
+body.kb-night .adv-reaction.like { color: #3ddea8 !important; }
+body.kb-night .adv-reaction.dislike { color: #ff8a8a !important; }
+body.kb-night .adv-reaction.doubt { color: #f0b429 !important; }
+body.kb-night .adv-reaction.mine {
+  border-color: rgba(91,157,255,.5) !important;
+  background: rgba(91,157,255,.15) !important;
+  color: #9dbfff !important;
+}
+body.kb-night .adv-reaction.like .ic { background: rgba(61,222,168,.15) !important; }
+body.kb-night .adv-fc, body.kb-night .adv-fc.kbm {
+  background: rgba(255,255,255,.06) !important;
+  color: var(--n-muted) !important;
+}
+body.kb-night .adv-fc.yes, body.kb-night .adv-fc.kbm.yes {
+  background: rgba(61,222,168,.14) !important;
+  color: #7dffc8 !important;
+}
+body.kb-night .adv-fc.no, body.kb-night .adv-fc.kbm.no {
+  background: rgba(255,92,92,.12) !important;
+  color: #ff9b9b !important;
+}
+body.kb-night .adv-fc.kbm.none, body.kb-night .adv-fc.kbm.warn {
+  background: rgba(255,255,255,.06) !important;
+  color: #c5b08a !important;
+}
+body.kb-night .adv-people,
+body.kb-night .adv-mine-line,
+body.kb-night [class*="adv-"] .chip {
+  background: rgba(61,222,168,.1) !important;
+  color: #9dffd0 !important;
+  border-color: transparent !important;
+}
+body.kb-night .cta-btn.ghost {
+  background: rgba(255,255,255,.06) !important;
+  color: var(--n-ink) !important;
+  border: 1px solid var(--n-line2) !important;
+}
+body.kb-night .adv-facts,
+body.kb-night .adv-price-v { color: var(--n-ink) !important; }
+
+/* теплокарта / ctm */
+body.kb-night .ctm-wrap,
+body.kb-night .ctm-body,
+body.kb-night #ctmBody,
+body.kb-night .city-treemap {
+  background: #121722 !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .ctm-head,
+body.kb-night .ctm-title { color: var(--n-ink) !important; }
+body.kb-night .ctm-sub,
+body.kb-night .ctm-meta { color: var(--n-muted) !important; }
+body.kb-night .ctm-empty { color: var(--n-muted) !important; }
+
+/* лента / nowcard внутренности */
+body.kb-night .nowcard,
+body.kb-night .nowcard-body,
+body.kb-night .feed-card {
+  background: #151a24 !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .nowcard-title b,
+body.kb-night .pl-city { color: var(--n-blue) !important; }
+
+/* уведомления slim */
+body.kb-night .slim-notif,
+body.kb-night #slimNotifPop,
+body.kb-night .slim-notif-pop {
+  background: #151a24 !important;
+  color: var(--n-ink) !important;
+  border: 1px solid var(--n-line2) !important;
+  box-shadow: 0 20px 50px rgba(0,0,0,.5) !important;
+}
+body.kb-night .slim-notif-t { color: var(--n-ink) !important; }
+body.kb-night .slim-notif-empty { color: var(--n-muted) !important; }
+body.kb-night .slim-notif-row,
+body.kb-night .sn-row {
+  background: transparent !important;
+  border-bottom: 1px solid var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .slim-notif-row small,
+body.kb-night .sn-row small { color: var(--n-muted) !important; }
+
+/* новинки / whats new */
+body.kb-night .wn-card,
+body.kb-night #wnBody .wn-card,
+body.kb-night .wn-item {
+  background: #151a24 !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .wn-card p,
+body.kb-night .wn-card li,
+body.kb-night #wnBody { color: var(--n-muted) !important; }
+body.kb-night .wn-card h3,
+body.kb-night .wn-card b { color: var(--n-ink) !important; }
+body.kb-night .lenti-card,
+body.kb-night #lentiBox,
+body.kb-night .lenti-scene {
+  background: linear-gradient(135deg, #1a2438, #151a24) !important;
+  border-color: var(--n-line2) !important;
+  color: var(--n-ink) !important;
+}
+
+/* нижние табы / mn */
+body.kb-night #mnWrap,
+body.kb-night .mn-bar {
+  background: rgba(15,20,30,.92) !important;
+  border-color: var(--n-line) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4) !important;
+}
+body.kb-night .mn-tab { color: var(--n-muted) !important; }
+body.kb-night .mn-tab.on,
+body.kb-night .mn-tab.active {
+  background: var(--n-blue2) !important;
+  color: #fff !important;
+}
+
+/* подсказки kb-hint */
+body.kb-night .kb-hint2-in {
+  background: linear-gradient(90deg, rgba(91,157,255,.12), #151a24 50%, rgba(91,157,255,.08)) !important;
+  border-color: var(--n-line2) !important;
+  color: var(--n-muted) !important;
+}
+
+/* строки списка АЗС */
+body.kb-night .srow,
+body.kb-night .srow-wrap > div {
+  background: rgba(255,255,255,.04) !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+
+/* price / score chips on main */
+body.kb-night .score-pill,
+body.kb-night .pulse-go,
+body.kb-night .cheap-chip {
+  background: rgba(255,255,255,.06) !important;
+  color: var(--n-ink) !important;
+  border-color: var(--n-line) !important;
+}
+
+/* theme toggle */
+.theme-tog {
+  flex: 0 0 auto;
+  width: 44px; height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.85);
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: 0 6px 16px rgba(50,80,130,.08);
+  transition: background .25s, border-color .25s;
+}
+.theme-tog .knob {
+  position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: linear-gradient(145deg, #4b93ff, #2465ee);
+  box-shadow: 0 2px 6px rgba(36,101,238,.4);
+  transition: transform .28s cubic-bezier(.2,.8,.2,1);
+  display: grid; place-items: center;
+  color: #fff; font-size: 11px; line-height: 1;
+}
+body.kb-night .theme-tog {
+  background: rgba(26,32,48,.95);
+  border-color: var(--n-line2);
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
+}
+body.kb-night .theme-tog .knob {
+  transform: translateX(16px);
+  background: linear-gradient(145deg, #f0b429, #e8950a);
+  box-shadow: 0 2px 8px rgba(240,180,41,.45);
+  color: #1a1205;
+}
+.theme-tog[aria-pressed="true"] .knob { transform: translateX(16px); }
+body.kb-night .theme-tog[aria-pressed="false"] .knob { transform: translateX(0); }
+/* pulse / now strip if present */
+body.kb-night .nowcard, body.kb-night .pulse-card, body.kb-night .lenti-card {
+  background: var(--n-card) !important;
+  border-color: var(--n-line) !important;
+  color: var(--n-ink) !important;
+}
+body.kb-night .kb-hint2-in {
+  background: linear-gradient(90deg, rgba(91,157,255,.1) 0%, rgba(26,32,48,.9) 55%, rgba(91,157,255,.08) 100%) !important;
+  border-color: var(--n-line2) !important;
+  color: var(--n-muted) !important;
+}
+body.kb-night .kb-hint2::before { background: #151a24 !important; border-color: var(--n-line2) !important; }
+body.kb-night .kb-hint2-in b { color: var(--n-blue) !important; }
+body.kb-night .kb-ip {
+  background: var(--n-card2) !important;
+  color: var(--n-ink) !important;
+  border: 1px solid var(--n-line2) !important;
+}
+body.kb-night .adv-card, body.kb-night .adv-reaction {
+  background: rgba(255,255,255,.04);
+  border-color: var(--n-line);
+}
+
 * { box-sizing:border-box; }
 body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; color:var(--text); background:radial-gradient(circle at 85% 0%, rgba(79,139,255,.13), transparent 30%),radial-gradient(circle at 0% 35%, rgba(57,199,151,.08), transparent 28%),linear-gradient(145deg,#fbfcff 0%,#f3f7ff 100%); }
 button,input { font:inherit; }
@@ -1786,6 +2168,9 @@ button.favorite .ic {
       </div>
     </div>
     <div class="header-actions">
+      <button type="button" class="theme-tog" id="themeTog" aria-label="Ночной режим" aria-pressed="false" title="День / ночь">
+        <span class="knob" id="themeKnob">☀</span>
+      </button>
       <button class="location" onclick="findNearby()"><svg class="ic ic-s"><use href="#i-pin"/></svg>Рядом</button>
       <span class="header-div" aria-hidden="true"></span>
       <button class="location" onclick="openHelp()"><svg class="ic ic-s"><use href="#i-help"/></svg>Помощь</button>
@@ -1795,7 +2180,7 @@ button.favorite .ic {
 <div class="slim-bar" id="slimBar">
   <div class="slim-ver" onclick="pagerGo(1)">
     <span class="slim-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#2465ee" d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/><path fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M12 11.2v3.4l2.6 1.6"/></svg></span>
-    <span class="slim-name">Когда<span class="brand-blue">Бенз<i class="slim-sup">юг</i></span></span> <span class="slim-v" id="slimVersion">v0.5.3</span>
+    <span class="slim-name">Когда<span class="brand-blue">Бенз<i class="slim-sup">юг</i></span></span> <span class="slim-v" id="slimVersion">v0.5.4</span>
   </div>
   <div class="slim-icons">
     <span class="slim-fc" id="slimForecast" onclick="scrollToTop3()" style="display:none"></span>
@@ -2099,6 +2484,95 @@ button.favorite .ic {
 </div>
 </div>
 </div>
+
+<script>
+// === Премиальный ночной режим: auto 18:00–05:00 + тумблер ===
+(function () {
+  var KEY = 'kbTheme'; // auto | day | night
+  function hourNow() {
+    try { return new Date().getHours(); } catch (e) { return 12; }
+  }
+  function autoIsNight() {
+    var h = hourNow();
+    return h >= 18 || h < 5;
+  }
+  function readPref() {
+    try { return localStorage.getItem(KEY) || 'auto'; } catch (e) { return 'auto'; }
+  }
+  function writePref(v) {
+    try { localStorage.setItem(KEY, v); } catch (e) {}
+  }
+  function apply(night) {
+    document.body.classList.toggle('kb-night', !!night);
+    var btn = document.getElementById('themeTog');
+    var knob = document.getElementById('themeKnob');
+    if (btn) btn.setAttribute('aria-pressed', night ? 'true' : 'false');
+    if (knob) knob.textContent = night ? '☾' : '☀';
+    try {
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', night ? '#0a0c12' : '#2465ee');
+    } catch (e) {}
+  }
+  function resolve() {
+    var p = readPref();
+    if (p === 'night') return true;
+    if (p === 'day') return false;
+    return autoIsNight();
+  }
+  function refresh() { apply(resolve()); }
+
+  // до first paint: избегаем вспышки белого вечером
+  try {
+    var p0 = readPref();
+    var n0 = (p0 === 'night') || (p0 !== 'day' && autoIsNight());
+    if (n0) document.documentElement.classList.add('kb-night-pending');
+  } catch (e) {}
+
+  function bind() {
+    refresh();
+    document.documentElement.classList.remove('kb-night-pending');
+    var btn = document.getElementById('themeTog');
+    if (!btn || btn.__kbThemeBound) return;
+    btn.__kbThemeBound = 1;
+    btn.addEventListener('click', function () {
+      var nowNight = document.body.classList.contains('kb-night');
+      // ручной: переключаем и фиксируем day/night (выход из auto)
+      if (nowNight) {
+        writePref('day');
+        apply(false);
+      } else {
+        writePref('night');
+        apply(true);
+      }
+      // тройной тап по тумблеру за 1.2с → снова auto
+    });
+    // long-press 700ms → auto
+    var holdTimer = null;
+    btn.addEventListener('pointerdown', function () {
+      holdTimer = setTimeout(function () {
+        writePref('auto');
+        refresh();
+        try {
+          if (typeof toast === 'function') toast('Тема: автоматически (ночь 18:00–05:00)', 'ok');
+        } catch (e) {}
+      }, 700);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) {
+      btn.addEventListener(ev, function () { clearTimeout(holdTimer); });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+  // раз в минуту — если auto, подхватить 18:00 / 05:00
+  setInterval(function () {
+    if (readPref() === 'auto') refresh();
+  }, 60000);
+  // экспорт
+  window.kbThemeRefresh = refresh;
+  window.kbThemeSet = function (mode) { writePref(mode); refresh(); };
+})();
+</script>
+
 <script src="app.js" defer></script>
 <script>
 // Регистрация service worker для PWA
@@ -2115,7 +2589,7 @@ if ('serviceWorker' in navigator) {
 // Тихо спрашиваем у сервера свежий index.html в обход sw-кэша, сравниваем
 // версию (HTML-комментарий KB_VERSION). Если отличается — показываем карточку
 // «Обнаружена новая версия». По кнопке — сброс всех кэшей и перезагрузка.
-const KB_VERSION = 'v0.5.3'; // должно совпадать с комментарием в <head>
+const KB_VERSION = 'v0.5.4'; // должно совпадать с комментарием в <head>
 let pendingRemoteVersion = null; // версия с сервера, до которой реально обновляемся
 // Сохраняем текущую версию при первом заходе, чтобы при следующем обновлении
 // записать from_version корректно
@@ -2262,5 +2736,655 @@ window.addEventListener('load', function() {
   setTimeout(trackVersionUpdate, 2000);
 });
 </script>
+<!-- ===== KB NIGHT PRO v1 — премиум ночной режим (полное покрытие) ===== -->
+<style id="kbNightPro">
+/* Палитра ночи: глубокий сине-графитовый фон, стекло, фирменный синий + янтарь */
+body.kb-night{
+  --n-bg0:#070a11; --n-bg1:#0d1220; --n-card:#141a29; --n-card2:#1a2234;
+  --n-ink:#eef3fc; --n-muted:#93a0b8; --n-line:rgba(148,180,255,.10);
+  --n-line2:rgba(148,180,255,.18); --n-blue:#5b9dff; --n-blue2:#2f6fe4;
+  --n-amber:#f0b429; --n-green:#3ddea8; --n-red:#ff7b7b;
+  color-scheme:dark;
+  background:
+    radial-gradient(ellipse 90% 55% at 85% -12%, rgba(64,120,255,.16), transparent 55%),
+    radial-gradient(ellipse 70% 45% at -10% 45%, rgba(240,180,41,.06), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 50% 110%, rgba(61,222,168,.05), transparent 60%),
+    linear-gradient(165deg,#070a11 0%,#0c1120 55%,#080c16 100%) !important;
+  color:var(--n-ink);
+}
+/* плавное засыпание/пробуждение поверхностей */
+body.kb-night .panel, body.kb-night .slim-bar, body.kb-night .sheet,
+body.kb-night .hello-pop, body.kb-night .adv-card, body.kb-night .wn-card,
+body.kb-night .pulse-card, body.kb-night .top3, body.kb-night .ctm-card,
+body.kb-night .srow-wrap, body.kb-night .station, body.kb-night #mnWrap{
+  transition:background-color .45s ease, border-color .45s ease, color .45s ease, box-shadow .45s ease;
+}
+/* скроллбары в палитре ночи */
+body.kb-night ::-webkit-scrollbar{width:8px;height:8px}
+body.kb-night ::-webkit-scrollbar-track{background:rgba(148,180,255,.05);border-radius:8px}
+body.kb-night ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#2f6fe4,#1746c8);border-radius:8px}
+body.kb-night ::-webkit-scrollbar-thumb:hover{background:#5b9dff}
+body.kb-night ::selection{background:rgba(91,157,255,.35)}
+
+/* ===== Шапка (слим-бар): тёмное стекло ===== */
+body.kb-night .slim-bar{
+  background:rgba(10,14,24,.78) !important;
+  backdrop-filter:blur(18px) saturate(1.4); -webkit-backdrop-filter:blur(18px) saturate(1.4);
+  border-bottom:1px solid var(--n-line2) !important;
+  box-shadow:0 6px 24px rgba(0,0,0,.45) !important;
+}
+body.kb-night .slim-ver, body.kb-night .slim-name{color:var(--n-ink) !important}
+body.kb-night .slim-ver .slim-name::after{background:linear-gradient(90deg,#5b9dff,#2f6fe4 65%,rgba(91,157,255,.15)) !important}
+body.kb-night .slim-v{background:rgba(148,180,255,.08) !important;color:var(--n-muted) !important}
+body.kb-night .slim-vh{color:#c6cfe0 !important}
+body.kb-night .slim-vt{color:var(--n-blue) !important}
+body.kb-night .slim-ico{background:rgba(148,180,255,.07) !important;color:#9fb0cc !important}
+body.kb-night .slim-ico.geo-ok{color:var(--n-green) !important;background:rgba(61,222,168,.12) !important}
+body.kb-night .slim-ico.geo-err{color:var(--n-red) !important;background:rgba(255,123,123,.12) !important}
+body.kb-night .slim-ico.drop-ok{color:var(--n-blue) !important}
+body.kb-night .slim-ico.drop-err{color:var(--n-red) !important}
+body.kb-night .slim-fc{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .slim-notif{background:var(--n-card2) !important;border:1px solid var(--n-line2);color:var(--n-ink) !important;box-shadow:0 24px 60px rgba(0,0,0,.6) !important}
+body.kb-night .slim-notif-t{color:var(--n-ink) !important}
+body.kb-night .slim-notif-empty{color:var(--n-muted) !important}
+body.kb-night .sn-row{border-top-color:var(--n-line) !important}
+body.kb-night .sn-txt b{color:var(--n-ink) !important}
+body.kb-night .sn-txt span{color:var(--n-muted) !important}
+body.kb-night .sn-time{color:#6b7890 !important}
+body.kb-night .sn-fav-hint{background:rgba(148,180,255,.06) !important;color:var(--n-muted) !important}
+
+/* ===== Подсказки жестов ===== */
+body.kb-night .kb-hint2-in{
+  background:linear-gradient(90deg,rgba(91,157,255,.10),rgba(20,26,41,.9) 50%,rgba(91,157,255,.07)) !important;
+  border-color:var(--n-line2) !important;color:var(--n-muted) !important;
+}
+body.kb-night .kb-hint2-in b{color:var(--n-blue) !important}
+body.kb-night .kb-hint2::before{background:#141a29 !important;border-color:var(--n-line2) !important}
+
+/* ===== Нижняя навигация: тёмная пилюля ===== */
+body.kb-night #mnWrap{
+  background:rgba(13,18,32,.82) !important;
+  backdrop-filter:blur(20px) saturate(1.4); -webkit-backdrop-filter:blur(20px) saturate(1.4);
+  border:1px solid var(--n-line2) !important;
+  box-shadow:0 12px 32px rgba(0,0,0,.5), inset 0 1px 0 rgba(148,180,255,.08) !important;
+}
+body.kb-night #mnWrap .mn-item{color:#8b98b3 !important;background:transparent !important}
+body.kb-night #mnWrap .mn-item:not(.on):active{background:rgba(148,180,255,.08) !important;color:#c6cfe0 !important}
+body.kb-night #mnWrap .mn-item.on{
+  background:linear-gradient(140deg,#4b93ff 0%,#2465ee 55%,#1746c8 100%) !important;
+  color:#fff !important;
+  box-shadow:0 6px 20px rgba(36,101,238,.45), inset 0 1px 0 rgba(255,255,255,.35) !important;
+}
+body.kb-night .pager-dots i{background:rgba(148,180,255,.22)}
+body.kb-night .pager-dots i.on{background:var(--n-blue)}
+body.kb-night .pager-arrow{background:rgba(20,26,41,.92) !important;border-color:var(--n-line2) !important;color:var(--n-blue) !important}
+
+/* ===== Панели ===== */
+body.kb-night .panel{
+  background:linear-gradient(180deg,#161d2e,#121828) !important;
+  border-color:var(--n-line) !important;
+  box-shadow:0 14px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(148,180,255,.06) !important;
+}
+body.kb-night .nowcard-title, body.kb-night .help-h, body.kb-night .help-q{color:var(--n-ink) !important}
+body.kb-night .nowcard-sub, body.kb-night .help-lead, body.kb-night .help-a, body.kb-night .tagline-text{color:var(--n-muted) !important}
+body.kb-night .tagline-slogan{color:var(--n-ink) !important}
+body.kb-night .tagline-slogan span{color:var(--n-blue) !important}
+body.kb-night .p1-ico{background:rgba(91,157,255,.14) !important;color:var(--n-blue) !important}
+body.kb-night .p1-clock{background:rgba(148,180,255,.08) !important;color:#c6cfe0 !important}
+body.kb-night .status, body.kb-night .empty-search{background:rgba(148,180,255,.05) !important;border-color:var(--n-line) !important;color:var(--n-muted) !important}
+
+/* ===== Линза: сцены больше не белые ===== */
+body.kb-night .lenti-card{box-shadow:0 12px 30px rgba(0,0,0,.55) !important}
+body.kb-night .lenti-scene.s0{background:linear-gradient(135deg,#0f2b22,#12203a) !important}
+body.kb-night .lenti-scene.s1{background:linear-gradient(135deg,#12233f,#1b1f3a) !important}
+body.kb-night .lenti-scene.s2{background:linear-gradient(135deg,#1d1a38,#131c33) !important}
+body.kb-night .lenti-scene.s3{background:linear-gradient(135deg,#0f3a55,#155a86 55%,#0f4a74) !important}
+body.kb-night .lenti-cap{color:#8fa2c4 !important}
+body.kb-night .lenti-val{color:#f2f6ff !important}
+body.kb-night .lenti-sub{color:#aebad2 !important}
+body.kb-night .lenti-hint{color:rgba(238,243,252,.45) !important}
+body.kb-night .lenti-scrim{background:linear-gradient(90deg,rgba(13,18,32,.94) 0%,rgba(13,18,32,.82) 42%,rgba(13,18,32,.35) 75%,rgba(13,18,32,.12) 100%) !important}
+body.kb-night .lenti-advscrim{background:linear-gradient(90deg,rgba(13,18,32,.92) 0%,rgba(13,18,32,.75) 48%,rgba(13,18,32,.28) 100%) !important}
+body.kb-night .lenti-bg{opacity:.35 !important}
+body.kb-night .lenti-stamp{background:#1a2234 !important;border-color:var(--n-line2) !important;box-shadow:0 6px 16px rgba(0,0,0,.5) !important}
+body.kb-night .lenti-ghost{background:rgba(26,34,52,.9) !important;border-color:var(--n-line2) !important}
+body.kb-night .lenti-holo, body.kb-night .lenti-slats{opacity:.18 !important}
+body.kb-night .tg-badge{background:#eaf4ff !important}
+
+/* ===== Мозаика города (treemap) ===== */
+body.kb-night .ctm-card{background:linear-gradient(165deg,#161d2e,#121a2c) !important;box-shadow:0 10px 28px rgba(0,0,0,.45) !important}
+body.kb-night .ctm-title{color:var(--n-ink) !important}
+body.kb-night .ctm-sub, body.kb-night .ctm-note, body.kb-night .ctm-time{color:var(--n-muted) !important}
+body.kb-night .ctm-why{background:rgba(148,180,255,.08) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .ctm-body{background:#0d1322 !important}
+body.kb-night .ctm-tile{color:#f2f6ff !important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14), inset 0 1px 0 rgba(255,255,255,.12) !important}
+body.kb-night .ctm-tile .ctm-p{text-shadow:0 1px 4px rgba(0,0,0,.55) !important}
+body.kb-night .ctm-track{background:rgba(148,180,255,.15) !important}
+body.kb-night .ctm-thumb{background:#1a2234 !important;border-color:var(--n-blue) !important}
+body.kb-night .ctm-empty{color:var(--n-muted) !important}
+
+/* ===== Пульс города ===== */
+body.kb-night .pulse-card{
+  background:linear-gradient(165deg,#161d2e 0%,#131a2b 48%,#12202c 100%) !important;
+  box-shadow:0 14px 36px rgba(0,0,0,.5), inset 0 1px 0 rgba(148,180,255,.07), inset 0 0 0 1.5px var(--pulse-edge, rgba(91,157,255,.2)) !important;
+}
+body.kb-night .pulse-status{color:var(--n-ink) !important}
+body.kb-night .pulse-note{color:var(--n-muted) !important}
+body.kb-night .pulse-delta{background:rgba(148,180,255,.08) !important;box-shadow:none !important}
+body.kb-night .pulse-delta small{color:#7d8aa5 !important}
+body.kb-night .pr-track{stroke:rgba(148,180,255,.14) !important}
+body.kb-night .pulse-ring-val b{color:var(--n-ink) !important}
+body.kb-night .pulse-ring-val small{color:#7d8aa5 !important}
+body.kb-night .pulse-kpi{background:rgba(148,180,255,.06) !important;box-shadow:inset 0 0 0 1px var(--n-line) !important}
+body.kb-night .pulse-kpi b{color:var(--n-ink) !important}
+body.kb-night .pulse-kpi span{color:#7d8aa5 !important}
+body.kb-night .pulse-feed, body.kb-night .pulse-quote{background:rgba(148,180,255,.05) !important;box-shadow:inset 0 0 0 1px var(--n-line) !important}
+body.kb-night .pulse-feed-t, body.kb-night .pulse-quote-t{color:var(--n-ink) !important}
+body.kb-night .pf-row{border-top-color:var(--n-line) !important}
+body.kb-night .pf-txt b{color:var(--n-ink) !important}
+body.kb-night .pf-txt span{color:var(--n-muted) !important}
+body.kb-night .pf-time{color:#6b7890 !important}
+body.kb-night .pulse-quote p{color:#c6cfe0 !important}
+body.kb-night .pulse-quote small{color:#6b7890 !important}
+body.kb-night .mini-map-wrap{border-color:var(--n-line) !important;background:#0d1322 !important}
+
+/* ===== «Возможно есть топливо здесь» ===== */
+body.kb-night .mf-plate{background:linear-gradient(135deg,#2a2113,#241a1a 48%,#141c30) !important;border-color:rgba(240,180,41,.35) !important;box-shadow:0 12px 30px rgba(0,0,0,.45) !important}
+body.kb-night .mf-head{color:var(--n-amber) !important}
+body.kb-night .mf-sub{color:var(--n-muted) !important}
+body.kb-night .mf-row{background:rgba(13,18,32,.75) !important;border-color:var(--n-line2) !important}
+body.kb-night .mf-row.confirmed{background:rgba(61,222,168,.10) !important;border-color:rgba(61,222,168,.35) !important}
+body.kb-night .mf-row.sunk{background:rgba(148,180,255,.05) !important;border-color:var(--n-line) !important}
+body.kb-night .mf-name{color:var(--n-ink) !important}
+body.kb-night .mf-addr{color:var(--n-muted) !important}
+body.kb-night .mf-logo{background:#1a2234 !important;border-color:var(--n-line) !important}
+body.kb-night .mf-score{color:#9fb0cc !important}
+body.kb-night .mf-fuel{background:rgba(91,157,255,.16) !important;color:#9dc4ff !important}
+body.kb-night .mf-btn.yes{background:rgba(61,222,168,.12) !important;color:var(--n-green) !important;border-color:rgba(61,222,168,.35) !important}
+body.kb-night .mf-btn.no{background:rgba(255,123,123,.10) !important;color:var(--n-red) !important;border-color:rgba(255,123,123,.35) !important}
+
+/* ===== Топ-3 ===== */
+body.kb-night .top3{background:rgba(148,180,255,.05) !important;box-shadow:inset 0 0 0 1px var(--n-line) !important}
+body.kb-night .top3-title{color:var(--n-ink) !important}
+body.kb-night .top3-tabs{background:rgba(148,180,255,.08) !important}
+body.kb-night .top3-tab{color:#8b98b3 !important}
+body.kb-night .top3-tab.active{background:#2465ee !important;color:#fff !important;box-shadow:0 3px 10px rgba(36,101,238,.4) !important}
+body.kb-night .t3-row{background:rgba(13,18,32,.7) !important;border-color:var(--n-line) !important}
+body.kb-night .t3-row.ev-g{background:linear-gradient(135deg,rgba(61,222,168,.14),rgba(13,18,32,.7) 60%) !important;border-color:rgba(61,222,168,.3) !important}
+body.kb-night .t3-row.ev-r{background:linear-gradient(135deg,rgba(255,123,123,.12),rgba(13,18,32,.7) 60%) !important;border-color:rgba(255,123,123,.3) !important}
+body.kb-night .t3-row.ev-o{background:linear-gradient(135deg,rgba(240,180,41,.12),rgba(13,18,32,.7) 60%) !important;border-color:rgba(240,180,41,.3) !important}
+body.kb-night .t3-logo{background:#1a2234 !important;border-color:var(--n-line) !important}
+body.kb-night .t3-name{color:var(--n-ink) !important}
+body.kb-night .t3-addr{color:rgba(238,243,252,.4) !important}
+body.kb-night .t3-time{color:var(--n-muted) !important}
+body.kb-night .t3-badge.now{background:rgba(61,222,168,.14) !important;color:var(--n-green) !important}
+body.kb-night .t3-badge.later{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .t3-badge.none{background:rgba(148,180,255,.08) !important;color:#8b98b3 !important}
+body.kb-night .tf.t95{background:rgba(61,222,168,.14) !important;color:var(--n-green) !important}
+body.kb-night .tf.t92{background:rgba(240,180,41,.14) !important;color:var(--n-amber) !important}
+body.kb-night .tf.tdt{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .tf.tno{background:rgba(148,180,255,.08) !important;color:#8b98b3 !important}
+body.kb-night .t3-thread{border-left-color:var(--n-line2) !important}
+body.kb-night .t3-tw{color:rgba(238,243,252,.55) !important}
+body.kb-night .t3-tw::before{background:var(--n-line2) !important}
+body.kb-night .t3-tw b{color:rgba(238,243,252,.7) !important}
+body.kb-night .t3-tw .tm{color:rgba(238,243,252,.35) !important}
+body.kb-night .t3-sub{background:rgba(13,18,32,.5) !important;border-color:var(--n-line) !important}
+body.kb-night .t3-sub-t{color:#7d8aa5 !important}
+body.kb-night .t3-empty{color:var(--n-muted) !important}
+
+/* ===== Полоски dg / волна / почта ===== */
+body.kb-night .dg-strip{background:linear-gradient(135deg,rgba(91,157,255,.10),rgba(61,222,168,.06)) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .dg-strip.tg-ask{background:rgba(91,157,255,.12) !important;border-color:rgba(91,157,255,.35) !important;color:#9dc4ff !important}
+body.kb-night .dg-strip.tg-on{background:rgba(61,222,168,.10) !important;border-color:rgba(61,222,168,.35) !important;color:var(--n-green) !important}
+
+/* ===== Тепловая матрица ===== */
+body.kb-night .hm-wrap{background:linear-gradient(165deg,#161d2e,#121828) !important;border-color:var(--n-line) !important;box-shadow:0 10px 28px rgba(0,0,0,.4) !important}
+body.kb-night .hm-name{color:var(--n-ink) !important}
+body.kb-night .hm-axis{color:#6b7890 !important}
+body.kb-night .hm-legend{background:rgba(148,180,255,.06) !important}
+body.kb-night .hm-legend span{color:var(--n-muted) !important}
+body.kb-night .legend-cap{color:#7d8aa5 !important}
+
+/* ===== Список АЗС ===== */
+body.kb-night .search{background:rgba(13,18,32,.8) !important;border-color:var(--n-line2) !important;color:#8b98b3 !important}
+body.kb-night .search input{color:var(--n-ink) !important}
+body.kb-night .search input::placeholder{color:#6b7890 !important}
+body.kb-night .listhead{color:var(--n-ink) !important}
+body.kb-night .listhead small{color:#7d8aa5 !important}
+body.kb-night .ctl-chip{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#8b98b3 !important}
+body.kb-night .ctl-chip.on{background:rgba(91,157,255,.16) !important;color:#9dc4ff !important;border-color:rgba(91,157,255,.4) !important}
+body.kb-night .srow-wrap{background:linear-gradient(180deg,#1a2234,#161d2e) !important;border-color:var(--n-line) !important;box-shadow:0 6px 18px rgba(0,0,0,.4) !important}
+body.kb-night .sbadge.open{background:rgba(61,222,168,.14) !important;color:var(--n-green) !important}
+body.kb-night .sbadge.soon{background:rgba(124,109,255,.16) !important;color:#b7a8ff !important}
+body.kb-night .sbadge.none{background:rgba(240,180,41,.14) !important;color:var(--n-amber) !important}
+body.kb-night .sbadge.late{background:rgba(148,180,255,.08) !important;color:#8b98b3 !important}
+
+/* ===== Шторка / карточка АЗС ===== */
+body.kb-night .sheet{background:#0e1424 !important;box-shadow:0 -20px 60px rgba(0,0,0,.6) !important}
+body.kb-night .sheet-grab{background:rgba(148,180,255,.25) !important}
+body.kb-night .sheet-close{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .station{background:linear-gradient(180deg,#161d2e,#131a2b) !important;border-color:var(--n-line) !important}
+body.kb-night .station-logo{background:#1a2234 !important;border-color:var(--n-line) !important}
+body.kb-night .station-name{color:var(--n-ink) !important}
+body.kb-night .station-address{color:var(--n-muted) !important}
+body.kb-night .favorite{background:rgba(148,180,255,.08) !important;color:#8b98b3 !important}
+body.kb-night .favorite.on{background:rgba(224,85,122,.14) !important;color:#ff8aa8 !important}
+body.kb-night .verdict.v-good{background:linear-gradient(135deg,rgba(61,222,168,.12),rgba(61,222,168,.05)) !important;border-color:rgba(61,222,168,.35) !important;color:var(--n-green) !important}
+body.kb-night .verdict.v-wait{background:linear-gradient(135deg,rgba(240,180,41,.12),rgba(240,180,41,.05)) !important;border-color:rgba(240,180,41,.35) !important;color:var(--n-amber) !important}
+body.kb-night .verdict.v-unknown{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#9fb0cc !important}
+body.kb-night .f-tile{background:rgba(13,18,32,.7) !important;border-color:var(--n-line) !important}
+body.kb-night .f-tile b{color:var(--n-ink) !important}
+body.kb-night .f-pill.yes{background:rgba(61,222,168,.12) !important;border-color:rgba(61,222,168,.35) !important;color:var(--n-green) !important}
+body.kb-night .f-pill.no{background:rgba(255,123,123,.10) !important;border-color:rgba(255,123,123,.35) !important;color:var(--n-red) !important}
+body.kb-night .f-pill.warn{background:rgba(240,180,41,.12) !important;border-color:rgba(240,180,41,.35) !important;color:var(--n-amber) !important}
+body.kb-night .f-pill.gray{background:rgba(148,180,255,.07) !important;border-color:var(--n-line2) !important;color:#8b98b3 !important}
+body.kb-night .card-facts{background:rgba(13,18,32,.7) !important;border-color:var(--n-line) !important}
+body.kb-night .cf{border-left-color:var(--n-line) !important}
+body.kb-night .cf small{color:#7d8aa5 !important}
+body.kb-night .cf b, body.kb-night .pr-row b{color:var(--n-ink) !important}
+body.kb-night .cf .cf-sub{color:var(--n-muted) !important}
+body.kb-night .cta-btn.ghost{background:rgba(148,180,255,.08) !important;color:#c6cfe0 !important;box-shadow:none !important}
+body.kb-night .cta-btn.ghost.big{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .cta-btn.ghost.big.tg-onbtn{background:rgba(61,222,168,.10) !important;border-color:rgba(61,222,168,.35) !important;color:var(--n-green) !important}
+body.kb-night .card-maprow{background:rgba(13,18,32,.7) !important}
+body.kb-night .cmr-txt b{color:var(--n-ink) !important}
+body.kb-night .cmr-txt small{color:var(--n-muted) !important}
+body.kb-night .card-map-thumb{background:#0d1322 !important}
+body.kb-night .card-ev{background:rgba(13,18,32,.7) !important}
+body.kb-night .ev-head b{color:var(--n-ink) !important}
+body.kb-night .ev-head small, body.kb-night .ev-node span, body.kb-night .ev-quiet{color:var(--n-muted) !important}
+body.kb-night .ev-node b{color:var(--n-ink) !important}
+body.kb-night .ev-node::before{background:var(--n-line2) !important}
+body.kb-night .sc-rowline{background:rgba(13,18,32,.7) !important}
+body.kb-night .sc-rl-txt b{color:var(--n-ink) !important}
+body.kb-night .sc-rl-txt small{color:var(--n-muted) !important}
+body.kb-night .sc-gauge b{color:var(--n-ink) !important}
+body.kb-night .g-track{stroke:rgba(148,180,255,.14) !important}
+body.kb-night .folk-card{background:linear-gradient(135deg,rgba(61,222,168,.06),rgba(91,157,255,.05)) !important;border-color:var(--n-line2) !important}
+body.kb-night .folk-head{color:var(--n-ink) !important}
+body.kb-night .folk-head small, body.kb-night .folk-ago, body.kb-night .folk-quiet{color:var(--n-muted) !important}
+body.kb-night .folk-add{background:rgba(91,157,255,.12) !important;border-color:rgba(91,157,255,.35) !important;color:#9dc4ff !important}
+body.kb-night .folk-comment{color:#aebad2 !important}
+body.kb-night .fk.yes{background:rgba(61,222,168,.12) !important;color:var(--n-green) !important}
+body.kb-night .fk.no{background:rgba(255,123,123,.10) !important;color:var(--n-red) !important}
+body.kb-night .fk.q{background:rgba(240,180,41,.12) !important;color:var(--n-amber) !important}
+body.kb-night .fk.inf{background:rgba(91,157,255,.12) !important;color:#9dc4ff !important}
+body.kb-night .feedback-panel{background:rgba(13,18,32,.8) !important;border-color:var(--n-line2) !important}
+body.kb-night .feedback-question{color:var(--n-ink) !important}
+body.kb-night .feedback-option{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .feedback-option.selected{background:rgba(61,222,168,.14) !important;border-color:rgba(61,222,168,.45) !important;color:var(--n-green) !important}
+body.kb-night .fb-gl{color:#7d8aa5 !important}
+body.kb-night .fb-text{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:var(--n-ink) !important}
+body.kb-night .q-thanks{color:var(--n-green) !important}
+body.kb-night .q-thanks small{color:var(--n-muted) !important}
+
+/* ===== Score / паспорт ===== */
+body.kb-night .sc-row{background:rgba(13,18,32,.7) !important;border-color:var(--n-line) !important}
+body.kb-night .sc-row.on{background:rgba(91,157,255,.10) !important;border-color:rgba(91,157,255,.35) !important}
+body.kb-night .sc-row-t{color:var(--n-ink) !important}
+body.kb-night .sc-line{color:#c6cfe0 !important}
+body.kb-night .sc-meta{color:var(--n-muted) !important}
+body.kb-night .sc-word.w0{color:#8b98b3 !important}
+body.kb-night .sc-word.w1{color:var(--n-amber) !important}
+body.kb-night .sc-word.w2{color:#9dc4ff !important}
+body.kb-night .sc-word.w3{color:var(--n-green) !important}
+
+/* ===== «Куда ехать»: карточки больше не белые ===== */
+body.kb-night .advice-pop{background:#101627 !important;border:1px solid var(--n-line2) !important}
+body.kb-night .adv-card{background:linear-gradient(180deg,#1a2234,#161d2e) !important;box-shadow:0 8px 24px rgba(0,0,0,.45) !important}
+body.kb-night .adv-card.best{background:linear-gradient(180deg,#1a2234,#161d2e) !important}
+body.kb-night .adv-card.our{background:linear-gradient(180deg,#2a2415,#1a1c2e) !important;box-shadow:0 8px 24px rgba(0,0,0,.45), inset 0 0 0 1.5px rgba(240,180,41,.5) !important}
+body.kb-night .adv-rank{background:rgba(91,157,255,.16) !important;color:#9dc4ff !important}
+body.kb-night .adv-name{color:var(--n-ink) !important}
+body.kb-night .adv-addr{color:var(--n-muted) !important}
+body.kb-night .adv-badge.yes{background:rgba(61,222,168,.14) !important;color:var(--n-green) !important}
+body.kb-night .adv-badge.fc{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .adv-badge.stale{background:rgba(240,180,41,.14) !important;color:var(--n-amber) !important}
+body.kb-night .adv-fc, body.kb-night .adv-fc.kbm{background:rgba(148,180,255,.07) !important}
+body.kb-night .adv-fc b, body.kb-night .adv-fc.kbm b{color:#8b98b3 !important}
+body.kb-night .adv-fc i, body.kb-night .adv-fc.kbm i{color:#c6cfe0 !important}
+body.kb-night .adv-fc.kbm em{color:#9fb0cc !important}
+body.kb-night .adv-fc.yes, body.kb-night .adv-fc.kbm.yes{background:rgba(61,222,168,.12) !important}
+body.kb-night .adv-fc.yes i, body.kb-night .adv-fc.kbm.yes i{color:var(--n-green) !important}
+body.kb-night .adv-fc.no, body.kb-night .adv-fc.kbm.no{background:rgba(255,123,123,.10) !important}
+body.kb-night .adv-fc.no i, body.kb-night .adv-fc.kbm.no i{color:var(--n-red) !important}
+body.kb-night .adv-fc.kbm.warn{background:rgba(240,180,41,.12) !important}
+body.kb-night .adv-fc.kbm.warn i{color:var(--n-amber) !important}
+body.kb-night .adv-fc.kbm.none{background:rgba(148,180,255,.07) !important}
+body.kb-night .adv-fc.kbm.folk.yes, body.kb-night .adv-fc.kbm.source.yes{box-shadow:inset 0 0 0 1px rgba(61,222,168,.4) !important}
+body.kb-night .adv-fc.kbm.scene.yes{box-shadow:inset 0 0 0 1.5px var(--n-green) !important}
+body.kb-night .adv-facts{background:linear-gradient(135deg,rgba(13,18,32,.85),rgba(18,24,40,.85)) !important}
+body.kb-night .adv-price-v{color:var(--n-ink) !important}
+body.kb-night .adv-price-d{background:rgba(148,180,255,.08) !important;color:#9fb0cc !important}
+body.kb-night .adv-meta.cheap .adv-price-d{background:rgba(61,222,168,.14) !important;color:var(--n-green) !important}
+body.kb-night .adv-meta.dear .adv-price-d{background:rgba(255,123,123,.12) !important;color:var(--n-red) !important}
+body.kb-night .adv-facts .adv-evt{color:var(--n-muted) !important}
+body.kb-night .adv-facts .adv-evt-t{color:#6b7890 !important}
+body.kb-night .adv-facts .adv-win{background:rgba(91,157,255,.12) !important;color:#9dc4ff !important}
+body.kb-night .adv-why-i{color:#7d8aa5 !important}
+body.kb-night .adv-stale-warn{background:rgba(240,180,41,.10) !important;border-color:rgba(240,180,41,.35) !important;color:var(--n-amber) !important}
+body.kb-night .adv-actions .cta-btn.ghost{background:rgba(148,180,255,.08) !important;color:#c6cfe0 !important}
+body.kb-night .adv-card .adv-reactions{background:linear-gradient(135deg,rgba(13,18,32,.9),rgba(18,24,40,.9)) !important;box-shadow:inset 0 1px 3px rgba(0,0,0,.4) !important}
+body.kb-night .adv-card .adv-reaction{background:#1a2234 !important;box-shadow:0 2px 8px rgba(0,0,0,.4) !important}
+body.kb-night .adv-card .adv-reaction.like{color:var(--n-green) !important}
+body.kb-night .adv-card .adv-reaction.like .ic{background:rgba(61,222,168,.14) !important}
+body.kb-night .adv-card .adv-reaction.like .cnt{background:rgba(61,222,168,.16) !important;color:var(--n-green) !important}
+body.kb-night .adv-card .adv-reaction.dislike{color:var(--n-red) !important}
+body.kb-night .adv-card .adv-reaction.dislike .ic{background:rgba(255,123,123,.12) !important}
+body.kb-night .adv-card .adv-reaction.dislike .cnt{background:rgba(255,123,123,.14) !important;color:var(--n-red) !important}
+body.kb-night .adv-card .adv-reaction.doubt{color:var(--n-amber) !important}
+body.kb-night .adv-card .adv-reaction.doubt .ic{background:rgba(240,180,41,.14) !important}
+body.kb-night .adv-card .adv-reaction.doubt .cnt{background:rgba(240,180,41,.16) !important;color:var(--n-amber) !important}
+body.kb-night .adv-card .adv-reaction.like.mine{background:rgba(61,222,168,.14) !important}
+body.kb-night .adv-card .adv-reaction.dislike.mine{background:rgba(255,123,123,.12) !important}
+body.kb-night .adv-card .adv-reaction.doubt.mine{background:rgba(240,180,41,.14) !important}
+body.kb-night .adv-people{background:linear-gradient(135deg,rgba(61,222,168,.14),rgba(61,222,168,.08)) !important;border-color:rgba(61,222,168,.35) !important;color:var(--n-green) !important}
+body.kb-night .adv-reject-warn{color:var(--n-amber) !important}
+body.kb-night .kbm-lead{color:var(--n-green) !important}
+body.kb-night .kb-rt.yes{background:rgba(61,222,168,.10) !important;border-color:rgba(61,222,168,.35) !important;color:var(--n-green) !important}
+body.kb-night .kb-rt.no{background:rgba(255,123,123,.10) !important;border-color:rgba(255,123,123,.35) !important;color:var(--n-red) !important}
+body.kb-night .kb-rt.doubt{background:rgba(240,180,41,.10) !important;border-color:rgba(240,180,41,.35) !important;color:var(--n-amber) !important}
+body.kb-night .kb-rt.hint{background:rgba(148,180,255,.06) !important;border-color:var(--n-line) !important;color:#8b98b3 !important}
+body.kb-night .kb-adv-extra button, body.kb-night .kb-card-extra button{background:rgba(91,157,255,.10) !important;border-color:rgba(91,157,255,.35) !important;color:#9dc4ff !important}
+
+/* ===== Попап реакций (inline-белый фон глушим) ===== */
+body.kb-night .react-pop{background:#1a2234 !important;color:var(--n-ink) !important;border:1px solid var(--n-line2) !important}
+body.kb-night .react-title{color:var(--n-ink) !important}
+body.kb-night .react-sub{color:var(--n-muted) !important}
+body.kb-night .react-ico{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .react-opt{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .react-opt.selected{background:rgba(91,157,255,.14) !important;border-color:rgba(91,157,255,.4) !important;color:#9dc4ff !important}
+body.kb-night .react-text{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:var(--n-ink) !important}
+body.kb-night .react-thanks .note{background:rgba(61,222,168,.08) !important;border-color:rgba(61,222,168,.3) !important;color:#c6cfe0 !important}
+
+/* ===== Общие попапы (hello / install / poll / wn / mail / tg / update) ===== */
+body.kb-night .hello-pop:not(.life-pop), body.kb-night .install-pop, body.kb-night .poll-pop,
+body.kb-night .wn-pop, body.kb-night .mail-pop, body.kb-night .sc-pop, body.kb-night .update-pop{
+  background:#1a2234 !important;color:var(--n-ink) !important;border:1px solid var(--n-line2) !important;
+  box-shadow:0 28px 70px rgba(0,0,0,.65) !important;
+}
+body.kb-night .hello-title, body.kb-night .install-title, body.kb-night .poll-title, body.kb-night .update-title{color:var(--n-ink) !important}
+body.kb-night .hello-list, body.kb-night .install-sub, body.kb-night .poll-sub, body.kb-night .update-sub{color:var(--n-muted) !important}
+body.kb-night .hello-list b{color:var(--n-ink) !important}
+body.kb-night .install-step, body.kb-night .help-item{background:rgba(148,180,255,.05) !important;border-color:var(--n-line) !important;color:var(--n-muted) !important}
+body.kb-night .poll-q{color:var(--n-ink) !important}
+body.kb-night .poll-opt{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .poll-opt.selected{background:rgba(91,157,255,.14) !important;border-color:rgba(91,157,255,.4) !important;color:#9dc4ff !important}
+body.kb-night .poll-stars button{color:#4a5670 !important}
+body.kb-night .poll-stars button.on{color:var(--n-amber) !important}
+body.kb-night .poll-thanks .pct{background:rgba(61,222,168,.08) !important;border-color:rgba(61,222,168,.3) !important;color:#c6cfe0 !important}
+body.kb-night .poll-thanks .me{color:var(--n-muted) !important}
+body.kb-night .mail-reason{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .mail-reason.selected{background:rgba(91,157,255,.14) !important;border-color:rgba(91,157,255,.4) !important;color:#9dc4ff !important}
+body.kb-night .mail-text{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:var(--n-ink) !important}
+body.kb-night .mail-count{color:#7d8aa5 !important}
+body.kb-night .mail-clip{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#9fb0cc !important}
+body.kb-night .mail-clip.has{background:rgba(91,157,255,.14) !important;border-color:rgba(91,157,255,.4) !important;color:#9dc4ff !important}
+body.kb-night .mail-photo{background:rgba(148,180,255,.05) !important;border-color:var(--n-line) !important}
+body.kb-night .mail-photo span{color:var(--n-muted) !important}
+body.kb-night .mail-photo button{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .to-row{color:#c6cfe0 !important}
+body.kb-night .update-btn.ghost{background:rgba(148,180,255,.08) !important;color:#9fb0cc !important}
+body.kb-night .hello-back, body.kb-night .install-back, body.kb-night .poll-back,
+body.kb-night .react-back, body.kb-night .sheet-backdrop, body.kb-night .update-back,
+body.kb-night .slim-notif-back{background:rgba(4,7,13,.7) !important}
+
+/* ===== «Что нового»: читаемые карточки ===== */
+body.kb-night .wn-card{background:linear-gradient(180deg,#1a2234,#161d2e) !important;border-color:var(--n-line) !important;box-shadow:0 10px 28px rgba(0,0,0,.45) !important}
+body.kb-night .wn-title{color:var(--n-ink) !important}
+body.kb-night .wn-lead{color:var(--n-muted) !important}
+body.kb-night .wn-why{background:rgba(148,180,255,.05) !important;border-color:var(--n-line) !important;color:var(--n-muted) !important}
+body.kb-night .wn-img{background:#0d1322 !important}
+body.kb-night .rc-chip.info{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .rc-chip.yes{background:rgba(61,222,168,.12) !important;color:var(--n-green) !important}
+body.kb-night .rc-chip.no{background:rgba(255,123,123,.10) !important;color:var(--n-red) !important}
+body.kb-night .rc-chip.queue{background:rgba(240,180,41,.12) !important;color:var(--n-amber) !important}
+
+/* ===== Карта: тёмная подложка + ночной фильтр тайлов ===== */
+body.kb-night .map-box, body.kb-night .mini-map-box, body.kb-night .card-map-box{background:#0d1322 !important;border-color:var(--n-line) !important}
+body.kb-night .map-box .maplibregl-canvas,
+body.kb-night .mini-map-box .maplibregl-canvas,
+body.kb-night .card-map-box .maplibregl-canvas{
+  filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.92) saturate(.7) !important;
+}
+body.kb-night .gp{background:rgba(13,18,32,.82) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important;box-shadow:0 6px 16px rgba(0,0,0,.45) !important}
+body.kb-night .cov-pop{background:rgba(16,22,39,.97) !important;border-color:var(--n-line2) !important}
+body.kb-night .cov-row b{color:var(--n-ink) !important}
+body.kb-night .cov-row small{color:var(--n-muted) !important}
+body.kb-night .cov-row:active{background:rgba(91,157,255,.12) !important}
+body.kb-night .map-attrib-btn{background:rgba(13,18,32,.85) !important;border-color:var(--n-line2) !important;color:#9dc4ff !important}
+body.kb-night .map-attrib-pop{background:rgba(16,22,39,.97) !important;border-color:var(--n-line2) !important;color:var(--n-muted) !important}
+body.kb-night .route-plate{background:rgba(13,18,32,.92) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .route-plate button{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .loc-chip{background:rgba(13,18,32,.92) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .loc-chip.on{background:rgba(91,157,255,.16) !important;color:#9dc4ff !important;border-color:rgba(91,157,255,.4) !important}
+body.kb-night .mcluster{background:rgba(16,22,39,.8) !important;border-color:var(--n-line2) !important}
+body.kb-night .mcluster span{color:var(--n-ink) !important;text-shadow:0 1px 2px rgba(0,0,0,.6) !important}
+body.kb-night .mpin-name b{color:var(--n-ink) !important;text-shadow:0 1px 2px rgba(0,0,0,.8), 0 0 8px rgba(0,0,0,.6) !important}
+body.kb-night .mpin-name span{color:#aebad2 !important;text-shadow:0 1px 2px rgba(0,0,0,.8) !important}
+body.kb-night .mlabel{color:#7d8aa5 !important;text-shadow:0 1px 2px rgba(0,0,0,.7) !important}
+body.kb-night .mlabel.city{color:#9fb0cc !important}
+body.kb-night .mring button{background:rgba(16,22,39,.94) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .mring-name b{color:var(--n-ink) !important;text-shadow:0 1px 2px rgba(0,0,0,.8) !important}
+body.kb-night .mring-name span{color:#aebad2 !important;text-shadow:0 1px 2px rgba(0,0,0,.8) !important}
+body.kb-night .mquick{background:rgba(16,22,39,.98) !important;border-color:var(--n-line2) !important}
+body.kb-night .mzone-badge{background:rgba(16,22,39,.9) !important;border-color:var(--n-line2) !important}
+body.kb-night .why-pop{background:rgba(16,22,39,.98) !important;border-color:var(--n-line2) !important}
+body.kb-night .why-pop b{color:var(--n-ink) !important}
+body.kb-night .why-pop span{color:var(--n-muted) !important}
+body.kb-night .why-pop i{color:#9dc4ff !important;border-top-color:var(--n-line2) !important}
+body.kb-night .shadow-card{background:rgba(16,22,39,.98) !important;border-color:var(--n-line2) !important}
+body.kb-night .shadow-head b{color:var(--n-ink) !important}
+body.kb-night .shadow-head button{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .offline-bar{background:#2a2113 !important;color:var(--n-amber) !important;box-shadow:0 6px 18px rgba(0,0,0,.5) !important}
+body.kb-night .offline-bar .ob-btn{background:var(--n-amber) !important;color:#1a1205 !important}
+body.kb-night .offline-bar.catch{background:#0f2b22 !important;color:var(--n-green) !important}
+
+/* ===== Паки: тосты, мастер ТГ, настройки, «рядом», инфо-попапы ===== */
+body.kb-night .kb-bar, body.kb-night #kbNearCard{background:#1a2234 !important;border-color:var(--n-line2) !important;box-shadow:0 12px 32px rgba(0,0,0,.55) !important}
+body.kb-night .kb-bar b, body.kb-night .kbn-head{color:var(--n-ink) !important}
+body.kb-night .kb-bar span, body.kb-night .kbn-sub, body.kb-night .kbn-addr{color:var(--n-muted) !important}
+body.kb-night .kb-bar .no, body.kb-night .kbn-no{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .kbn-pill{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:#c6cfe0 !important}
+body.kb-night .kbn-pill.on{background:#2465ee !important;border-color:#2465ee !important;color:#fff !important}
+body.kb-night .kbn-reason{color:var(--n-amber) !important}
+body.kb-night .kbn-thanks{color:var(--n-green) !important}
+body.kb-night .kb-ladder button{background:rgba(148,180,255,.06) !important;border-color:var(--n-line2) !important;color:var(--n-ink) !important}
+body.kb-night .kb-ladder button.primary{background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8) !important;color:#fff !important;border:0 !important}
+body.kb-night .kb-code{background:rgba(91,157,255,.10) !important;border-color:rgba(91,157,255,.35) !important;color:#9dc4ff !important}
+body.kb-night .kb-note.blue{background:rgba(91,157,255,.08) !important;border-color:rgba(91,157,255,.3) !important;color:#aebad2 !important}
+body.kb-night .kb-note.amber{background:rgba(240,180,41,.08) !important;border-color:rgba(240,180,41,.3) !important;color:#d9b36a !important}
+body.kb-night .kb-fallback{background:rgba(148,180,255,.05) !important;border-color:var(--n-line) !important}
+body.kb-night .kb-fallback summary{color:#9fb0cc !important}
+body.kb-night .kb-step-h{color:var(--n-ink) !important}
+body.kb-night .kb-install button{background:rgba(91,157,255,.10) !important;border-color:rgba(91,157,255,.35) !important;color:#9dc4ff !important}
+body.kb-night .kb-ip{background:#1a2234 !important;border-color:var(--n-line2) !important;box-shadow:0 14px 40px rgba(0,0,0,.6) !important}
+body.kb-night .kb-ip-head{color:var(--n-ink) !important}
+body.kb-night .kb-ip-body{color:var(--n-muted) !important}
+body.kb-night .kb-ip-body b{color:var(--n-ink) !important}
+body.kb-night .kb-ip-x{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .kb-ip-status.ok{background:rgba(61,222,168,.12) !important;color:var(--n-green) !important}
+body.kb-night .kb-ip-status.bad{background:rgba(255,123,123,.12) !important;color:var(--n-red) !important}
+body.kb-night .kb-ip-note{background:rgba(91,157,255,.08) !important;border-color:rgba(91,157,255,.3) !important;color:#aebad2 !important}
+body.kb-night .kb-ip-note.amber{background:rgba(240,180,41,.08) !important;border-color:rgba(240,180,41,.3) !important;color:#d9b36a !important}
+body.kb-night .kb-ip-actions .g{background:rgba(148,180,255,.1) !important;color:#9fb0cc !important}
+body.kb-night .kb-ip-actions .b{background:rgba(91,157,255,.12) !important;color:#9dc4ff !important;border-color:rgba(91,157,255,.35) !important}
+body.kb-night #slimDropToast{background:#1a2234 !important;border-color:var(--n-line2) !important}
+body.kb-night #favFollowBar{background:#1a2234 !important;border-color:var(--n-line2) !important}
+body.kb-night .kb-toast{background:#141a29 !important;border:1px solid var(--n-line2)}
+body.kb-night .kb-toast.ok{background:#0f2b22 !important}
+body.kb-night .kb-toast.warn{background:#2a2113 !important}
+
+/* ===== Инлайн-стили из JS: перекрашиваем адресно ===== */
+body.kb-night [style*="color:#14213d"], body.kb-night [style*="color:#1a2b45"], body.kb-night [style*="color:#101d38"]{color:var(--n-ink) !important}
+body.kb-night [style*="color:#33445f"]{color:#c6cfe0 !important}
+body.kb-night [style*="color:#71809c"], body.kb-night [style*="color:#5b6b86"], body.kb-night [style*="color:#7485a0"],
+body.kb-night [style*="color:#7c89a0"], body.kb-night [style*="color:#7c899e"], body.kb-night [style*="color:#8a94a6"]{color:var(--n-muted) !important}
+body.kb-night [style*="color:#12855c"], body.kb-night [style*="color:#168d61"], body.kb-night [style*="color:#15976d"]{color:var(--n-green) !important}
+body.kb-night [style*="color:#c2403f"], body.kb-night [style*="color:#d64d51"]{color:var(--n-red) !important}
+body.kb-night [style*="color:#c26a2a"], body.kb-night [style*="color:#c2902a"]{color:var(--n-amber) !important}
+body.kb-night [style*="color:#2465ee"], body.kb-night [style*="color:#1746c8"], body.kb-night [style*="color:#1d6fd6"]{color:#9dc4ff !important}
+body.kb-night [style*="background:#fff"], body.kb-night [style*="background:#f8fafc"],
+body.kb-night [style*="background:#f4f7fc"], body.kb-night [style*="background:#f7f9fc"],
+body.kb-night [style*="background:#f2f4f9"], body.kb-night [style*="background:#eef2f8"]{background:var(--n-card2) !important}
+body.kb-night [style*="background:#fff8f2"], body.kb-night [style*="background:#fff2e8"], body.kb-night [style*="background:#fffbea"]{background:rgba(240,180,41,.10) !important}
+body.kb-night [style*="background:#e5f8ef"]{background:rgba(61,222,168,.12) !important}
+body.kb-night [style*="background:#fdecec"]{background:rgba(255,123,123,.10) !important}
+body.kb-night [style*="background:#e7f0ff"]{background:rgba(91,157,255,.12) !important}
+body.kb-night [style*="linear-gradient(135deg,#f4fbf7"], body.kb-night [style*="linear-gradient(165deg,#fdfeff"]{background:linear-gradient(165deg,#161d2e,#121a2c) !important}
+body.kb-night .mf-plate[style]{border-color:var(--n-line2) !important}
+</style>
+<!-- ===== /KB NIGHT PRO ===== -->
+<!-- ===== KB NIGHT PRO v6 — гарантированная подсветка выбранной реакции ===== -->
+<style id="kbNightPro6">
+/* --- Линза: чистая скруглённая карточка, без 3D-выноса и обрезки --- */
+#lentiBox{perspective:1200px !important;overflow:hidden !important;border-radius:20px !important;}
+#lentiCard{left:0 !important;right:0 !important;transform:none !important;}
+.lenti-scene{padding:12px 14px !important;transform:none !important;}
+.lenti-scene.s3{padding-right:50px !important;}
+.lenti-route{right:62px !important;}
+.lenti-ecg{right:14px !important;}
+.lenti-tgart{right:44px !important;}
+.lenti-tg-badges{right:10px !important;}
+.lenti-hint{right:10px !important;}
+body.kb-night #lentiBox, body.kb-night .lenti-card{background:transparent !important;box-shadow:none !important;}
+body.kb-night .lenti-scrim{background:linear-gradient(90deg,rgba(10,14,24,.30) 0%,rgba(10,14,24,.12) 40%,rgba(10,14,24,0) 70%) !important}
+body.kb-night .lenti-advscrim{background:linear-gradient(90deg,rgba(10,14,24,.28) 0%,rgba(10,14,24,.10) 45%,rgba(10,14,24,0) 75%) !important}
+body.kb-night .lenti-holo, body.kb-night .lenti-slats, body.kb-night .lenti-foil,
+body.kb-night .lenti-glare, body.kb-night .lenti-spark{opacity:.06 !important}
+body.kb-night .lenti-bg{opacity:.28 !important;filter:saturate(.85) brightness(.75) !important}
+
+/* --- Панель точности: статичный тёмный стиль (без мигания) --- */
+body.kb-night .acc-big{background:linear-gradient(165deg,#1a2234,#161d2e) !important;border-color:rgba(148,180,255,.10) !important;box-shadow:0 6px 18px rgba(0,0,0,.4) !important}
+body.kb-night .acc-big small{color:#8b98b3 !important}
+body.kb-night .acc-big b{color:#eef3fc !important}
+body.kb-night .acc-big b.g{color:#3ddea8 !important}
+body.kb-night .acc-cmp{background:rgba(13,18,32,.7) !important;border-color:rgba(148,180,255,.10) !important}
+body.kb-night .acc-cmp-row span{color:#93a0b8 !important}
+body.kb-night .acc-cmp-row b{color:#eef3fc !important}
+body.kb-night .acc-last{background:rgba(13,18,32,.7) !important;border-color:rgba(148,180,255,.10) !important}
+body.kb-night .acc-last > .ic{color:#9fb0cc !important}
+body.kb-night .acc-last-txt{color:#93a0b8 !important}
+body.kb-night .acc-last-txt b{color:#eef3fc !important}
+body.kb-night .acc-last-err.ok{background:rgba(61,222,168,.14) !important;color:#3ddea8 !important}
+body.kb-night .acc-last-err.mid{background:rgba(240,180,41,.14) !important;color:#f0b429 !important}
+body.kb-night .acc-last-err.inf{background:rgba(91,157,255,.14) !important;color:#9dc4ff !important}
+body.kb-night .acc-rep{color:#8b98b3 !important}
+body.kb-night .acc-rep.armed{color:#ff7b7b !important;background:rgba(255,123,123,.12) !important}
+
+/* --- Выбранный вариант: полоска по нижней кромке чипа, скруглённая по углам --- */
+.adv-card .adv-reaction{position:relative !important;}
+.adv-card .adv-reaction.kb-sel{box-shadow:0 2px 6px rgba(20,33,61,.07) !important;}
+.adv-card .adv-reaction.like.kb-sel{background:rgba(61,222,168,.14) !important;}
+.adv-card .adv-reaction.dislike.kb-sel{background:rgba(255,123,123,.14) !important;}
+.adv-card .adv-reaction.doubt.kb-sel{background:rgba(240,180,41,.14) !important;}
+.kb-sel-bar{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:2;border:0 solid transparent;border-bottom-width:3px;}
+.kb-sel-bar.like{border-bottom-color:#19b77a;filter:drop-shadow(0 0 6px rgba(25,183,122,.75));}
+.kb-sel-bar.dislike{border-bottom-color:#ef5350;filter:drop-shadow(0 0 6px rgba(239,83,80,.75));}
+.kb-sel-bar.doubt{border-bottom-color:#f5b82e;filter:drop-shadow(0 0 6px rgba(245,184,46,.75));}
+body.kb-night .kb-sel-bar.like{border-bottom-color:#3ddea8;filter:drop-shadow(0 0 7px rgba(61,222,168,.8));}
+body.kb-night .kb-sel-bar.dislike{border-bottom-color:#ff7b7b;filter:drop-shadow(0 0 7px rgba(255,123,123,.8));}
+body.kb-night .kb-sel-bar.doubt{border-bottom-color:#f0b429;filter:drop-shadow(0 0 7px rgba(240,180,41,.8));}
+
+/* --- Порядок: «Ваша отметка» выше, 3 кнопки ниже, «Поделиться» отдельной строкой --- */
+.adv-actions{display:flex !important;width:100% !important;gap:6px !important;margin-top:10px !important;}
+.adv-actions .cta-btn{flex:1 !important;}
+.kb-adv-extra{display:flex !important;width:100% !important;gap:8px !important;margin-top:8px !important;}
+.kb-adv-extra button{flex:1 !important;}
+.kb-rt{margin-top:10px !important;}
+
+/* --- Мгновенный отклик «Поделиться» --- */
+.kb-sharing{position:relative;pointer-events:none;opacity:.85}
+.kb-sharing .kb-spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;
+  border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:kbSpin .7s linear infinite}
+@keyframes kbSpin{to{transform:rotate(360deg)}}
+.kb-share-toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:9999;
+  background:#141a29;color:#eef3fc;border:1px solid rgba(148,180,255,.2);border-radius:12px;
+  padding:10px 16px;font-size:13px;font-weight:700;box-shadow:0 12px 32px rgba(0,0,0,.5);
+  display:flex;align-items:center;gap:8px;animation:kbToastIn .25s ease}
+@keyframes kbToastIn{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
+</style>
+
+<script id="kbNightPro6Js">
+(function(){
+  'use strict';
+  document.querySelectorAll('[data-kbn]').forEach(function(e){e.removeAttribute('data-kbn');});
+
+  function rtType(b){
+    if(b.classList.contains('like')) return 'like';
+    if(b.classList.contains('dislike')) return 'dislike';
+    return 'doubt';
+  }
+
+  /* ---------- «Куда ехать»: порядок + надёжная подсветка снизу ---------- */
+  function layoutAdvice(){
+    document.querySelectorAll('.advice-pop .adv-card').forEach(function(card){
+      var reactions = card.querySelector('.adv-reactions');
+      var mark = card.querySelector('.kb-rt');
+      var actions = card.querySelector('.adv-actions');
+      var extra = card.querySelector('.kb-adv-extra');
+      if(mark && reactions && mark.previousElementSibling !== reactions) reactions.after(mark);
+      var anchor = mark || reactions;
+      if(actions && anchor && actions.previousElementSibling !== anchor) anchor.after(actions);
+      if(extra && extra !== card.lastElementChild) card.appendChild(extra);
+
+      // какой вариант выбран: сначала .mine, иначе — плашка «Ваша отметка»
+      var selType = null;
+      var mine = card.querySelector('.adv-reaction.mine');
+      if(mine){ selType = rtType(mine); }
+      else if(mark && !mark.classList.contains('hint')){
+        if(mark.classList.contains('yes')) selType='like';
+        else if(mark.classList.contains('no')) selType='dislike';
+        else if(mark.classList.contains('doubt')) selType='doubt';
+      }
+
+      card.querySelectorAll('.adv-reaction').forEach(function(b){
+        var t = rtType(b);
+        var sel = (t === selType);
+        b.classList.toggle('kb-sel', sel);
+        var bar = b.querySelector('.kb-sel-bar');
+        if(sel){
+          if(!bar){ bar = document.createElement('i'); b.appendChild(bar); }
+          bar.className = 'kb-sel-bar ' + t;
+        } else if(bar){ bar.remove(); }
+      });
+    });
+  }
+
+  /* ---------- «Поделиться»: мгновенный отклик ---------- */
+  var toastEl=null, toastTimer=null;
+  function shareToast(msg){
+    if(!toastEl){ toastEl=document.createElement('div'); toastEl.className='kb-share-toast'; document.body.appendChild(toastEl); }
+    toastEl.innerHTML = '<span class="kb-spin"></span>'+msg;
+    clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){ if(toastEl){toastEl.remove();toastEl=null;} }, 2600);
+  }
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest && e.target.closest('button');
+    if(!btn || !/Поделиться/.test(btn.textContent) || btn.classList.contains('kb-sharing')) return;
+    var orig = btn.innerHTML;
+    btn.classList.add('kb-sharing');
+    btn.innerHTML = '<span class="kb-spin"></span>Готовим картинку…';
+    shareToast('Готовим картинку для «Поделиться»…');
+    setTimeout(function(){ btn.classList.remove('kb-sharing'); btn.innerHTML = orig; }, 3000);
+  }, true);
+
+  /* ---------- Битые картинки-штампы не показываем ---------- */
+  document.addEventListener('error', function(e){
+    var img = e.target;
+    if(img && img.tagName === 'IMG' && img.closest('.ctm-stamp,.adv-wm,.lenti-ghost,.lenti-stamp')) img.style.display = 'none';
+  }, true);
+
+  /* ---------- Наблюдатель ---------- */
+  var raf=null;
+  function schedule(){ if(raf) return; raf=requestAnimationFrame(function(){ raf=null; layoutAdvice(); }); }
+  var mo = new MutationObserver(schedule);
+  mo.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['class']});
+  window.addEventListener('load', schedule);
+  schedule();
+})();
+</script>
+<!-- ===== /KB NIGHT PRO v6 ===== -->
 </body>
 </html>
