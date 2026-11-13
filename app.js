@@ -11376,3 +11376,1166 @@ renderAdvicePop = function () {
 };
 setTimeout(addQuote, 600);
 })();
+// ============================================================
+// KB SITE RATING v2 — рейтинг сервиса: карточка НАД линзой,
+// выбранные звёзды золотые, на главной счётчик водителей и время
+// последней оценки. Защита от накруток та же (1 оценка/устройство,
+// смена раз в 7 дней, живая сессия). Требуется rate_stats с last_at.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbSiteRating) return;
+window.__kbSiteRating = 1;
+
+var LS_MINE = 'kbRateMine', LS_SNOOZE = 'kbRateSnooze', LS_QUEUE = 'kbRateQueue';
+var CRIT = [
+  { key: 'interface', label: 'Удобство и понятность интерфейса', ico: 'i-chart' },
+  { key: 'accuracy',  label: 'Точность информации о топливе',    ico: 'i-check' },
+  { key: 'speed',     label: 'Скорость работы сайта',            ico: 'i-clock' },
+  { key: 'design',    label: 'Внешний вид и оформление',         ico: 'i-spark' }
+];
+var WORDS = {
+  0: 'Коснитесь звезды — сколько звёзд заслуживает сервис?',
+  1: 'Плохо — простите, будем исправляться',
+  2: 'Слабовато — учтём каждое замечание',
+  3: 'Нормально — есть куда расти',
+  4: 'Хорошо — спасибо!',
+  5: 'Отлично — спасибо! 🌟'
+};
+var STAR_PATH = 'M12 2.2l2.95 6.1 6.7.85-4.9 4.6 1.25 6.6L12 17.2l-6 3.15 1.25-6.6-4.9-4.6 6.7-.85z';
+
+function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function fmt1(v) { return v == null ? '—' : Number(v).toFixed(1).replace('.', ','); }
+function plural(n, f) { var a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
+function daysLeft(ts) { return Math.max(1, Math.ceil((new Date(ts).getTime() - Date.now()) / 86400000)); }
+function agoShort(ts) {
+  if (!ts) return '';
+  var m = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000));
+  if (m < 1) return 'только что';
+  if (m < 60) return m + ' мин назад';
+  if (m < 1440) return Math.round(m / 60) + ' ч назад';
+  return Math.round(m / 1440) + ' дн назад';
+}
+
+async function rpc(name, body) {
+  var ctrl = new AbortController();
+  var tm = setTimeout(function () { ctrl.abort(); }, 15000);
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/' + name, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+      signal: ctrl.signal
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } finally { clearTimeout(tm); }
+}
+
+// ---------- палитра сайта: невыбранные синие, выбранные ЗОЛОТЫЕ ----------
+(function css() {
+  if (document.getElementById('kbRateCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbRateCss';
+  s.textContent =
+  '#kbRateCard{margin:8px 2px 10px;padding:10px 12px;border-radius:16px;border:1px solid #dfe8f2;background:linear-gradient(160deg,#fdfeff,#eef4ff);box-shadow:0 2px 10px rgba(20,33,61,.06);font-family:inherit;}' +
+  '.kbr-head{display:flex;align-items:flex-start;gap:9px;cursor:pointer;}' +
+  '.kbr-head-ico{flex:none;width:34px;height:34px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8);box-shadow:0 4px 12px rgba(36,101,238,.35);}' +
+  '.kbr-head-ico svg{width:19px;height:19px;fill:#fff;}' +
+  '.kbr-head-t{min-width:0;flex:1;}' +
+  '.kbr-head-t b{display:block;font-size:13px;font-weight:800;color:#14213d;}' +
+  '.kbr-head-t span{display:block;font-size:10.5px;line-height:1.4;color:#5b6b86;font-weight:600;margin-top:2px;}' +
+  '.kbr-stars{display:flex;gap:6px;justify-content:center;margin:9px 0 4px;}' +
+  '.kbr-star{border:0;background:none;padding:2px;cursor:pointer;line-height:0;border-radius:8px;position:relative;-webkit-tap-highlight-color:transparent;}' +
+  '.kbr-star svg{width:27px;height:27px;fill:rgba(36,101,238,.08);stroke:#6f9bff;stroke-width:1.4;transition:transform .18s cubic-bezier(.34,1.5,.64,1),fill .18s;}' +
+  '.kbr-star:hover svg{transform:scale(1.15);}' +
+  '.kbr-star.lit svg{fill:#ffc83d;stroke:#e89b16;filter:drop-shadow(0 0 7px rgba(245,184,46,.65));}' +
+  '.kbr-star.pop svg{animation:kbrPop .45s cubic-bezier(.34,1.5,.64,1);}' +
+  '@keyframes kbrPop{0%{transform:scale(.5) rotate(-12deg);}60%{transform:scale(1.3) rotate(6deg);}100%{transform:scale(1) rotate(0);}}' +
+  '#kbRateCard.fresh .kbr-star svg{animation:kbrWave 2.4s ease-in-out 2;}' +
+  '#kbRateCard.fresh .kbr-star:nth-child(2) svg{animation-delay:.12s;}#kbRateCard.fresh .kbr-star:nth-child(3) svg{animation-delay:.24s;}#kbRateCard.fresh .kbr-star:nth-child(4) svg{animation-delay:.36s;}#kbRateCard.fresh .kbr-star:nth-child(5) svg{animation-delay:.48s;}' +
+  '@keyframes kbrWave{0%,100%{transform:scale(1);fill:rgba(36,101,238,.08);}50%{transform:scale(1.18);fill:rgba(36,101,238,.35);}}' +
+  '.kbr-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px;}' +
+  '.kbr-avg{font-size:10.5px;font-weight:700;color:#5b6b86;display:inline-flex;align-items:center;gap:5px;min-width:0;flex:1;flex-wrap:wrap;row-gap:2px;}' +
+  '.kbr-avg svg{width:12px;height:12px;fill:#f5b82e;flex:none;}' +
+  '.kbr-avg b{color:#2465ee;font-weight:800;}' +
+  '.kbr-more{flex:none;border:1px solid #bcd4ff;background:#fff;color:#2465ee;border-radius:99px;padding:5px 11px;font-size:10px;font-weight:800;cursor:pointer;font-family:inherit;}' +
+  '.kbr-spark{position:absolute;left:50%;top:50%;width:5px;height:5px;border-radius:50%;background:#ffd56b;pointer-events:none;animation:kbrSpark .65s ease-out forwards;}' +
+  '@keyframes kbrSpark{0%{transform:translate(-50%,-50%) scale(1);opacity:1;}100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.2);opacity:0;}}' +
+  '#kbRateBack{z-index:260;}#kbRatePop{z-index:261;max-height:88vh;overflow-y:auto;}' +
+  '#kbRatePop::-webkit-scrollbar{width:8px;}#kbRatePop::-webkit-scrollbar-track{background:#eef2f8;border-radius:8px;}#kbRatePop::-webkit-scrollbar-thumb{background:#2465ee;border-radius:8px;}#kbRatePop::-webkit-scrollbar-thumb:hover{background:#1746c8;}' +
+  '.kbr-lead{font-size:12px;line-height:1.55;color:#5b6b86;font-weight:600;margin:6px 0 10px;}' +
+  '.kbr-big{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 8px;border-radius:16px;background:linear-gradient(160deg,#eef4ff,#f8fafd);border:1px solid #dfe8f2;margin-bottom:10px;}' +
+  '.kbr-big .kbr-star svg{width:40px;height:40px;}' +
+  '.kbr-word{font-size:11.5px;font-weight:800;color:#2465ee;min-height:16px;text-align:center;}' +
+  '.kbr-crit{display:flex;flex-direction:column;gap:7px;margin:4px 0 10px;}' +
+  '.kbr-crit-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;border:1px solid #e6ebf4;background:#fff;}' +
+  '.kbr-crit-ico{flex:none;width:26px;height:26px;border-radius:8px;background:#eef4ff;color:#2465ee;display:flex;align-items:center;justify-content:center;}' +
+  '.kbr-crit-ico .ic{width:14px;height:14px;}' +
+  '.kbr-crit-l{flex:1;min-width:0;font-size:10.5px;font-weight:700;color:#33445f;line-height:1.3;}' +
+  '.kbr-crit-row .kbr-stars{margin:0;gap:2px;}' +
+  '.kbr-crit-row .kbr-star{padding:1px;}' +
+  '.kbr-crit-row .kbr-star svg{width:19px;height:19px;}' +
+  '.kbr-note{display:flex;gap:7px;align-items:flex-start;font-size:10px;line-height:1.45;color:#7487a7;font-weight:600;background:#f4f7fb;border:1px solid #e6ebf4;border-radius:10px;padding:8px 10px;margin:8px 0;}' +
+  '.kbr-note .ic{width:13px;height:13px;flex:none;color:#2465ee;margin-top:1px;}' +
+  '.kbr-actions{display:flex;gap:8px;margin-top:10px;}' +
+  '.kbr-actions .cta-btn{flex:1;}' +
+  '.kbr-mini{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;font-size:10.5px;font-weight:700;color:#5b6b86;cursor:pointer;}' +
+  '.kbr-mini svg{width:12px;height:12px;fill:#f5b82e;}' +
+  '.kbr-mini b{color:#2465ee;}' +
+  '.kbr-hero{display:flex;align-items:center;gap:14px;padding:12px;border-radius:16px;background:linear-gradient(160deg,#eef4ff,#f8fafd);border:1px solid #dfe8f2;margin:8px 0 12px;}' +
+  '.kbr-hero-num{font-size:38px;font-weight:900;color:#14213d;line-height:1;letter-spacing:-1px;}' +
+  '.kbr-hero-num small{font-size:14px;color:#7487a7;font-weight:700;}' +
+  '.kbr-hero-r{min-width:0;flex:1;}' +
+  '.kbr-fill{position:relative;display:inline-flex;gap:3px;line-height:0;}' +
+  '.kbr-fill svg{width:20px;height:20px;fill:rgba(36,101,238,.10);stroke:#6f9bff;stroke-width:1.2;}' +
+  '.kbr-fill-top{position:absolute;left:0;top:0;bottom:0;overflow:hidden;white-space:nowrap;display:inline-flex;gap:3px;}' +
+  '.kbr-fill-top svg{fill:#ffc83d;stroke:#e89b16;filter:drop-shadow(0 0 4px rgba(245,184,46,.5));}' +
+  '.kbr-hero-sub{font-size:10.5px;font-weight:700;color:#5b6b86;margin-top:5px;}' +
+  '.kbr-sec-t{font-size:11px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#7487a7;margin:12px 0 6px;}' +
+  '.kbr-dist{display:flex;flex-direction:column;gap:5px;}' +
+  '.kbr-dist-row{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:800;color:#33445f;}' +
+  '.kbr-dist-row .lbl{flex:none;width:26px;display:inline-flex;align-items:center;gap:3px;}' +
+  '.kbr-dist-row .lbl svg{width:10px;height:10px;fill:#f5b82e;}' +
+  '.kbr-bar{flex:1;height:8px;border-radius:99px;background:#e6ebf4;overflow:hidden;}' +
+  '.kbr-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#7db4ff,#2465ee);transition:width .8s cubic-bezier(.2,.8,.2,1);}' +
+  '.kbr-dist-row .cnt{flex:none;width:34px;text-align:right;color:#7487a7;font-variant-numeric:tabular-nums;}' +
+  '.kbr-critstat{display:flex;flex-direction:column;gap:7px;}' +
+  '.kbr-cs-row{padding:8px 10px;border-radius:12px;border:1px solid #e6ebf4;background:#fff;}' +
+  '.kbr-cs-top{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:800;color:#33445f;margin-bottom:5px;}' +
+  '.kbr-cs-top .ic{width:13px;height:13px;color:#2465ee;flex:none;}' +
+  '.kbr-cs-top .v{margin-left:auto;font-size:12px;font-weight:900;color:#2465ee;}' +
+  '.kbr-cs-top .n{font-size:9px;color:#93a1b8;font-weight:700;}' +
+  '.kbr-mine{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:#e5f8ef;border:1px solid #bfe8d4;margin-top:12px;}' +
+  '.kbr-mine-t{flex:1;min-width:0;font-size:11px;font-weight:800;color:#12855c;line-height:1.4;}' +
+  '.kbr-mine-t small{display:block;font-weight:600;color:#5b8a72;font-size:9.5px;}' +
+  '.kbr-change{flex:none;border:0;border-radius:10px;background:#12855c;color:#fff;font-size:10.5px;font-weight:800;padding:8px 12px;cursor:pointer;font-family:inherit;}' +
+  '.kbr-change:disabled{background:#eef2f8;color:#93a1b8;cursor:default;}' +
+  '.kbr-thanks{display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 4px 4px;}' +
+  '.kbr-thanks-star{position:relative;width:86px;height:86px;display:flex;align-items:center;justify-content:center;margin-bottom:8px;}' +
+  '.kbr-thanks-star svg{width:64px;height:64px;fill:#ffc83d;stroke:#e89b16;stroke-width:1;filter:drop-shadow(0 0 18px rgba(245,184,46,.7));animation:kbrPop .7s cubic-bezier(.34,1.5,.64,1);}' +
+  '.kbr-thanks-star::before{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid rgba(245,184,46,.5);animation:kbrRing 1.1s ease-out forwards;}' +
+  '@keyframes kbrRing{0%{transform:scale(.4);opacity:1;}100%{transform:scale(1.5);opacity:0;}}' +
+  '.kbr-thanks b{font-size:19px;font-weight:900;color:#14213d;}' +
+  '.kbr-thanks span{font-size:12px;line-height:1.5;color:#5b6b86;font-weight:600;margin-top:6px;}' +
+  // ночная тема: невыбранные остаются синими, выбранные — золотыми
+  'body.kb-night #kbRateCard{background:linear-gradient(160deg,#141d33,#101828);border-color:rgba(148,180,255,.18);}' +
+  'body.kb-night .kbr-head-t b{color:#ebf3ff;}body.kb-night .kbr-head-t span,body.kb-night .kbr-avg{color:#93a0b8;}' +
+  'body.kb-night .kbr-more{background:rgba(148,180,255,.08);border-color:rgba(148,180,255,.25);color:#9dc4ff;}' +
+  'body.kb-night .kbr-star svg{fill:rgba(91,141,239,.12);stroke:#5b8def;}' +
+  'body.kb-night .kbr-star.lit svg{fill:#ffc83d;stroke:#e89b16;filter:drop-shadow(0 0 7px rgba(245,184,46,.6));}' +
+  'body.kb-night .kbr-big,body.kb-night .kbr-hero{background:linear-gradient(160deg,#15203a,#101828);border-color:rgba(148,180,255,.18);}' +
+  'body.kb-night .kbr-hero-num{color:#ebf3ff;}body.kb-night .kbr-hero-sub{color:#93a0b8;}' +
+  'body.kb-night .kbr-crit-row,body.kb-night .kbr-cs-row{background:#121a2e;border-color:rgba(148,180,255,.15);}' +
+  'body.kb-night .kbr-crit-l,body.kb-night .kbr-cs-top,body.kb-night .kbr-dist-row{color:#c6d2e8;}' +
+  'body.kb-night .kbr-crit-ico{background:rgba(91,157,255,.12);}' +
+  'body.kb-night .kbr-note{background:rgba(148,180,255,.06);border-color:rgba(148,180,255,.15);color:#93a0b8;}' +
+  'body.kb-night .kbr-bar{background:rgba(148,180,255,.14);}' +
+  'body.kb-night .kbr-lead{color:#93a0b8;}body.kb-night .kbr-thanks b{color:#ebf3ff;}body.kb-night .kbr-thanks span{color:#93a0b8;}' +
+  'body.kb-night .kbr-mine{background:rgba(25,183,122,.12);border-color:rgba(25,183,122,.35);}' +
+  'body.kb-night .kbr-fill svg{fill:rgba(91,141,239,.14);stroke:#5b8def;}' +
+  'body.kb-night .kbr-fill-top svg{fill:#ffc83d;stroke:#e89b16;}' +
+  'body.kb-lite .kbr-star svg,body.kb-lite .kbr-thanks-star svg{animation:none;}' +
+  '@media (prefers-reduced-motion:reduce){.kbr-star svg,.kbr-thanks-star svg,.kbr-thanks-star::before,.kbr-spark{animation:none !important;}}';
+  document.head.appendChild(s);
+})();
+
+// ---------- состояние ----------
+var mine = lsGet(LS_MINE, null);
+var stats = null;
+var draft = { overall: 0, interface: 0, accuracy: 0, speed: 0, design: 0 };
+var submitting = false, valueSeen = false, askedSession = false, mode = 'ask';
+
+function starSvg() { return '<svg viewBox="0 0 24 24"><path d="' + STAR_PATH + '"/></svg>'; }
+function starsHtml(row, val, interactive) {
+  var h = '<div class="kbr-stars" data-kbr-row="' + row + '">';
+  for (var i = 1; i <= 5; i++) {
+    h += '<button type="button" class="kbr-star' + (i <= val ? ' lit' : '') + '" data-kbr-star="' + i + '"' +
+      (interactive ? '' : ' tabindex="-1"') + ' aria-label="' + i + ' ' + plural(i, ['звезда', 'звезды', 'звёзд']) + '">' + starSvg() + '</button>';
+  }
+  return h + '</div>';
+}
+function fillStars(avg) {
+  var pct = Math.max(0, Math.min(100, (Number(avg) || 0) / 5 * 100));
+  var row = ''; for (var i = 0; i < 5; i++) row += starSvg();
+  return '<span class="kbr-fill">' + row + '<span class="kbr-fill-top" style="width:' + pct.toFixed(1) + '%">' + row + '</span></span>';
+}
+function paintRow(box, val, pop) {
+  var btns = box.querySelectorAll('.kbr-star');
+  for (var i = 0; i < btns.length; i++) {
+    var lit = i < val;
+    btns[i].classList.toggle('lit', lit);
+    if (pop && lit) {
+      btns[i].classList.remove('pop'); void btns[i].offsetWidth;
+      btns[i].style.animationDelay = (i * 45) + 'ms';
+      btns[i].classList.add('pop');
+    }
+  }
+}
+function sparks(btn) {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  for (var i = 0; i < 6; i++) {
+    var sp = document.createElement('span');
+    sp.className = 'kbr-spark';
+    var a = Math.random() * Math.PI * 2, d = 16 + Math.random() * 16;
+    sp.style.setProperty('--dx', Math.round(Math.cos(a) * d) + 'px');
+    sp.style.setProperty('--dy', Math.round(Math.sin(a) * d) + 'px');
+    btn.appendChild(sp);
+    setTimeout(function (el) { return function () { if (el.parentNode) el.parentNode.removeChild(el); }; }(sp), 700);
+  }
+}
+
+// ---------- карточка: САМЫЙ ВЕРХ главной панели, над линзой ----------
+function mount() {
+  var card = document.getElementById('kbRateCard');
+  if (!card) { card = document.createElement('div'); card.id = 'kbRateCard'; }
+  var lb = document.getElementById('lentiBox');
+  var anchor = null;
+  if (lb && lb.parentNode) {
+    var prev = lb.previousElementSibling;
+    anchor = (prev && prev.classList && prev.classList.contains('kb-glow')) ? prev : lb;
+  }
+  if (!anchor) anchor = document.getElementById('kbHint2A') || document.getElementById('mnWrap');
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(card, anchor);
+  else return;
+  renderCompact();
+}
+function avgLine() {
+  if (!stats || !stats.total) return '<span class="kbr-avg">' + starSvg() + 'Оценок пока нет — будьте первым 🙏</span>';
+  var last = stats.last_at ? ' · последняя ' + agoShort(stats.last_at) : '';
+  return '<span class="kbr-avg">' + starSvg() + '<b>' + fmt1(stats.avg.overall) + '</b>· ' + stats.total + ' ' +
+    plural(stats.total, ['водитель оценил', 'водителя оценили', 'водителей оценили']) + last + '</span>';
+}
+function renderCompact() {
+  var card = document.getElementById('kbRateCard');
+  if (!card) return;
+  card.classList.toggle('fresh', !mine);
+  if (!mine) {
+    card.innerHTML =
+      '<div class="kbr-head" data-kbr-open="ask">' +
+        '<span class="kbr-head-ico">' + starSvg() + '</span>' +
+        '<div class="kbr-head-t"><b>Оцените КогдаБенз</b>' +
+        '<span>Пожалуйста, поставьте столько звёзд, сколько заслуживает наш сервис — это помогает нам стать точнее и удобнее 🙏</span></div>' +
+      '</div>' +
+      starsHtml('overall', 0, true) +
+      '<div class="kbr-foot">' + avgLine() + '<button type="button" class="kbr-more" data-kbr-open="stats">Рейтинг сервиса</button></div>';
+  } else {
+    card.innerHTML =
+      '<div class="kbr-head" data-kbr-open="stats">' +
+        '<span class="kbr-head-ico">' + starSvg() + '</span>' +
+        '<div class="kbr-head-t"><b>Спасибо! Ваша оценка учтена</b>' +
+        '<span>Вы поставили ' + mine.overall + ' ' + plural(mine.overall, ['звезду', 'звезды', 'звёзд']) + '. Вместе мы делаем сервис честнее и точнее.</span></div>' +
+      '</div>' +
+      starsHtml('overall', mine.overall, true) +
+      '<div class="kbr-foot">' + avgLine() + '<button type="button" class="kbr-more" data-kbr-open="stats">Рейтинг сервиса</button></div>';
+  }
+}
+
+// ---------- модалка ----------
+function modal() {
+  var back = document.getElementById('kbRateBack'), pop = document.getElementById('kbRatePop');
+  if (!back) { back = document.createElement('div'); back.id = 'kbRateBack'; back.className = 'hello-back'; document.body.appendChild(back); }
+  if (!pop) { pop = document.createElement('div'); pop.id = 'kbRatePop'; pop.className = 'hello-pop'; document.body.appendChild(pop); }
+  back.onclick = closeModal;
+  return pop;
+}
+function closeModal() {
+  var back = document.getElementById('kbRateBack'), pop = document.getElementById('kbRatePop');
+  if (pop) pop.classList.remove('open');
+  if (back) back.classList.remove('open');
+}
+function anyModal() {
+  return ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'adviceBack', 'lifeBack', 'reactBack', 'scoreBack', 'tgOfferBack', 'liteBack', 'kbTgWizBack', 'kbPrefsBack', 'slimNotifBack', 'kbRateBack'].some(function (id) {
+    var el = document.getElementById(id); return el && el.classList.contains('open');
+  });
+}
+function openModal(m) {
+  mode = m;
+  var pop = modal();
+  if (m === 'ask') renderAsk(pop);
+  else if (m === 'stats') renderStats(pop);
+  pop.classList.add('open');
+  document.getElementById('kbRateBack').classList.add('open');
+  try { track(m === 'ask' ? 'rate_open' : 'rate_stats_open'); } catch (e) {}
+}
+function renderAsk(pop) {
+  var changing = !!mine;
+  if (changing && !draft.overall) {
+    draft = { overall: mine.overall || 0, interface: mine.interface || 0, accuracy: mine.accuracy || 0, speed: mine.speed || 0, design: mine.design || 0 };
+  }
+  var critHtml = CRIT.map(function (c) {
+    return '<div class="kbr-crit-row"><span class="kbr-crit-ico">' + icon(c.ico, 'ic-s') + '</span>' +
+      '<span class="kbr-crit-l">' + c.label + '</span>' + starsHtml(c.key, draft[c.key], true) + '</div>';
+  }).join('');
+  pop.innerHTML =
+    '<div class="hello-title">' + (changing ? 'Обновить вашу оценку' : 'Ваша оценка важна для нас') + '</div>' +
+    '<div class="kbr-lead">Мы каждый день делаем КогдаБенз точнее и удобнее. Пожалуйста, поставьте столько звёзд, сколько, по-вашему, заслуживает наш онлайн-сервис. Честная оценка — лучшая помощь нам 🙏</div>' +
+    '<div class="kbr-big">' + starsHtml('overall', draft.overall, true) + '<div class="kbr-word" id="kbrWord">' + WORDS[draft.overall] + '</div></div>' +
+    '<div class="kbr-sec-t">Если хотите — уточните по пунктам (необязательно)</div>' +
+    '<div class="kbr-crit">' + critHtml + '</div>' +
+    '<div class="kbr-note">' + icon('i-check', 'ic-s') + '<span>Защита от накруток: одна оценка с устройства, изменить можно раз в 7 дней. Оценка принимается только после реального пользования сайтом.</span></div>' +
+    '<div class="kbr-actions"><button type="button" class="cta-btn" id="kbrSend" data-kbr-send="1"' + (draft.overall ? '' : ' disabled') + '>' + (changing ? 'Обновить оценку' : 'Отправить оценку') + '</button>' +
+    '<button type="button" class="cta-btn ghost" data-kbr-later="1">Позже</button></div>' +
+    '<div class="kbr-mini" data-kbr-open="stats">' + starSvg() + (stats && stats.total ? 'Сейчас у сервиса <b>' + fmt1(stats.avg.overall) + '</b>· ' + stats.total + ' ' + plural(stats.total, ['оценка', 'оценки', 'оценок']) + ' — посмотреть' : 'посмотреть рейтинг сервиса') + '</div>';
+}
+function renderStats(pop) {
+  var t = stats && stats.total ? stats.total : 0;
+  var avg = stats ? stats.avg : {};
+  var dist = (stats && stats.dist) || [0, 0, 0, 0, 0];
+  var maxD = Math.max(1, Math.max.apply(null, dist));
+  var distHtml = '';
+  for (var s = 5; s >= 1; s--) {
+    distHtml += '<div class="kbr-dist-row"><span class="lbl">' + s + starSvg() + '</span>' +
+      '<span class="kbr-bar"><i style="width:' + Math.round(100 * dist[s - 1] / maxD) + '%"></i></span>' +
+      '<span class="cnt">' + dist[s - 1] + '</span></div>';
+  }
+  var critHtml = CRIT.map(function (c) {
+    var v = avg[c.key], n = (stats && stats.n && stats.n[c.key]) || 0;
+    var col = v == null ? '#93a1b8' : v >= 4.5 ? '#19b77a' : v >= 3.5 ? '#2465ee' : v >= 2.5 ? '#f5a05a' : '#ef5350';
+    return '<div class="kbr-cs-row"><div class="kbr-cs-top">' + icon(c.ico, 'ic-s') + '<span>' + c.label + '</span>' +
+      '<span class="n">' + (n ? n + ' оц.' : 'пока нет') + '</span><span class="v" style="color:' + col + '">' + fmt1(v) + '</span></div>' +
+      '<span class="kbr-bar"><i style="width:' + (v == null ? 0 : Math.round(v / 5 * 100)) + '%;background:' + col + '"></i></span></div>';
+  }).join('');
+  var mineHtml = '';
+  if (mine) {
+    var can = !mine.next_at || Date.now() >= new Date(mine.next_at).getTime();
+    var d = new Date(mine.at || Date.now());
+    var when = String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0');
+    mineHtml = '<div class="kbr-mine"><div class="kbr-mine-t">Ваша оценка: ' + mine.overall + ' ★ · поставлена ' + when +
+      '<small>' + (can ? 'Спасибо! Оценку можно обновить.' : 'Изменить можно через ' + daysLeft(mine.next_at) + ' ' + plural(daysLeft(mine.next_at), ['день', 'дня', 'дней']) + ' — защита от накруток.') + '</small></div>' +
+      '<button type="button" class="kbr-change" data-kbr-change="1"' + (can ? '' : ' disabled') + '>Изменить</button></div>';
+  } else {
+    mineHtml = '<div class="kbr-actions"><button type="button" class="cta-btn" data-kbr-open="ask">Поставить свою оценку</button></div>';
+  }
+  var lastTxt = stats && stats.last_at ? ' · последняя ' + agoShort(stats.last_at) : '';
+  pop.innerHTML =
+    '<div class="hello-title">Рейтинг сервиса</div>' +
+    '<div class="kbr-hero"><div class="kbr-hero-num">' + fmt1(avg.overall) + '<small>/5</small></div>' +
+    '<div class="kbr-hero-r">' + fillStars(avg.overall || 0) +
+    '<div class="kbr-hero-sub">' + (t ? t + ' ' + plural(t, ['водитель оценил', 'водителя оценили', 'водителей оценили']) + (stats.week ? ' · +' + stats.week + ' за неделю' : '') + lastTxt : 'Оценок пока нет — будьте первым 🙏') + '</div></div></div>' +
+    '<div class="kbr-sec-t">Как распределились звёзды</div><div class="kbr-dist">' + distHtml + '</div>' +
+    '<div class="kbr-sec-t">Средние по критериям</div><div class="kbr-critstat">' + critHtml + '</div>' +
+    mineHtml +
+    '<div class="kbr-note">' + icon('i-check', 'ic-s') + '<span>Каждое устройство учитывается один раз, смена оценки — не чаще раза в 7 дней, голоса без реального пользования сайтом отсекаются автоматически. Средние считаются по всем принятым оценкам.</span></div>' +
+    '<div class="kbr-actions"><button type="button" class="cta-btn ghost" data-kbr-close="1">Закрыть</button></div>';
+}
+function renderSuccess(pop, total) {
+  pop.innerHTML =
+    '<div class="kbr-thanks"><div class="kbr-thanks-star">' + starSvg() + '</div>' +
+    '<b>Спасибо! 🙏</b>' +
+    '<span>Вы поставили ' + draft.overall + ' ' + plural(draft.overall, ['звезду', 'звезды', 'звёзд']) + (total ? ' — ваша оценка стала №' + total : '') + '.<br>Мы читаем каждую оценку и делаем сервис лучше для всего города.</span></div>' +
+    '<div class="kbr-actions"><button type="button" class="cta-btn" data-kbr-open="stats">Посмотреть рейтинг</button>' +
+    '<button type="button" class="cta-btn ghost" data-kbr-close="1">Закрыть</button></div>';
+  var st = pop.querySelector('.kbr-thanks-star');
+  if (st) for (var i = 0; i < 10; i++) {
+    var sp = document.createElement('span');
+    sp.className = 'kbr-spark';
+    var a = (i / 10) * Math.PI * 2, d = 34 + Math.random() * 22;
+    sp.style.setProperty('--dx', Math.round(Math.cos(a) * d) + 'px');
+    sp.style.setProperty('--dy', Math.round(Math.sin(a) * d) + 'px');
+    st.appendChild(sp);
+  }
+}
+
+// ---------- отправка ----------
+function payload() {
+  return {
+    p_device: deviceId, p_session: sessionId,
+    p_overall: draft.overall,
+    p_interface: draft.interface || null,
+    p_accuracy: draft.accuracy || null,
+    p_speed: draft.speed || null,
+    p_design: draft.design || null,
+    p_city: (typeof userCityKey !== 'undefined' ? userCityKey : null)
+  };
+}
+function errText(reason, nextAt) {
+  if (reason === 'cooldown') return 'Оценку можно менять раз в 7 дней — следующая попытка через ' + (nextAt ? daysLeft(nextAt) : 7) + ' ' + plural(nextAt ? daysLeft(nextAt) : 7, ['день', 'дня', 'дней']) + '. Спасибо, что уже с нами!';
+  if (reason === 'session') return 'Оценка откроется после пары минут реального пользования сайтом — так мы защищаем рейтинг от накруток 🙏';
+  return 'Не удалось сохранить оценку. Проверьте связь и попробуйте ещё раз.';
+}
+function toast(msg) {
+  var t = document.getElementById('kbrToast');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'kbrToast';
+    t.style.cssText = 'position:fixed;left:12px;right:12px;bottom:96px;z-index:270;background:#14213d;color:#fff;border-radius:14px;padding:11px 14px;font-size:12px;font-weight:700;line-height:1.45;box-shadow:0 12px 30px rgba(20,33,61,.35);opacity:0;transform:translateY(12px);transition:.3s;pointer-events:none;font-family:inherit';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1'; t.style.transform = 'translateY(0)';
+  clearTimeout(t._tm); t._tm = setTimeout(function () { t.style.opacity = '0'; t.style.transform = 'translateY(12px)'; }, 5000);
+}
+async function send() {
+  if (submitting || !draft.overall) return;
+  if (Date.now() - sessionStartMs < 20000) { toast('Проведите на сайте ещё немного времени — это защита рейтинга от накруток 🙏'); return; }
+  submitting = true;
+  var btn = document.getElementById('kbrSend');
+  if (btn) { btn.disabled = true; btn.textContent = 'Отправляю…'; }
+  var res = null;
+  try { res = await rpc('rate_submit', payload()); } catch (e) { res = null; }
+  submitting = false;
+  if (!res) {
+    var q = lsGet(LS_QUEUE, []); q.push(payload()); lsSet(LS_QUEUE, q);
+    mine = { overall: draft.overall, interface: draft.interface || null, accuracy: draft.accuracy || null, speed: draft.speed || null, design: draft.design || null, at: new Date().toISOString(), next_at: new Date(Date.now() + 7 * 86400000).toISOString(), pending: true };
+    lsSet(LS_MINE, mine);
+    renderCompact();
+    var pop = document.getElementById('kbRatePop');
+    if (pop) renderSuccess(pop, stats ? stats.total : 0);
+    toast('Нет связи — оценка сохранена и отправится автоматически, когда связь вернётся.');
+    return;
+  }
+  if (!res.ok) {
+    if (btn) { btn.disabled = false; btn.textContent = mine ? 'Обновить оценку' : 'Отправить оценку'; }
+    toast(errText(res.reason, res.next_at));
+    return;
+  }
+  try { track(mine ? 'rate_change' : 'rate_submit', null, null, draft.overall); } catch (e) {}
+  await loadStats();
+  mine = (stats && stats.mine) || { overall: draft.overall, at: new Date().toISOString(), next_at: new Date(Date.now() + 7 * 86400000).toISOString() };
+  lsSet(LS_MINE, mine);
+  renderCompact();
+  var pop2 = document.getElementById('kbRatePop');
+  if (pop2) renderSuccess(pop2, stats ? stats.total : 0);
+}
+async function flushQueue() {
+  var q = lsGet(LS_QUEUE, []);
+  if (!q.length || (typeof offlineMode !== 'undefined' && offlineMode)) return;
+  var rest = [];
+  for (var i = 0; i < q.length; i++) {
+    try {
+      var r = await rpc('rate_submit', q[i]);
+      if (!r || !r.ok) { if (r && (r.reason === 'cooldown' || r.reason === 'dup')) continue; rest.push(q[i]); }
+    } catch (e) { rest.push(q[i]); }
+  }
+  lsSet(LS_QUEUE, rest);
+  if (!rest.length) { await loadStats(); if (stats && stats.mine) { mine = stats.mine; lsSet(LS_MINE, mine); renderCompact(); } }
+}
+
+// ---------- загрузка статистики ----------
+async function loadStats() {
+  try { stats = await rpc('rate_stats', { p_device: deviceId }); } catch (e) { stats = stats || null; }
+  if (stats && stats.mine) { mine = stats.mine; lsSet(LS_MINE, mine); }
+  renderCompact();
+  var pop = document.getElementById('kbRatePop');
+  if (pop && pop.classList.contains('open') && mode === 'stats') renderStats(pop);
+}
+
+// ---------- делегирование кликов и ховера ----------
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var el;
+  if ((el = t.closest('#kbRateCard .kbr-star, #kbRatePop .kbr-star'))) {
+    var row = el.closest('[data-kbr-row]');
+    if (!row) return;
+    var key = row.getAttribute('data-kbr-row');
+    var val = Number(el.getAttribute('data-kbr-star'));
+    if (key === 'overall' && mine && row.closest('#kbRateCard')) {
+      var can = !mine.next_at || Date.now() >= new Date(mine.next_at).getTime();
+      openModal(can ? 'ask' : 'stats');
+      return;
+    }
+    draft[key] = val;
+    paintRow(row, val, true);
+    sparks(el);
+    if (key === 'overall') {
+      var w = document.getElementById('kbrWord');
+      if (w) w.textContent = WORDS[val];
+      var sb = document.getElementById('kbrSend');
+      if (sb) sb.disabled = false;
+      if (row.closest('#kbRateCard')) openModal('ask');
+    }
+    return;
+  }
+  if ((el = t.closest('[data-kbr-send]'))) { send(); return; }
+  if ((el = t.closest('[data-kbr-later]'))) {
+    lsSet(LS_SNOOZE, Date.now() + 3 * 86400000);
+    try { track('rate_later'); } catch (e2) {}
+    closeModal(); return;
+  }
+  if ((el = t.closest('[data-kbr-change]'))) { draft = { overall: 0, interface: 0, accuracy: 0, speed: 0, design: 0 }; openModal('ask'); return; }
+  if ((el = t.closest('[data-kbr-close]'))) { closeModal(); return; }
+  if ((el = t.closest('[data-kbr-open]'))) {
+    var m = el.getAttribute('data-kbr-open');
+    if (m === 'ask' && mine) {
+      var can2 = !mine.next_at || Date.now() >= new Date(mine.next_at).getTime();
+      openModal(can2 ? 'ask' : 'stats');
+    } else openModal(m);
+    return;
+  }
+}, true);
+document.addEventListener('pointerover', function (e) {
+  if (e.pointerType && e.pointerType !== 'mouse') return;
+  var b = e.target.closest ? e.target.closest('#kbRatePop .kbr-star') : null;
+  if (!b) return;
+  var row = b.closest('[data-kbr-row]');
+  if (row) paintRow(row, Number(b.getAttribute('data-kbr-star')), false);
+});
+document.addEventListener('pointerout', function (e) {
+  if (e.pointerType && e.pointerType !== 'mouse') return;
+  var row = e.target.closest ? e.target.closest('#kbRatePop [data-kbr-row]') : null;
+  if (!row || (e.relatedTarget && row.contains(e.relatedTarget))) return;
+  paintRow(row, draft[row.getAttribute('data-kbr-row')] || 0, false);
+});
+
+// ---------- вежливый авто-показ один раз за сессию ----------
+var _tr = track;
+track = function (ev, panel, stationId, durationSec, extra) {
+  _tr(ev, panel, stationId, durationSec, extra);
+  if (ev === 'top3_loaded' || ev === 'advisor_open' || ev === 'feedback_submit') valueSeen = true;
+};
+setInterval(function () {
+  if (mine || askedSession || document.hidden) return;
+  if (typeof offlineMode !== 'undefined' && offlineMode) return;
+  if (Date.now() < lsGet(LS_SNOOZE, 0)) return;
+  if (!valueSeen || Date.now() - sessionStartMs < 60000) return;
+  if (anyModal()) return;
+  askedSession = true;
+  openModal('ask');
+}, 15000);
+
+// ---------- запуск ----------
+mount();
+setTimeout(mount, 1500);
+loadStats();
+flushQueue();
+setInterval(flushQueue, 60000);
+setInterval(function () { if (!document.hidden) renderCompact(); }, 60000);
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') { loadStats(); flushQueue(); }
+});
+})();
+// ============================================================
+// KB BRAND VISUAL v2 — фирменное имя + заголовок советника
+// 1) «Оцените КогдаБенз» — ВСЕГДА одной строкой (nowrap на весь
+//    заголовок), «Когда» белым в тёмной теме, «Бенз» синим.
+// 2) Заголовок советника: функция + город отдельной пилюлей.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbBrandVisual2) return;
+window.__kbBrandVisual2 = 1;
+
+var BRAND_HTML = '<span class="kb-brand"><span class="kb-brand-k">Когда</span><span class="kb-brand-b">Бенз</span></span>';
+
+(function css() {
+  var old = document.getElementById('kbBrandVisualCss');
+  if (old && old.parentNode) old.parentNode.removeChild(old);
+  if (document.getElementById('kbBrandVisualCss2')) return;
+  var s = document.createElement('style');
+  s.id = 'kbBrandVisualCss2';
+  s.textContent =
+  '.kb-brand{white-space:nowrap;display:inline;}' +
+  '.kb-brand-k{color:#14213d;font-weight:800;}' +
+  'body.kb-night .kb-brand-k{color:#fff;}' +
+  '.kb-brand-b{color:#2465ee;font-weight:800;}' +
+  'body.kb-night .kb-brand-b{color:#7db4ff;text-shadow:0 0 12px rgba(57,124,255,.35);}' +
+  '.kbr-head-t b{white-space:nowrap;}' +
+  'body.kb-night .kbr-head-t b{color:#ebf3ff;}' +
+  '.kb-adv-title{display:flex !important;flex-wrap:wrap;align-items:center;gap:8px 10px;margin:0 0 4px;}' +
+  '.kb-adv-title-txt{font-size:17px;font-weight:900;letter-spacing:-.2px;color:#14213d;line-height:1.2;}' +
+  '.kb-adv-title-txt em{font-style:normal;color:#2465ee;}' +
+  '.kb-adv-city{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;' +
+  'background:linear-gradient(135deg,#eef4ff,#dfe9ff);border:1px solid #bcd4ff;color:#1746c8;' +
+  'font-size:12px;font-weight:800;box-shadow:0 2px 10px rgba(36,101,238,.18);}' +
+  '.kb-adv-city .ic{width:13px;height:13px;color:#2465ee;}' +
+  '.kb-adv-city-dot{width:6px;height:6px;border-radius:50%;background:#19b77a;animation:kbCityPulse 2s infinite;}' +
+  '@keyframes kbCityPulse{0%{box-shadow:0 0 0 0 rgba(25,183,122,.45);}70%{box-shadow:0 0 0 6px rgba(25,183,122,0);}100%{box-shadow:0 0 0 0 rgba(25,183,122,0);}}' +
+  'body.kb-night .kb-adv-title-txt{color:#ebf3ff;}' +
+  'body.kb-night .kb-adv-title-txt em{color:#7db4ff;}' +
+  'body.kb-night .kb-adv-city{background:linear-gradient(135deg,rgba(57,124,255,.16),rgba(23,70,200,.22));' +
+  'border-color:rgba(148,180,255,.35);color:#9dc4ff;box-shadow:0 2px 12px rgba(0,0,0,.35);}' +
+  'body.kb-night .kb-adv-city .ic{color:#7db4ff;}' +
+  'body.kb-lite .kb-adv-city-dot{animation:none;}' +
+  '@media (prefers-reduced-motion:reduce){.kb-adv-city-dot{animation:none;}}';
+  document.head.appendChild(s);
+})();
+
+function plural(n, f) { var a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
+
+// ---------- шапка карточки рейтинга: одна строка, без разрывов ----------
+function fixHeader() {
+  var ht = document.querySelector('#kbRateCard .kbr-head-t');
+  if (!ht) return;
+  var mine = null;
+  try { mine = JSON.parse(localStorage.getItem('kbRateMine') || 'null'); } catch (e) {}
+  var html;
+  if (mine && mine.overall) {
+    html = '<b>Спасибо! Ваша оценка учтена</b>' +
+      '<span>Вы поставили ' + mine.overall + ' ' + plural(mine.overall, ['звезду', 'звезды', 'звёзд']) + '. Вместе мы делаем сервис честнее и точнее.</span>';
+  } else {
+    html = '<b>Оцените ' + BRAND_HTML + '</b>' +
+      '<span>Пожалуйста, поставьте столько звёзд, сколько заслуживает наш сервис — это помогает нам стать точнее и удобнее 🙏</span>';
+  }
+  if (ht.innerHTML !== html) ht.innerHTML = html;
+}
+
+// ---------- лечение старых разрезанных кусков имени ----------
+function cleanBrand(root) {
+  if (!root) return;
+  var olds = root.querySelectorAll('.kb-brand');
+  for (var i = 0; i < olds.length; i++) {
+    if (olds[i].parentNode) olds[i].parentNode.replaceChild(document.createTextNode('КогдаБенз'), olds[i]);
+  }
+  var ks = root.querySelectorAll('.kb-brand-k');
+  for (var j = 0; j < ks.length; j++) {
+    if (ks[j].parentNode) ks[j].parentNode.replaceChild(document.createTextNode('Когда'), ks[j]);
+  }
+  var bs = root.querySelectorAll('.kb-brand-b');
+  for (var k = 0; k < bs.length; k++) {
+    if (bs[k].parentNode) bs[k].parentNode.replaceChild(document.createTextNode('Бенз'), bs[k]);
+  }
+  root.normalize();
+}
+
+// ---------- аккуратная разрезка имени там, где оно обычным текстом ----------
+function brandize(root) {
+  if (!root) return;
+  var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  var list = [];
+  while (w.nextNode()) {
+    var n = w.currentNode;
+    if (n.nodeValue && n.nodeValue.indexOf('КогдаБенз') >= 0) {
+      var p = n.parentElement;
+      if (p && p.closest && p.closest('.kb-brand')) continue;
+      list.push(n);
+    }
+  }
+  for (var i = 0; i < list.length; i++) {
+    var node = list[i];
+    var parts = node.nodeValue.split('КогдаБенз');
+    var frag = document.createDocumentFragment();
+    for (var k = 0; k < parts.length; k++) {
+      if (k > 0) {
+        var wrap = document.createElement('span');
+        wrap.className = 'kb-brand';
+        wrap.innerHTML = BRAND_HTML;
+        frag.appendChild(wrap.firstChild);
+      }
+      if (parts[k]) frag.appendChild(document.createTextNode(parts[k]));
+    }
+    if (node.parentNode) node.parentNode.replaceChild(frag, node);
+  }
+}
+
+function applyBrand(root) {
+  if (!root) return;
+  if (root.id === 'kbRateCard') fixHeader();
+  brandize(root);
+}
+function watchBrand(el) {
+  if (!el || el.__kbBrandWatch2) return;
+  el.__kbBrandWatch2 = true;
+  cleanBrand(el);
+  applyBrand(el);
+  new MutationObserver(function () {
+    if (el.__kbBrandT2) return;
+    el.__kbBrandT2 = setTimeout(function () { el.__kbBrandT2 = null; applyBrand(el); }, 30);
+  }).observe(el, { childList: true, subtree: true, characterData: true });
+}
+watchBrand(document.getElementById('kbRateCard'));
+setInterval(function () {
+  watchBrand(document.getElementById('kbRateCard'));
+  watchBrand(document.getElementById('kbRatePop'));
+}, 1200);
+
+// ---------- заголовок советника: функция + город-пилюля ----------
+function fixAdviceTitle() {
+  var pop = document.getElementById('advicePop');
+  if (!pop || !pop.classList.contains('open')) return;
+  var t = pop.querySelector('.hello-title');
+  if (!t || t.dataset.kbBrandTitle) return;
+  if ((t.textContent || '').indexOf('Куда ехать прямо сейчас') !== 0) return;
+  t.dataset.kbBrandTitle = '1';
+  t.classList.add('kb-adv-title');
+  t.innerHTML =
+    '<span class="kb-adv-title-txt">Куда ехать <em>прямо сейчас</em></span>' +
+    '<span class="kb-adv-city">' + icon('i-pin', 'ic-s') +
+    '<span>' + escapeHtml(userCityName()) + '</span>' +
+    '<i class="kb-adv-city-dot"></i></span>';
+}
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+  var ok = _rap();
+  if (ok) { try { fixAdviceTitle(); } catch (e) {} }
+  return ok;
+};
+setTimeout(fixAdviceTitle, 800);
+})();
+// ============================================================
+// KB BRAND LINE FIX v1 — «Оцените КогдаБенз» ВСЕГДА одной строкой.
+// Причина разрыва: правило рейтинга .kbr-head-t span{display:block}
+// делает спаны бренда блочными и серыми. Этот блок стоит ПОСЛЕ всех
+// паков и перебивает его: display:inline + цвет + размер от заголовка.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbBrandLineFix) return;
+window.__kbBrandLineFix = 1;
+var s = document.createElement('style');
+s.id = 'kbBrandLineFixCss';
+s.textContent =
+'#kbRateCard .kbr-head-t b{white-space:nowrap !important;}' +
+'#kbRateCard .kbr-head-t .kb-brand,#kbRateCard .kbr-head-t .kb-brand-k,#kbRateCard .kbr-head-t .kb-brand-b{' +
+'display:inline !important;white-space:nowrap !important;margin:0 !important;padding:0 !important;' +
+'font-size:inherit !important;line-height:inherit !important;}' +
+'#kbRateCard .kbr-head-t .kb-brand-k{color:#14213d !important;font-weight:800 !important;}' +
+'body.kb-night #kbRateCard .kbr-head-t .kb-brand-k{color:#fff !important;}' +
+'#kbRateCard .kbr-head-t .kb-brand-b{color:#2465ee !important;font-weight:800 !important;}' +
+'body.kb-night #kbRateCard .kbr-head-t .kb-brand-b{color:#7db4ff !important;text-shadow:0 0 12px rgba(57,124,255,.35) !important;}';
+document.head.appendChild(s);
+})();
+// ============================================================
+// KB WORD COLOR v1 — подсказка под звёздами: «звезды» и
+// «заслуживает сервис?» синие, остальное белое (тёмная тема).
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbWordColor) return;
+window.__kbWordColor = 1;
+
+(function css() {
+  if (document.getElementById('kbWordColorCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbWordColorCss';
+  s.textContent =
+  '.kbr-word{color:#14213d;}' +
+  'body.kb-night .kbr-word{color:#fff;}' +
+  '.kbr-word .kbw-b{color:#2465ee;}' +
+  'body.kb-night .kbr-word .kbw-b{color:#7db4ff;}';
+  document.head.appendChild(s);
+})();
+
+function esc(s) { return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s); }
+
+function paint(el) {
+  if (!el) return;
+  var text = el.textContent || '';
+  var html;
+  if (text.indexOf('Коснитесь') === 0) {
+    html = esc(text)
+      .replace('звезды', '<span class="kbw-b">звезды</span>')
+      .replace('заслуживает сервис?', '<span class="kbw-b">заслуживает сервис?</span>');
+  } else {
+    html = '<span class="kbw-b">' + esc(text) + '</span>';
+  }
+  if (el.innerHTML !== html) el.innerHTML = html;
+}
+
+function attach() {
+  var pop = document.getElementById('kbRatePop');
+  if (!pop || pop.__kbWordWatch) return;
+  pop.__kbWordWatch = true;
+  paint(document.getElementById('kbrWord'));
+  new MutationObserver(function () {
+    paint(document.getElementById('kbrWord'));
+  }).observe(pop, { childList: true, subtree: true, characterData: true });
+}
+attach();
+setInterval(attach, 1000);
+})();
+// ============================================================
+// KB RATE DOCK v4 — панель рейтинга сверху, НЕ роняет сайт.
+// Короткие строки (редактор не рвёт литералы) + try/catch.
+// Удаляет CSS/узлы v1/v2/v3, создаёт свои один раз.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbRateDock4) return;
+window.__kbRateDock4 = 1;
+
+function boot() {
+try {
+  var LS_SNOOZE = 'kbRateDockSnooze';
+  var SS_THANKED = 'kbRateDockThanked';
+  var STAR = 'M12 2.2l2.95 6.1 6.7.85-4.9 4.6' +
+    ' 1.25 6.6L12 17.2l-6 3.15 1.25-6.6' +
+    '-4.9-4.6 6.7-.85z';
+
+  var oldCss = ['kbRateDockCss', 'kbRateDockCss2', 'kbRateDockCss3'];
+  for (var ci = 0; ci < oldCss.length; ci++) {
+    var oc = document.getElementById(oldCss[ci]);
+    if (oc && oc.parentNode) oc.parentNode.removeChild(oc);
+  }
+
+  var st = document.createElement('style');
+  st.id = 'kbRateDockCss4';
+  var L = [];
+  L.push('#kbRateCard{display:none;}');
+  L.push('#kbRateDock #kbRateCard{display:block;margin:0;');
+  L.push('max-width:none;border-radius:18px;');
+  L.push('box-shadow:0 18px 50px rgba(4,10,26,.5),');
+  L.push('0 0 0 1px rgba(148,180,255,.14);}');
+  L.push('#kbRateDock{position:fixed;left:10px;right:10px;');
+  L.push('top:70px;bottom:auto;margin:0 auto;max-width:560px;');
+  L.push('z-index:236;opacity:0;pointer-events:none;');
+  L.push('transform:translateY(-130%);');
+  L.push('transition:transform .5s cubic-bezier(.22,.9,.26,1),');
+  L.push('opacity .4s ease;}');
+  L.push('#kbRateDock.open{transform:translateY(0);opacity:1;');
+  L.push('pointer-events:auto;}');
+  L.push('#kbRateDock .kb-dock-x{position:absolute;top:8px;');
+  L.push('right:8px;z-index:2;width:28px;height:28px;');
+  L.push('border-radius:50%;border:1px solid rgba(148,180,255,.25);');
+  L.push('background:rgba(10,16,32,.55);color:#9dc4ff;');
+  L.push('font-size:15px;line-height:1;display:flex;');
+  L.push('align-items:center;justify-content:center;cursor:pointer;}');
+  L.push('#kbRateFab{position:fixed;right:12px;');
+  L.push('bottom:calc(14px + env(safe-area-inset-bottom,0px));');
+  L.push('z-index:236;width:48px;height:48px;border-radius:50%;');
+  L.push('border:0;cursor:pointer;display:flex;align-items:center;');
+  L.push('justify-content:center;');
+  L.push('background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8);');
+  L.push('box-shadow:0 8px 22px rgba(36,101,238,.45);}');
+  L.push('#kbRateFab svg{width:24px;height:24px;fill:#fff;}');
+  L.push('#kbRateFab.hide{transform:scale(0);opacity:0;');
+  L.push('pointer-events:none;}');
+  L.push('#kbRateFab:active{transform:scale(.92);}');
+  L.push('@media (prefers-reduced-motion:reduce){');
+  L.push('#kbRateDock{transition:opacity .2s;}}');
+  st.textContent = L.join('');
+  document.head.appendChild(st);
+
+  function lsGet(k, d) {
+    try {
+      var v = localStorage.getItem(k);
+      return v === null ? d : JSON.parse(v);
+    } catch (e) { return d; }
+  }
+  function lsSet(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {}
+  }
+  function mine() { return lsGet('kbRateMine', null); }
+  function snoozed() { return Date.now() < lsGet(LS_SNOOZE, 0); }
+
+  var ids = ['kbRateDock', 'kbRateFab'];
+  for (var di = 0; di < ids.length; di++) {
+    var extra = document.querySelectorAll('#' + ids[di]);
+    for (var ei = 1; ei < extra.length; ei++) {
+      if (extra[ei].parentNode) extra[ei].parentNode.removeChild(extra[ei]);
+    }
+  }
+
+  var dock = document.getElementById('kbRateDock');
+  if (!dock) {
+    dock = document.createElement('div');
+    dock.id = 'kbRateDock';
+    document.body.appendChild(dock);
+  }
+  var x = dock.querySelector('.kb-dock-x');
+  if (!x) {
+    x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'kb-dock-x';
+    x.setAttribute('aria-label', 'Скрыть');
+    x.textContent = '\u2715';
+    dock.appendChild(x);
+  }
+  var fab = document.getElementById('kbRateFab');
+  if (!fab) {
+    fab = document.createElement('button');
+    fab.id = 'kbRateFab';
+    fab.type = 'button';
+    fab.setAttribute('aria-label', 'Рейтинг сервиса');
+    fab.innerHTML = '<svg viewBox="0 0 24 24"><path d="' + STAR + '"/></svg>';
+    fab.classList.add('hide');
+    document.body.appendChild(fab);
+  }
+
+  var isOpen = false, hideT = null;
+
+  function topOffset() {
+    var f = document.getElementById('kbRateFab');
+    if (f && f.classList.contains('kb-in-header')) {
+      var r = f.getBoundingClientRect();
+      if (r.height > 0) return Math.round(r.bottom + 8);
+    }
+    var pill = document.querySelector('.kb-winpill-off');
+    if (pill && pill.parentElement) {
+      var pr = pill.parentElement.getBoundingClientRect();
+      if (pr.height > 0) return Math.round(pr.bottom + 8);
+    }
+    return 70;
+  }
+  function ensureDocked() {
+    var card = document.getElementById('kbRateCard');
+    if (card && card.parentNode !== dock) dock.appendChild(card);
+  }
+  function show() {
+    ensureDocked();
+    dock.style.top = topOffset() + 'px';
+    clearTimeout(hideT);
+    dock.classList.add('open');
+    fab.classList.add('hide');
+    isOpen = true;
+    if (mine()) hideT = setTimeout(function () { hide(false); }, 7000);
+  }
+  function hide(setSnooze) {
+    clearTimeout(hideT);
+    dock.classList.remove('open');
+    fab.classList.remove('hide');
+    isOpen = false;
+    if (setSnooze && !mine()) lsSet(LS_SNOOZE, Date.now() + 86400000);
+    if (mine()) {
+      try { sessionStorage.setItem(SS_THANKED, '1'); } catch (e) {}
+    }
+  }
+
+  x.addEventListener('click', function () { hide(true); });
+  fab.addEventListener('click', function () {
+    if (isOpen) hide(false); else show();
+  });
+
+  var ty = null, dy = 0;
+  dock.addEventListener('touchstart', function (e) {
+    ty = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  dock.addEventListener('touchmove', function (e) {
+    if (ty === null) return;
+    dy = Math.min(0, e.touches[0].clientY - ty);
+    dock.style.transform = 'translateY(' + dy + 'px)';
+  }, { passive: true });
+  dock.addEventListener('touchend', function () {
+    dock.style.transform = '';
+    if (dy < -60) hide(true);
+    ty = null; dy = 0;
+  }, { passive: true });
+
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (t && t.closest &&
+        t.closest('#kbRateCard .kbr-star, #kbRateCard [data-kbr-open]')) {
+      hide(false);
+    }
+  }, true);
+
+  function watchBack() {
+    var b = document.getElementById('kbRateBack');
+    if (b && !b.__kbDockWatch4) {
+      b.__kbDockWatch4 = true;
+      new MutationObserver(function () {
+        if (b.classList.contains('open')) hide(false);
+      }).observe(b, { attributes: true, attributeFilter: ['class'] });
+    }
+  }
+  setInterval(watchBack, 1200);
+
+  ensureDocked();
+  setInterval(ensureDocked, 1500);
+  setTimeout(ensureDocked, 1600);
+  setTimeout(ensureDocked, 3200);
+
+  setTimeout(function () {
+    if (snoozed()) return;
+    if (mine()) {
+      var thanked = false;
+      try { thanked = sessionStorage.getItem(SS_THANKED) === '1'; } catch (e) {}
+      if (thanked) return;
+    }
+    show();
+  }, 1400);
+
+  window.addEventListener('resize', function () {
+    if (isOpen) dock.style.top = topOffset() + 'px';
+  });
+} catch (e) {
+  try { console.log('rate dock v4: ' + e.message); } catch (e2) {}
+}
+}
+
+if (document.body) boot();
+else document.addEventListener('DOMContentLoaded', boot);
+})();
+// ============================================================
+// KB HEADER STAR v4 — звезда в шапке вместо «44 окон», НЕ ломая шапку.
+// Прячется ТОЛЬКО сама плашка «N окон» (контейнер с несколькими
+// иконками скрыть нельзя). Размер/оболочка = как у соседней иконки.
+// Внутри своя анимация: золотой «бензин» сверху вниз → морфинг в
+// плашку со средним баллом и числом водителей → обратно в звезду.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbHeaderStar4) return;
+window.__kbHeaderStar4 = 1;
+
+var STAR = 'M12 2.2l2.95 6.1 6.7.85-4.9 4.6 1.25 6.6L12 17.2l-6 3.15 1.25-6.6-4.9-4.6 6.7-.85z';
+var WAVE = 'M-12 -26 H36 V0 Q34.5 1.3 33 0 T30 0 T27 0 T24 0 T21 0 T18 0 T15 0 T12 0 T9 0 T6 0 T3 0 T0 0 T-3 0 T-6 0 T-9 0 T-12 0 Z';
+
+(function css() {
+  var old = document.getElementById('kbHeaderStarCss3');
+  if (old && old.parentNode) old.parentNode.removeChild(old);
+  if (document.getElementById('kbHeaderStarCss4')) return;
+  var s = document.createElement('style');
+  s.id = 'kbHeaderStarCss4';
+  s.textContent =
+  '.kb-winpill-off{display:none !important;}' +
+  '#kbRateFab{--kbf-size:44px;--kbf-radius:14px;--kbf-bg:#141d33;--kbf-border:1px solid rgba(148,180,255,.14);' +
+  '--kbf-shadow:0 2px 8px rgba(0,0,0,.25);background:none !important;box-shadow:none !important;width:auto;height:var(--kbf-size);padding:0;animation:none;}' +
+  '#kbRateFab.kb-in-header{position:static;right:auto;bottom:auto;flex:none;align-self:center;}' +
+  '#kbRateFab.kb-in-header.hide{transform:none;opacity:1;pointer-events:auto;}' +
+  '#kbRateFab .kbf-cap{position:relative;display:flex;align-items:center;justify-content:center;height:var(--kbf-size);width:var(--kbf-size);' +
+  'overflow:hidden;background:var(--kbf-bg);border:var(--kbf-border);border-radius:var(--kbf-radius);box-shadow:var(--kbf-shadow);' +
+  'animation:kbfCap 8s ease-in-out infinite;}' +
+  '#kbRateFab .kbf-starwrap{position:absolute;left:0;top:0;width:var(--kbf-size);height:var(--kbf-size);display:flex;align-items:center;justify-content:center;' +
+  'animation:kbfStarLayer 8s ease-in-out infinite;}' +
+  '#kbRateFab .kbf-starwrap .kbf-svg{width:22px;height:22px;overflow:visible;}' +
+  '#kbRateFab .kbf-info{position:absolute;left:0;top:0;width:104px;height:var(--kbf-size);display:flex;align-items:center;justify-content:center;gap:5px;' +
+  'opacity:0;animation:kbfInfoLayer 8s ease-in-out infinite;font-size:11.5px;font-weight:800;color:#fff;white-space:nowrap;}' +
+  '#kbRateFab .kbf-info svg{width:12px;height:12px;fill:#ffc83d;flex:none;filter:drop-shadow(0 0 4px rgba(255,200,61,.6));}' +
+  '#kbRateFab .kbf-info i{font-style:normal;opacity:.6;}' +
+  '#kbRateFab .kbf-level{animation:kbfFill 4s ease-in-out infinite;}' +
+  '#kbRateFab .kbf-wave{animation:kbfSlosh 1.4s ease-in-out infinite alternate;}' +
+  '@keyframes kbfCap{0%,42%{width:var(--kbf-size);border-radius:var(--kbf-radius);}52%,86%{width:104px;border-radius:99px;}96%,100%{width:var(--kbf-size);border-radius:var(--kbf-radius);}}' +
+  '@keyframes kbfStarLayer{0%,42%{opacity:1;transform:scale(1);}50%,88%{opacity:0;transform:scale(.3);}96%,100%{opacity:1;transform:scale(1);}}' +
+  '@keyframes kbfInfoLayer{0%,46%{opacity:0;transform:translateX(8px);}54%,86%{opacity:1;transform:translateX(0);}94%,100%{opacity:0;transform:translateX(8px);}}' +
+  '@keyframes kbfFill{0%,10%{transform:translateY(0);}55%,75%{transform:translateY(24px);}100%{transform:translateY(0);}}' +
+  '@keyframes kbfSlosh{from{transform:translateX(-2px);}to{transform:translateX(2px);}}' +
+  'body.kb-lite #kbRateFab .kbf-cap,body.kb-lite #kbRateFab .kbf-starwrap,body.kb-lite #kbRateFab .kbf-info,' +
+  'body.kb-lite #kbRateFab .kbf-level,body.kb-lite #kbRateFab .kbf-wave{animation:none;}' +
+  'body.kb-lite #kbRateFab .kbf-cap{width:104px;border-radius:99px;}' +
+  'body.kb-lite #kbRateFab .kbf-starwrap{opacity:0;}' +
+  'body.kb-lite #kbRateFab .kbf-info{opacity:1;transform:none;}' +
+  '@media (prefers-reduced-motion:reduce){#kbRateFab .kbf-cap,#kbRateFab .kbf-starwrap,#kbRateFab .kbf-info,#kbRateFab .kbf-level,#kbRateFab .kbf-wave{animation:none;}' +
+  '#kbRateFab .kbf-cap{width:104px;border-radius:99px;}#kbRateFab .kbf-starwrap{opacity:0;}#kbRateFab .kbf-info{opacity:1;transform:none;}}';
+  document.head.appendChild(s);
+})();
+
+function liquidSvg() {
+  return '<svg class="kbf-svg" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<defs><clipPath id="kbfClip"><path d="' + STAR + '"/></clipPath>' +
+    '<linearGradient id="kbfGold" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#ffe08a"/><stop offset=".55" stop-color="#ffc83d"/><stop offset="1" stop-color="#e89b16"/>' +
+    '</linearGradient></defs>' +
+    '<path d="' + STAR + '" fill="#fff"/>' +
+    '<g clip-path="url(#kbfClip)"><g class="kbf-level"><path class="kbf-wave" fill="url(#kbfGold)" d="' + WAVE + '"/></g></g>' +
+    '<path d="' + STAR + '" fill="none" stroke="rgba(255,255,255,.55)" stroke-width=".6"/>' +
+    '</svg>';
+}
+function buildFab(fab) {
+  if (fab.__kbfMorph4) return;
+  fab.__kbfMorph4 = 1;
+  fab.innerHTML =
+    '<span class="kbf-cap">' +
+      '<span class="kbf-starwrap">' + liquidSvg() + '</span>' +
+      '<span class="kbf-info"><svg viewBox="0 0 24 24"><path d="' + STAR + '"/></svg>' +
+      '<b class="kbf-avg">—</b><i>·</i><span class="kbf-cnt">0</span></span>' +
+    '</span>';
+}
+
+// ---------- поиск ТОЛЬКО плашки «N окон»: контейнер с >1 иконкой не трогаем ----------
+function isPillText(t) { return t.length <= 20 && /\d+\s*окон/.test(t); }
+var pillEl = null;
+function findPill() {
+  if (pillEl && document.contains(pillEl)) return pillEl;
+  var els = document.querySelectorAll('button,a,div,span');
+  for (var i = 0; i < els.length; i++) {
+    var el = els[i];
+    if (el.closest && el.closest('#kbRateFab,#kbRateDock,#kbRatePop')) continue;
+    var t = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!isPillText(t)) continue;
+    if (el.querySelectorAll('svg').length > 1) continue; // это контейнер иконок, не плашка
+    var pill = el;
+    while (pill.parentElement && pill.parentElement !== document.body) {
+      var p = pill.parentElement;
+      var pt = (p.textContent || '').replace(/\s+/g, ' ').trim();
+      if (isPillText(pt) && p.querySelectorAll('svg').length <= 1) pill = p; else break;
+    }
+    if (pill.querySelectorAll('svg').length > 1) continue;
+    if (pill.querySelector('#kbRateFab')) continue;
+    pillEl = pill;
+    return pill;
+  }
+  return null;
+}
+
+// ---------- оболочка и размер строго как у соседней иконки ----------
+function copyShell(fab, pill) {
+  var parent = pill.parentNode;
+  if (!parent) return;
+  var ref = null, fallback = null;
+  for (var i = 0; i < parent.children.length; i++) {
+    var ch = parent.children[i];
+    if (ch === fab || ch === pill) continue;
+    var cs = getComputedStyle(ch);
+    var w = parseFloat(cs.width), h = parseFloat(cs.height);
+    if (!(w >= 30 && w <= 70 && h >= 30 && h <= 70 && Math.abs(w - h) <= 8)) continue;
+    if (!fallback) fallback = ch;
+    var u = ch.querySelector('use');
+    var href = u ? (u.getAttribute('href') || u.getAttribute('xlink:href') || '') : '';
+    if (/bell|drop|help|quest|info/.test(href)) { ref = ch; break; }
+  }
+  ref = ref || fallback;
+  if (!ref) return;
+  var cs = getComputedStyle(ref);
+  var sz = parseFloat(cs.height);
+  if (!isFinite(sz)) sz = 44;
+  sz = Math.max(36, Math.min(56, sz)); // не больше соседних иконок
+  fab.style.setProperty('--kbf-size', sz + 'px');
+  fab.style.setProperty('--kbf-radius', cs.borderRadius);
+  fab.style.setProperty('--kbf-bg', cs.backgroundImage !== 'none' ? cs.backgroundImage : cs.backgroundColor);
+  fab.style.setProperty('--kbf-border', cs.borderTopWidth + ' ' + cs.borderTopStyle + ' ' + cs.borderTopColor);
+  fab.style.setProperty('--kbf-shadow', cs.boxShadow);
+}
+
+// ---------- живые цифры ----------
+function setNums(avg, total) {
+  var fab = document.getElementById('kbRateFab');
+  if (!fab) return;
+  var a = fab.querySelector('.kbf-avg'), c = fab.querySelector('.kbf-cnt');
+  if (a) a.textContent = avg == null ? '—' : Number(avg).toFixed(1).replace('.', ',');
+  if (c) c.textContent = total || 0;
+}
+async function refreshNums() {
+  try {
+    if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_KEY !== 'undefined') {
+      var ctrl = new AbortController();
+      var tm = setTimeout(function () { ctrl.abort(); }, 12000);
+      var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/rate_stats', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ p_device: typeof deviceId !== 'undefined' ? deviceId : null }),
+        signal: ctrl.signal
+      });
+      clearTimeout(tm);
+      if (r.ok) {
+        var j = await r.json();
+        setNums(j && j.avg ? j.avg.overall : null, j ? j.total : 0);
+        return;
+      }
+    }
+  } catch (e) {}
+  var el = document.querySelector('#kbRateCard .kbr-avg');
+  if (el) {
+    var t = el.textContent || '';
+    var m = t.match(/(\d+[.,]\d+)/);
+    var c = t.match(/(\d+)\s*водител/);
+    setNums(m ? m[1].replace(',', '.') : null, c ? c[1] : 0);
+  }
+}
+
+function place() {
+  var fab = document.getElementById('kbRateFab');
+  if (!fab) return;
+  buildFab(fab);
+  var pill = findPill();
+  if (!pill) { fab.classList.remove('kb-in-header'); return; }
+  pill.classList.add('kb-winpill-off');
+  fab.classList.add('kb-in-header');
+  if (fab.parentNode !== pill.parentNode) pill.parentNode.insertBefore(fab, pill);
+  copyShell(fab, pill);
+}
+
+place();
+setTimeout(place, 1600);
+setInterval(place, 1200);
+refreshNums();
+setInterval(refreshNums, 45000);
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshNums(); });
+})();
