@@ -429,6 +429,50 @@ async function siteHitsDigest(nameById) {
     return '';
   }
 }
+// === РЕЙТИНГ СЕРВИСА: блок в хозяйский дайджест (каждые 10 мин) ===
+// Агрегат берём готовой SQL-функцией rate_stats (сырые строки не качаем).
+// Блок подмешивается в ТО ЖЕ сообщение, что события/сайт. Если с прошлой
+// проверки появилась новая оценка — сообщение уходит даже без событий.
+function ratingPlural(n, f) { const a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
+function ratingAgo(iso) {
+  if (!iso) return '—';
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return 'только что';
+  if (m < 60) return m + ' мин назад';
+  if (m < 1440) return Math.round(m / 60) + ' ч назад';
+  return Math.round(m / 1440) + ' дн назад';
+}
+async function siteRatingDigest() {
+  try {
+    const now = Date.now();
+    const wm = await sbGet('/rest/v1/bot_meta?key=eq.rating_notify_at&select=value');
+    const prev = wm.length ? wm[0].value : new Date(now - 15 * 60000).toISOString();
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/rate_stats', {
+      method: 'POST',
+      headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_device: null })
+    });
+    if (!r.ok) throw new Error('rate_stats HTTP ' + r.status);
+    const st = await r.json();
+    await sbPost('bot_meta?on_conflict=key', [{ key: 'rating_notify_at', value: new Date(now).toISOString(), updated_at: new Date(now).toISOString() }], 'return=minimal,resolution=merge-duplicates');
+    const total = Number((st && st.total) || 0);
+    const hasNew = !!(st && st.last_at && new Date(st.last_at).getTime() > new Date(prev).getTime());
+    if (!total && !hasNew) return { text: '', hasNew: false };
+    const f1 = v => v == null ? '—' : Number(v).toFixed(1).replace('.', ',');
+    const a = (st && st.avg) || {};
+    const dist = (st && st.dist) || [0, 0, 0, 0, 0];
+    const lines = [];
+    lines.push('⭐ <b>РЕЙТИНГ</b> · ★ ' + f1(a.overall) + '/5 · ' + total + ' ' + ratingPlural(total, ['водитель оценил', 'водителя оценили', 'водителей оценили']) + (st && st.week ? ' · +' + st.week + ' за неделю' : ''));
+    lines.push('последняя оценка: ' + ratingAgo(st && st.last_at));
+    lines.push('5★ ' + dist[4] + ' · 4★ ' + dist[3] + ' · 3★ ' + dist[2] + ' · 2★ ' + dist[1] + ' · 1★ ' + dist[0]);
+    lines.push('удобство ' + f1(a.interface) + ' · точность ' + f1(a.accuracy) + ' · скорость ' + f1(a.speed) + ' · дизайн ' + f1(a.design));
+    if (hasNew) lines.push('🆕 с прошлой проверки есть новые оценки');
+    return { text: lines.join('\n'), hasNew };
+  } catch (e) {
+    console.log('   ! Рейтинг-дайджест: ' + e.message);
+    return { text: '', hasNew: false };
+  }
+}
 async function main() {
   // джиттер до 45 сек: не стучим синхронно с волнами атаки и другими клиентами
   await new Promise(res => setTimeout(res, Math.floor(Math.random() * 45000)));
@@ -1050,7 +1094,8 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
 }
 
     const hitsBlock = await siteHitsDigest(nameById);
-if (tgSrcLines.length || tgFolkLines.length || hitsBlock) {
+const ratingBlock = await siteRatingDigest();
+if (tgSrcLines.length || tgFolkLines.length || hitsBlock || ratingBlock.hasNew) {
 // Контекст города из свежих домашних отметок (факт, не прогноз)
 let known = 0, avail = 0;
 for (const row of obsRows) {
@@ -1075,6 +1120,7 @@ if (tgSrcLines.length && left > 0) {
   if (tgSrcLines.length > take.length) body += '\n<i>…ещё ' + (tgSrcLines.length - take.length) + '</i>';
 }
 if (hitsBlock) body += '\n\n' + hitsBlock;
+if (ratingBlock.text) body += '\n\n' + ratingBlock.text;
 await tg('⚡ ' + hh + (total ? ' · ' + total : '') +
   (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
   body, true);
@@ -1244,14 +1290,15 @@ for (let d = 30; mskHourClean === 3 && d >= 7; d--) {
   }
 }
 const hitsBlock = await siteHitsDigest(nameById);
-if (tgLines.length || hitsBlock) {
+const ratingBlock = await siteRatingDigest();
+if (tgLines.length || hitsBlock || ratingBlock.hasNew) {
 const msk = new Date(Date.now() + 3 * 3600 * 1000);
 const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
 let body = '';
 if (tgLines.length) body += '\n\n👥 <b>НАРОД</b> · ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n');
 if (hitsBlock) body += '\n\n' + hitsBlock;
+if (ratingBlock.text) body += '\n\n' + ratingBlock.text;
 await tg('⚡ ' + hh + ' · аварийный режим (источник лежит)' + body, true);
-}
 }
 main().catch(async e => {
   // Источник недоступен/под атакой — это НЕ баг коллектора: выходим тихо
