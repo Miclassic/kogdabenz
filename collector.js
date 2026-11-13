@@ -1295,11 +1295,13 @@ if (tgLines.length || hitsBlock || ratingBlock.hasNew) {
 const msk = new Date(Date.now() + 3 * 3600 * 1000);
 const hh = String(msk.getUTCHours()).padStart(2, '0') + ':' + String(msk.getUTCMinutes()).padStart(2, '0');
 let body = '';
-if (tgLines.length) body += '\n\n👥 <b>НАРОД</b> · ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n');
-if (hitsBlock) body += '\n\n' + hitsBlock;
-if (ratingBlock.text) body += '\n\n' + ratingBlock.text;
-await tg('⚡ ' + hh + ' · аварийный режим (источник лежит)' + body, true);
-}
+  if (tgLines.length) body += '\n\n👥 <b>НАРОД</b> · ' + tgLines.length + '\n' + tgLines.slice(0, 8).join('\n');
+  if (hitsBlock) body += '\n\n' + hitsBlock;
+  if (ratingBlock.text) body += '\n\n' + ratingBlock.text;
+  await tg('⚡ ' + hh + ' · аварийный режим (источник лежит)' + body, true);
+  } // <-- закрывает if
+} // <-- ДОБАВЬТЕ ВОТ ЭТУ СКОБКУ, чтобы закрыть функцию outageCrowdCycle
+
 main().catch(async e => {
   // Источник недоступен/под атакой — это НЕ баг коллектора: выходим тихо
   // (workflow зелёный), владельца тревожим не чаще раза в час.
