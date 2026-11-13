@@ -7526,6 +7526,8 @@ function closeWnZoom() {
 }
 let wnTries = 0;
 function maybeWhatsNew() {
+  return; // ⬅️ ДОБАВИТЬ ЭТУ СТРОКУ (отключает автопоказ)
+  
   const pop = document.getElementById('wnPop');
   if (!pop || pop.classList.contains('open')) return;
   if (!WHATS_NEW.length || wnAgeDays(WHATS_NEW[0]) > 14) return;
