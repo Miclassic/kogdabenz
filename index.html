@@ -1,6 +1,33 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+<script>
+  window.APBlackList = [
+    /* 1. Жестко блокируем шапку, навигацию и свайпы */
+    '.slim-bar',
+    '.mn-wrap',
+    '.lenti',
+    
+    /* 2. Блокируем Главную панель и Карту целиком, чтобы туда даже не лезло */
+    'section.panel:nth-child(2)', /* Главная */
+    'section.panel:nth-child(3)', /* Карта */
+    
+    /* 3. Блокируем элементы внутри списка АЗС, чтобы реклама не рвала карточки пополам */
+    '.srow', 
+    '.srow-wrap',
+    '.search',
+    '.listhead',
+    '.listctl',
+    
+    /* 4. Блокируем карточку АЗС и модальные окна */
+    '.sheet',
+    '.hello-pop',
+    '.adv-card',
+    
+    /* 5. Блокируем заголовки панелей (чтобы реклама не прилипала к названиям) */
+    '.p1-head'
+  ];
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>КогдаБенз — когда лучше заправиться?</title>
