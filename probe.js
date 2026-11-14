@@ -96,12 +96,15 @@ async function dumpKeys() {
 // (живая = с топливом сейчас; молчащая = без данных), чтобы не пропустить
 // поле, которое появляется только на «свежих» станциях
 async function autoDump() {
-  console.log('=== АВТО-ДАМП ДВУХ СТАНЦИЙ ===');
-  const list = await fetchFrame(FRAMES[0]);
-  if (!list.length) { console.log('Станций нет в первой рамке.'); return; }
-  const live = list.find(s => s.fuels_now && String(s.fuels_now).length);
-  const silent = list.find(s => !s.fuels_now || !String(s.fuels_now).length);
-  for (const [label, s] of [['живая (с топливом)', live], ['молчащая', silent]]) {
+  console.log('=== АВТО-ДАМП СТАНЦИЙ (диагностика очередей) ===');
+const list = await fetchFrame(FRAMES[0]);
+if (!list.length) { console.log('Станций нет в первой рамке.'); return; }
+const live = list.find(s => s.fuels_now && String(s.fuels_now).length);
+const silent = list.find(s => !s.fuels_now || !String(s.fuels_now).length);
+// Впиши адрес или название АЗС, где на GdeBenz СЕЙЧАС видна очередь
+const QUEUE_NEEDLE = 'дзержинского, 188';
+const queued = list.find(s => ((s.name || '') + ' ' + (s.addr || '')).toLowerCase().includes(QUEUE_NEEDLE));
+for (const [label, s] of [['живая (с топливом)', live], ['молчащая', silent], ['очередь (поиск)', queued]]) {
     if (!s) { console.log('   ' + label + ': такой станции не нашлось'); continue; }
     console.log('--- ' + label + ': ' + (s.name || '?') + ' (' + (s.brand || 'без бренда') + ') ---');
     console.log('Адрес: ' + (s.addr || '—'));
@@ -112,7 +115,38 @@ async function autoDump() {
       console.log(k + ' (' + type + '): ' + preview);
     }
   }
-  console.log('=== АГРЕГАТЫ (' + list.length + ' станций) ===');
+  // === ДИАГНОСТИКА ОЧЕРЕДЕЙ: ищем поля даже при нуле очередей ===
+const keyStat = {};
+for (const s of list) {
+for (const k of Object.keys(s)) {
+const v = s[k];
+const filled = !(v === null || v === undefined || v === '' ||
+(Array.isArray(v) && !v.length) ||
+(typeof v === 'object' && !Array.isArray(v) && !Object.keys(v).length));
+const st = keyStat[k] = keyStat[k] || { total: 0, filled: 0, sample: null };
+st.total++;
+if (filled) { st.filled++; if (st.sample === null) st.sample = JSON.stringify(v).slice(0, 160); }
+}
+}
+console.log('=== ВСЕ ПОЛЯ РАМКИ: имя (заполнено/всего) ===');
+for (const k of Object.keys(keyStat).sort()) {
+const st = keyStat[k];
+console.log(k + ' (' + st.filled + '/' + st.total + ')' + (st.sample ? ' пример: ' + st.sample : ''));
+}
+console.log('=== ПОХОЖЕ НА ОЧЕРЕДЬ / НОВУЮ АНКЕТУ ===');
+const QRE = /queue|wait|line|limit|pay|jam/i;
+let qHits = 0;
+for (const k of Object.keys(keyStat).sort()) {
+if (!QRE.test(k)) continue;
+qHits++;
+const st = keyStat[k];
+console.log('• ' + k + ' заполнено ' + st.filled + '/' + st.total + (st.sample ? ' пример: ' + st.sample : ' (везде пусто)'));
+}
+if (!qHits) console.log('Полей очереди в ответе НЕТ ВООБЩЕ — похоже, очередь уехала из этого эндпоинта.');
+const withMeta = list.find(s => s.meta && Object.keys(s.meta).length);
+if (withMeta) console.log('meta целиком (первая непустая): ' + JSON.stringify(withMeta.meta).slice(0, 800));
+console.log('conflict=queue сейчас: ' + list.filter(s => s.conflict === 'queue').length + ' из ' + list.length);
+console.log('=== АГРЕГАТЫ (' + list.length + ' станций) ===');
   const stat = {};
   let dtOnly = 0, hasMeta = 0, fuelsEmpty = 0, fuelsFilled = 0, conflictQueue = 0;
   // считаем новые поля-кандидаты: всё, что похоже на автопометки о работе/оплате
