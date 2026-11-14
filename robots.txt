@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
+Disallow: /dash.html
+Disallow: /live.html
 
 Sitemap: https://kogdabenz.ru/sitemap.xml
 
