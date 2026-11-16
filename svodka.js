@@ -86,12 +86,18 @@ function winKey(p, nowM, today) {
 // ---------- API ----------
 async function api(p) {
   let last = null;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4; i++) {
+    const ctrl = new AbortController();
+    const tm = setTimeout(() => ctrl.abort(), 45000);
     try {
-      const r = await fetch(API + p, { headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, Accept: 'application/json' } });
+      const r = await fetch(API + p, {
+        headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, Accept: 'application/json' },
+        signal: ctrl.signal
+      });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return await r.json();
-    } catch (err) { last = err; await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
+    } catch (err) { last = err; await new Promise(r => setTimeout(r, 4000 * (i + 1))); }
+    finally { clearTimeout(tm); }
   }
   throw new Error(p.slice(0, 60) + ' → ' + (last && last.message));
 }
@@ -113,7 +119,7 @@ async function collect() {
   const today = msk().toISOString().slice(0, 10);
 
   const stations = await apiAll('/rest/v1/stations?select=id,name,brand,address,lat,lon&order=id.asc');
-  const obsRows = await apiAll('/rest/v1/observations?timestamp=gte.' + new Date(Date.now() - 6 * H).toISOString() +
+  const obsRows = await apiAll('/rest/v1/observations?timestamp=gte.' + new Date(Date.now() - 90 * 60000).toISOString() +
     '&order=timestamp.desc&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,fuel_state');
   const last = {};
   for (const o of obsRows) if (!last[o.station_id]) last[o.station_id] = o;
