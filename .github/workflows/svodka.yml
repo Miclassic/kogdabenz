@@ -1,0 +1,40 @@
+name: svodka
+on:
+  schedule:
+    - cron: '5 1,5,9,13,17,21 * * *'   # 00/04/08/12/16/20:05 МСК
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: svodka
+  cancel-in-progress: false
+
+jobs:
+  svodka:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build svodka.html
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node svodka.js --force
+      - name: Commit and push
+        run: |
+          git config user.name "kogdabenz-bot"
+          git config user.email "actions@github.com"
+          git add svodka.html sitemap.xml robots.txt svodka.json
+          if git diff --cached --quiet; then
+            echo "Нет изменений — коммит не нужен"
+          else
+            git commit -m "svodka: автовыпуск $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git pull --rebase --autostash
+            git push
+          fi
