@@ -467,6 +467,117 @@ async function handleDriverFollowup(chatId, text) {
   } catch (e) { console.log('   ! followup: ' + e.message); }
 }
 
+// ============================================================
+// KB WAVE BROADCAST — «волна по югу» подписчикам, без твоего участия.
+// Серверный близнец cityWaveStats сайта: исчезновения за 24 ч против
+// нормы за 6 суток. Проверка не чаще раза в 10 минут. Алерт по городу
+// уходит один раз на уровень (спокойно → ключ сбрасывается, новая
+// волна снова>alertит). Получатели: подписчики, у которых в избранном
+// есть АЗС этого города; владельцу — сводка всегда.
+// ============================================================
+const WB_BOXES = [
+  { key: 'novorossiysk', name: 'Новороссийск', lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.00 },
+  { key: 'gelendzhik', name: 'Геленджик', lat1: 44.45, lat2: 44.68, lon1: 37.95, lon2: 38.25 },
+  { key: 'anapa', name: 'Анапа', lat1: 44.80, lat2: 45.10, lon1: 37.20, lon2: 37.60 },
+  { key: 'krymsk', name: 'Крымск', lat1: 44.85, lat2: 45.05, lon1: 37.85, lon2: 38.15 },
+  { key: 'krasnodar', name: 'Краснодар', lat1: 44.90, lat2: 45.15, lon1: 38.80, lon2: 39.15 },
+  { key: 'sochi', name: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
+  { key: 'tuapse', name: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
+  { key: 'armavir', name: 'Армавир', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
+  { key: 'maykop', name: 'Майкоп', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 },
+  { key: 'rostov', name: 'Ростов-на-Дону', lat1: 47.15, lat2: 47.35, lon1: 39.55, lon2: 39.85 },
+  { key: 'stavropol', name: 'Ставрополь', lat1: 44.80, lat2: 45.25, lon1: 41.60, lon2: 42.30 }
+];
+async function wbAll(path) {
+  const sep = path.indexOf('?') >= 0 ? '&' : '?';
+  const out = [];
+  for (let off = 0; ; off += 1000) {
+    const page = await sbGet(path + sep + 'limit=1000&offset=' + off);
+    for (const r of page) out.push(r);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
+function wbCityOf(st) {
+  const lat = Number(st.lat), lon = Number(st.lon);
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+  for (const c of WB_BOXES) if (lat >= c.lat1 && lat <= c.lat2 && lon >= c.lon1 && lon <= c.lon2) return c.key;
+  return null;
+}
+async function waveBroadcast() {
+  try {
+    const now = Date.now();
+    const gate = await metaGet('wave_check_at', null);
+    if (gate && now - new Date(gate).getTime() < 10 * 60000) return;
+    await metaSet('wave_check_at', new Date(now).toISOString());
+
+    const stations = await wbAll('/rest/v1/stations?select=id,lat,lon&order=id.asc');
+    const evs = await wbAll('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(now - 7 * 24 * 3600000).toISOString() + '&order=detected_at.desc&select=station_id,event_type,detected_at');
+    const cityBySt = {};
+    for (const s of stations) cityBySt[s.id] = wbCityOf(s);
+    const acc = {};
+    for (const c of WB_BOXES) acc[c.key] = { key: c.key, name: c.name, d24: 0, r24: 0, dPrev: 0, rPrev: 0 };
+    const H24 = 24 * 3600000;
+    for (const e of evs) {
+      const k = cityBySt[e.station_id];
+      if (!k) continue;
+      const age = now - new Date(e.detected_at).getTime();
+      if (age < 0 || age > 7 * H24) continue;
+      const dis = e.event_type === 'fuel_disappeared';
+      if (age <= H24) { if (dis) acc[k].d24++; else acc[k].r24++; }
+      else { if (dis) acc[k].dPrev++; else acc[k].rPrev++; }
+    }
+    const loud = [];
+    for (const k of Object.keys(acc)) {
+      const a = acc[k];
+      a.dBase = a.dPrev / 6;
+      a.rBase = a.rPrev / 6;
+      if (a.dPrev < 12) { a.level = 'calm'; continue; }
+      const base = Math.max(1, a.dBase);
+      a.level = (a.d24 >= 4 && a.d24 >= 3 * base) ? 'wave' : (a.d24 >= 3 && a.d24 >= 2 * base) ? 'tense' : 'calm';
+      if (a.level === 'calm' && a.r24 >= 4 && a.r24 >= 3 * Math.max(1, a.rBase)) a.level = 'returns';
+      if (a.level === 'wave' || a.level === 'tense') loud.push(a);
+    }
+    for (const k of Object.keys(acc)) {
+      if (acc[k].level === 'calm' || acc[k].level === 'returns') {
+        const old = await metaGet('wave_alert_' + k, null);
+        if (old) await metaDel('wave_alert_' + k);
+      }
+    }
+    if (!loud.length) return;
+
+    const favs = await wbAll('/rest/v1/user_favorites?select=device_id,station_id');
+    const subs = await wbAll('/rest/v1/tg_subscriptions?enabled=eq.true&select=device_id,chat_id');
+    const chatByDev = {};
+    for (const s of subs) chatByDev[s.device_id] = s.chat_id;
+    const chatsByCity = {};
+    for (const f of favs) {
+      const chat = chatByDev[f.device_id];
+      const ck = cityBySt[f.station_id];
+      if (!chat || !ck) continue;
+      (chatsByCity[ck] = chatsByCity[ck] || {})[chat] = 1;
+    }
+    let sentCities = 0;
+    for (const a of loud) {
+      if (sentCities >= 2) break;
+      const prev = await metaGet('wave_alert_' + a.key, null);
+      if (prev === a.level) continue;
+      const r1 = Math.round(a.dBase * 10) / 10;
+      const txt = '🌊 <b>' + (a.level === 'wave' ? 'Волна' : 'Напряжённо') + ': ' + a.name + '</b>\n' +
+        'Исчезновений топлива за 24 ч: <b>' + a.d24 + '</b> (норма ~' + r1 + '/сут).\n' +
+        'Сводка по югу и окна привоза: ' + 'https://kogdabenz.ru/svodka.html\n' +
+        'Живая карта и очереди: https://kogdabenz.ru/';
+      const chats = Object.keys(chatsByCity[a.key] || {});
+      for (const chat of chats) { await tgTo(Number(chat), txt); }
+      await tg('🌊 ' + a.name + ': ' + a.level + ' · исчезновений ' + a.d24 + ' за 24 ч (норма ~' + r1 + ') · подписчиков уведомлено: ' + chats.length, null, 'HTML');
+      await metaSet('wave_alert_' + a.key, a.level);
+      sentCities++;
+      console.log('   Волна-рассылка: ' + a.name + ' (' + a.level + '), чатов ' + chats.length);
+    }
+  } catch (e) {
+    console.log('   ! Волна-рассылка: ' + e.message);
+  }
+}
 async function main() {
   console.log('=== БОТ v5: читаю обновления ===');
   const offset = Number(await metaGet('update_offset', '0'));
@@ -628,6 +739,7 @@ async function main() {
     }
   }
 
+await waveBroadcast();
   if (next !== offset) await metaSet('update_offset', String(next));
   console.log('   Обновлений обработано: ' + updates.length);
   console.log('✅ Бот завершил проход');

@@ -473,6 +473,312 @@ async function siteRatingDigest() {
     return { text: '', hasNew: false };
   }
 }
+// ============================================================
+// KB SOUTH DIGEST (серверная часть) — «Сводка по Югу» каждые 4 часа.
+// Выпуски 00/04/08/12/16/20 МСК. Пишет рядом с index.html:
+// svodka.html (страница для поиска), sitemap.xml, robots.txt, svodka.json.
+// Работает внутри обычного цикла коллектора: отдельный cron не нужен.
+// Папку сайта ищет сама (где лежит index.html); если не нашла —
+// скажет в логе, тогда задай SVODKA_DIR в cron.
+// ============================================================
+const SD_FS = require('fs');
+const SD_PATH = require('path');
+const SD_SITE = 'https://kogdabenz.ru';
+const SD_H = 3600000;
+const SD_BOXES = [
+  { key: 'novorossiysk', name: 'Новороссийск', inn: 'Новороссийске', lat1: 44.60, lat2: 44.85, lon1: 37.55, lon2: 38.00 },
+  { key: 'gelendzhik', name: 'Геленджик', inn: 'Геленджике', lat1: 44.45, lat2: 44.68, lon1: 37.95, lon2: 38.25 },
+  { key: 'anapa', name: 'Анапа', inn: 'Анапе', lat1: 44.80, lat2: 45.10, lon1: 37.20, lon2: 37.60 },
+  { key: 'krymsk', name: 'Крымск', inn: 'Крымске', lat1: 44.85, lat2: 45.05, lon1: 37.85, lon2: 38.15 },
+  { key: 'krasnodar', name: 'Краснодар', inn: 'Краснодаре', lat1: 44.90, lat2: 45.15, lon1: 38.80, lon2: 39.15 },
+  { key: 'sochi', name: 'Сочи', inn: 'Сочи', lat1: 43.35, lat2: 43.75, lon1: 39.60, lon2: 40.10 },
+  { key: 'tuapse', name: 'Туапсе', inn: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
+  { key: 'armavir', name: 'Армавир', inn: 'Армавире', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
+  { key: 'maykop', name: 'Майкоп', inn: 'Майкопе', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 },
+  { key: 'rostov', name: 'Ростов-на-Дону', inn: 'Ростове-на-Дону', lat1: 47.15, lat2: 47.35, lon1: 39.55, lon2: 39.85 },
+  { key: 'stavropol', name: 'Ставрополь', inn: 'Ставрополе', lat1: 44.80, lat2: 45.25, lon1: 41.60, lon2: 42.30 }
+];
+const SD_SUSPECT = { SUSPECTED_LOSS: 1, CONFIRMED_LOSS: 1, DEPLETION: 1, RECOVERY_STARTED: 1 };
+function sdMsk() { return new Date(Date.now() + 3 * SD_H); }
+function sdBucket() {
+  const m = sdMsk();
+  return new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), m.getUTCDate(), Math.floor(m.getUTCHours() / 4) * 4) - 3 * SD_H);
+}
+function sdPad(n) { return String(n).padStart(2, '0'); }
+function sdStamp(d) { return sdPad(d.getUTCDate()) + '.' + sdPad(d.getUTCMonth() + 1) + '.' + d.getUTCFullYear() + ', ' + sdPad(d.getUTCHours()) + ':' + sdPad(d.getUTCMinutes()); }
+function sdMin(v) { const s = String(v || ''); return Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)); }
+function sdT5(v) { return String(v || '').slice(0, 5); }
+function sdFuel(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
+function sdEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function sdCityOf(st) {
+  const lat = Number(st.lat), lon = Number(st.lon);
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+  for (const c of SD_BOXES) if (lat >= c.lat1 && lat <= c.lat2 && lon >= c.lon1 && lon <= c.lon2) return c.key;
+  return null;
+}
+function sdFreshMin(o) {
+  if (!o) return null;
+  if (o.data_freshness_minutes !== null && o.data_freshness_minutes !== undefined) return Number(o.data_freshness_minutes);
+  if (o.timestamp) return Math.max(0, Math.round((Date.now() - new Date(o.timestamp).getTime()) / 60000));
+  return null;
+}
+function sdTrust(o) { const m = sdFreshMin(o); return m !== null && m <= 360 && !SD_SUSPECT[o.fuel_state]; }
+function sdWinKey(p, nowM, today) {
+  const f = sdMin(p.from_time), t = sdMin(p.to_time);
+  if (p.target_date && p.target_date > today) return 1440 + f;
+  if (p.target_date && p.target_date < today) return 1e9;
+  if (nowM >= f && nowM <= t) return 0;
+  if (f > nowM) return f - nowM;
+  return 1e8;
+}
+function sdSiteDir() {
+  const cands = [process.env.SVODKA_DIR, process.cwd(), __dirname, '/var/www/kogdabenz', '/var/www/kogdabenz.ru', '/var/www/html', '/var/www'];
+  for (const d of cands) {
+    if (!d) continue;
+    try { if (SD_FS.existsSync(SD_PATH.join(d, 'index.html'))) return d; } catch (e) {}
+  }
+  return null;
+}
+function sdWrite(dir, name, text) {
+  const p = SD_PATH.join(dir, name), tmp = p + '.tmp';
+  SD_FS.writeFileSync(tmp, text, 'utf8');
+  SD_FS.renameSync(tmp, p);
+}
+
+async function southDigest() {
+  try {
+    const bucket = sdBucket();
+    const bIso = bucket.toISOString();
+    const gate = await sbGet('/rest/v1/bot_meta?key=eq.svodka_bucket&select=value');
+    if (gate.length && gate[0].value === bIso) return; // выпуск уже собран
+
+    const dir = sdSiteDir();
+    if (!dir) {
+      console.log('   ! Сводка юга: папка сайта не найдена (нет index.html рядом). Задай в cron SVODKA_DIR=/путь/папки/сайта');
+      return;
+    }
+
+    const stations = await sbGetAll('/rest/v1/stations?select=id,name,brand,address,lat,lon&order=id.asc');
+    const obsRows = await sbGetAll('/rest/v1/observations?timestamp=gte.' + new Date(Date.now() - 6 * SD_H).toISOString() + '&order=timestamp.desc&select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,fuel_state');
+    const last = {};
+    for (const o of obsRows) if (!last[o.station_id]) last[o.station_id] = o;
+    const preds = await sbGetAll('/rest/v1/predictions?result=eq.PENDING&select=station_id,fuel_type,from_time,to_time,target_date,confidence&order=id.asc');
+    const evs = await sbGetAll('/rest/v1/events?event_type=in.(fuel_disappeared,fuel_restored)&detected_at=gte.' + new Date(Date.now() - 24 * SD_H).toISOString() + '&order=detected_at.desc&select=station_id,event_type,fuel_type,detected_at');
+    const fb = await sbGet('/rest/v1/user_feedback?order=created_at.desc&limit=500&select=station_id,fuel_type,feedback_type,created_at,verified_on_site,device_id');
+
+    const nowM = sdMsk().getUTCHours() * 60 + sdMsk().getUTCMinutes();
+    const today = sdMsk().toISOString().slice(0, 10);
+
+    const pairChg = {};
+    for (const e of evs) {
+      const t = new Date(e.detected_at).getTime();
+      const k = e.station_id + '|' + e.fuel_type;
+      if (!pairChg[k] || t > pairChg[k]) pairChg[k] = t;
+    }
+    const folk = {}, onSite = {};
+    for (const f of fb) {
+      const t = new Date(f.created_at).getTime();
+      const k = f.station_id + '|' + f.fuel_type;
+      if (f.feedback_type === 'available' && f.verified_on_site && Date.now() - t <= 2 * SD_H) onSite[k] = true;
+      if (Date.now() - t > 24 * SD_H) continue;
+      if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+      if (pairChg[k] && t <= pairChg[k]) continue;
+      const g = folk[k] || (folk[k] = { y: {}, n: {} });
+      if (f.feedback_type === 'available') g.y[f.device_id || '?'] = 1; else g.n[f.device_id || '?'] = 1;
+    }
+    const predBy = {};
+    for (const p of preds) (predBy[p.station_id] = predBy[p.station_id] || []).push(p);
+
+    function state(id, o, fl) {
+      const col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
+      const k = id + '|' + fl;
+      if (onSite[k]) return { v: true, src: 'с места' };
+      const raw = o ? o[col] : null;
+      if (sdTrust(o)) {
+        if (raw === true) return { v: true, src: 'источник' };
+        if (raw === false) return { v: false, src: 'источник' };
+      }
+      const g = folk[k];
+      if (g) {
+        const ny = Object.keys(g.y).length, nn = Object.keys(g.n).length;
+        if (ny >= 2 && ny > nn) return { v: true, src: 'водители (' + ny + ')' };
+        if (nn >= 2 && nn > ny) return { v: false, src: 'водители (' + nn + ')' };
+      }
+      if (raw === true) return { v: null, src: 'не подтверждено' };
+      if (raw === false) return { v: false, src: 'источник (давно)' };
+      return { v: null, src: 'нет данных' };
+    }
+
+    const cities = {};
+    for (const c of SD_BOXES) cities[c.key] = { key: c.key, name: c.name, inn: c.inn, total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, sts: [], wins: [] };
+    for (const st of stations) {
+      const ck = sdCityOf(st);
+      if (!ck) continue;
+      const c = cities[ck], o = last[st.id];
+      c.total++;
+      const s92 = state(st.id, o, '92'), s95 = state(st.id, o, '95'), sdt = state(st.id, o, 'diesel');
+      if (s92.src !== 'нет данных' || s95.src !== 'нет данных' || sdt.src !== 'нет данных') c.known++;
+      if (s92.v === true) c.a92++;
+      if (s95.v === true) c.a95++;
+      if (sdt.v === true) c.adt++;
+      const has = s92.v === true || s95.v === true || sdt.v === true;
+      if (has) c.any++;
+      const q = !!(o && o.queue_level === 'high');
+      if (q) c.q++;
+      let best = null;
+      for (const p of (predBy[st.id] || [])) {
+        const conf = Math.round((p.confidence || 0) * 100);
+        const k = sdWinKey(p, nowM, today);
+        if (conf < 35 || k >= 1e8) continue;
+        if (!best || k < sdWinKey(best, nowM, today)) best = p;
+      }
+      const row = { id: st.id, name: st.name || 'АЗС', address: st.address || '', s92: s92, s95: s95, sdt: sdt, q: q, has: has, pred: best };
+      c.sts.push(row);
+      if (best) c.wins.push({ st: row, city: c.name, p: best, k: sdWinKey(best, nowM, today), conf: Math.round((best.confidence || 0) * 100) });
+    }
+    const list = Object.keys(cities).map(k => cities[k]).filter(c => c.total > 0);
+    for (const c of list) {
+      c.share = c.known ? c.a95 / c.known : null;
+      c.level = c.known < 3 ? 'n' : c.share >= 0.6 ? 'g' : c.share >= 0.25 ? 'y' : 'r';
+      c.wins.sort((a, b) => a.k - b.k);
+      c.sts.sort((a, b) => (b.has - a.has) || ((a.pred ? 0 : 1) - (b.pred ? 0 : 1)));
+    }
+    list.sort((a, b) => ((a.known >= 3 ? 0 : 1) - (b.known >= 3 ? 0 : 1)) || ((a.share == null ? 9 : a.share) - (b.share == null ? 9 : b.share)) || (b.total - a.total));
+    const T = { total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: 0, cities: list.length };
+    for (const c of list) { T.total += c.total; T.known += c.known; T.a92 += c.a92; T.a95 += c.a95; T.adt += c.adt; T.any += c.any; T.q += c.q; T.wins += c.wins.length; }
+    const topWins = list.flatMap(c => c.wins).sort((a, b) => a.k - b.k).slice(0, 10);
+    const stById = {};
+    for (const st of stations) stById[st.id] = st;
+    const changes = [];
+    for (const e of evs) {
+      const t = new Date(e.detected_at).getTime();
+      if (t < bucket.getTime()) continue;
+      const st = stById[e.station_id];
+      if (!st) continue;
+      const ck = sdCityOf(st);
+      if (!ck) continue;
+      const d = new Date(t + 3 * SD_H);
+      changes.push({ t: sdPad(d.getUTCHours()) + ':' + sdPad(d.getUTCMinutes()), city: cities[ck].name, name: st.name || 'АЗС', fuel: sdFuel(e.fuel_type), back: e.event_type === 'fuel_restored' });
+    }
+    changes.sort((a, b) => b.t.localeCompare(a.t));
+    const chList = changes.slice(0, 12);
+
+    const stamp = sdStamp(bucket);
+    const nxt = sdStamp(new Date(bucket.getTime() + 4 * SD_H)).slice(-5);
+    const title = 'Когда привезут бензин на юге — сводка по АЗС на ' + stamp + ' МСК';
+    const desc = 'Сводка по югу России на ' + stamp + ' МСК: АИ-95 есть на ' + T.a95 + ' из ' + T.known + ' АЗС, ' + T.wins + ' прогнозов окон привоза, ' + T.q + ' АЗС с очередью. ' + T.cities + ' городов. Обновляется каждые 4 часа.';
+    const pill = s => '<span class="pill ' + (s.v === true ? 'y' : s.v === false ? 'n' : 'u') + '">' + (s.v === true ? 'есть' : s.v === false ? 'нет' : '—') + '</span>';
+    const word = { g: 'спокойно', y: 'напряжённо', r: 'дефицит', n: 'мало данных' };
+
+    const winsHtml = topWins.length ? topWins.map(w =>
+      '<div class="win"><div class="t"><b>' + sdT5(w.p.from_time) + '–' + sdT5(w.p.to_time) + '</b><span>' + (w.k >= 1440 ? 'завтра' : w.k === 0 ? 'сейчас' : 'сегодня') + '</span></div>' +
+      '<div class="m"><b>' + sdEsc(w.st.name) + '</b><span>' + sdEsc(w.city) + ' · ' + sdEsc(w.st.address) + '</span></div>' +
+      '<div class="c">' + w.conf + '%</div></div>').join('') : '<div class="cr">Прогнозы окон привоза пока накапливаются.</div>';
+    const chHtml = chList.length ? chList.map(c =>
+      '<div class="cr"><i class="' + (c.back ? 'g' : 'r') + '"></i><span><b>' + sdEsc(c.city) + '</b> · ' + sdEsc(c.name) + ' — ' + sdEsc(c.fuel) + (c.back ? ' вернулось' : ' пропало') + '</span><em>' + c.t + '</em></div>').join('') : '<div class="cr">За этот выпуск изменений не зафиксировано — на юге спокойно.</div>';
+    const navHtml = list.map(c => '<a href="#' + c.key + '">' + sdEsc(c.name) + '</a>').join('');
+    const blocksHtml = list.map(c => {
+      const rows = c.sts.slice(0, 40).map(r => {
+        const p = r.pred;
+        const win = p ? '<span class="wt">' + sdT5(p.from_time) + '–' + sdT5(p.to_time) + '</span><br><span class="cf">' + sdEsc(sdFuel(p.fuel_type)) + ' · ' + Math.round((p.confidence || 0) * 100) + '%</span>' : '<span class="cf">окно копится</span>';
+        return '<tr><td><b>' + sdEsc(r.name) + '</b><span class="ad">' + sdEsc(r.address) + '</span></td><td>' + pill(r.s92) + '</td><td>' + pill(r.s95) + '</td><td>' + pill(r.sdt) + '</td><td>' + (r.q ? 'очередь' : '—') + '</td><td>' + win + '</td></tr>';
+      }).join('');
+      return '<section class="card" id="' + c.key + '"><div class="ch"><span class="dot ' + c.level + '"></span><h3>Бензин в ' + sdEsc(c.inn) + '</h3><span class="st">' + word[c.level] + '</span><span class="n">АИ-95: <b>' + c.a95 + '</b> из ' + c.known + ' · окон: <b>' + c.wins.length + '</b></span></div>' +
+        '<div class="tw"><table><thead><tr><th>АЗС</th><th>АИ-92</th><th>АИ-95</th><th>Дизель</th><th>Очередь</th><th>Окно привоза</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
+    }).join('');
+    const faq = [
+      ['Где сейчас есть бензин на юге России?', 'На ' + stamp + ' МСК АИ-95 подтверждён на ' + T.a95 + ' из ' + T.known + ' АЗС с данными, АИ-92 — на ' + T.a92 + ', дизель — на ' + T.adt + '. Всего в сводке ' + T.cities + ' городов и ' + T.total + ' заправок юга. Данные обновляются каждые 4 часа.'],
+      ['Когда привезут бензин на заправку?', 'Для каждой АЗС считается окно возврата — интервал часов, когда топливо обычно возвращается. Сейчас по югу активно ' + T.wins + ' таких окон. Рядом с окном указана уверенность в процентах: это вероятность, а не гарантия привоза.'],
+      ['Как считается сводка?', 'Из двух источников: снимки наличия топлива на АЗС каждые 10 минут и отметки самих водителей «есть / нет / очередь / привезли». Отметка водителя с места по GPS сильнее устаревших данных. Прогнозы окон проверяются каждую ночь по фактическим привозам.'],
+      ['Чем это отличается от карты наличия?', 'Карта отвечает на вопрос «где есть сейчас». В дефицит она вся красная. Эта сводка отвечает на вопрос «когда привезут и стоит ли ехать» — по всем городам юга сразу, с окнами возврата и очередями.']
+    ];
+    const faqHtml = faq.map(q => '<details><summary>' + sdEsc(q[0]) + '</summary><p>' + sdEsc(q[1]) + '</p></details>').join('');
+    const ldArticle = { '@context': 'https://schema.org', '@type': 'Article', headline: title, description: desc, datePublished: bIso, dateModified: bIso, inLanguage: 'ru-RU', author: { '@type': 'Organization', name: 'КогдаБенз', url: SD_SITE + '/' }, publisher: { '@type': 'Organization', name: 'КогдаБенз', logo: { '@type': 'ImageObject', url: SD_SITE + '/icon-192.png' } }, image: SD_SITE + '/icon-512.png', mainEntityOfPage: { '@type': 'WebPage', '@id': SD_SITE + '/svodka.html' }, spatialCoverage: list.map(c => c.name) };
+    const ldFaq = { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: faq.map(q => ({ '@type': 'Question', name: q[0], acceptedAnswer: { '@type': 'Answer', text: q[1] } })) };
+    const ldBread = { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'КогдаБенз', item: SD_SITE + '/' }, { '@type': 'ListItem', position: 2, name: 'Сводка по Югу', item: SD_SITE + '/svodka.html' }] };
+
+    const css = ':root{--ink:#0a1024;--surf:#121a2e;--surf2:#16203a;--line:rgba(148,180,255,.16);--txt:#ebf3ff;--mut:#93a0b8;--blue:#4b93ff;--blue2:#2465ee;--green:#2fd39a;--amber:#f5a05a;--red:#ff8a80}' +
+      '*{box-sizing:border-box}html{scroll-behavior:smooth}' +
+      'body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;color:var(--txt);background:radial-gradient(900px 520px at 88% -8%,rgba(36,101,238,.30),transparent 62%),radial-gradient(760px 480px at 4% 22%,rgba(25,183,122,.16),transparent 60%),linear-gradient(180deg,#0d1526,#0a1024 60%,#080d1c);background-attachment:fixed;line-height:1.55}' +
+      '::-webkit-scrollbar{width:11px;height:11px}::-webkit-scrollbar-track{background:#0d1526}::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--blue),var(--blue2));border-radius:9px;border:2px solid #0d1526}' +
+      'a{color:var(--blue);text-decoration:none}.wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 16px 64px}' +
+      'header{position:sticky;top:0;z-index:20;backdrop-filter:blur(18px) saturate(1.4);background:rgba(10,16,36,.82);border-bottom:1px solid var(--line)}' +
+      '.hd{max-width:1080px;margin:0 auto;padding:11px 16px;display:flex;align-items:center;gap:12px}.logo{font-weight:900;font-size:17px}.logo span{color:var(--blue)}' +
+      '.hd .go{margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:99px;font-weight:800;font-size:13px;color:#fff;background:linear-gradient(135deg,#4b93ff,#2465ee 60%,#1746c8);box-shadow:0 6px 20px rgba(36,101,238,.4)}' +
+      'nav{display:flex;gap:7px;overflow-x:auto;padding:9px 16px;max-width:1080px;margin:0 auto;scrollbar-width:none}nav::-webkit-scrollbar{height:0}' +
+      'nav a{flex:none;font-size:12px;font-weight:700;color:var(--mut);padding:6px 11px;border-radius:99px;border:1px solid var(--line);background:rgba(148,180,255,.05)}' +
+      '.hero{padding:34px 0 8px}.eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11px;font-weight:900;letter-spacing:.9px;text-transform:uppercase;color:var(--green);background:rgba(25,183,122,.12);border:1px solid rgba(25,183,122,.32);padding:6px 13px;border-radius:99px}' +
+      '.eyebrow i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:p 1.9s infinite}@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}' +
+      'h1{font-size:clamp(27px,5.4vw,44px);line-height:1.12;margin:16px 0 10px;font-weight:900;letter-spacing:-1px}' +
+      'h1 em{font-style:normal;background:linear-gradient(100deg,#4b93ff,#2fd39a 55%,#b7a8ff);-webkit-background-clip:text;background-clip:text;color:transparent}' +
+      '.lead{font-size:15px;color:var(--mut);max-width:70ch;font-weight:500}.stamp{margin-top:12px;font-size:13px;font-weight:700;color:var(--mut)}.stamp b{color:var(--txt)}' +
+      '.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:11px;margin:24px 0 6px}' +
+      '.k{background:linear-gradient(160deg,var(--surf2),var(--surf));border:1px solid var(--line);border-radius:18px;padding:15px 16px;position:relative;overflow:hidden}' +
+      '.k small{display:block;font-size:10.5px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;color:var(--mut)}' +
+      '.k b{display:block;font-size:34px;font-weight:900;letter-spacing:-1.4px;margin-top:5px;line-height:1}.k i{display:block;font-style:normal;font-size:11.5px;color:var(--mut);margin-top:5px;font-weight:600}' +
+      '.k.g b{color:var(--green)}.k.b b{color:var(--blue)}.k.y b{color:var(--amber)}.k.r b{color:var(--red)}' +
+      'h2{font-size:clamp(20px,3.4vw,27px);margin:44px 0 6px;font-weight:900;letter-spacing:-.5px;scroll-margin-top:120px}.sub{color:var(--mut);font-size:13.5px;margin-bottom:16px;font-weight:500}' +
+      '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:11px}' +
+      '.win{display:flex;gap:12px;align-items:center;background:linear-gradient(160deg,var(--surf2),var(--surf));border:1px solid var(--line);border-radius:16px;padding:13px 15px}' +
+      '.win .t{flex:none;text-align:center;border-radius:12px;padding:8px 10px;min-width:88px;background:rgba(75,147,255,.14);border:1px solid rgba(75,147,255,.3)}' +
+      '.win .t b{display:block;font-size:15px;font-weight:900;color:var(--blue)}.win .t span{display:block;font-size:9.5px;font-weight:800;color:var(--mut);text-transform:uppercase}' +
+      '.win .m{min-width:0}.win .m b{display:block;font-size:14px;font-weight:800}.win .m span{display:block;font-size:12px;color:var(--mut)}.win .c{margin-left:auto;flex:none;font-size:19px;font-weight:900;color:var(--green)}' +
+      '.card{background:linear-gradient(165deg,var(--surf2),var(--surf));border:1px solid var(--line);border-radius:20px;padding:16px 16px 8px;margin-bottom:14px}' +
+      '.ch{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-bottom:10px}.dot{width:11px;height:11px;border-radius:50%;flex:none}' +
+      '.dot.g{background:var(--green)}.dot.y{background:var(--amber)}.dot.r{background:var(--red)}.dot.n{background:#7d8ba0}' +
+      '.ch h3{margin:0;font-size:19px;font-weight:900}.ch .st{font-size:11px;font-weight:800;padding:4px 10px;border-radius:99px;background:rgba(148,180,255,.1);color:var(--mut)}' +
+      '.ch .n{margin-left:auto;font-size:13px;font-weight:800;color:var(--mut)}.ch .n b{color:var(--txt);font-size:16px}' +
+      '.tw{overflow-x:auto;border-radius:14px;border:1px solid var(--line)}table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}' +
+      'th{background:rgba(148,180,255,.07);text-align:left;padding:10px 12px;font-size:10.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--mut);white-space:nowrap}' +
+      'td{padding:10px 12px;border-top:1px solid rgba(148,180,255,.09);vertical-align:middle}tr:hover td{background:rgba(148,180,255,.045)}td b{font-weight:800}td .ad{display:block;font-size:11.5px;color:var(--mut)}' +
+      '.pill{display:inline-block;border-radius:7px;padding:3px 8px;font-size:11px;font-weight:900;white-space:nowrap}' +
+      '.pill.y{background:rgba(25,183,122,.16);color:var(--green)}.pill.n{background:rgba(239,83,80,.15);color:var(--red)}.pill.u{background:rgba(148,180,255,.09);color:var(--mut)}' +
+      '.wt{font-weight:900;color:var(--blue);white-space:nowrap}.cf{color:var(--mut);font-size:11.5px;font-weight:700}' +
+      '.chg{display:flex;flex-direction:column;gap:7px}.cr{display:flex;align-items:center;gap:10px;background:rgba(148,180,255,.05);border:1px solid var(--line);border-radius:12px;padding:9px 13px;font-size:13px}' +
+      '.cr i{width:8px;height:8px;border-radius:50%;flex:none}.cr i.g{background:var(--green)}.cr i.r{background:var(--red)}.cr em{margin-left:auto;font-style:normal;color:var(--mut);font-weight:800}' +
+      '.faq{display:flex;flex-direction:column;gap:9px}details{background:linear-gradient(160deg,var(--surf2),var(--surf));border:1px solid var(--line);border-radius:15px;padding:13px 16px}' +
+      'summary{cursor:pointer;font-weight:800;font-size:14.5px;list-style:none;display:flex;gap:10px;align-items:center}summary::-webkit-details-marker{display:none}' +
+      'summary::before{content:"+";color:var(--blue);font-weight:900;font-size:19px;line-height:1}details[open] summary::before{content:"–"}details p{margin:10px 0 0;color:var(--mut);font-size:13.5px}' +
+      '.cta{margin:36px 0 0;border-radius:22px;padding:24px;text-align:center;background:linear-gradient(135deg,rgba(36,101,238,.24),rgba(25,183,122,.16) 60%,rgba(124,109,255,.2));border:1px solid rgba(148,180,255,.28)}' +
+      '.cta h2{margin:0 0 8px}.cta p{color:var(--mut);margin:0 0 16px;font-size:14px}' +
+      '.cta a{display:inline-block;padding:13px 26px;border-radius:99px;font-weight:900;font-size:15px;color:#fff;background:linear-gradient(135deg,#4b93ff,#2465ee 60%,#1746c8);box-shadow:0 10px 30px rgba(36,101,238,.45)}' +
+      'footer{margin-top:38px;padding-top:18px;border-top:1px solid var(--line);color:var(--mut);font-size:12.5px}footer b{color:var(--txt)}' +
+      '@media(max-width:640px){.hd .go{padding:8px 12px;font-size:12px}.k b{font-size:28px}}';
+
+    const html = '<!DOCTYPE html>\n<html lang="ru"><head>\n<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n<title>' + sdEsc(title) + '</title>\n' +
+      '<meta name="description" content="' + sdEsc(desc) + '">\n<link rel="canonical" href="' + SD_SITE + '/svodka.html">\n' +
+      '<meta property="og:type" content="article"><meta property="og:locale" content="ru_RU"><meta property="og:title" content="' + sdEsc(title) + '"><meta property="og:description" content="' + sdEsc(desc) + '"><meta property="og:url" content="' + SD_SITE + '/svodka.html"><meta property="og:image" content="' + SD_SITE + '/icon-512.png">\n' +
+      '<meta name="twitter:card" content="summary_large_image"><link rel="icon" href="' + SD_SITE + '/icon-192.png">\n<style>' + css + '</style>\n' +
+      '<script type="application/ld+json">' + JSON.stringify(ldArticle) + '</script>\n<script type="application/ld+json">' + JSON.stringify(ldFaq) + '</script>\n<script type="application/ld+json">' + JSON.stringify(ldBread) + '</script>\n</head><body>\n' +
+      '<header><div class="hd"><div class="logo">Когда<span>Бенз</span></div><a class="go" href="' + SD_SITE + '/">Живая карта юга →</a></div><nav>' + navHtml + '</nav></header>\n' +
+      '<div class="wrap">\n<div class="hero">\n<span class="eyebrow"><i></i>Автовыпуск каждые 4 часа</span>\n<h1>Когда привезут бензин <em>на юге России</em></h1>\n' +
+      '<p class="lead">Общая сводка по всем городам юга: где топливо есть сейчас, на каких АЗС очередь и в какие часы ожидается привоз. Не один город — весь юг сразу: Краснодарский край, Адыгея, Ростовская область и Ставрополье.</p>\n' +
+      '<p class="stamp">Выпуск <b>' + stamp + ' МСК</b> · следующий в <b>' + nxt + ' МСК</b> · ' + T.cities + ' городов · ' + T.total + ' АЗС</p>\n</div>\n' +
+      '<div class="kpi"><div class="k g"><small>АИ-95 есть</small><b>' + T.a95 + '</b><i>из ' + T.known + ' АЗС с данными</i></div><div class="k b"><small>Окна привоза</small><b>' + T.wins + '</b><i>прогнозов на сегодня и завтра</i></div><div class="k y"><small>Очереди</small><b>' + T.q + '</b><i>АЗС с очередью сейчас</i></div><div class="k r"><small>АИ-92 / дизель</small><b>' + T.a92 + ' / ' + T.adt + '</b><i>АЗС с топливом</i></div></div>\n' +
+      '<h2 id="windows">Ближайшие окна привоза по югу</h2>\n<p class="sub">Интервалы, когда топливо обычно возвращается на заправку. Процент — уверенность прогноза, проверяемая по фактическим привозам каждую ночь.</p>\n<div class="grid">' + winsHtml + '</div>\n' +
+      '<h2 id="changes">Что изменилось за последние 4 часа</h2>\n<p class="sub">События по всем городам юга с начала выпуска.</p>\n<div class="chg">' + chHtml + '</div>\n' +
+      '<h2 id="cities">Наличие топлива по городам</h2>\n<p class="sub">Сначала города, где напряжённее. Таблица по каждой АЗС: марки топлива, очередь и окно возврата.</p>\n' + blocksHtml + '\n' +
+      '<h2 id="faq">Частые вопросы</h2>\n<div class="faq">' + faqHtml + '</div>\n' +
+      '<div class="cta"><h2>Проверить свою заправку прямо сейчас</h2><p>Живая карта обновляется каждые 10 минут, показывает очереди и отправляет уведомление в Telegram, когда топливо вернулось на избранную АЗС.</p><a href="' + SD_SITE + '/">Открыть КогдаБенз</a></div>\n' +
+      '<footer><b>КогдаБенз</b> — карта наличия топлива и прогнозов привоза на юге России. Сводка формируется автоматически каждые 4 часа: 00:00, 04:00, 08:00, 12:00, 16:00 и 20:00 МСК. Прогноз — вероятность, а не гарантия фактического появления топлива. Данные: отметки АЗС и сообщения водителей.<br>Обновлено ' + stamp + ' МСК.</footer>\n</div></body></html>';
+
+    sdWrite(dir, 'svodka.html', html);
+    sdWrite(dir, 'sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>' + SD_SITE + '/</loc><lastmod>' + bIso + '</lastmod><changefreq>hourly</changefreq><priority>1.0</priority></url>\n  <url><loc>' + SD_SITE + '/svodka.html</loc><lastmod>' + bIso + '</lastmod><changefreq>hourly</changefreq><priority>0.9</priority></url>\n</urlset>\n');
+    const rp = SD_PATH.join(dir, 'robots.txt');
+    let body = '';
+    try { if (SD_FS.existsSync(rp)) body = SD_FS.readFileSync(rp, 'utf8'); } catch (e) {}
+    const line = 'Sitemap: ' + SD_SITE + '/sitemap.xml';
+    if (body.indexOf(line) < 0) {
+      if (body.indexOf('User-agent') < 0) body = 'User-agent: *\nAllow: /\n';
+      sdWrite(dir, 'robots.txt', body.replace(/\s+$/, '') + '\n\n' + line + '\n');
+    }
+    sdWrite(dir, 'svodka.json', JSON.stringify({ generated: bIso, totals: T, cities: list.map(c => ({ key: c.key, name: c.name, total: c.total, known: c.known, a92: c.a92, a95: c.a95, adt: c.adt, any: c.any, q: c.q, level: c.level })) }, null, 1));
+    await sbPost('bot_meta?on_conflict=key', [{ key: 'svodka_bucket', value: bIso, updated_at: new Date().toISOString() }], 'return=minimal,resolution=merge-duplicates');
+    console.log('   Сводка юга: городов ' + T.cities + ', АЗС ' + T.total + ', АИ-95 ' + T.a95 + '/' + T.known + ', окон ' + T.wins + ' → ' + dir);
+  } catch (e) {
+    console.log('   ! Сводка юга: ' + e.message);
+  }
+}
 async function main() {
   // джиттер до 45 сек: не стучим синхронно с волнами атаки и другими клиентами
   await new Promise(res => setTimeout(res, Math.floor(Math.random() * 45000)));
@@ -494,6 +800,7 @@ await tgUpstreamThrottled('⚠️ GdeBenz недоступен (похоже н�
 }
 if (upstreamDown) {
 await outageCrowdCycle();
+await southDigest();
 console.log('✅ Цикл завершён в аварийном режиме: толпа и уборка без источника');
 return;
 }
@@ -1125,6 +1432,7 @@ await tg('⚡ ' + hh + (total ? ' · ' + total : '') +
   (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
   body, true);
 }
+await southDigest();
   console.log('✅ Цикл завершён');
 }
 

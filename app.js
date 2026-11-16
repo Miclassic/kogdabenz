@@ -11853,7 +11853,7 @@ document.addEventListener('click', function (e) {
   }
   if ((el = t.closest('[data-kbr-send]'))) { send(); return; }
   if ((el = t.closest('[data-kbr-later]'))) {
-    lsSet(LS_SNOOZE, Date.now() + 3 * 86400000);
+    lsSet(LS_SNOOZE, Date.now() + 1 * 86400000);
     try { track('rate_later'); } catch (e2) {}
     closeModal(); return;
   }
@@ -12540,4 +12540,2470 @@ setInterval(place, 1200);
 refreshNums();
 setInterval(refreshNums, 45000);
 document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') refreshNums(); });
+})();
+// ============================================================
+// KB CARD PREDICTION + MARK WIZARD v1
+// 1) Окно прогноза — в самом начале карточки АЗС, крупно и красиво,
+//    с явной подсказкой: слабая уверенность → смотри на окно привоза.
+// 2) Вместо разрозненных плашек «поставить отметку» — одна третья
+//    зелёная кнопка в card-btns. Она раскрывает слои: топливо →
+//    очередь → ещё → отправить. На каждый чип справа выскакивает
+//    синее фирменное сообщение (белый текст), живое и разнообразное.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCardPredWizard) return;
+window.__kbCardPredWizard = 1;
+
+// ---------- палитра сайта ----------
+(function css() {
+if (document.getElementById('kbCardPredWizardCss')) return;
+var s = document.createElement('style');
+s.id = 'kbCardPredWizardCss';
+s.textContent =
+'.kb-pred{margin:10px 14px 0;padding:12px 14px;border-radius:16px;border:1px solid #bcd4ff;background:linear-gradient(135deg,#eef4ff,#e0ebff 55%,#dfe9ff);position:relative;overflow:hidden;}' +
+'.kb-pred::before{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(36,101,238,.18),rgba(36,101,238,0) 70%);pointer-events:none;}' +
+'.kb-pred-head{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:900;letter-spacing:.7px;text-transform:uppercase;color:#1746c8;margin-bottom:6px;}' +
+'.kb-pred-head .ic{width:13px;height:13px;}' +
+'.kb-pred-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}' +
+'.kb-pred-time{font-size:26px;font-weight:900;color:#14213d;letter-spacing:-.5px;line-height:1;}' +
+'.kb-pred-conf{border-radius:99px;padding:5px 11px;font-size:11px;font-weight:800;}' +
+'.kb-pred-conf.g{background:#e5f8ef;color:#12855c;}' +
+'.kb-pred-conf.y{background:#fff6ec;color:#c26a2a;}' +
+'.kb-pred-conf.n{background:#eef2f8;color:#7487a7;}' +
+'.kb-pred-src{font-size:10px;font-weight:700;color:#7487a7;}' +
+'.kb-pred-note{margin-top:8px;font-size:11px;line-height:1.5;color:#5b6b86;font-weight:600;display:flex;gap:6px;align-items:flex-start;}' +
+'.kb-pred-note .ic{width:13px;height:13px;flex:none;margin-top:1px;color:#2465ee;}' +
+'.kb-pred-note.warn{color:#8a5a2b;}' +
+'.kb-pred-note.warn .ic{color:#f5a05a;}' +
+'body.kb-night .kb-pred{background:linear-gradient(135deg,#15203a,#101828);border-color:rgba(148,180,255,.25);}' +
+'body.kb-night .kb-pred-head{color:#7db4ff;}' +
+'body.kb-night .kb-pred-time{color:#ebf3ff;}' +
+'body.kb-night .kb-pred-note{color:#93a0b8;}' +
+'body.kb-night .kb-pred-src{color:#93a0b8;}' +
+'.kb-mark-btn{background:linear-gradient(135deg,#2fd39a,#19b77a 55%,#12855c)!important;color:#fff!important;box-shadow:0 6px 16px rgba(25,183,122,.35)!important;font-weight:800!important;}' +
+'.kb-wiz{margin:10px 14px 0;border-radius:16px;border:1px solid #bfe8d4;background:linear-gradient(160deg,#f4fbf7,#eef4ff);padding:12px 14px;display:none;}' +
+'.kb-wiz.open{display:block;animation:kbWizIn .35s cubic-bezier(.2,.8,.2,1);}' +
+'@keyframes kbWizIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}' +
+'body.kb-night .kb-wiz{background:linear-gradient(160deg,#12203a,#101828);border-color:rgba(25,183,122,.3);}' +
+'.kb-wiz-step{display:none;margin-top:10px;}' +
+'.kb-wiz-step.open{display:block;animation:kbWizIn .3s ease;}' +
+'.kb-wiz-q{font-size:12px;font-weight:800;color:#14213d;margin-bottom:7px;display:flex;align-items:center;gap:6px;}' +
+'.kb-wiz-q .n{flex:none;width:18px;height:18px;border-radius:50%;background:#19b77a;color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;}' +
+'body.kb-night .kb-wiz-q{color:#ebf3ff;}' +
+'.kb-wiz-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}' +
+'.kb-wiz-chip{border:1px solid #dfe8f2;background:#fff;color:#33445f;border-radius:99px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;}' +
+'.kb-wiz-chip.on{border-color:#19b77a;background:#e5f8ef;color:#12855c;}' +
+'.kb-wiz-chip.on.no{border-color:#ef5350;background:#fdecec;color:#c2403f;}' +
+'body.kb-night .kb-wiz-chip{background:#121a2e;border-color:rgba(148,180,255,.2);color:#c6d2e8;}' +
+'.kb-bub{position:relative;display:inline-flex;align-items:center;margin-left:8px;background:linear-gradient(135deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;border-radius:12px;padding:7px 11px;font-size:10.5px;font-weight:700;line-height:1.35;max-width:200px;box-shadow:0 4px 14px rgba(36,101,238,.35);animation:kbBubPop .35s cubic-bezier(.34,1.5,.64,1);}' +
+'.kb-bub::before{content:"";position:absolute;left:-4px;top:50%;width:9px;height:9px;background:#2465ee;transform:translateY(-50%) rotate(45deg);border-radius:2px;}' +
+'@keyframes kbBubPop{from{opacity:0;transform:scale(.6);}to{opacity:1;transform:scale(1);}}' +
+'.kb-wiz-send{display:none;margin-top:12px;}' +
+'.kb-wiz-send.open{display:block;}' +
+'.kb-wiz-thanks{font-size:12px;font-weight:800;color:#12855c;text-align:center;padding:8px 0;}' +
+'@media (prefers-reduced-motion:reduce){.kb-wiz.open,.kb-wiz-step.open,.kb-bub{animation:none;}}';
+document.head.appendChild(s);
+})();
+
+// ---------- живые сообщения ----------
+var ACK = ['Ага, записали ✓','Принято!','Ок, учёл ✓','Записано!','Плюс один факт ✓','Вижу, спасибо!','Отлично, ловлю ✓'];
+var FUEL_Q = ['Ага, записали. Что по очереди там сейчас?','Принято! А очередь там есть?','Ок, топливо учли. Как там с очередью?','Записал! Сколько машин стоит?','Хорошо! А люди в очереди стоят?','Понял! Что там по очереди?'];
+var Q_EXTRA = ['Понял, очередь учли. Бензовоз сегодня приезжал?','Ок! А привоз сегодня был?','Записано. Что ещё видно на заправке?','Принято! Привоз не видели?','Хорошо! А топливо подвозили?'];
+var EXTRA_ACK = ['Спасибо! Всё учёл — отправляем?','Принято! Жми «Отправить» — город увидит.','Ок! Осталось нажать «Отправить».','Записал! Отправляем отметку?'];
+var lastPick = {};
+function pick(arr, key) {
+var i = Math.floor(Math.random() * arr.length);
+if (arr.length > 1 && i === lastPick[key]) i = (i + 1) % arr.length;
+lastPick[key] = i;
+return arr[i];
+}
+
+// ---------- состояние мастера на станцию ----------
+var wizState = {};
+function stateFor(id) {
+if (!wizState[id]) wizState[id] = { fuel: {}, queue: null, extra: {}, rev2: false, rev3: false };
+return wizState[id];
+}
+
+// ---------- окно прогноза в начале карточки ----------
+function predHtml(station, pred) {
+var g = getPrediction(pred);
+var has = !!pred && !!pred.from_time;
+var c = g.confidence;
+var confCls = c >= 60 ? 'g' : c >= 35 ? 'y' : 'n';
+var head = '<div class="kb-pred-head">' + icon('i-clock', 'ic-s') + 'Окно возврата топлива</div>';
+if (!has) {
+return '<div class="kb-pred">' + head +
+'<div class="kb-pred-row"><span class="kb-pred-time">Прогноз зреет</span></div>' +
+'<div class="kb-pred-note">' + icon('i-help', 'ic-s') + '<span>История привозов ещё копится. Когда ритм станции станет понятен, здесь появится окно возврата — приезжай в него, а не наугад.</span></div></div>';
+}
+var noteCls = c < 35 ? ' warn' : '';
+var noteTxt = c < 35
+? 'Уверенность слабая — смотри именно на окно привоза: топливо чаще возвращается в этот интервал. Приезжай к нему, а не «прямо сейчас».'
+: 'Если уверенность когда-то будет слабой — ориентируйся на окно привоза: это интервал, когда топливо обычно возвращается на эту АЗС.';
+return '<div class="kb-pred">' + head +
+'<div class="kb-pred-row"><span class="kb-pred-time">' + time5(pred.from_time) + '–' + time5(pred.to_time) + '</span>' +
+'<span class="kb-pred-conf ' + confCls + '">уверенность ' + c + '%</span>' +
+'<span class="kb-pred-src">' + srcLabel(pred) + '</span></div>' +
+'<div class="kb-pred-note' + noteCls + '">' + icon('i-help', 'ic-s') + '<span>' + noteTxt + '</span></div></div>';
+}
+
+// ---------- оборачиваем карточку ----------
+var _sc = stationCard;
+stationCard = function (station, obs, pred) {
+var html = _sc(station, obs, pred);
+var tpl = document.createElement('template');
+tpl.innerHTML = html;
+var root = tpl.content;
+// убираем старые плашки/кнопки отметки
+root.querySelectorAll('.folk-add').forEach(function (b) { b.remove(); });
+root.querySelectorAll('.feedback-panel').forEach(function (p) { p.remove(); });
+root.querySelectorAll('.mf-plate button[onclick^="toggleFeedback"]').forEach(function (b) { b.remove(); });
+// окно прогноза — сразу после шапки
+var header = root.querySelector('.station-header');
+if (header) header.insertAdjacentHTML('afterend', predHtml(station, pred));
+// третья зелёная кнопка
+var btns = root.querySelector('.card-btns');
+if (btns) btns.insertAdjacentHTML('beforeend',
+'<button class="cta-btn big kb-mark-btn" onclick="kbMarkOpen(\'' + station.id + '\')">' + icon('i-check') + 'Отметить топливо и очередь</button>');
+// контейнер мастера сразу после кнопок
+if (btns) btns.insertAdjacentHTML('afterend', '<div class="kb-wiz" id="kbWiz" data-st="' + station.id + '"></div>');
+return tpl.innerHTML;
+};
+
+// ---------- открытие мастера ----------
+window.kbMarkOpen = function (id) {
+var box = document.getElementById('kbWiz');
+if (!box || box.dataset.st !== id) return;
+wizState[id] = { fuel: {}, queue: null, extra: {}, rev2: false, rev3: false };
+box.innerHTML =
+'<div class="kb-wiz-step open" data-step="1"><div class="kb-wiz-q"><span class="n">1</span>Что с топливом?</div><div class="kb-wiz-chips">' +
+['92', '95', 'diesel'].map(function (f) {
+return '<button class="kb-wiz-chip" data-step="fuel" data-fuel="' + f + '" data-val="yes">' + fuelLabel(f) + ' есть</button>' +
+'<button class="kb-wiz-chip no" data-step="fuel" data-fuel="' + f + '" data-val="no">' + fuelLabel(f) + ' нет</button>';
+}).join('') + '</div></div>' +
+'<div class="kb-wiz-step" data-step="2"><div class="kb-wiz-q"><span class="n">2</span>Что по очереди?</div><div class="kb-wiz-chips">' +
+'<button class="kb-wiz-chip" data-step="queue" data-q="free">Свободно</button>' +
+'<button class="kb-wiz-chip" data-step="queue" data-q="small">2–3</button>' +
+'<button class="kb-wiz-chip" data-step="queue" data-q="medium">4–6</button>' +
+'<button class="kb-wiz-chip" data-step="queue" data-q="large">7+</button>' +
+'<button class="kb-wiz-chip" data-step="queue" data-q="huge">100+</button>' +
+'<button class="kb-wiz-chip" data-step="queue" data-q="in_queue">Стою сейчас</button>' +
+'</div></div>' +
+'<div class="kb-wiz-step" data-step="3"><div class="kb-wiz-q"><span class="n">3</span>Что ещё видно?</div><div class="kb-wiz-chips">' +
+'<button class="kb-wiz-chip" data-step="extra" data-extra="delivery">Привезли бензовоз</button>' +
+'</div></div>' +
+'<div class="kb-wiz-send"><button class="cta-btn kb-mark-btn" style="width:100%" onclick="kbMarkSend(\'' + id + '\')">Отправить отметку</button></div>';
+box.classList.add('open');
+setTimeout(function () { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60);
+};
+
+function openStep(box, n) {
+var st = box.querySelector('.kb-wiz-step[data-step="' + n + '"]');
+if (st) st.classList.add('open');
+}
+function showBubble(btn, msg) {
+var row = btn.closest('.kb-wiz-chips');
+if (!row) return;
+row.querySelectorAll('.kb-bub').forEach(function (b) { b.remove(); });
+var b = document.createElement('span');
+b.className = 'kb-bub';
+b.textContent = msg;
+btn.insertAdjacentElement('afterend', b);
+}
+function rowsOf(st) {
+var rows = [];
+['92', '95', 'diesel'].forEach(function (f) {
+if (st.fuel[f]) rows.push({ feedback_type: st.fuel[f] === 'yes' ? 'available' : 'unavailable', fuel_type: f, queue_size: null, comment_text: null });
+});
+if (st.queue === 'in_queue') rows.push({ feedback_type: 'in_queue', fuel_type: null, queue_size: null, comment_text: null });
+else if (st.queue === 'free') rows.push({ feedback_type: 'free', fuel_type: null, queue_size: null, comment_text: null });
+else if (st.queue) rows.push({ feedback_type: 'queue', fuel_type: null, queue_size: st.queue, comment_text: null });
+if (st.extra.delivery) rows.push({ feedback_type: 'delivery', fuel_type: null, queue_size: null, comment_text: null });
+return rows;
+}
+function updateSend(box, st) {
+var send = box.querySelector('.kb-wiz-send');
+if (send) send.classList.toggle('open', rowsOf(st).length > 0);
+}
+
+// ---------- клики по чипам ----------
+document.addEventListener('click', function (e) {
+var btn = e.target.closest ? e.target.closest('.kb-wiz-chip') : null;
+if (!btn) return;
+var box = btn.closest('.kb-wiz');
+if (!box) return;
+var id = box.dataset.st;
+var st = stateFor(id);
+var step = btn.dataset.step;
+var msg;
+if (step === 'fuel') {
+var f = btn.dataset.fuel, v = btn.dataset.val;
+st.fuel[f] = v;
+box.querySelectorAll('.kb-wiz-chip[data-fuel="' + f + '"]').forEach(function (b) { b.classList.toggle('on', b === btn); });
+if (!st.rev2) { st.rev2 = true; openStep(box, 2); msg = pick(FUEL_Q, 'fq'); }
+else msg = pick(ACK, 'ack');
+} else if (step === 'queue') {
+st.queue = btn.dataset.q;
+box.querySelectorAll('.kb-wiz-chip[data-step="queue"]').forEach(function (b) { b.classList.toggle('on', b === btn); });
+if (!st.rev3) { st.rev3 = true; openStep(box, 3); msg = pick(Q_EXTRA, 'qe'); }
+else msg = pick(ACK, 'ack');
+} else {
+var k = btn.dataset.extra;
+st.extra[k] = !st.extra[k];
+btn.classList.toggle('on', st.extra[k]);
+msg = st.extra[k] ? pick(EXTRA_ACK, 'ex') : pick(ACK, 'ack');
+}
+showBubble(btn, msg);
+updateSend(box, st);
+}, true);
+
+// ---------- отправка ----------
+window.kbMarkSend = async function (id) {
+var box = document.getElementById('kbWiz');
+var st = stateFor(id);
+var rows = rowsOf(st);
+if (!rows.length) return;
+var key = 'fb_' + id;
+var history = [];
+try { history = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+var now = Date.now();
+if (history.filter(function (t) { return now - t < 30 * 60 * 1000; }).length >= 3) {
+alert('Слишком много отметок. Попробуйте через полчаса.');
+return;
+}
+var station = stationById(id);
+var onSite = await onSiteFields(station);
+rows.forEach(function (r) { r.station_id = id; r.device_id = deviceId; Object.assign(r, onSite); });
+var ok = true;
+try { await dbInsert('user_feedback', rows); } catch (e) { ok = false; }
+if (!ok) queueFeedbackLocally(rows);
+history.push(now);
+try { localStorage.setItem(key, JSON.stringify(history)); } catch (e) {}
+rows.forEach(function (r) { allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)); });
+track('feedback_submit');
+bumpContrib();
+if (box) box.innerHTML = '<div class="kb-wiz-thanks">Спасибо! Отметка учтена — город видит свежее топливо 🙏</div>';
+setTimeout(function () {
+try { if (mapObj) renderMap(); } catch (e) {}
+try { softRefresh(); } catch (e) {}
+}, 1200);
+};
+})();
+// ============================================================
+// KB SOUTH DIGEST v1 — «Сводка по Югу»: автовыпуск каждые 4 часа.
+// Вся территория (11 городов), а не город пользователя.
+// Выпуски: 00:00 / 04:00 / 08:00 / 12:00 / 16:00 / 20:00 МСК.
+// Дата и время выпуска, города, АЗС, окна привоза, изменения за выпуск,
+// сравнение с прошлым выпуском, шеринг-картинка всего юга,
+// ссылка на индексируемую статическую страницу /svodka.html.
+// Новых запросов к базе нет: считаем из уже загруженных массивов.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+  'use strict';
+  if (window.__kbSouthDigest) return;
+  window.__kbSouthDigest = 1;
+
+  var SITE = 'https://kogdabenz.ru';
+  var H = 3600000;
+  var BUCKET_MS = 4 * H;
+
+  // ---------- утилиты ----------
+  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function ssGet(k, d) { try { var v = sessionStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+  function ssSet(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function esc(s) { return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s); }
+  function ic(n, c) { return typeof icon === 'function' ? icon(n, c) : ''; }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function plural(n, f) { var a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
+  function mskDate(ms) { return new Date((ms == null ? Date.now() : ms) + 3 * H); }
+  function mskMinutes() { var d = mskDate(); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
+  function mskToday() { return mskDate().toISOString().slice(0, 10); }
+  function bucketStart() { return Math.floor((Date.now() + 3 * H) / BUCKET_MS) * BUCKET_MS - 3 * H; }
+  function stamp(ts) { var d = mskDate(ts); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ', ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+  function hm(ts) { var d = mskDate(ts); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+  function hhmm(v) { var s = String(v || ''); return Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)); }
+  function t5(v) { return typeof time5 === 'function' ? time5(v) : String(v || '').slice(0, 5); }
+  function fl(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
+  function flShort(f) { return f === '92' ? '92' : f === '95' ? '95' : 'ДТ'; }
+
+  var GEN = {
+    novorossiysk: 'Новороссийска', gelendzhik: 'Геленджика', anapa: 'Анапы', krymsk: 'Крымска',
+    krasnodar: 'Краснодара', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавира',
+    maykop: 'Майкопа', rostov: 'Ростова-на-Дону', stavropol: 'Ставрополя'
+  };
+
+  function boxes() { return (typeof CITY_BOXES !== 'undefined' && CITY_BOXES) ? CITY_BOXES : []; }
+  function cityKeyOf(st) {
+    var b = boxes(), lat = Number(st.lat), lon = Number(st.lon);
+    if (!isFinite(lat) || !isFinite(lon)) return null;
+    for (var i = 0; i < b.length; i++) {
+      var c = b[i];
+      if (lat >= c.lat1 && lat <= c.lat2 && lon >= c.lon1 && lon <= c.lon2) return c.key;
+    }
+    return null;
+  }
+  function winKey(p) {
+    if (!p || !p.from_time) return 1e9;
+    var f = hhmm(p.from_time), t = hhmm(p.to_time), now = mskMinutes(), today = mskToday();
+    if (p.target_date && p.target_date > today) return 1440 + f;
+    if (p.target_date && p.target_date < today) return 1e9;
+    if (now >= f && now <= t) return 0;
+    if (f > now) return f - now;
+    return 1e8;
+  }
+  function winBadge(k) {
+    if (k === 0) return { cls: 'now', txt: 'сейчас' };
+    if (k >= 1440) return { cls: 'tom', txt: 'завтра' };
+    if (k <= 180) return { cls: 'soon', txt: 'скоро' };
+    return { cls: 'later', txt: 'потом' };
+  }
+
+  // ---------- настройки карточки ----------
+  function prefFuel() { var f = lsGet('kbSvFuel', '95'); return (f === '92' || f === '95' || f === 'diesel') ? f : '95'; }
+  function prefSort() { return lsGet('kbSvSort', 'deficit'); }
+  function prefOnlyWin() { return !!lsGet('kbSvOnlyWin', false); }
+
+  // ---------- индексы: один проход по массивам, без O(n²) ----------
+  function buildIdx() {
+    var now = Date.now();
+    var fb = (typeof allFeedback !== 'undefined' && allFeedback) ? allFeedback : [];
+    var ev = (typeof allWaveEvents !== 'undefined' && allWaveEvents) ? allWaveEvents : [];
+    var preds = (typeof allPredictions !== 'undefined' && allPredictions) ? allPredictions : [];
+
+    var chg = {};
+    for (var i = 0; i < ev.length; i++) {
+      var e = ev[i];
+      if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
+      var t = new Date(e.detected_at).getTime();
+      var k = e.station_id + '|' + e.fuel_type;
+      if (!chg[k] || t > chg[k]) chg[k] = t;
+    }
+
+    var folk = {}, onSite = {}, live = {}, folkLatest = {};
+    var floor24 = now - 24 * H, floor2 = now - 2 * H, floor30 = now - 30 * 60000;
+    for (var j = 0; j < fb.length; j++) {
+      var f = fb[j];
+      var ft = new Date(f.created_at).getTime();
+      var key = f.station_id + '|' + (f.fuel_type || '');
+      if (f.feedback_type === 'in_queue') {
+        if (ft >= floor30) {
+          var s = live[f.station_id] || (live[f.station_id] = {});
+          s[f.device_id || '?'] = 1;
+        }
+        continue;
+      }
+      if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+      if (!f.fuel_type) continue;
+      if (ft >= floor2 && f.feedback_type === 'available' && f.verified_on_site) onSite[key] = Math.max(onSite[key] || 0, ft);
+      if (ft < floor24) continue;
+      if (chg[key] && ft <= chg[key]) continue;
+      var g = folk[key] || (folk[key] = { yes: 0, no: 0, dy: {}, dn: {} });
+      if (f.feedback_type === 'available') { g.yes++; g.dy[f.device_id || '?'] = 1; folkLatest[key + '|y'] = Math.max(folkLatest[key + '|y'] || 0, ft); }
+      else { g.no++; g.dn[f.device_id || '?'] = 1; folkLatest[key + '|n'] = Math.max(folkLatest[key + '|n'] || 0, ft); }
+    }
+
+    var bySt = {};
+    for (var p = 0; p < preds.length; p++) {
+      var pr = preds[p];
+      if (pr.result !== 'PENDING') continue;
+      (bySt[pr.station_id] || (bySt[pr.station_id] = [])).push(pr);
+    }
+    return { chg: chg, folk: folk, onSite: onSite, live: live, latest: folkLatest, preds: bySt };
+  }
+
+  function fuelState(st, o, f, idx) {
+    var col = f === '92' ? 'fuel_92_status' : f === '95' ? 'fuel_95_status' : 'diesel_status';
+    var key = st.id + '|' + f;
+    if (idx.onSite[key]) return { v: true, src: 'scene' };
+    var trust = false;
+    try { trust = o ? availTrustworthy(o) : false; } catch (e) { trust = false; }
+    var raw = o ? o[col] : null;
+    if (trust && raw === true) return { v: true, src: 'source' };
+    if (trust && raw === false) return { v: false, src: 'source' };
+    var g = idx.folk[key];
+    if (g) {
+      var ny = Object.keys(g.dy).length, nn = Object.keys(g.dn).length;
+      if (ny >= 2 && ny > nn) return { v: true, src: 'folk', votes: ny };
+      if (nn >= 2 && nn > ny) return { v: false, src: 'folk', votes: nn };
+      if (g.yes >= 2 && g.yes > g.no) return { v: true, src: 'folk', votes: g.yes };
+      if (g.no >= 2 && g.no > g.yes) return { v: false, src: 'folk', votes: g.no };
+      if (ny >= 1 && nn >= 1) return { v: null, src: 'conflict' };
+    }
+    if (raw === true) return { v: null, src: 'stale' };
+    if (raw === false) return { v: false, src: 'stale-no' };
+    return { v: null, src: 'none' };
+  }
+
+  function pickPred(stId, o, idx, wantFuel) {
+    var list = idx.preds[stId];
+    if (!list || !list.length) return null;
+    var ok = list.filter(function (p) { return winKey(p) < 1e8 && Math.round((p.confidence || 0) * 100) >= 35; });
+    if (!ok.length) return null;
+    if (wantFuel) {
+      var f = ok.filter(function (p) { return p.fuel_type === wantFuel; });
+      if (f.length) { f.sort(function (a, b) { return winKey(a) - winKey(b); }); return f[0]; }
+      return null;
+    }
+    ok.sort(function (a, b) { return winKey(a) - winKey(b); });
+    return ok[0];
+  }
+
+  // ---------- сбор выпуска ----------
+  function collect() {
+    var stations = (typeof allStations !== 'undefined' && allStations) ? allStations : [];
+    if (!stations.length) return null;
+    var last = {};
+    try { last = getLastObservations() || {}; } catch (e) { last = {}; }
+    var idx = buildIdx();
+    var B = boxes();
+    var map = {}, order = [];
+    for (var i = 0; i < B.length; i++) {
+      map[B[i].key] = { key: B[i].key, name: B[i].name, gen: GEN[B[i].key] || B[i].name, total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: [], sts: [] };
+      order.push(B[i].key);
+    }
+    var fuel = prefFuel();
+    for (var s = 0; s < stations.length; s++) {
+      var st = stations[s];
+      var ck = cityKeyOf(st);
+      if (!ck || !map[ck]) continue;
+      var c = map[ck], o = last[st.id];
+      c.total++;
+      var v92 = fuelState(st, o, '92', idx), v95 = fuelState(st, o, '95', idx), vdt = fuelState(st, o, 'diesel', idx);
+      var known = !!(v92.src !== 'none' || v95.src !== 'none' || vdt.src !== 'none');
+      if (known) c.known++;
+      if (v92.v === true) c.a92++;
+      if (v95.v === true) c.a95++;
+      if (vdt.v === true) c.adt++;
+      var hasAny = v92.v === true || v95.v === true || vdt.v === true;
+      if (hasAny) c.any++;
+      var lq = idx.live[st.id] ? Object.keys(idx.live[st.id]).length : 0;
+      var hi = !!(o && o.queue_level === 'high');
+      if (lq || hi) c.q++;
+      var pr = pickPred(st.id, o, idx, null);
+      var row = { st: st, o: o, v92: v92, v95: v95, vdt: vdt, lq: lq, hi: hi, pred: pr, has: hasAny };
+      c.sts.push(row);
+      if (pr) {
+        c.wins.push({ st: st, city: c.name, cityKey: c.key, pred: pr, key: winKey(pr), conf: Math.round((pr.confidence || 0) * 100) });
+      }
+    }
+
+    var cities = order.map(function (k) { return map[k]; }).filter(function (c) { return c.total > 0; });
+    cities.forEach(function (c) {
+      c.fuelN = fuel === '92' ? c.a92 : fuel === 'diesel' ? c.adt : c.a95;
+      c.share = c.known ? c.fuelN / c.known : null;
+      c.level = c.known < 3 ? 'n' : (c.share >= 0.6 ? 'g' : c.share >= 0.25 ? 'y' : 'r');
+      c.wins.sort(function (a, b) { return a.key - b.key; });
+      c.sts.sort(function (a, b) {
+        if (a.has !== b.has) return a.has ? -1 : 1;
+        if (!!a.pred !== !!b.pred) return a.pred ? -1 : 1;
+        return (a.pred ? winKey(a.pred) : 1e9) - (b.pred ? winKey(b.pred) : 1e9);
+      });
+    });
+
+    var sort = prefSort();
+    cities.sort(function (a, b) {
+      if (sort === 'alpha') return a.name.localeCompare(b.name, 'ru');
+      if (sort === 'fuel') return (b.fuelN - a.fuelN) || (b.total - a.total);
+      if (sort === 'wins') return (b.wins.length - a.wins.length) || (b.total - a.total);
+      var na = a.known >= 3 ? 0 : 1, nb = b.known >= 3 ? 0 : 1;
+      if (na !== nb) return na - nb;
+      return (a.share - b.share) || (b.total - a.total);
+    });
+    if (prefOnlyWin()) cities = cities.filter(function (c) { return c.wins.length > 0; });
+
+    var T = { total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: 0, cities: cities.length };
+    cities.forEach(function (c) {
+      T.total += c.total; T.known += c.known; T.a92 += c.a92; T.a95 += c.a95; T.adt += c.adt;
+      T.any += c.any; T.q += c.q; T.wins += c.wins.length;
+    });
+    T.fuelN = fuel === '92' ? T.a92 : fuel === 'diesel' ? T.adt : T.a95;
+
+    var allWins = [];
+    cities.forEach(function (c) {
+      c.wins.forEach(function (w) { if (w.pred.fuel_type === fuel) allWins.push(w); });
+    });
+    if (!allWins.length) cities.forEach(function (c) { c.wins.forEach(function (w) { allWins.push(w); }); });
+    allWins.sort(function (a, b) { return a.key - b.key; });
+
+    var B0 = bucketStart(), changes = [];
+    var ev = (typeof allWaveEvents !== 'undefined' && allWaveEvents) ? allWaveEvents : [];
+    for (var e2 = 0; e2 < ev.length; e2++) {
+      var evr = ev[e2];
+      if (evr.event_type !== 'fuel_restored' && evr.event_type !== 'fuel_disappeared') continue;
+      var tt = new Date(evr.detected_at).getTime();
+      if (tt < B0) continue;
+      var stn = null;
+      try { stn = stationById(evr.station_id); } catch (er) { stn = null; }
+      if (!stn) continue;
+      var ck2 = cityKeyOf(stn);
+      if (!ck2 || !map[ck2]) continue;
+      changes.push({ t: tt, st: stn, city: map[ck2].name, fuel: evr.fuel_type, back: evr.event_type === 'fuel_restored' });
+    }
+    changes.sort(function (a, b) { return b.t - a.t; });
+
+    var wave = null;
+    try { wave = (typeof cityWaveStats === 'function' && allWaveEvents.length) ? cityWaveStats() : null; } catch (er) { wave = null; }
+    var loud = [];
+    if (wave) Object.keys(wave).forEach(function (k) {
+      var w = wave[k];
+      if (w.level === 'wave' || w.level === 'tense') loud.push(w);
+    });
+
+    return { ts: Date.now(), bucket: B0, fuel: fuel, cities: cities, T: T, wins: allWins.slice(0, 6), changes: changes.slice(0, 6), changeN: changes.length, loud: loud };
+  }
+
+  // ---------- снимки выпусков и дельты ----------
+  function snapshot(D) {
+    var cur = { bucket: D.bucket, any: D.T.any, a95: D.T.a95, wins: D.T.wins, q: D.T.q };
+    var prevCur = lsGet('kbSvCur', null);
+    if (!prevCur || prevCur.bucket !== cur.bucket) {
+      if (prevCur) lsSet('kbSvPrev', prevCur);
+      lsSet('kbSvCur', cur);
+    }
+    return lsGet('kbSvPrev', null);
+  }
+  function deltaHtml(prev, D) {
+    if (!prev || prev.bucket === D.bucket) {
+      return '<div class="kbs-delta n">' + ic('i-clock', 'ic-s') + '<span>Первый выпуск на этом устройстве — сравнение появится со следующего, через 4 часа.</span></div>';
+    }
+    var dAny = D.T.any - prev.any, dWin = D.T.wins - prev.wins, dQ = D.T.q - prev.q;
+    function chip(v, goodUp, label) {
+      var cls = v === 0 ? 'n' : ((v > 0) === goodUp ? 'g' : 'r');
+      var sign = v > 0 ? '+' : v < 0 ? '−' : '±';
+      return '<span class="kbs-d ' + cls + '">' + sign + Math.abs(v) + ' ' + label + '</span>';
+    }
+    return '<div class="kbs-delta">' + ic('i-chart', 'ic-s') +
+      '<span class="kbs-dt">к выпуску ' + stamp(prev.bucket) + ':</span>' +
+      chip(dAny, true, 'АЗС с топливом') + chip(dWin, true, plural(Math.abs(dWin), ['окно', 'окна', 'окон'])) + chip(dQ, false, 'очередей') + '</div>';
+  }
+
+  // ---------- палитра ----------
+  (function css() {
+    if (document.getElementById('kbSvCss')) return;
+    var s = document.createElement('style');
+    s.id = 'kbSvCss';
+    s.textContent =
+'#kbSvCard{margin:10px 0 12px;border-radius:20px;padding:12px 12px 10px;position:relative;overflow:hidden;' +
+'background:linear-gradient(165deg,#fdfeff 0%,#eef4ff 46%,#e6eeff 100%);border:1px solid #dfe8f2;box-shadow:0 4px 18px rgba(20,33,61,.08);font-family:inherit;}' +
+'#kbSvCard::before{content:"";position:absolute;right:-60px;top:-70px;width:220px;height:220px;border-radius:50%;pointer-events:none;' +
+'background:radial-gradient(circle,rgba(36,101,238,.16),rgba(36,101,238,0) 70%);}' +
+'body.kb-night #kbSvCard{background:linear-gradient(165deg,#141d33 0%,#111a2e 50%,#0e1626 100%);border-color:rgba(148,180,255,.18);box-shadow:0 6px 22px rgba(0,0,0,.4);}' +
+'.kbs-head{display:flex;align-items:flex-start;gap:10px;position:relative;z-index:1;}' +
+'.kbs-ico{flex:none;width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;' +
+'background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8);box-shadow:0 4px 14px rgba(36,101,238,.35);color:#fff;}' +
+'.kbs-ico .ic{width:19px;height:19px;}' +
+'.kbs-ht{flex:1;min-width:0;}' +
+'.kbs-ht b{display:block;font-size:14px;font-weight:900;color:#14213d;letter-spacing:-.2px;}' +
+'body.kb-night .kbs-ht b{color:#ebf3ff;}' +
+'.kbs-ht span{display:block;font-size:10px;font-weight:700;color:#71809c;margin-top:2px;}' +
+'body.kb-night .kbs-ht span{color:#93a0b8;}' +
+'.kbs-live{display:inline-flex;align-items:center;gap:5px;color:#12855c;font-weight:800;}' +
+'body.kb-night .kbs-live{color:#2fd39a;}' +
+'.kbs-live i{width:6px;height:6px;border-radius:50%;background:currentColor;animation:kbsPulse 1.8s infinite;}' +
+'@keyframes kbsPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}' +
+'.kbs-hr{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;}' +
+'.kbs-new{border-radius:99px;padding:3px 9px;font-size:9px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;' +
+'background:linear-gradient(135deg,#2fd39a,#19b77a);color:#fff;box-shadow:0 3px 10px rgba(25,183,122,.35);}' +
+'.kbs-next{font-size:9.5px;font-weight:800;color:#2465ee;background:#eef4ff;border:1px solid #bcd4ff;border-radius:99px;padding:3px 9px;white-space:nowrap;}' +
+'body.kb-night .kbs-next{background:rgba(91,157,255,.12);border-color:rgba(148,180,255,.28);color:#9dc4ff;}' +
+'.kbs-ctrl{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 8px;position:relative;z-index:1;}' +
+'.kbs-seg{display:inline-flex;background:#fff;border:1px solid #dfe8f2;border-radius:99px;padding:2px;gap:2px;}' +
+'body.kb-night .kbs-seg{background:#121a2e;border-color:rgba(148,180,255,.18);}' +
+'.kbs-seg button{border:0;background:none;border-radius:99px;padding:5px 10px;font-size:10px;font-weight:800;color:#7487a7;cursor:pointer;font-family:inherit;transition:.2s;}' +
+'.kbs-seg button.on{background:linear-gradient(140deg,#4b93ff,#2465ee);color:#fff;box-shadow:0 2px 8px rgba(36,101,238,.35);}' +
+'body.kb-night .kbs-seg button{color:#93a0b8;}' +
+'.kbs-sel{border:1px solid #dfe8f2;background:#fff;color:#33445f;border-radius:99px;padding:5px 10px;font-size:10px;font-weight:800;font-family:inherit;cursor:pointer;}' +
+'body.kb-night .kbs-sel{background:#121a2e;border-color:rgba(148,180,255,.18);color:#c6d2e8;}' +
+'.kbs-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;position:relative;z-index:1;}' +
+'@media (max-width:420px){.kbs-kpi{grid-template-columns:repeat(2,1fr);}}' +
+'.kbs-k{border-radius:14px;padding:8px 9px;background:#fff;border:1px solid #e6ebf4;}' +
+'body.kb-night .kbs-k{background:#121a2e;border-color:rgba(148,180,255,.14);}' +
+'.kbs-k small{display:flex;align-items:center;gap:4px;font-size:8.5px;font-weight:800;color:#7487a7;text-transform:uppercase;letter-spacing:.3px;}' +
+'.kbs-k small .ic{width:11px;height:11px;}' +
+'.kbs-k b{display:block;font-size:19px;font-weight:900;color:#14213d;line-height:1.15;margin-top:3px;letter-spacing:-.5px;}' +
+'body.kb-night .kbs-k b{color:#ebf3ff;}' +
+'.kbs-k i{display:block;font-style:normal;font-size:9px;font-weight:700;color:#8aa0b8;margin-top:1px;}' +
+'.kbs-k.g b{color:#12855c;}.kbs-k.y b{color:#c26a2a;}.kbs-k.r b{color:#c2403f;}.kbs-k.b b{color:#2465ee;}' +
+'body.kb-night .kbs-k.g b{color:#2fd39a;}body.kb-night .kbs-k.y b{color:#f5a05a;}body.kb-night .kbs-k.r b{color:#ff8a80;}body.kb-night .kbs-k.b b{color:#7db4ff;}' +
+'.kbs-delta{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:8px 0 2px;font-size:9.5px;font-weight:700;color:#7487a7;}' +
+'.kbs-delta .ic{width:12px;height:12px;color:#2465ee;}' +
+'.kbs-dt{color:#8aa0b8;}' +
+'.kbs-d{border-radius:99px;padding:3px 8px;font-weight:800;}' +
+'.kbs-d.g{background:#e5f8ef;color:#12855c;}.kbs-d.r{background:#fdecec;color:#c2403f;}.kbs-d.n{background:#eef2f8;color:#7487a7;}' +
+'body.kb-night .kbs-d.g{background:rgba(25,183,122,.14);color:#2fd39a;}' +
+'body.kb-night .kbs-d.r{background:rgba(239,83,80,.14);color:#ff8a80;}' +
+'body.kb-night .kbs-d.n{background:rgba(148,180,255,.08);color:#93a0b8;}' +
+'.kbs-sec{display:flex;align-items:center;gap:6px;margin:12px 0 6px;font-size:9.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7487a7;}' +
+'.kbs-sec .ic{width:12px;height:12px;color:#2465ee;}' +
+'.kbs-sec em{font-style:normal;margin-left:auto;font-size:9px;color:#93a1b8;letter-spacing:0;text-transform:none;}' +
+'.kbs-list{display:flex;flex-direction:column;gap:5px;max-height:270px;overflow-y:auto;padding-right:3px;}' +
+'.kbs-list::-webkit-scrollbar{width:7px;}' +
+'.kbs-list::-webkit-scrollbar-track{background:#e6ebf4;border-radius:8px;}' +
+'.kbs-list::-webkit-scrollbar-thumb{background:#2465ee;border-radius:8px;}' +
+'.kbs-list::-webkit-scrollbar-thumb:hover{background:#1746c8;}' +
+'body.kb-night .kbs-list::-webkit-scrollbar-track{background:rgba(148,180,255,.10);}' +
+'body.kb-night .kbs-list::-webkit-scrollbar-thumb{background:#3f74d6;}' +
+'.kbs-win{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:13px;background:#fff;border:1px solid #e6ebf4;cursor:pointer;transition:.18s;}' +
+'.kbs-win:active{transform:scale(.985);}' +
+'body.kb-night .kbs-win{background:#121a2e;border-color:rgba(148,180,255,.14);}' +
+'.kbs-wb{flex:none;border-radius:9px;padding:4px 7px;font-size:9px;font-weight:900;text-align:center;min-width:52px;}' +
+'.kbs-wb.now{background:#e5f8ef;color:#12855c;}.kbs-wb.soon{background:#fff6ec;color:#c26a2a;}' +
+'.kbs-wb.later{background:#eef4ff;color:#2465ee;}.kbs-wb.tom{background:#f2eeff;color:#6b4fd8;}' +
+'body.kb-night .kbs-wb.now{background:rgba(25,183,122,.16);color:#2fd39a;}' +
+'body.kb-night .kbs-wb.soon{background:rgba(245,160,90,.16);color:#f5a05a;}' +
+'body.kb-night .kbs-wb.later{background:rgba(91,157,255,.14);color:#9dc4ff;}' +
+'body.kb-night .kbs-wb.tom{background:rgba(124,109,255,.16);color:#b7a8ff;}' +
+'.kbs-wt{flex:1;min-width:0;}' +
+'.kbs-wt b{display:block;font-size:11.5px;font-weight:800;color:#14213d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+'body.kb-night .kbs-wt b{color:#ebf3ff;}' +
+'.kbs-wt span{display:block;font-size:9.5px;font-weight:700;color:#8aa0b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}' +
+'.kbs-wr{flex:none;text-align:right;}' +
+'.kbs-wr b{display:block;font-size:11.5px;font-weight:900;color:#2465ee;font-variant-numeric:tabular-nums;}' +
+'body.kb-night .kbs-wr b{color:#7db4ff;}' +
+'.kbs-wr i{display:block;font-style:normal;font-size:9px;font-weight:800;color:#8aa0b8;}' +
+'.kbs-ch{display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:12px;background:#fff;border:1px solid #e6ebf4;font-size:10.5px;font-weight:700;color:#33445f;cursor:pointer;}' +
+'body.kb-night .kbs-ch{background:#121a2e;border-color:rgba(148,180,255,.14);color:#c6d2e8;}' +
+'.kbs-ch i.d{flex:none;width:7px;height:7px;border-radius:50%;}' +
+'.kbs-ch i.d.g{background:#19b77a;}.kbs-ch i.d.r{background:#ef5350;}' +
+'.kbs-ch b{font-weight:900;color:#14213d;}' +
+'body.kb-night .kbs-ch b{color:#ebf3ff;}' +
+'.kbs-ch em{font-style:normal;margin-left:auto;font-size:9.5px;color:#93a1b8;font-variant-numeric:tabular-nums;}' +
+'.kbs-empty{padding:10px 12px;border-radius:12px;background:#f4f7fb;border:1px dashed #dfe8f2;font-size:10.5px;font-weight:700;color:#8aa0b8;text-align:center;}' +
+'body.kb-night .kbs-empty{background:rgba(148,180,255,.05);border-color:rgba(148,180,255,.18);color:#93a0b8;}' +
+'.kbs-city{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px 10px;border-radius:13px;background:#fff;border:1px solid #e6ebf4;cursor:pointer;font-family:inherit;transition:.18s;}' +
+'body.kb-night .kbs-city{background:#121a2e;border-color:rgba(148,180,255,.14);}' +
+'.kbs-city.on{border-color:#bcd4ff;box-shadow:0 3px 12px rgba(36,101,238,.14);}' +
+'body.kb-night .kbs-city.on{border-color:rgba(148,180,255,.4);}' +
+'.kbs-city i.d{flex:none;width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 3px rgba(0,0,0,.04);}' +
+'.kbs-city i.d.g{background:#19b77a;}.kbs-city i.d.y{background:#f5a05a;}.kbs-city i.d.r{background:#ef5350;}.kbs-city i.d.n{background:#a7b1c1;}' +
+'.kbs-cn{flex:1;min-width:0;font-size:11.5px;font-weight:800;color:#14213d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+'body.kb-night .kbs-cn{color:#ebf3ff;}' +
+'.kbs-cn em{font-style:normal;font-size:8.5px;font-weight:800;color:#2465ee;background:#eef4ff;border-radius:99px;padding:2px 6px;margin-left:5px;}' +
+'body.kb-night .kbs-cn em{background:rgba(91,157,255,.14);color:#9dc4ff;}' +
+'.kbs-bar{flex:none;width:52px;height:6px;border-radius:99px;background:#e6ebf4;overflow:hidden;}' +
+'body.kb-night .kbs-bar{background:rgba(148,180,255,.14);}' +
+'.kbs-bar i{display:block;height:100%;border-radius:99px;transition:width .6s cubic-bezier(.2,.8,.2,1);}' +
+'.kbs-num{flex:none;font-size:11px;font-weight:900;color:#33445f;font-variant-numeric:tabular-nums;min-width:44px;text-align:right;}' +
+'body.kb-night .kbs-num{color:#c6d2e8;}' +
+'.kbs-cw{flex:none;font-size:9.5px;font-weight:800;color:#2465ee;min-width:66px;text-align:right;font-variant-numeric:tabular-nums;}' +
+'body.kb-night .kbs-cw{color:#7db4ff;}' +
+'.kbs-chev{flex:none;width:13px;height:13px;color:#93a1b8;transition:transform .25s;}' +
+'.kbs-city.on .kbs-chev{transform:rotate(90deg);color:#2465ee;}' +
+'.kbs-body{display:none;padding:6px 0 2px 16px;flex-direction:column;gap:4px;}' +
+'.kbs-body.on{display:flex;animation:kbsIn .28s ease;}' +
+'@keyframes kbsIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}' +
+'.kbs-st{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:11px;background:#f7f9fc;border:1px solid #eef2f8;cursor:pointer;}' +
+'body.kb-night .kbs-st{background:rgba(148,180,255,.05);border-color:rgba(148,180,255,.12);}' +
+'.kbs-stl{flex:none;width:22px;height:22px;display:flex;align-items:center;justify-content:center;}' +
+'.kbs-stl img{width:100%;height:100%;object-fit:contain;}' +
+'.kbs-stt{flex:1;min-width:0;}' +
+'.kbs-stt b{display:block;font-size:10.5px;font-weight:800;color:#14213d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+'body.kb-night .kbs-stt b{color:#ebf3ff;}' +
+'.kbs-stt span{display:block;font-size:9px;font-weight:600;color:#8aa0b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}' +
+'.kbs-fc{flex:none;display:flex;gap:3px;}' +
+'.kbs-fc i{font-style:normal;border-radius:6px;padding:2px 5px;font-size:8.5px;font-weight:900;}' +
+'.kbs-fc i.y{background:#e5f8ef;color:#12855c;}.kbs-fc i.n{background:#fdecec;color:#c2403f;}.kbs-fc i.u{background:#eef2f8;color:#93a1b8;}' +
+'body.kb-night .kbs-fc i.y{background:rgba(25,183,122,.16);color:#2fd39a;}' +
+'body.kb-night .kbs-fc i.n{background:rgba(239,83,80,.14);color:#ff8a80;}' +
+'body.kb-night .kbs-fc i.u{background:rgba(148,180,255,.08);color:#8fa0bb;}' +
+'.kbs-stw{flex:none;font-size:9px;font-weight:800;color:#2465ee;text-align:right;min-width:60px;font-variant-numeric:tabular-nums;}' +
+'body.kb-night .kbs-stw{color:#7db4ff;}' +
+'.kbs-foot{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;}' +
+'.kbs-btn{flex:1;min-width:110px;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:12px;padding:9px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;text-decoration:none;border:1px solid #bcd4ff;background:#fff;color:#2465ee;transition:.18s;}' +
+'.kbs-btn:active{transform:scale(.97);}' +
+'.kbs-btn.p{background:linear-gradient(135deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;border:0;box-shadow:0 5px 16px rgba(36,101,238,.32);}' +
+'.kbs-btn .ic{width:13px;height:13px;}' +
+'body.kb-night .kbs-btn{background:rgba(148,180,255,.08);border-color:rgba(148,180,255,.25);color:#9dc4ff;}' +
+'body.kb-night .kbs-btn.p{background:linear-gradient(135deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;}' +
+'.kbs-note{margin-top:8px;font-size:9.5px;line-height:1.45;font-weight:600;color:#8aa0b8;}' +
+'body.kb-night .kbs-note{color:#93a0b8;}' +
+'.kbs-note b{color:#2465ee;font-weight:800;}' +
+'body.kb-night .kbs-note b{color:#7db4ff;}' +
+'.kbs-toast{position:fixed;left:12px;right:12px;bottom:96px;z-index:300;border-radius:14px;padding:11px 14px;font-size:12px;font-weight:800;color:#fff;background:#12855c;box-shadow:0 12px 32px rgba(0,0,0,.35);opacity:0;transform:translateY(12px);transition:.3s;pointer-events:none;text-align:center;font-family:inherit;}' +
+'.kbs-toast.on{opacity:1;transform:none;}' +
+'body.kb-lite .kbs-live i{animation:none;}' +
+'@media (prefers-reduced-motion:reduce){.kbs-live i{animation:none;}.kbs-body.on{animation:none;}}';
+    document.head.appendChild(s);
+  })();
+
+  function toast(msg) {
+    var t = document.getElementById('kbsToast');
+    if (!t) { t = document.createElement('div'); t.id = 'kbsToast'; t.className = 'kbs-toast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.classList.add('on');
+    clearTimeout(t._tm);
+    t._tm = setTimeout(function () { t.classList.remove('on'); }, 3200);
+  }
+
+  // ---------- отрисовка ----------
+  var DATA = null, renderT = null, openSet = ssGet('kbSvOpen', []);
+  var COL = { g: '#19b77a', y: '#f5a05a', r: '#ef5350', n: '#a7b1c1' };
+
+  function levelWord(l) { return l === 'g' ? 'спокойно' : l === 'y' ? 'напряжённо' : l === 'r' ? 'дефицит' : 'мало данных'; }
+
+  function fuelChips(row) {
+    function one(v, f) {
+      var cls = v.v === true ? 'y' : v.v === false ? 'n' : 'u';
+      return '<i class="' + cls + '">' + flShort(f) + '</i>';
+    }
+    return '<span class="kbs-fc">' + one(row.v92, '92') + one(row.v95, '95') + one(row.vdt, 'diesel') + '</span>';
+  }
+
+  function stLogo(st) {
+    try { return typeof stationLogo === 'function' ? stationLogo(st) : ''; } catch (e) { return ''; }
+  }
+
+  function winRow(w) {
+    var b = winBadge(w.key), p = w.pred;
+    return '<div class="kbs-win" data-kbs-st="' + esc(w.st.id) + '">' +
+      '<span class="kbs-wb ' + b.cls + '">' + b.txt + '</span>' +
+      '<span class="kbs-wt"><b>' + esc(w.st.name || 'АЗС') + '</b>' +
+      '<span>' + esc(w.city) + ' · ' + esc(w.st.address || '') + '</span></span>' +
+      '<span class="kbs-wr"><b>' + t5(p.from_time) + '–' + t5(p.to_time) + '</b><i>' + fl(p.fuel_type) + ' · ' + w.conf + '%</i></span>' +
+      '</div>';
+  }
+
+  function cityRow(c) {
+    var open = openSet.indexOf(c.key) >= 0;
+    var pct = c.share == null ? 0 : Math.round(c.share * 100);
+    var mine = (typeof userCityKey !== 'undefined' && userCityKey === c.key);
+    var w0 = c.wins[0];
+    var body = c.sts.slice(0, 5).map(function (r) {
+      var p = r.pred;
+      return '<div class="kbs-st" data-kbs-st="' + esc(r.st.id) + '">' +
+        '<span class="kbs-stl">' + stLogo(r.st) + '</span>' +
+        '<span class="kbs-stt"><b>' + esc(r.st.name || 'АЗС') + '</b><span>' + esc(r.st.address || '') + (r.lq ? ' · ' + r.lq + ' в очереди' : (r.hi ? ' · очередь' : '')) + '</span></span>' +
+        fuelChips(r) +
+        '<span class="kbs-stw">' + (p ? t5(p.from_time) + '–' + t5(p.to_time) + '<br>' + Math.round((p.confidence || 0) * 100) + '%' : 'окна нет') + '</span>' +
+        '</div>';
+    }).join('');
+    if (!body) body = '<div class="kbs-empty">В этой зоне пока нет станций.</div>';
+    return '<button type="button" class="kbs-city' + (open ? ' on' : '') + '" data-kbs-city="' + c.key + '">' +
+      '<i class="d ' + c.level + '"></i>' +
+      '<span class="kbs-cn">' + esc(c.name) + (mine ? '<em>твой город</em>' : '') + '</span>' +
+      '<span class="kbs-bar"><i style="width:' + pct + '%;background:' + COL[c.level] + '"></i></span>' +
+      '<span class="kbs-num">' + c.fuelN + '/' + c.known + '</span>' +
+      '<span class="kbs-cw">' + (w0 ? t5(w0.pred.from_time) + '–' + t5(w0.pred.to_time) : '—') + '</span>' +
+      '<svg class="kbs-chev ic"><use href="#i-arrow"/></svg>' +
+      '</button><div class="kbs-body' + (open ? ' on' : '') + '">' + body + '</div>';
+  }
+
+  function render() {
+    var card = document.getElementById('kbSvCard');
+    if (!card) return;
+    var D = collect();
+    if (!D) {
+      card.innerHTML = '<div class="kbs-head"><span class="kbs-ico">' + ic('i-chart') + '</span>' +
+        '<div class="kbs-ht"><b>Сводка по Югу</b><span>собираем данные по всем городам…</span></div></div>' +
+        '<div class="kbs-empty" style="margin-top:10px">Как только доедут отметки АЗС, здесь появится общий выпуск по югу.</div>';
+      return;
+    }
+    DATA = D;
+    var prev = snapshot(D);
+    var T = D.T, fuel = D.fuel;
+    var isNew = lsGet('kbSvSeen', 0) !== D.bucket;
+    var share = T.known ? T.fuelN / T.known : 0;
+    var lvl = T.known < 5 ? 'b' : share >= 0.6 ? 'g' : share >= 0.25 ? 'y' : 'r';
+    var nextIn = D.bucket + BUCKET_MS - Date.now();
+    var hh = Math.max(0, Math.floor(nextIn / H)), mm = Math.max(0, Math.floor((nextIn % H) / 60000));
+
+    var kpi =
+      '<div class="kbs-k ' + lvl + '"><small>' + ic('i-pump', 'ic-s') + fl(fuel) + '</small><b>' + T.fuelN + '</b><i>из ' + T.known + ' АЗС с данными</i></div>' +
+      '<div class="kbs-k b"><small>' + ic('i-clock', 'ic-s') + 'окна</small><b>' + T.wins + '</b><i>прогнозов привоза</i></div>' +
+      '<div class="kbs-k ' + (T.q ? 'y' : 'g') + '"><small>' + ic('i-queue', 'ic-s') + 'очереди</small><b>' + T.q + '</b><i>АЗС с очередью</i></div>' +
+      '<div class="kbs-k ' + (D.loud.length ? 'r' : 'g') + '"><small>' + ic('i-spark', 'ic-s') + 'волна</small><b>' + D.loud.length + '</b><i>' + (D.loud.length ? esc(D.loud[0].name) : 'города спокойны') + '</i></div>';
+
+    var wins = D.wins.length
+      ? '<div class="kbs-list">' + D.wins.map(winRow).join('') + '</div>'
+      : '<div class="kbs-empty">Ближайших окон привоза по югу пока нет — прогнозы копятся.</div>';
+
+    var changes = D.changes.length
+      ? '<div class="kbs-list">' + D.changes.map(function (c) {
+        return '<div class="kbs-ch" data-kbs-st="' + esc(c.st.id) + '"><i class="d ' + (c.back ? 'g' : 'r') + '"></i>' +
+          '<span><b>' + esc(c.city) + '</b> · ' + esc(c.st.name || 'АЗС') + ' — ' + fl(c.fuel) + (c.back ? ' вернулось' : ' пропало') + '</span>' +
+          '<em>' + hm(c.t) + '</em></div>';
+      }).join('') + '</div>'
+      : '<div class="kbs-empty">За этот выпуск изменений на юге не зафиксировано — спокойно.</div>';
+
+    var cities = D.cities.length
+      ? '<div class="kbs-list" style="max-height:340px">' + D.cities.map(cityRow).join('') + '</div>'
+      : '<div class="kbs-empty">Нет городов с окнами привоза — снимите фильтр.</div>';
+
+    var offline = (typeof offlineMode !== 'undefined' && offlineMode) ? ' · офлайн-снимок' : '';
+
+    card.innerHTML =
+      '<div class="kbs-head">' +
+        '<span class="kbs-ico">' + ic('i-chart') + '</span>' +
+        '<div class="kbs-ht"><b>Сводка по Югу</b>' +
+        '<span><span class="kbs-live"><i></i>выпуск ' + stamp(D.bucket) + ' МСК</span> · ' + D.cities.length + ' ' + plural(D.cities.length, ['город', 'города', 'городов']) + ' · ' + T.total + ' АЗС' + offline + '</span></div>' +
+        '<div class="kbs-hr">' + (isNew ? '<span class="kbs-new">новый выпуск</span>' : '') +
+        '<span class="kbs-next" id="kbsNext">следующий через ' + hh + ':' + pad(mm) + '</span></div>' +
+      '</div>' +
+      '<div class="kbs-ctrl">' +
+        '<span class="kbs-seg">' + ['92', '95', 'diesel'].map(function (f) {
+          return '<button type="button" data-kbs-fuel="' + f + '" class="' + (fuel === f ? 'on' : '') + '">' + flShort(f) + '</button>';
+        }).join('') + '</span>' +
+        '<select class="kbs-sel" data-kbs-sort="1">' +
+          '<option value="deficit"' + (prefSort() === 'deficit' ? ' selected' : '') + '>сначала дефицит</option>' +
+          '<option value="fuel"' + (prefSort() === 'fuel' ? ' selected' : '') + '>больше топлива</option>' +
+          '<option value="wins"' + (prefSort() === 'wins' ? ' selected' : '') + '>больше окон</option>' +
+          '<option value="alpha"' + (prefSort() === 'alpha' ? ' selected' : '') + '>по алфавиту</option>' +
+        '</select>' +
+        '<span class="kbs-seg"><button type="button" data-kbs-only="1" class="' + (prefOnlyWin() ? 'on' : '') + '">только с окнами</button></span>' +
+      '</div>' +
+      '<div class="kbs-kpi">' + kpi + '</div>' +
+      deltaHtml(prev, D) +
+      '<div class="kbs-sec">' + ic('i-clock', 'ic-s') + 'Ближайшие окна привоза · весь юг<em>' + fl(fuel) + '</em></div>' + wins +
+      '<div class="kbs-sec">' + ic('i-spark', 'ic-s') + 'Что изменилось за выпуск<em>' + D.changeN + ' ' + plural(D.changeN, ['событие', 'события', 'событий']) + '</em></div>' + changes +
+      '<div class="kbs-sec">' + ic('i-pin', 'ic-s') + 'Города юга<em>' + fl(fuel) + ': есть / с данными · окно привоза</em></div>' + cities +
+      '<div class="kbs-foot">' +
+        '<button type="button" class="kbs-btn p" data-kbs-share="1">' + ic('i-spark', 'ic-s') + 'Поделиться сводкой</button>' +
+        '<button type="button" class="kbs-btn" data-kbs-copy="1">' + ic('i-check', 'ic-s') + 'Скопировать текст</button>' +
+        '<a class="kbs-btn" id="kbsSeo" href="' + SITE + '/svodka.html" target="_blank" rel="noopener" data-kbs-seo="1" style="display:none">' + ic('i-search', 'ic-s') + 'Версия для поиска</a>' +
+      '</div>' +
+      '<div class="kbs-note">Автовыпуск каждые <b>4 часа</b>: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 МСК. Данные всего юга, не одного города. Прогноз — вероятность, а не гарантия привоза.</div>';
+
+    checkSeo();
+  }
+
+  function schedule() {
+    if (renderT) clearTimeout(renderT);
+    renderT = setTimeout(function () { renderT = null; try { render(); } catch (e) { console.log('south digest: ' + e.message); } }, 260);
+  }
+
+  function tick() {
+    var el = document.getElementById('kbsNext');
+    var B = bucketStart();
+    if (DATA && DATA.bucket !== B) { schedule(); return; }
+    if (!el) return;
+    var left = B + BUCKET_MS - Date.now();
+    var hh = Math.max(0, Math.floor(left / H)), mm = Math.max(0, Math.floor((left % H) / 60000));
+    el.textContent = 'следующий через ' + hh + ':' + pad(mm);
+  }
+
+  // ---------- ссылка на индексируемую страницу ----------
+  var seoChecked = false;
+  function checkSeo() {
+    var a = document.getElementById('kbsSeo');
+    if (!a) return;
+    if (seoChecked === true) { a.style.display = ''; return; }
+    if (seoChecked === 'pending') return;
+    seoChecked = 'pending';
+    fetch(SITE + '/svodka.html', { method: 'HEAD', cache: 'no-store' })
+      .then(function (r) { seoChecked = !!r.ok; var el = document.getElementById('kbsSeo'); if (el && r.ok) el.style.display = ''; })
+      .catch(function () { seoChecked = false; });
+  }
+
+  // ---------- текст и картинка выпуска ----------
+  function digestText(D) {
+    var T = D.T;
+    var lines = [];
+    lines.push('⛽ КОГДАБЕНЗ · СВОДКА ПО ЮГУ');
+    lines.push('Выпуск ' + stamp(D.bucket) + ' МСК');
+    lines.push('');
+    lines.push(fl(D.fuel) + ': ' + T.fuelN + ' из ' + T.known + ' АЗС · окон привоза: ' + T.wins + ' · очередей: ' + T.q);
+    lines.push('');
+    lines.push('ГОРОДА:');
+    D.cities.forEach(function (c) {
+      lines.push('• ' + c.name + ' — ' + c.fuelN + '/' + c.known + ' (' + levelWord(c.level) + ')' + (c.wins[0] ? ', окно ' + t5(c.wins[0].pred.from_time) + '–' + t5(c.wins[0].pred.to_time) : ''));
+    });
+    if (D.wins.length) {
+      lines.push('');
+      lines.push('БЛИЖАЙШИЕ ОКНА:');
+      D.wins.slice(0, 5).forEach(function (w) {
+        lines.push('• ' + w.city + ', ' + (w.st.name || 'АЗС') + ' — ' + t5(w.pred.from_time) + '–' + t5(w.pred.to_time) + ' · ' + fl(w.pred.fuel_type) + ' · ' + w.conf + '%');
+      });
+    }
+    lines.push('');
+    lines.push('Живая карта и прогнозы: ' + SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=svodka');
+    return lines.join('\n');
+  }
+
+  function wrap(g, text, x, y, maxW, lh) {
+    var words = String(text).split(' '), line = '';
+    for (var i = 0; i < words.length; i++) {
+      var test = line ? line + ' ' + words[i] : words[i];
+      if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); y += lh; line = words[i]; }
+      else line = test;
+    }
+    if (line) g.fillText(line, x, y);
+    return y;
+  }
+
+  function digestImage(D) {
+    return new Promise(function (res) {
+      var W = 1080, Hh = 1440;
+      var cv = document.createElement('canvas');
+      cv.width = W; cv.height = Hh;
+      var g = cv.getContext('2d');
+      var bg = g.createLinearGradient(0, 0, W, Hh);
+      bg.addColorStop(0, '#12203f'); bg.addColorStop(.55, '#0e1730'); bg.addColorStop(1, '#0a1024');
+      g.fillStyle = bg; g.fillRect(0, 0, W, Hh);
+      var glow = g.createRadialGradient(W - 140, 120, 20, W - 140, 120, 420);
+      glow.addColorStop(0, 'rgba(36,101,238,.45)'); glow.addColorStop(1, 'rgba(36,101,238,0)');
+      g.fillStyle = glow; g.fillRect(0, 0, W, 600);
+      var glow2 = g.createRadialGradient(120, Hh - 200, 20, 120, Hh - 200, 420);
+      glow2.addColorStop(0, 'rgba(25,183,122,.28)'); glow2.addColorStop(1, 'rgba(25,183,122,0)');
+      g.fillStyle = glow2; g.fillRect(0, Hh - 620, W, 620);
+
+      g.fillStyle = 'rgba(255,255,255,.62)'; g.font = '800 30px system-ui,sans-serif';
+      g.fillText('КОГДАБЕНЗ · АВТОВЫПУСК КАЖДЫЕ 4 ЧАСА', 60, 76);
+      g.fillStyle = '#fff'; g.font = '900 74px system-ui,sans-serif';
+      g.fillText('СВОДКА ПО ЮГУ', 60, 158);
+      g.fillStyle = '#7db4ff'; g.font = '800 34px system-ui,sans-serif';
+      g.fillText(stamp(D.bucket) + ' МСК · ' + D.cities.length + ' городов · ' + D.T.total + ' АЗС', 60, 210);
+
+      var T = D.T;
+      var cards = [
+        { v: T.fuelN, l: fl(D.fuel), c: '#2fd39a' },
+        { v: T.wins, l: 'окон привоза', c: '#7db4ff' },
+        { v: T.q, l: 'очередей', c: '#f5a05a' }
+      ];
+      cards.forEach(function (c, i) {
+        var x = 60 + i * 325, y = 250;
+        g.fillStyle = 'rgba(255,255,255,.07)';
+        g.beginPath(); g.roundRect ? g.roundRect(x, y, 300, 130, 22) : g.rect(x, y, 300, 130); g.fill();
+        g.fillStyle = c.c; g.font = '900 62px system-ui,sans-serif';
+        g.fillText(String(c.v), x + 24, y + 76);
+        g.fillStyle = 'rgba(255,255,255,.7)'; g.font = '700 26px system-ui,sans-serif';
+        g.fillText(c.l, x + 24, y + 110);
+      });
+
+      g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '900 26px system-ui,sans-serif';
+      g.fillText('ГОРОДА · ' + fl(D.fuel) + ' ЕСТЬ / С ДАННЫМИ', 60, 440);
+g.textAlign = 'right'; g.fillText('ОКНО ПРИВОЗА', W - 60, 440); g.textAlign = 'left';
+      var y = 480;
+      D.cities.slice(0, 11).forEach(function (c) {
+        g.fillStyle = COL[c.level];
+        g.beginPath(); g.arc(72, y - 9, 9, 0, 7); g.fill();
+        g.fillStyle = '#fff'; g.font = '800 32px system-ui,sans-serif';
+        g.fillText(c.name, 96, y);
+        g.fillStyle = 'rgba(255,255,255,.55)'; g.font = '700 26px system-ui,sans-serif';
+        g.fillText(levelWord(c.level), 470, y);
+        g.fillStyle = '#fff'; g.font = '900 32px system-ui,sans-serif';
+        g.textAlign = 'right';
+        g.fillText(c.fuelN + '/' + c.known, 760, y);
+        g.fillStyle = '#7db4ff'; g.font = '800 27px system-ui,sans-serif';
+        g.fillText(c.wins[0] ? t5(c.wins[0].pred.from_time) + '–' + t5(c.wins[0].pred.to_time) : '—', W - 60, y);
+        g.textAlign = 'left';
+        y += 46;
+      });
+
+      y += 24;
+      g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '900 26px system-ui,sans-serif';
+      g.fillText('БЛИЖАЙШИЕ ОКНА ПРИВОЗА · КОГДА ОБЫЧНО ВОЗВРАЩАЕТСЯ', 60, y);
+      y += 44;
+      D.wins.slice(0, 3).forEach(function (w) {
+        g.fillStyle = '#fff'; g.font = '800 30px system-ui,sans-serif';
+        wrap(g, w.city + ' · ' + (w.st.name || 'АЗС') + (w.st.address ? ' · ' + w.st.address : ''), 60, y, 640, 32);
+        g.fillStyle = '#2fd39a'; g.font = '900 30px system-ui,sans-serif';
+        g.textAlign = 'right';
+        g.fillText(t5(w.pred.from_time) + '–' + t5(w.pred.to_time) + '  ' + w.conf + '%', W - 60, y);
+        g.textAlign = 'left';
+        y += 78;
+      });
+
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(60, Hh - 118, W - 120, 2);
+      g.fillStyle = '#fff'; g.font = '900 40px system-ui,sans-serif';
+      g.fillText('kogdabenz.ru', 60, Hh - 58);
+      g.fillStyle = 'rgba(255,255,255,.55)'; g.font = '700 26px system-ui,sans-serif';
+      g.textAlign = 'right';
+      g.fillText('прогноз — вероятность, не гарантия', W - 60, Hh - 60);
+      g.textAlign = 'left';
+
+      cv.toBlob(function (b) { res(b); }, 'image/png');
+    });
+  }
+
+  function copyText(txt) {
+    function ok() { toast('Текст сводки скопирован — отправьте в чат'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(ok).catch(fb);
+    } else fb();
+    function fb() {
+      var ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { toast('Не удалось скопировать'); }
+      document.body.removeChild(ta);
+    }
+  }
+
+  async function shareDigest() {
+    if (!DATA) return;
+    try { track('svodka_share', null, null); } catch (e) {}
+    var txt = digestText(DATA);
+    var url = SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=svodka';
+    try {
+      if (navigator.share) {
+        var payload = { title: 'КогдаБенз · Сводка по Югу', text: txt, url: url };
+        try {
+          var blob = await digestImage(DATA);
+          if (blob && navigator.canShare) {
+            var file = new File([blob], 'kogdabenz-svodka.png', { type: 'image/png' });
+            if (navigator.canShare({ files: [file] })) payload.files = [file];
+          }
+        } catch (e) {}
+        await navigator.share(payload);
+        try { track('svodka_share_done', null, null); } catch (e) {}
+        return;
+      }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    copyText(txt);
+  }
+
+  // ---------- события ----------
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var card = t.closest('#kbSvCard');
+    if (!card) return;
+
+    if (lsGet('kbSvSeen', 0) !== bucketStart()) {
+      lsSet('kbSvSeen', bucketStart());
+      var nb = card.querySelector('.kbs-new');
+      if (nb) nb.remove();
+    }
+
+    var f = t.closest('[data-kbs-fuel]');
+    if (f) { lsSet('kbSvFuel', f.getAttribute('data-kbs-fuel')); render(); return; }
+    var only = t.closest('[data-kbs-only]');
+    if (only) { lsSet('kbSvOnlyWin', !prefOnlyWin()); render(); return; }
+    var city = t.closest('[data-kbs-city]');
+    if (city) {
+      var k = city.getAttribute('data-kbs-city');
+      var i = openSet.indexOf(k);
+      if (i >= 0) openSet.splice(i, 1); else openSet.push(k);
+      ssSet('kbSvOpen', openSet);
+      try { track('svodka_city', null, null); } catch (er) {}
+      render();
+      return;
+    }
+    var st = t.closest('[data-kbs-st]');
+    if (st) {
+      var id = st.getAttribute('data-kbs-st');
+      try { track('svodka_station', null, id); } catch (er) {}
+      try { openSheet(id); } catch (er) {}
+      return;
+    }
+    if (t.closest('[data-kbs-share]')) { shareDigest(); return; }
+    if (t.closest('[data-kbs-copy]')) {
+      if (!DATA) return;
+      try { track('svodka_copy', null, null); } catch (er) {}
+      copyText(digestText(DATA));
+      return;
+    }
+    if (t.closest('[data-kbs-seo]')) { try { track('svodka_seo', null, null); } catch (er) {} return; }
+  }, true);
+
+  document.addEventListener('change', function (e) {
+    var s = e.target;
+    if (!s || !s.closest || !s.closest('#kbSvCard')) return;
+    if (s.matches('[data-kbs-sort]')) { lsSet('kbSvSort', s.value); render(); }
+  }, true);
+
+  // ---------- размещение и хуки ----------
+  function mount() {
+    var card = document.getElementById('kbSvCard');
+    if (!card) {
+      card = document.createElement('div');
+      card.id = 'kbSvCard';
+    }
+    var anchor = document.getElementById('ctmCard') || document.getElementById('lentiBox');
+    if (anchor && anchor.parentNode) {
+      if (card.parentNode !== anchor.parentNode || card.previousElementSibling !== anchor) {
+        anchor.parentNode.insertBefore(card, anchor.nextSibling);
+      }
+    } else {
+      var panels = document.querySelectorAll('.panel');
+      var host = panels[1];
+      if (host && card.parentNode !== host) host.insertBefore(card, host.firstChild);
+    }
+    if (!card.innerHTML) schedule();
+  }
+
+  if (typeof softRefresh === 'function') {
+    var _sr = softRefresh;
+    softRefresh = function () { _sr(); schedule(); };
+  }
+  if (typeof renderNow === 'function') {
+    var _rn = renderNow;
+    renderNow = function () { var r = _rn(); schedule(); return r; };
+  }
+
+  mount();
+  setTimeout(mount, 900);
+  setTimeout(mount, 2600);
+  setTimeout(function () { try { render(); } catch (e) {} }, 1800);
+  setInterval(mount, 5000);
+  setInterval(tick, 30000);
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') { tick(); schedule(); }
+  });
+})();
+// ============================================================
+// KB CARD POLISH v1 — аккуратная и красивая карточка АЗС.
+// Только оформление + лёгкая пересборка порядка блоков:
+// бренд-акцент шапки, единая панель «вердикт + топливо»,
+// компактная строка фактов, короткие кнопки, карта-баннер,
+// чистые списки народных отметок, ночная тема, свой скроллбар.
+// Обработчики (toggleFavorite, tgConnectStation, kbMarkOpen,
+// cardMapGo, openScorePop, data-kbshare) не трогаются.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCardPolish) return;
+window.__kbCardPolish = 1;
+
+(function css() {
+if (document.getElementById('kbCardPolishCss')) return;
+var s = document.createElement('style');
+s.id = 'kbCardPolishCss';
+var L = [];
+L.push('.kb-card-v2{--kbc-surf:#ffffff;--kbc-surf2:#f6f8fc;--kbc-line:#e6ecf5;');
+L.push('--kbc-ink:#14213d;--kbc-mut:#71809c;--kbc-blue:#2465ee;');
+L.push('position:relative;margin:0 0 16px;padding:0 0 12px;border-radius:22px;');
+L.push('border:1px solid var(--kbc-line);background:var(--kbc-surf);');
+L.push('box-shadow:0 10px 34px rgba(20,33,61,.10);overflow:hidden;');
+L.push('animation:kbcIn .35s cubic-bezier(.2,.8,.2,1);}');
+L.push('@keyframes kbcIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}');
+L.push('.kb-card-v2::before{content:"";position:absolute;left:0;top:0;right:0;height:3px;');
+L.push('background:linear-gradient(90deg,var(--kbc-brand,#2465ee),#2465ee 55%,#19b77a);z-index:2;}');
+L.push('.kb-card-v2 .station-header{display:flex;align-items:center;gap:12px;');
+L.push('padding:16px 14px 12px;background:linear-gradient(180deg,var(--kbc-brand-soft,rgba(36,101,238,.10)),rgba(255,255,255,0));}');
+L.push('.kb-card-v2 .station-logo{width:46px;height:46px;flex:none;border-radius:14px;');
+L.push('background:var(--kbc-surf);border:1px solid var(--kbc-line);padding:6px;');
+L.push('display:flex;align-items:center;justify-content:center;');
+L.push('box-shadow:0 3px 10px rgba(20,33,61,.08),0 0 0 3px var(--kbc-brand-soft,rgba(36,101,238,.10));}');
+L.push('.kb-card-v2 .station-logo img{width:100%;height:100%;object-fit:contain;}');
+L.push('.kb-card-v2 .station-info{flex:1;min-width:0;}');
+L.push('.kb-card-v2 .station-name{font-size:17px;font-weight:900;letter-spacing:-.3px;');
+L.push('color:var(--kbc-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kb-card-v2 .station-address{font-size:11px;color:var(--kbc-mut);font-weight:600;');
+L.push('margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kb-card-v2 .favorite{flex:none;width:40px;height:40px;border-radius:50%;');
+L.push('border:1px solid var(--kbc-line);background:var(--kbc-surf2);color:#a7b1c1;');
+L.push('display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;}');
+L.push('.kb-card-v2 .favorite .ic{width:19px;height:19px;}');
+L.push('.kb-card-v2 .favorite.on{background:#fdecec;border-color:#f3b7b3;color:#d7263d;}');
+L.push('.kb-card-v2 .favorite:active{transform:scale(.9);}');
+L.push('.kb-card-v2 .kb-pred{margin:0 14px 10px;padding:10px 12px;border-radius:14px;}');
+L.push('.kb-card-v2 .kb-pred-head{font-size:9px;margin-bottom:4px;}');
+L.push('.kb-card-v2 .kb-pred-row{gap:8px;}');
+L.push('.kb-card-v2 .kb-pred-time{font-size:20px;}');
+L.push('.kb-card-v2 .kb-pred-conf{font-size:10px;padding:4px 9px;}');
+L.push('.kb-card-v2 .kb-pred-note{margin-top:6px;font-size:10px;line-height:1.45;');
+L.push('display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}');
+L.push('.kbc-status{margin:0 14px 10px;border:1px solid var(--kbc-line);border-radius:16px;');
+L.push('overflow:hidden;background:var(--kbc-surf2);}');
+L.push('.kbc-status .verdict{margin:0;border:0;border-radius:0;padding:10px 12px;');
+L.push('display:flex;gap:10px;align-items:center;}');
+L.push('.kbc-status .verdict .v-ico{flex:none;width:34px;height:34px;border-radius:10px;');
+L.push('display:grid;place-items:center;color:#fff;}');
+L.push('.kbc-status .verdict .v-ico .ic{width:17px;height:17px;}');
+L.push('.kbc-status .verdict.v-good{background:linear-gradient(120deg,#e5f8ef,#f4fbf7);}');
+L.push('.kbc-status .verdict.v-good .v-ico{background:#19b77a;}');
+L.push('.kbc-status .verdict.v-wait{background:linear-gradient(120deg,#fff6ec,#fffaf4);}');
+L.push('.kbc-status .verdict.v-wait .v-ico{background:#f5a05a;}');
+L.push('.kbc-status .verdict.v-unknown{background:linear-gradient(120deg,#eef2f8,#f7f9fc);}');
+L.push('.kbc-status .verdict.v-unknown .v-ico{background:#a7b1c1;}');
+L.push('.kbc-status .verdict-t{display:block;font-size:13.5px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kbc-status .verdict-s{display:block;font-size:10.5px;color:var(--kbc-mut);font-weight:600;margin-top:1px;}');
+L.push('.kbc-status .f-tiles{display:grid;grid-template-columns:repeat(3,1fr);');
+L.push('border-top:1px solid var(--kbc-line);background:var(--kbc-surf);}');
+L.push('.kbc-status .f-tile{margin:0;border:0;border-radius:0;border-left:1px solid var(--kbc-line);');
+L.push('padding:10px 8px 9px;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:92px;}');
+L.push('.kbc-status .f-tile:first-child{border-left:0;}');
+L.push('.kbc-status .f-tile .f-drop{display:none;}');
+L.push('.kbc-status .f-tile b{font-size:11.5px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kbc-status .f-tile .f-st{font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:4px;}');
+L.push('.kbc-status .f-st.yes{color:#12855c;}.kbc-status .f-st.no{color:#c2403f;}');
+L.push('.kbc-status .f-st.unknown{color:#c26a2a;}.kbc-status .f-st.none{color:#93a1b8;}');
+L.push('.kbc-status .f-tile .f-pill{margin-top:auto;font-size:9px;padding:3px 8px;border-radius:99px;font-weight:800;}');
+L.push('.kbc-status .f-tile.t-yes{background:linear-gradient(180deg,rgba(25,183,122,.09),rgba(25,183,122,.02));}');
+L.push('.kbc-status .f-tile.t-no{background:linear-gradient(180deg,rgba(239,83,80,.08),rgba(239,83,80,.02));}');
+L.push('.kbc-status .f-tile.t-unk{background:linear-gradient(180deg,rgba(245,160,90,.10),rgba(245,160,90,.02));}');
+L.push('.kb-card-v2 .card-facts{margin:0 14px 10px;display:grid;grid-template-columns:1.1fr 1fr 1fr;');
+L.push('border:1px solid var(--kbc-line);border-radius:16px;background:var(--kbc-surf);overflow:hidden;}');
+L.push('.kb-card-v2 .card-facts .cf{margin:0;border:0;border-left:1px solid var(--kbc-line);');
+L.push('padding:10px 10px;background:transparent;}');
+L.push('.kb-card-v2 .card-facts .cf:first-child{border-left:0;}');
+L.push('.kb-card-v2 .cf small{font-size:8.5px;letter-spacing:.6px;color:var(--kbc-mut);font-weight:900;');
+L.push('display:flex;gap:4px;align-items:center;text-transform:uppercase;}');
+L.push('.kb-card-v2 .cf small .ic{width:11px;height:11px;color:var(--kbc-blue);}');
+L.push('.kb-card-v2 .cf-prices{display:flex;flex-direction:column;gap:3px;margin-top:6px;}');
+L.push('.kb-card-v2 .pr-row{display:flex;align-items:center;gap:6px;}');
+L.push('.kb-card-v2 .pr-ico{width:20px;height:16px;border-radius:5px;font-size:8.5px;font-weight:900;');
+L.push('display:flex;align-items:center;justify-content:center;color:#fff;font-style:normal;}');
+L.push('.kb-card-v2 .pr-ico.f92{background:#f5a05a;}.kb-card-v2 .pr-ico.f95{background:#19b77a;}');
+L.push('.kb-card-v2 .pr-ico.fdt{background:#6ea8ff;}');
+L.push('.kb-card-v2 .pr-row b{font-size:12.5px;font-weight:900;color:var(--kbc-ink);font-variant-numeric:tabular-nums;}');
+L.push('.kb-card-v2 .cf > div > b{display:block;font-size:13px;font-weight:900;margin-top:6px;color:var(--kbc-ink);}');
+L.push('.kb-card-v2 .cf b.r{color:#c2403f;}.kb-card-v2 .cf b.y{color:#c26a2a;}.kb-card-v2 .cf b.g{color:#12855c;}');
+L.push('.kb-card-v2 .cf-sub{display:block;font-size:9.5px;color:var(--kbc-mut);font-weight:600;margin-top:2px;}');
+L.push('.kb-card-v2 .cf-strip{display:flex;gap:1.5px;margin-top:6px;height:5px;}');
+L.push('.kb-card-v2 .cf-strip i{flex:1;border-radius:2px;background:#e6ebf4;}');
+L.push('.kb-card-v2 .cf-strip i.on{background:#f5a05a;}.kb-card-v2 .cf-strip i.seen{background:#19b77a;}');
+L.push('.kb-card-v2 .cf-strip i.now{outline:1px solid var(--kbc-blue);}');
+L.push('.kb-card-v2 .card-btns{margin:0 14px 10px;display:flex;flex-direction:column;gap:8px;}');
+L.push('.kb-card-v2 .card-btns .cta-btn{margin:0;height:44px;padding:0 14px;border-radius:13px;');
+L.push('font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;}');
+L.push('.kb-card-v2 .card-btns .cta-btn:active{transform:scale(.985);}');
+L.push('.kb-card-v2 .card-btns .cta-btn.ghost{height:42px;font-size:11.5px;background:var(--kbc-surf2);');
+L.push('border:1px solid var(--kbc-line);color:var(--kbc-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kb-card-v2 .card-btns .cta-btn.ghost .ic{flex:none;}');
+L.push('.kb-card-v2 .card-btns .kb-mark-btn{height:42px;font-size:12px;}');
+L.push('.kb-card-v2 .kb-wiz{margin:0 14px 10px;}');
+L.push('.kb-card-v2 .card-maprow{margin:0 14px 10px;position:relative;height:104px;border-radius:16px;');
+L.push('overflow:hidden;border:1px solid var(--kbc-line);padding:0;display:block;cursor:pointer;}');
+L.push('.kb-card-v2 .card-maprow:active{transform:scale(.995);}');
+L.push('.kb-card-v2 .card-maprow::after{content:"";position:absolute;left:0;right:0;bottom:0;height:46px;');
+L.push('background:linear-gradient(180deg,rgba(20,33,61,0),rgba(20,33,61,.18));pointer-events:none;}');
+L.push('.kb-card-v2 .card-map-thumb{position:absolute;inset:0;width:100%;height:100%;border-radius:0;}');
+L.push('.kb-card-v2 .card-map-box{width:100%;height:100%;}');
+L.push('.kb-card-v2 .cmr-txt{position:absolute;left:8px;bottom:8px;z-index:5;');
+L.push('background:rgba(255,255,255,.92);backdrop-filter:blur(8px);');
+L.push('border:1px solid rgba(230,236,245,.9);border-radius:11px;padding:6px 10px;}');
+L.push('.kb-card-v2 .cmr-txt b{display:block;font-size:11.5px;font-weight:900;color:#14213d;}');
+L.push('.kb-card-v2 .cmr-txt small{display:block;font-size:9px;color:#71809c;font-weight:700;}');
+L.push('.kb-card-v2 .card-ev{margin:0 14px 10px;padding:10px 12px;border:1px solid var(--kbc-line);');
+L.push('border-radius:16px;background:var(--kbc-surf2);}');
+L.push('.kb-card-v2 .ev-head{display:flex;align-items:baseline;gap:6px;}');
+L.push('.kb-card-v2 .ev-head b{font-size:11.5px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kb-card-v2 .ev-head small{font-size:9px;color:var(--kbc-mut);font-weight:700;}');
+L.push('.kb-card-v2 .ev-tl{position:relative;display:flex;gap:8px;margin-top:9px;}');
+L.push('.kb-card-v2 .ev-tl::before{content:"";position:absolute;left:14%;right:14%;top:13px;height:2px;');
+L.push('background:var(--kbc-line);}');
+L.push('.kb-card-v2 .ev-node{position:relative;z-index:1;flex:1;min-width:0;display:flex;');
+L.push('flex-direction:column;align-items:center;gap:3px;}');
+L.push('.kb-card-v2 .ev-ico{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:#fff;');
+L.push('box-shadow:0 0 0 3px var(--kbc-surf2);}');
+L.push('.kb-card-v2 .ev-ico .ic{width:13px;height:13px;}');
+L.push('.kb-card-v2 .ev-ico.g{background:#19b77a;}.kb-card-v2 .ev-ico.r{background:#ef5350;}');
+L.push('.kb-card-v2 .ev-ico.b{background:#2465ee;}.kb-card-v2 .ev-ico.o{background:#f5a05a;}');
+L.push('.kb-card-v2 .ev-node b{font-size:10.5px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kb-card-v2 .ev-node span{font-size:8.5px;color:var(--kbc-mut);font-weight:700;text-align:center;');
+L.push('max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kb-card-v2 .ev-quiet{font-size:10px;color:var(--kbc-mut);font-weight:600;}');
+L.push('.kb-card-v2 .mf-plate{margin:0 14px 10px;padding:10px 12px;border:1px solid var(--kbc-line);');
+L.push('border-radius:16px;background:var(--kbc-surf2);}');
+L.push('.kb-card-v2 .mf-head{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:900;color:#12855c;}');
+L.push('.kb-card-v2 .mf-head .ic{width:14px;height:14px;}');
+L.push('.kb-card-v2 .mf-head small{margin-left:auto;font-size:8.5px;letter-spacing:.6px;color:var(--kbc-mut);');
+L.push('font-weight:900;text-transform:uppercase;}');
+L.push('.kb-card-v2 .mf-sub{font-size:9.5px;color:var(--kbc-mut);font-weight:600;margin:3px 0 8px;}');
+L.push('.kb-card-v2 .mf-row{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:11px;');
+L.push('border:1px solid var(--kbc-line);background:var(--kbc-surf);margin-top:6px;}');
+L.push('.kb-card-v2 .mf-row .mf-top{display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin:0;}');
+L.push('.kb-card-v2 .mf-row .mf-top > div{flex:1;min-width:0;}');
+L.push('.kb-card-v2 .mf-row .mf-top > div > div{display:flex;align-items:center;gap:8px;}');
+L.push('.kb-card-v2 .mf-logo{width:24px;height:24px;flex:none;border-radius:8px;display:grid;');
+L.push('place-items:center;background:var(--kbc-surf2);color:var(--kbc-mut);}');
+L.push('.kb-card-v2 .mf-logo .ic{width:13px;height:13px;}');
+L.push('.kb-card-v2 .mf-name{display:block;font-size:11.5px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kb-card-v2 .mf-addr{display:block;font-size:9px;color:var(--kbc-mut);font-weight:600;margin-top:1px;}');
+L.push('.kb-card-v2 .mf-fuel{margin-left:auto;flex:none;font-size:9.5px;font-weight:900;padding:4px 9px;border-radius:99px;}');
+L.push('.kb-card-v2 .mf-row.v-yes .mf-logo{background:#e5f8ef;color:#12855c;}');
+L.push('.kb-card-v2 .mf-row.v-yes .mf-fuel{background:#e5f8ef;color:#12855c;}');
+L.push('.kb-card-v2 .mf-row.v-no .mf-logo{background:#fdecec;color:#c2403f;}');
+L.push('.kb-card-v2 .mf-row.v-no .mf-fuel{background:#fdecec;color:#c2403f;}');
+L.push('.kb-card-v2 .mf-row.v-mid .mf-logo{background:#fff6ec;color:#c26a2a;}');
+L.push('.kb-card-v2 .mf-row.v-mid .mf-fuel{background:#fff6ec;color:#c26a2a;}');
+L.push('.kb-card-v2 .mf-row.v-q .mf-logo{background:#fff6ec;color:#c26a2a;}');
+L.push('.kb-card-v2 .mf-row.v-q .mf-name{color:#c26a2a;}');
+L.push('.kb-card-v2 .mf-row.v-q .mf-fuel{background:#fff6ec;color:#c26a2a;}');
+L.push('.kb-card-v2 .folk-card{margin:0 14px 10px;padding:10px 12px;border:1px solid var(--kbc-line);');
+L.push('border-radius:16px;background:var(--kbc-surf2);}');
+L.push('.kb-card-v2 .folk-head{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kb-card-v2 .folk-head .ic{width:14px;height:14px;color:#19b77a;}');
+L.push('.kb-card-v2 .folk-head small{font-size:8.5px;color:var(--kbc-mut);font-weight:800;}');
+L.push('.kb-card-v2 .folk-quiet{font-size:9.5px;color:var(--kbc-mut);font-weight:600;margin:4px 0 6px;}');
+L.push('.kb-card-v2 .folk-row{display:flex;align-items:flex-start;gap:8px;margin-top:7px;}');
+L.push('.kb-card-v2 .folk-ago{flex:none;min-width:52px;font-size:9px;font-weight:800;color:var(--kbc-mut);padding-top:3px;}');
+L.push('.kb-card-v2 .folk-chips{display:flex;flex-wrap:wrap;gap:4px;}');
+L.push('.kb-card-v2 .fk{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:800;');
+L.push('padding:3px 8px;border-radius:8px;font-style:normal;}');
+L.push('.kb-card-v2 .fk .ic{width:10px;height:10px;}');
+L.push('.kb-card-v2 .fk.yes{background:#e5f8ef;color:#12855c;}');
+L.push('.kb-card-v2 .fk.no{background:#fdecec;color:#c2403f;}');
+L.push('.kb-card-v2 .fk.q{background:#fff6ec;color:#c26a2a;}');
+L.push('.kb-card-v2 .fk.inf{background:#eef4ff;color:#2465ee;}');
+L.push('.kb-card-v2 .folk-comment{display:block;width:100%;font-size:9px;color:var(--kbc-mut);font-style:italic;}');
+L.push('.kb-card-v2 .sc-rowline{margin:0 14px 10px;padding:10px 12px;border:1px solid var(--kbc-line);');
+L.push('border-radius:16px;background:linear-gradient(120deg,var(--kbc-surf2),var(--kbc-surf));');
+L.push('display:flex;align-items:center;gap:10px;}');
+L.push('.kb-card-v2 .sc-rl-txt{flex:1;min-width:0;}');
+L.push('.kb-card-v2 .sc-rl-txt b{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:900;color:var(--kbc-ink);}');
+L.push('.kb-card-v2 .sc-rl-txt small{display:block;font-size:9.5px;color:var(--kbc-mut);font-weight:600;margin-top:1px;}');
+L.push('.kb-card-v2 .sc-gauge{margin-left:auto;flex:none;width:96px;}');
+L.push('.kb-card-v2 .sc-gauge svg{width:96px;height:54px;}');
+L.push('.kb-card-v2 .kb-card-extra{margin:0 14px;padding:0;}');
+L.push('.kb-card-v2 .kb-card-extra button{width:100%;height:40px;border-radius:12px;');
+L.push('border:1px dashed var(--kbc-line);background:transparent;color:var(--kbc-blue);');
+L.push('font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;}');
+L.push('.kb-card-v2 .kb-card-extra button:hover{background:var(--kbc-surf2);}');
+L.push('#sheetBody::-webkit-scrollbar{width:8px;}');
+L.push('#sheetBody::-webkit-scrollbar-track{background:transparent;}');
+L.push('#sheetBody::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#4b93ff,#2465ee);');
+L.push('border-radius:8px;border:2px solid transparent;background-clip:padding-box;}');
+L.push('#sheetBody::-webkit-scrollbar-thumb:hover{background:#1746c8;}');
+L.push('body.kb-night .kb-card-v2{--kbc-surf:#121a2e;--kbc-surf2:#16203a;--kbc-line:rgba(148,180,255,.16);');
+L.push('--kbc-ink:#ebf3ff;--kbc-mut:#93a0b8;--kbc-blue:#7db4ff;box-shadow:0 12px 36px rgba(0,0,0,.45);}');
+L.push('body.kb-night .kb-card-v2 .station-header{background:linear-gradient(180deg,var(--kbc-brand-soft,rgba(36,101,238,.14)),rgba(18,26,46,0));}');
+L.push('body.kb-night .kb-card-v2 .favorite.on{background:rgba(215,38,61,.16);border-color:rgba(215,38,61,.4);color:#ff8a80;}');
+L.push('body.kb-night .kbc-status .verdict.v-good{background:rgba(25,183,122,.12);}');
+L.push('body.kb-night .kbc-status .verdict.v-wait{background:rgba(245,160,90,.12);}');
+L.push('body.kb-night .kbc-status .verdict.v-unknown{background:rgba(148,180,255,.08);}');
+L.push('body.kb-night .kbc-status .f-st.yes{color:#2fd39a;}body.kb-night .kbc-status .f-st.no{color:#ff8a80;}');
+L.push('body.kb-night .kbc-status .f-st.unknown{color:#f5a05a;}');
+L.push('body.kb-night .kbc-status .f-tile.t-yes{background:rgba(25,183,122,.10);}');
+L.push('body.kb-night .kbc-status .f-tile.t-no{background:rgba(239,83,80,.10);}');
+L.push('body.kb-night .kbc-status .f-tile.t-unk{background:rgba(245,160,90,.10);}');
+L.push('body.kb-night .kb-card-v2 .cf-strip i{background:rgba(148,180,255,.14);}');
+L.push('body.kb-night .kb-card-v2 .cmr-txt{background:rgba(18,26,46,.9);border-color:rgba(148,180,255,.2);}');
+L.push('body.kb-night .kb-card-v2 .cmr-txt b{color:#ebf3ff;}body.kb-night .kb-card-v2 .cmr-txt small{color:#93a0b8;}');
+L.push('body.kb-night .kb-card-v2 .mf-head{color:#2fd39a;}');
+L.push('body.kb-night .kb-card-v2 .mf-row.v-yes .mf-logo,body.kb-night .kb-card-v2 .mf-row.v-yes .mf-fuel{background:rgba(25,183,122,.16);color:#2fd39a;}');
+L.push('body.kb-night .kb-card-v2 .mf-row.v-no .mf-logo,body.kb-night .kb-card-v2 .mf-row.v-no .mf-fuel{background:rgba(239,83,80,.16);color:#ff8a80;}');
+L.push('body.kb-night .kb-card-v2 .mf-row.v-mid .mf-logo,body.kb-night .kb-card-v2 .mf-row.v-mid .mf-fuel,');
+L.push('body.kb-night .kb-card-v2 .mf-row.v-q .mf-logo,body.kb-night .kb-card-v2 .mf-row.v-q .mf-fuel{background:rgba(245,160,90,.16);color:#f5a05a;}');
+L.push('body.kb-night .kb-card-v2 .mf-row.v-q .mf-name{color:#f5a05a;}');
+L.push('body.kb-night .kb-card-v2 .fk.yes{background:rgba(25,183,122,.16);color:#2fd39a;}');
+L.push('body.kb-night .kb-card-v2 .fk.no{background:rgba(239,83,80,.16);color:#ff8a80;}');
+L.push('body.kb-night .kb-card-v2 .fk.q{background:rgba(245,160,90,.16);color:#f5a05a;}');
+L.push('body.kb-night .kb-card-v2 .fk.inf{background:rgba(91,157,255,.16);color:#9dc4ff;}');
+L.push('body.kb-night .kb-card-v2 .sc-gauge .g-track{stroke:rgba(148,180,255,.18);}');
+L.push('body.kb-night #sheetBody::-webkit-scrollbar-thumb{background:#3f74d6;}');
+L.push('body.kb-lite .kb-card-v2{animation:none;}');
+L.push('@media (prefers-reduced-motion:reduce){.kb-card-v2{animation:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+
+var _sc = stationCard;
+stationCard = function (st, obs, pred) {
+var html = _sc(st, obs, pred);
+var tpl = document.createElement('template');
+tpl.innerHTML = html;
+var art = tpl.content.querySelector('article.station');
+if (!art) return html;
+art.classList.add('kb-card-v2');
+var bc = null;
+try { bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || null; } catch (e) {}
+bc = bc || '#2465ee';
+art.style.setProperty('--kbc-brand', bc);
+art.style.setProperty('--kbc-brand-soft', bc + '1F');
+
+var verdict = art.querySelector('.verdict'), tiles = art.querySelector('.f-tiles');
+if (verdict && tiles && verdict.parentNode) {
+var wrap = document.createElement('div');
+wrap.className = 'kbc-status';
+verdict.parentNode.insertBefore(wrap, verdict);
+wrap.appendChild(verdict);
+wrap.appendChild(tiles);
+}
+art.querySelectorAll('.f-tile').forEach(function (t) {
+var s = t.querySelector('.f-st');
+var c = !s ? 't-none'
+: s.classList.contains('yes') ? 't-yes'
+: s.classList.contains('no') ? 't-no'
+: s.classList.contains('unknown') ? 't-unk' : 't-none';
+t.classList.add(c);
+});
+var f = art.querySelector('.card-facts'); if (f) f.classList.add('kbc-facts');
+var b = art.querySelector('.card-btns'); if (b) b.classList.add('kbc-actions');
+var m = art.querySelector('.card-maprow'); if (m) m.classList.add('kbc-map');
+var p = art.querySelector('.kb-pred'); if (p) p.classList.add('kbc-pred');
+
+var plate = art.querySelector('.mf-plate');
+if (plate) {
+plate.classList.add('kbc-folkverdict');
+plate.querySelectorAll('button[onclick^="toggleFeedback"]').forEach(function (x) { x.remove(); });
+plate.querySelectorAll('.mf-row').forEach(function (row) {
+var pill = row.querySelector('.mf-fuel'), nm = row.querySelector('.mf-name');
+var isQ = nm && /Очередь|Стоят/.test(nm.textContent || '');
+var t = pill ? (pill.textContent || '') : '';
+row.classList.add(isQ ? 'v-q' : /^Есть/.test(t) ? 'v-yes' : /^Нет/.test(t) ? 'v-no' : 'v-mid');
+});
+plate.querySelectorAll('[style]').forEach(function (x) { x.removeAttribute('style'); });
+plate.removeAttribute('style');
+}
+var sh = art.querySelector('.kb-card-extra [data-kbshare]');
+if (sh) sh.innerHTML = (typeof icon === 'function' ? icon('i-spark', 'ic-s') : '') + 'Поделиться заправкой';
+return tpl.innerHTML;
+};
+})();
+// ============================================================
+// KB CARD FIX + MARK STUDIO v2
+// 1) Карточка АЗС: убирает съезд влево (скроллбар-желоб), делает
+//    карточку бесшовной на всю шторку с ровными полями 14px.
+// 2) Кнопки карточки: нормальные высокие кнопки, не капсулы.
+// 3) Окно отметок:全新的 ровная раскладка — топливо строками
+//    «Есть / Нет», очередь сеткой 3×2, «ещё» строкой, живая
+//    строка подтверждения и одна кнопка отправки снизу.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCardFixMark2) return;
+window.__kbCardFixMark2 = 1;
+
+// ---------- палитра и геометрия ----------
+(function css() {
+if (document.getElementById('kbCardFixMark2Css')) return;
+var s = document.createElement('style');
+s.id = 'kbCardFixMark2Css';
+var L = [];
+// скроллбар шторки больше не отъедает место слева/справа
+L.push('#sheetBody{scrollbar-width:none;-ms-overflow-style:none;}');
+L.push('#sheetBody::-webkit-scrollbar{width:0;height:0;}');
+L.push('@supports (scrollbar-gutter:stable both-edges){');
+L.push('#sheetBody{scrollbar-gutter:stable both-edges;scrollbar-width:thin;scrollbar-color:#2465ee transparent;}');
+L.push('#sheetBody::-webkit-scrollbar{width:6px;}');
+L.push('#sheetBody::-webkit-scrollbar-track{background:transparent;}');
+L.push('#sheetBody::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#4b93ff,#2465ee);border-radius:99px;}');
+L.push('#sheetBody::-webkit-scrollbar-thumb:hover{background:#1746c8;}');
+L.push('}');
+// карточка бесшовная, на всю ширину шторки
+L.push('article.station.kb-card-v2{margin:0;padding:0 0 18px;border:0;border-radius:0;');
+L.push('background:transparent;box-shadow:none;overflow:visible;animation:none;}');
+L.push('article.station.kb-card-v2::before{left:0;right:0;top:0;height:3px;border-radius:0;}');
+L.push('article.station.kb-card-v2 .station-header{padding:16px 14px 12px;}');
+L.push('article.station.kb-card-v2 .kb-pred,article.station.kb-card-v2 .kbc-status,');
+L.push('article.station.kb-card-v2 .card-facts,article.station.kb-card-v2 .card-btns,');
+L.push('article.station.kb-card-v2 .card-maprow,article.station.kb-card-v2 .card-ev,');
+L.push('article.station.kb-card-v2 .mf-plate,article.station.kb-card-v2 .folk-card,');
+L.push('article.station.kb-card-v2 .sc-rowline,article.station.kb-card-v2 .kb-card-extra,');
+L.push('article.station.kb-card-v2 #kbWiz{margin-left:14px;margin-right:14px;}');
+// кнопки карточки: высокие и солидные, не капсулы
+L.push('article.station.kb-card-v2 .card-btns{gap:10px;margin-bottom:12px;}');
+L.push('article.station.kb-card-v2 .card-btns .cta-btn{height:auto;min-height:52px;padding:14px 16px;');
+L.push('border-radius:16px;font-size:14px;font-weight:800;line-height:1.3;white-space:normal;');
+L.push('display:flex;align-items:center;justify-content:center;gap:9px;text-align:center;}');
+L.push('article.station.kb-card-v2 .card-btns .cta-btn .ic{width:18px;height:18px;flex:none;}');
+L.push('article.station.kb-card-v2 .card-btns .cta-btn.big:not(.kb-mark-btn){');
+L.push('background:linear-gradient(135deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;');
+L.push('box-shadow:0 8px 22px rgba(36,101,238,.32);}');
+L.push('article.station.kb-card-v2 .card-btns .cta-btn.ghost{min-height:48px;font-size:13px;');
+L.push('background:#fff;border:1.5px solid #dfe8f2;color:#33445f;box-shadow:none;}');
+L.push('article.station.kb-card-v2 .card-btns .cta-btn.kb-mark-btn{min-height:50px;font-size:13.5px;}');
+L.push('article.station.kb-card-v2 .card-btns .cta-btn:active{transform:scale(.98);}');
+L.push('body.kb-night article.station.kb-card-v2 .card-btns .cta-btn.ghost{');
+L.push('background:#16203a;border-color:rgba(148,180,255,.22);color:#c6d2e8;}');
+// ---------- окно отметок ----------
+L.push('#kbWiz{margin:0 14px 12px;padding:0;border:0;background:none;box-shadow:none;display:none;animation:none;}');
+L.push('#kbWiz.open{display:block;}');
+L.push('.kb2-card{border:1px solid #dfe8f2;border-radius:18px;padding:12px;');
+L.push('background:linear-gradient(165deg,#fdfeff,#f2f7ff);box-shadow:0 4px 16px rgba(20,33,61,.07);}');
+L.push('body.kb-night .kb2-card{background:linear-gradient(165deg,#141d33,#101828);border-color:rgba(148,180,255,.18);box-shadow:0 6px 20px rgba(0,0,0,.4);}');
+L.push('.kb2-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}');
+L.push('.kb2-head-ico{flex:none;width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;');
+L.push('background:linear-gradient(140deg,#2fd39a,#19b77a 60%,#12855c);color:#fff;box-shadow:0 4px 12px rgba(25,183,122,.35);}');
+L.push('.kb2-head-ico .ic{width:18px;height:18px;}');
+L.push('.kb2-head-t{flex:1;min-width:0;}');
+L.push('.kb2-head-t b{display:block;font-size:14px;font-weight:900;color:#14213d;}');
+L.push('.kb2-head-t span{display:block;font-size:10.5px;font-weight:600;color:#71809c;margin-top:1px;');
+L.push('white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('body.kb-night .kb2-head-t b{color:#ebf3ff;}body.kb-night .kb2-head-t span{color:#93a0b8;}');
+L.push('.kb2-x{flex:none;width:32px;height:32px;border-radius:10px;border:1px solid #dfe8f2;background:#fff;');
+L.push('color:#7487a7;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;}');
+L.push('body.kb-night .kb2-x{background:#16203a;border-color:rgba(148,180,255,.2);color:#93a0b8;}');
+L.push('.kb2-ack{display:flex;align-items:center;gap:7px;min-height:38px;padding:8px 11px;margin-bottom:12px;');
+L.push('border-radius:12px;background:#eef4ff;border:1px solid #bcd4ff;color:#33507e;font-size:11px;font-weight:700;line-height:1.35;}');
+L.push('.kb2-ack .ic{width:14px;height:14px;flex:none;color:#2465ee;}');
+L.push('.kb2-ack.flash{animation:kb2Ack .3s ease;}');
+L.push('@keyframes kb2Ack{from{opacity:.35;transform:translateY(3px);}to{opacity:1;transform:none;}}');
+L.push('body.kb-night .kb2-ack{background:rgba(91,157,255,.1);border-color:rgba(148,180,255,.25);color:#9dc4ff;}');
+L.push('.kb2-sec{margin-bottom:12px;}');
+L.push('.kb2-sec-t{display:flex;align-items:center;gap:7px;margin-bottom:8px;}');
+L.push('.kb2-sec-t i{flex:none;width:20px;height:20px;border-radius:50%;font-style:normal;');
+L.push('background:linear-gradient(140deg,#4b93ff,#2465ee);color:#fff;font-size:10.5px;font-weight:900;');
+L.push('display:flex;align-items:center;justify-content:center;}');
+L.push('.kb2-sec-t b{font-size:12.5px;font-weight:900;color:#14213d;}');
+L.push('.kb2-sec-t em{margin-left:auto;font-style:normal;font-size:9.5px;font-weight:700;color:#93a1b8;}');
+L.push('body.kb-night .kb2-sec-t b{color:#ebf3ff;}');
+// топливо: строка = метка + сегмент Есть/Нет
+L.push('.kb2-fuels{display:flex;flex-direction:column;gap:8px;}');
+L.push('.kb2-fuel{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;');
+L.push('border:1px solid #e6ecf5;background:#fff;}');
+L.push('body.kb-night .kb2-fuel{background:#121a2e;border-color:rgba(148,180,255,.14);}');
+L.push('.kb2-fuel-l{flex:none;display:flex;align-items:center;gap:8px;width:96px;}');
+L.push('.kb2-drop{flex:none;width:30px;height:24px;border-radius:8px;font-style:normal;color:#fff;');
+L.push('font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;}');
+L.push('.kb2-drop.d92{background:#f5a05a;}.kb2-drop.d95{background:#19b77a;}.kb2-drop.ddt{background:#6ea8ff;}');
+L.push('.kb2-fuel-l b{font-size:12px;font-weight:900;color:#14213d;}');
+L.push('body.kb-night .kb2-fuel-l b{color:#ebf3ff;}');
+L.push('.kb2-seg{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:6px;}');
+L.push('.kb2-seg-b{height:42px;border-radius:12px;border:1.5px solid #dfe8f2;background:#f6f8fc;');
+L.push('color:#5b6b86;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;');
+L.push('display:flex;align-items:center;justify-content:center;gap:6px;transition:.18s;}');
+L.push('.kb2-seg-b .ic{width:14px;height:14px;}');
+L.push('.kb2-seg-b:active{transform:scale(.96);}');
+L.push('body.kb-night .kb2-seg-b{background:#16203a;border-color:rgba(148,180,255,.18);color:#93a0b8;}');
+L.push('.kb2-seg-b.on.yes{background:#e5f8ef;border-color:#19b77a;color:#12855c;box-shadow:0 3px 10px rgba(25,183,122,.22);}');
+L.push('.kb2-seg-b.on.no{background:#fdecec;border-color:#ef5350;color:#c2403f;box-shadow:0 3px 10px rgba(239,83,80,.2);}');
+L.push('body.kb-night .kb2-seg-b.on.yes{background:rgba(25,183,122,.16);color:#2fd39a;}');
+L.push('body.kb-night .kb2-seg-b.on.no{background:rgba(239,83,80,.16);color:#ff8a80;}');
+// очередь: сетка 3×2
+L.push('.kb2-qgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}');
+L.push('.kb2-q{height:58px;border-radius:14px;border:1.5px solid #dfe8f2;background:#fff;cursor:pointer;');
+L.push('font-family:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:.18s;}');
+L.push('.kb2-q b{font-size:13px;font-weight:900;color:#33445f;line-height:1;}');
+L.push('.kb2-q span{font-size:9px;font-weight:700;color:#93a1b8;}');
+L.push('.kb2-q:active{transform:scale(.96);}');
+L.push('body.kb-night .kb2-q{background:#121a2e;border-color:rgba(148,180,255,.14);}');
+L.push('body.kb-night .kb2-q b{color:#c6d2e8;}');
+L.push('.kb2-q.on{box-shadow:0 3px 12px rgba(20,33,61,.14);}');
+L.push('.kb2-q.on.q-free{background:#e5f8ef;border-color:#19b77a;}.kb2-q.on.q-free b{color:#12855c;}');
+L.push('.kb2-q.on.q-small{background:#fff6ec;border-color:#f5a05a;}.kb2-q.on.q-small b{color:#c26a2a;}');
+L.push('.kb2-q.on.q-medium{background:#fff2e8;border-color:#f5a05a;}.kb2-q.on.q-medium b{color:#c26a2a;}');
+L.push('.kb2-q.on.q-large{background:#fdecec;border-color:#ef5350;}.kb2-q.on.q-large b{color:#c2403f;}');
+L.push('.kb2-q.on.q-huge{background:#fdecec;border-color:#c2403f;}.kb2-q.on.q-huge b{color:#c2403f;}');
+L.push('.kb2-q.on.q-in_queue{background:#fdecec;border-color:#ef5350;}.kb2-q.on.q-in_queue b{color:#c2403f;}');
+L.push('body.kb-night .kb2-q.on.q-free{background:rgba(25,183,122,.16);}body.kb-night .kb2-q.on.q-free b{color:#2fd39a;}');
+L.push('body.kb-night .kb2-q.on.q-small,body.kb-night .kb2-q.on.q-medium{background:rgba(245,160,90,.16);}');
+L.push('body.kb-night .kb2-q.on.q-small b,body.kb-night .kb2-q.on.q-medium b{color:#f5a05a;}');
+L.push('body.kb-night .kb2-q.on.q-large,body.kb-night .kb2-q.on.q-huge,body.kb-night .kb2-q.on.q-in_queue{background:rgba(239,83,80,.16);}');
+L.push('body.kb-night .kb2-q.on.q-large b,body.kb-night .kb2-q.on.q-huge b,body.kb-night .kb2-q.on.q-in_queue b{color:#ff8a80;}');
+// ещё
+L.push('.kb2-extra{width:100%;height:48px;border-radius:14px;border:1.5px solid #dfe8f2;background:#fff;');
+L.push('color:#33445f;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;');
+L.push('display:flex;align-items:center;justify-content:center;gap:8px;transition:.18s;}');
+L.push('.kb2-extra .ic{width:16px;height:16px;color:#2465ee;}');
+L.push('.kb2-extra.on{background:#eef4ff;border-color:#2465ee;color:#1746c8;box-shadow:0 3px 12px rgba(36,101,238,.2);}');
+L.push('body.kb-night .kb2-extra{background:#121a2e;border-color:rgba(148,180,255,.14);color:#c6d2e8;}');
+L.push('body.kb-night .kb2-extra.on{background:rgba(91,157,255,.14);color:#9dc4ff;}');
+// низ: счётчик + отправка
+L.push('.kb2-foot{display:flex;flex-direction:column;gap:8px;margin-top:2px;}');
+L.push('.kb2-count{font-size:10.5px;font-weight:700;color:#7487a7;text-align:center;min-height:14px;}');
+L.push('.kb2-count b{color:#12855c;}');
+L.push('.kb2-send{height:52px;border:0;border-radius:16px;font-size:14px;font-weight:900;cursor:pointer;');
+L.push('font-family:inherit;display:flex;align-items:center;justify-content:center;gap:9px;');
+L.push('background:linear-gradient(135deg,#2fd39a,#19b77a 55%,#12855c);color:#fff;');
+L.push('box-shadow:0 8px 22px rgba(25,183,122,.35);transition:.18s;}');
+L.push('.kb2-send .ic{width:18px;height:18px;}');
+L.push('.kb2-send:disabled{background:#e6ebf4;color:#93a1b8;box-shadow:none;cursor:default;}');
+L.push('.kb2-send:not(:disabled):active{transform:scale(.98);}');
+L.push('body.kb-night .kb2-send:disabled{background:rgba(148,180,255,.1);color:#93a0b8;}');
+L.push('.kb2-thanks{display:flex;flex-direction:column;align-items:center;text-align:center;padding:18px 8px 10px;}');
+L.push('.kb2-thanks-ico{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;');
+L.push('background:linear-gradient(140deg,#2fd39a,#12855c);color:#fff;margin-bottom:10px;');
+L.push('box-shadow:0 0 0 8px rgba(25,183,122,.14);animation:kb2Pop .5s cubic-bezier(.34,1.5,.64,1);}');
+L.push('.kb2-thanks-ico .ic{width:30px;height:30px;}');
+L.push('@keyframes kb2Pop{from{transform:scale(.4);opacity:0;}to{transform:scale(1);opacity:1;}}');
+L.push('.kb2-thanks b{font-size:16px;font-weight:900;color:#14213d;}');
+L.push('.kb2-thanks span{font-size:11.5px;font-weight:600;color:#71809c;margin:5px 0 12px;line-height:1.45;}');
+L.push('body.kb-night .kb2-thanks b{color:#ebf3ff;}body.kb-night .kb2-thanks span{color:#93a0b8;}');
+L.push('.kb2-thanks button{height:44px;padding:0 26px;border:0;border-radius:14px;background:#2465ee;color:#fff;');
+L.push('font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;}');
+L.push('@media (prefers-reduced-motion:reduce){.kb2-ack.flash,.kb2-thanks-ico{animation:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+
+function esc(s) { return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s); }
+function ic(n, c) { return typeof icon === 'function' ? icon(n, c) : ''; }
+function pl(n, f) { var a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
+
+// ---------- состояние и живые подтверждения ----------
+var st2 = {};
+function stateOf(id) {
+if (!st2[id]) st2[id] = { fuel: {}, queue: null, extra: {}, qTouched: false, exTouched: false };
+return st2[id];
+}
+var ACK0 = ['Отметьте топливо, очередь или привоз — город увидит сразу.'];
+var ACK_F = ['Принято! А что по очереди там сейчас?', 'Записал топливо. Сколько машин стоит?', 'Ок, топливо учли. Как там с очередью?'];
+var ACK_Q = ['Понял, очередь учли. Бензовоз сегодня приезжал?', 'Ок! А привоз сегодня был?', 'Записано. Что ещё видно на заправке?'];
+var ACK_E = ['Спасибо! Всё учёл — можно отправлять.', 'Принято! Жми «Отправить отметку».'];
+var ACK_X = ['Записано ✓', 'Принято!', 'Ок, учёл ✓', 'Плюс один факт ✓'];
+var lastPick2 = {};
+function pick2(arr, key) {
+var i = Math.floor(Math.random() * arr.length);
+if (arr.length > 1 && i === lastPick2[key]) i = (i + 1) % arr.length;
+lastPick2[key] = i;
+return arr[i];
+}
+function setAck(box, msg) {
+var el = box.querySelector('.kb2-ack');
+if (!el) return;
+el.innerHTML = ic('i-spark', 'ic-s') + '<span>' + esc(msg) + '</span>';
+el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+function factsOf(st) {
+var rows = [];
+['92', '95', 'diesel'].forEach(function (f) {
+if (st.fuel[f]) rows.push({ feedback_type: st.fuel[f] === 'yes' ? 'available' : 'unavailable', fuel_type: f, queue_size: null, comment_text: null });
+});
+if (st.queue === 'in_queue') rows.push({ feedback_type: 'in_queue', fuel_type: null, queue_size: null, comment_text: null });
+else if (st.queue === 'free') rows.push({ feedback_type: 'free', fuel_type: null, queue_size: null, comment_text: null });
+else if (st.queue) rows.push({ feedback_type: 'queue', fuel_type: null, queue_size: st.queue, comment_text: null });
+if (st.extra.delivery) rows.push({ feedback_type: 'delivery', fuel_type: null, queue_size: null, comment_text: null });
+return rows;
+}
+function paintFoot(box, st) {
+var n = factsOf(st).length;
+var cnt = box.querySelector('.kb2-count');
+var send = box.querySelector('.kb2-send');
+if (cnt) cnt.innerHTML = n
+? 'Выбрано: <b>' + n + '</b> ' + pl(n, ['факт', 'факта', 'фактов']) + ' — отправим одним пакетом'
+: 'Отметьте хотя бы один факт';
+if (send) send.disabled = !n;
+}
+
+// ---------- разметка окна отметок ----------
+var FUELS = [
+{ f: '92', label: 'АИ-92', cls: 'd92', chip: '92' },
+{ f: '95', label: 'АИ-95', cls: 'd95', chip: '95' },
+{ f: 'diesel', label: 'Дизель', cls: 'ddt', chip: 'ДТ' }
+];
+var QUEUES = [
+{ q: 'free', b: 'Свободно', s: 'без очереди', cls: 'q-free' },
+{ q: 'small', b: '2–3', s: 'машины', cls: 'q-small' },
+{ q: 'medium', b: '4–6', s: 'машин', cls: 'q-medium' },
+{ q: 'large', b: '7+', s: 'машин', cls: 'q-large' },
+{ q: 'huge', b: '100+', s: 'машин', cls: 'q-huge' },
+{ q: 'in_queue', b: 'Стою', s: 'в очереди', cls: 'q-in_queue' }
+];
+function wizHtml(id, st) {
+var station = null;
+try { station = stationById(id); } catch (e) {}
+var fuels = FUELS.map(function (x) {
+return '<div class="kb2-fuel">' +
+'<span class="kb2-fuel-l"><i class="kb2-drop ' + x.cls + '">' + x.chip + '</i><b>' + x.label + '</b></span>' +
+'<span class="kb2-seg">' +
+'<button type="button" class="kb2-seg-b yes' + (st.fuel[x.f] === 'yes' ? ' on' : '') + '" data-kb2-fuel="' + x.f + '" data-kb2-v="yes">' + ic('i-check', 'ic-s') + 'Есть</button>' +
+'<button type="button" class="kb2-seg-b no' + (st.fuel[x.f] === 'no' ? ' on' : '') + '" data-kb2-fuel="' + x.f + '" data-kb2-v="no">' + ic('i-cross', 'ic-s') + 'Нет</button>' +
+'</span></div>';
+}).join('');
+var queues = QUEUES.map(function (x) {
+return '<button type="button" class="kb2-q ' + x.cls + (st.queue === x.q ? ' on' : '') + '" data-kb2-q="' + x.q + '"><b>' + x.b + '</b><span>' + x.s + '</span></button>';
+}).join('');
+return '<div class="kb2-card">' +
+'<div class="kb2-head"><span class="kb2-head-ico">' + ic('i-check') + '</span>' +
+'<span class="kb2-head-t"><b>Ваша отметка</b><span>' + esc(station ? (station.name || 'АЗС') : 'АЗС') + (station && station.address ? ' · ' + esc(station.address) : '') + '</span></span>' +
+'<button type="button" class="kb2-x" data-kb2-close="1" aria-label="Закрыть">×</button></div>' +
+'<div class="kb2-ack">' + ic('i-spark', 'ic-s') + '<span>' + ACK0[0] + '</span></div>' +
+'<div class="kb2-sec"><div class="kb2-sec-t"><i>1</i><b>Топливо</b><em>можно несколько</em></div>' +
+'<div class="kb2-fuels">' + fuels + '</div></div>' +
+'<div class="kb2-sec"><div class="kb2-sec-t"><i>2</i><b>Очередь</b><em>один вариант</em></div>' +
+'<div class="kb2-qgrid">' + queues + '</div></div>' +
+'<div class="kb2-sec"><div class="kb2-sec-t"><i>3</i><b>Ещё</b><em>необязательно</em></div>' +
+'<button type="button" class="kb2-extra' + (st.extra.delivery ? ' on' : '') + '" data-kb2-extra="delivery">' + ic('i-truck', 'ic-s') + 'Привезли бензовоз</button></div>' +
+'<div class="kb2-foot"><div class="kb2-count"></div>' +
+'<button type="button" class="kb2-send" data-kb2-send="' + id + '" disabled>' + ic('i-check') + 'Отправить отметку</button></div>' +
+'</div>';
+}
+
+// ---------- открытие (перехватываем кнопку карточки) ----------
+window.kbMarkOpen = function (id) {
+var box = document.getElementById('kbWiz');
+if (!box || box.dataset.st !== id) return;
+st2[id] = { fuel: {}, queue: null, extra: {}, qTouched: false, exTouched: false };
+box.innerHTML = wizHtml(id, st2[id]);
+box.classList.add('open');
+paintFoot(box, st2[id]);
+setTimeout(function () { try { box.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {} }, 60);
+};
+function closeWiz(box) {
+box.classList.remove('open');
+box.innerHTML = '';
+}
+
+// ---------- отправка ----------
+var sending2 = false;
+async function send2(id, box) {
+if (sending2) return;
+var st = stateOf(id);
+var rows = factsOf(st);
+if (!rows.length) { setAck(box, 'Сначала отметьте хотя бы один факт.'); return; }
+var key = 'fb_' + id;
+var history = [];
+try { history = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+var now = Date.now();
+if (history.filter(function (t) { return now - t < 30 * 60 * 1000; }).length >= 3) {
+setAck(box, 'Слишком много отметок за полчаса. Попробуйте чуть позже.');
+return;
+}
+sending2 = true;
+var send = box.querySelector('.kb2-send');
+if (send) { send.disabled = true; send.innerHTML = 'Отправляю…'; }
+var station = null;
+try { station = stationById(id); } catch (e) {}
+var onSite = {};
+try { onSite = await onSiteFields(station); } catch (e) {}
+rows.forEach(function (r) { r.station_id = id; r.device_id = deviceId; Object.assign(r, onSite); });
+var ok = true;
+try { await dbInsert('user_feedback', rows); } catch (e) { ok = false; }
+if (!ok) { try { queueFeedbackLocally(rows); } catch (e) {} }
+history.push(now);
+try { localStorage.setItem(key, JSON.stringify(history)); } catch (e) {}
+rows.forEach(function (r) { allFeedback.unshift(Object.assign({ created_at: new Date().toISOString() }, r)); });
+try { track('feedback_submit'); } catch (e) {}
+try { bumpContrib(); } catch (e) {}
+sending2 = false;
+box.innerHTML = '<div class="kb2-card"><div class="kb2-thanks">' +
+'<span class="kb2-thanks-ico">' + ic('i-check') + '</span>' +
+'<b>Спасибо! Отметка учтена</b>' +
+'<span>' + rows.length + ' ' + pl(rows.length, ['факт', 'факта', 'фактов']) + ' ушли в город' + (ok ? '' : ' (сохранили, отправим когда вернётся связь)') + '.<br>Пины и прогнозы обновятся с ближайшими данными.</span>' +
+'<button type="button" data-kb2-close="1">Закрыть</button></div></div>';
+setTimeout(function () {
+try { if (typeof mapObj !== 'undefined' && mapObj) renderMap(); } catch (e) {}
+try { softRefresh(); } catch (e) {}
+}, 1200);
+setTimeout(function () { if (box.classList.contains('open')) closeWiz(box); }, 4200);
+}
+
+// ---------- клики окна отметок ----------
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+var box = t.closest('#kbWiz');
+if (!box) return;
+var id = box.dataset.st;
+var st = stateOf(id);
+var el;
+if ((el = t.closest('[data-kb2-close]'))) { closeWiz(box); return; }
+if ((el = t.closest('[data-kb2-fuel]'))) {
+var f = el.getAttribute('data-kb2-fuel'), v = el.getAttribute('data-kb2-v');
+st.fuel[f] = (st.fuel[f] === v) ? null : v;
+box.querySelectorAll('[data-kb2-fuel="' + f + '"]').forEach(function (b) {
+b.classList.toggle('on', b.getAttribute('data-kb2-v') === st.fuel[f]);
+});
+setAck(box, (!st.qTouched && st.fuel[f]) ? pick2(ACK_F, 'f') : pick2(ACK_X, 'x'));
+paintFoot(box, st);
+return;
+}
+if ((el = t.closest('[data-kb2-q]'))) {
+var q = el.getAttribute('data-kb2-q');
+st.queue = (st.queue === q) ? null : q;
+st.qTouched = true;
+box.querySelectorAll('[data-kb2-q]').forEach(function (b) {
+b.classList.toggle('on', b.getAttribute('data-kb2-q') === st.queue);
+});
+setAck(box, (!st.exTouched && st.queue) ? pick2(ACK_Q, 'q') : pick2(ACK_X, 'x'));
+paintFoot(box, st);
+return;
+}
+if ((el = t.closest('[data-kb2-extra]'))) {
+st.extra.delivery = !st.extra.delivery;
+st.exTouched = true;
+el.classList.toggle('on', st.extra.delivery);
+setAck(box, st.extra.delivery ? pick2(ACK_E, 'e') : pick2(ACK_X, 'x'));
+paintFoot(box, st);
+return;
+}
+if ((el = t.closest('[data-kb2-send]'))) { send2(el.getAttribute('data-kb2-send'), box); return; }
+}, true);
+})();
+// ============================================================
+// KB CARD HERO + SPOILER v1
+// 1) Шапка АЗС: встаёт в общую сетку 14px, как все блоки ниже,
+//    превращается в аккуратный блок с брендовым акцентом слева,
+//    мягким свечением бренда, логотипом в кольце и круглым сердечком.
+// 2) «События за 24 ч», «Наши водители сообщают», «Отметки водителей»
+//    и «КогдаБенз Score» убраны в один красивый спойлер (свёрнут):
+//    в шапке спойлера — короткая выжимка, внутри — те же блоки.
+// Все обработчики (toggleFavorite, openScorePop, kbMarkOpen,
+// cardMapGo, data-kbshare) сохранены — узлы переносятся, не пересоздаются.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCardHeroSpoiler) return;
+window.__kbCardHeroSpoiler = 1;
+
+(function css() {
+if (document.getElementById('kbCardHeroSpoilerCss')) return;
+var s = document.createElement('style');
+s.id = 'kbCardHeroSpoilerCss';
+var L = [];
+// ---------- шапка в общей сетке ----------
+L.push('article.station.kb-card-v2{padding:12px 0 18px;}');
+L.push('article.station.kb-card-v2::before{left:14px;right:14px;top:0;height:3px;border-radius:99px;}');
+L.push('article.station.kb-card-v2 .station-header{position:relative;display:flex;align-items:center;gap:12px;');
+L.push('margin:0 14px 10px;padding:13px 13px 13px 17px;border-radius:18px;overflow:hidden;');
+L.push('border:1px solid var(--kbc-line);box-shadow:0 2px 12px rgba(20,33,61,.06);');
+L.push('background:radial-gradient(140px 110px at 100% 0%,var(--kbc-brand-soft,rgba(36,101,238,.12)),rgba(255,255,255,0) 72%),');
+L.push('linear-gradient(160deg,var(--kbc-surf),var(--kbc-surf2));}');
+L.push('article.station.kb-card-v2 .station-header::before{content:"";position:absolute;left:0;top:14px;bottom:14px;');
+L.push('width:3px;border-radius:0 4px 4px 0;background:linear-gradient(180deg,var(--kbc-brand,#2465ee),#2465ee 68%,#19b77a);}');
+L.push('article.station.kb-card-v2 .station-logo{width:48px;height:48px;flex:none;border-radius:15px;padding:7px;');
+L.push('background:var(--kbc-surf);border:1px solid var(--kbc-line);display:flex;align-items:center;justify-content:center;');
+L.push('box-shadow:0 3px 10px rgba(20,33,61,.10),0 0 0 3px var(--kbc-brand-ring,rgba(36,101,238,.16));}');
+L.push('article.station.kb-card-v2 .station-logo img{width:100%;height:100%;object-fit:contain;}');
+L.push('article.station.kb-card-v2 .station-logo .ic{width:24px;height:24px;color:var(--kbc-mut);}');
+L.push('article.station.kb-card-v2 .station-info{flex:1;min-width:0;}');
+L.push('article.station.kb-card-v2 .station-name{font-size:17px;font-weight:900;letter-spacing:-.3px;line-height:1.2;');
+L.push('color:var(--kbc-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('article.station.kb-card-v2 .station-address{font-size:11px;font-weight:600;line-height:1.3;margin-top:3px;');
+L.push('color:var(--kbc-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('article.station.kb-card-v2 .favorite{flex:none;width:42px;height:42px;border-radius:50%;cursor:pointer;');
+L.push('border:1px solid var(--kbc-line);background:var(--kbc-surf);color:#a7b1c1;');
+L.push('display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(20,33,61,.06);');
+L.push('transition:transform .16s,background .2s,border-color .2s,color .2s;}');
+L.push('article.station.kb-card-v2 .favorite .ic{width:20px;height:20px;}');
+L.push('article.station.kb-card-v2 .favorite.on{background:#fdecec;border-color:#f3b7b3;color:#d7263d;');
+L.push('box-shadow:0 3px 11px rgba(215,38,61,.22);}');
+L.push('article.station.kb-card-v2 .favorite.on .ic{animation:kbFavPop .42s cubic-bezier(.34,1.5,.64,1);}');
+L.push('article.station.kb-card-v2 .favorite:active{transform:scale(.9);}');
+L.push('@keyframes kbFavPop{0%{transform:scale(.6)}55%{transform:scale(1.25)}100%{transform:scale(1)}}');
+L.push('body.kb-night article.station.kb-card-v2 .favorite.on{background:rgba(215,38,61,.16);');
+L.push('border-color:rgba(215,38,61,.42);color:#ff8a80;box-shadow:0 3px 12px rgba(0,0,0,.35);}');
+// ---------- лёгкий ступенчатый вход ----------
+L.push('article.station.kb-card-v2 > .station-header,article.station.kb-card-v2 > .kb-pred,');
+L.push('article.station.kb-card-v2 > .kbc-status,article.station.kb-card-v2 > .card-facts{');
+L.push('animation:kbBlkIn .34s cubic-bezier(.2,.8,.2,1) both;}');
+L.push('article.station.kb-card-v2 > .kb-pred{animation-delay:.05s;}');
+L.push('article.station.kb-card-v2 > .kbc-status{animation-delay:.1s;}');
+L.push('article.station.kb-card-v2 > .card-facts{animation-delay:.15s;}');
+L.push('@keyframes kbBlkIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}');
+// ---------- спойлер ----------
+L.push('article.station.kb-card-v2 .kb-more{margin:0 14px 10px;border:1px solid var(--kbc-line);');
+L.push('border-radius:18px;background:var(--kbc-surf2);overflow:hidden;box-shadow:0 2px 10px rgba(20,33,61,.05);}');
+L.push('article.station.kb-card-v2 .kb-more.open{border-color:#bcd4ff;box-shadow:0 6px 20px rgba(36,101,238,.12);}');
+L.push('body.kb-night article.station.kb-card-v2 .kb-more.open{border-color:rgba(148,180,255,.38);box-shadow:0 6px 22px rgba(0,0,0,.4);}');
+L.push('.kb-more-head{display:flex;align-items:center;gap:10px;width:100%;padding:12px;border:0;');
+L.push('background:transparent;cursor:pointer;font-family:inherit;text-align:left;transition:background .2s;}');
+L.push('.kb-more-head:active{background:rgba(36,101,238,.06);}');
+L.push('.kb-more-ico{flex:none;width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;');
+L.push('background:linear-gradient(140deg,#4b93ff,#2465ee 60%,#1746c8);color:#fff;box-shadow:0 4px 12px rgba(36,101,238,.32);}');
+L.push('.kb-more-ico .ic{width:18px;height:18px;}');
+L.push('.kb-more-t{flex:1;min-width:0;}');
+L.push('.kb-more-t b{display:block;font-size:13px;font-weight:900;color:var(--kbc-ink);white-space:nowrap;}');
+L.push('.kb-more-sub{display:block;font-size:10px;font-weight:700;color:var(--kbc-mut);margin-top:2px;');
+L.push('white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kb-more-chev{flex:none;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;');
+L.push('background:var(--kbc-surf);border:1px solid var(--kbc-line);color:#2465ee;transition:transform .32s cubic-bezier(.2,.8,.2,1);}');
+L.push('.kb-more-chev .ic{width:14px;height:14px;}');
+L.push('.kb-more.open .kb-more-chev{transform:rotate(90deg);background:#eef4ff;border-color:#bcd4ff;}');
+L.push('body.kb-night .kb-more-chev{color:#9dc4ff;}');
+L.push('body.kb-night .kb-more.open .kb-more-chev{background:rgba(91,157,255,.14);border-color:rgba(148,180,255,.35);}');
+L.push('.kb-more-body{max-height:0;opacity:0;overflow:hidden;');
+L.push('transition:max-height .38s cubic-bezier(.2,.8,.2,1),opacity .28s ease;}');
+L.push('.kb-more.open .kb-more-body{opacity:1;}');
+L.push('.kb-more-in{padding:2px 10px 10px;display:flex;flex-direction:column;gap:8px;}');
+L.push('.kb-more.open .kb-more-in > *{animation:kbMoreIn .34s cubic-bezier(.2,.8,.2,1) both;}');
+L.push('.kb-more.open .kb-more-in > *:nth-child(2){animation-delay:.05s;}');
+L.push('.kb-more.open .kb-more-in > *:nth-child(3){animation-delay:.1s;}');
+L.push('.kb-more.open .kb-more-in > *:nth-child(4){animation-delay:.15s;}');
+L.push('@keyframes kbMoreIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}');
+// ---------- внутренние блоки: своя сетка и слой ----------
+L.push('article.station.kb-card-v2 .kb-more-in > .card-ev,');
+L.push('article.station.kb-card-v2 .kb-more-in > .mf-plate,');
+L.push('article.station.kb-card-v2 .kb-more-in > .folk-card,');
+L.push('article.station.kb-card-v2 .kb-more-in > .sc-rowline{margin:0;}');
+L.push('article.station.kb-card-v2 .kb-more-in .card-ev,');
+L.push('article.station.kb-card-v2 .kb-more-in .mf-plate,');
+L.push('article.station.kb-card-v2 .kb-more-in .folk-card{background:var(--kbc-surf);border-radius:14px;}');
+L.push('article.station.kb-card-v2 .kb-more-in .mf-row{background:var(--kbc-surf2);}');
+L.push('article.station.kb-card-v2 .kb-more-in .card-ev{display:block;}');
+L.push('article.station.kb-card-v2 .kb-more-in .ev-head{display:flex;align-items:baseline;gap:6px;flex-wrap:nowrap;}');
+L.push('article.station.kb-card-v2 .kb-more-in .ev-head b,');
+L.push('article.station.kb-card-v2 .kb-more-in .ev-head small{white-space:nowrap;}');
+L.push('article.station.kb-card-v2 .kb-more-in .ev-tl{margin-top:10px;}');
+L.push('article.station.kb-card-v2 .kb-more-in .ev-node span{white-space:normal;text-overflow:clip;line-height:1.25;');
+L.push('display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}');
+L.push('article.station.kb-card-v2 .kb-more-in .sc-rowline{border-radius:14px;}');
+// ---------- экономный режим ----------
+L.push('body.kb-lite article.station.kb-card-v2 > .station-header,');
+L.push('body.kb-lite article.station.kb-card-v2 > .kb-pred,');
+L.push('body.kb-lite article.station.kb-card-v2 > .kbc-status,');
+L.push('body.kb-lite article.station.kb-card-v2 > .card-facts,');
+L.push('body.kb-lite .kb-more.open .kb-more-in > *,');
+L.push('body.kb-lite article.station.kb-card-v2 .favorite.on .ic{animation:none;}');
+L.push('body.kb-lite .kb-more-body{transition:none;}');
+L.push('@media (prefers-reduced-motion:reduce){article.station.kb-card-v2 > .station-header,');
+L.push('article.station.kb-card-v2 > .kb-pred,article.station.kb-card-v2 > .kbc-status,');
+L.push('article.station.kb-card-v2 > .card-facts,.kb-more.open .kb-more-in > *,');
+L.push('article.station.kb-card-v2 .favorite.on .ic{animation:none;}');
+L.push('.kb-more-body,.kb-more-chev{transition:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+
+function plural(n, f) {
+var a = Math.abs(n) % 100, b = a % 10;
+if (a > 10 && a < 20) return f[2];
+if (b > 1 && b < 5) return f[1];
+if (b === 1) return f[0];
+return f[2];
+}
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+function ic(n) { return typeof icon === 'function' ? icon(n) : ''; }
+
+// ---------- выжимка для шапки спойлера ----------
+function summaryOf(art) {
+var evN = art.querySelectorAll('.card-ev .ev-node').length;
+var marksN = 0;
+var fh = art.querySelector('.folk-card .folk-head small');
+if (fh) {
+var nums = (fh.textContent || '').match(/\d+/g);
+if (nums && nums.length) marksN = Number(nums[nums.length - 1]);
+}
+var score = '—';
+var gb = art.querySelector('.sc-gauge b');
+if (gb) {
+var m = (gb.textContent || '').match(/\d+/);
+if (m) score = m[0];
+}
+var evTxt = evN ? evN + ' ' + plural(evN, ['событие', 'события', 'событий']) : 'событий нет';
+return evTxt + ' · ' + marksN + ' ' + plural(marksN, ['отметка', 'отметки', 'отметок']) + ' · Score ' + score;
+}
+
+// ---------- переносим «вторичное» в спойлер ----------
+var _sc = stationCard;
+stationCard = function (st, obs, pred) {
+var html = _sc(st, obs, pred);
+var tpl = document.createElement('template');
+tpl.innerHTML = html;
+var art = tpl.content.querySelector('article.station');
+if (!art) return html;
+
+var bc = null;
+try { bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || null; } catch (e) {}
+art.style.setProperty('--kbc-brand-ring', (bc || '#2465ee') + '2E');
+
+var parts = [];
+['.card-ev', '.mf-plate', '.folk-card', '.sc-rowline'].forEach(function (sel) {
+var el = art.querySelector(sel);
+if (el && el.parentNode) parts.push(el);
+});
+if (!parts.length) return tpl.innerHTML;
+
+var sub = summaryOf(art);
+var box = document.createElement('div');
+box.className = 'kb-more';
+var head = document.createElement('button');
+head.type = 'button';
+head.className = 'kb-more-head';
+head.setAttribute('data-kbmore', '1');
+head.setAttribute('aria-expanded', 'false');
+head.innerHTML =
+'<span class="kb-more-ico">' + ic('i-chart') + '</span>' +
+'<span class="kb-more-t"><b>Подробности станции</b>' +
+'<span class="kb-more-sub">' + esc(sub) + '</span></span>' +
+'<span class="kb-more-chev">' + ic('i-arrow') + '</span>';
+var body = document.createElement('div');
+body.className = 'kb-more-body';
+body.setAttribute('role', 'region');
+var inner = document.createElement('div');
+inner.className = 'kb-more-in';
+body.appendChild(inner);
+box.appendChild(head);
+box.appendChild(body);
+parts[0].parentNode.insertBefore(box, parts[0]);
+parts.forEach(function (el) { inner.appendChild(el); });
+return tpl.innerHTML;
+};
+
+// ---------- раскрытие / сворачивание ----------
+function calm() {
+if (document.body.classList.contains('kb-lite')) return true;
+return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+function expand(box, body, head) {
+box.classList.add('open');
+head.setAttribute('aria-expanded', 'true');
+if (calm()) { body.style.maxHeight = 'none'; return; }
+body.style.maxHeight = body.scrollHeight + 'px';
+clearTimeout(body._kbT);
+var done = function (ev) {
+if (ev && ev.propertyName !== 'max-height') return;
+body.removeEventListener('transitionend', done);
+if (box.classList.contains('open')) body.style.maxHeight = 'none';
+};
+body.addEventListener('transitionend', done);
+body._kbT = setTimeout(function () {
+if (box.classList.contains('open')) body.style.maxHeight = 'none';
+}, 460);
+}
+function collapse(box, body, head) {
+clearTimeout(body._kbT);
+head.setAttribute('aria-expanded', 'false');
+if (calm()) { box.classList.remove('open'); body.style.maxHeight = '0px'; return; }
+body.style.maxHeight = body.scrollHeight + 'px';
+void body.offsetHeight;
+box.classList.remove('open');
+body.style.maxHeight = '0px';
+}
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+var head = t.closest('[data-kbmore]');
+if (!head) return;
+var box = head.closest('.kb-more');
+if (!box) return;
+var body = box.querySelector('.kb-more-body');
+if (!body) return;
+if (box.classList.contains('open')) collapse(box, body, head);
+else expand(box, body, head);
+}, true);
+})();
+// ============================================================
+// KB CARD CLOSEBAR + VERDICT FIX v1
+// 1) Крестик закрытия: вместо серого квадрата в углу — липкая
+//    полоса сверху карточки с брендовым градиентом и надписью
+//    «ЗАКРЫТЬ» бледно-синим градиентом (прозрачные буквы).
+//    Тап по всей полосе закрывает шторку. Старый крестик прячется
+//    только когда полоса есть (в «Помощи» он остаётся, но красивее).
+// 2) Вердикт: заголовок и подстрока больше не наезжают друг на друга,
+//    подстрока собрана в аккуратные чипы (очередь · цена/окно).
+// 3) Плитки топлива: «есть народ ✓» разделено на статус и источник.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbClosebarVerdict) return;
+window.__kbClosebarVerdict = 1;
+
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+function ic(n) { return typeof icon === 'function' ? icon(n, 'ic-s') : ''; }
+
+(function css() {
+if (document.getElementById('kbClosebarVerdictCss')) return;
+var s = document.createElement('style');
+s.id = 'kbClosebarVerdictCss';
+var L = [];
+// ---------- полоса закрытия ----------
+L.push('article.station.kb-card-v2{padding:0 0 18px;}');
+L.push('article.station.kb-card-v2::before{display:none !important;}');
+L.push('.kb-closebar{position:sticky;top:0;z-index:6;display:flex;align-items:center;');
+L.push('justify-content:center;gap:12px;height:40px;margin:0 14px 10px;border-radius:14px;');
+L.push('cursor:pointer;overflow:hidden;-webkit-tap-highlight-color:transparent;');
+L.push('background:linear-gradient(180deg,#f5f9ff,#e9f1ff);');
+L.push('border:1px solid rgba(188,212,255,.55);box-shadow:0 3px 12px rgba(20,33,61,.07);');
+L.push('transition:background .2s,box-shadow .2s;}');
+L.push('.kb-closebar::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;');
+L.push('background:linear-gradient(90deg,var(--kbc-brand,#2465ee),#2465ee 55%,#19b77a);}');
+L.push('.kb-closebar-w{font-size:15px;font-weight:900;letter-spacing:5px;text-transform:uppercase;');
+L.push('background:linear-gradient(100deg,#bcd4ff,#4b93ff 45%,#9dc4ff);');
+L.push('-webkit-background-clip:text;background-clip:text;color:transparent;');
+L.push('opacity:.6;transition:opacity .2s;user-select:none;}');
+L.push('body:has(.kb-closebar) [onclick*="closeSheet"],body:has(.kb-closebar) #sheetClose,body:has(.kb-closebar) .sheet-close,body:has(.kb-closebar) .sheet-x{display:none !important;}');
+L.push('.kb-closebar-x{flex:none;width:24px;height:24px;border-radius:50%;display:flex;');
+L.push('align-items:center;justify-content:center;background:rgba(36,101,238,.12);');
+L.push('color:#2465ee;font-size:13px;font-weight:800;line-height:1;transition:.2s;}');
+L.push('.kb-closebar:active{background:linear-gradient(180deg,#e9f1ff,#dfe9ff);}');
+L.push('.kb-closebar:active .kb-closebar-w{opacity:.95;}');
+L.push('.kb-closebar:active .kb-closebar-x{background:rgba(36,101,238,.22);}');
+L.push('body.kb-night .kb-closebar{background:linear-gradient(180deg,#141d33,#101828);');
+L.push('border-color:rgba(148,180,255,.22);box-shadow:0 3px 14px rgba(0,0,0,.45);}');
+L.push('body.kb-night .kb-closebar-w{background:linear-gradient(100deg,#5b8def,#9dc4ff 45%,#4b93ff);');
+L.push('-webkit-background-clip:text;background-clip:text;opacity:.72;}');
+L.push('body.kb-night .kb-closebar-x{background:rgba(91,157,255,.16);color:#9dc4ff;}');
+L.push('body.kb-night .kb-closebar:active{background:linear-gradient(180deg,#18223c,#131c30);}');
+// запасной крестик (например, в «Помощи»): мягкая пилюля, чуть ниже
+L.push('.kb-sheet-x{width:34px !important;height:34px !important;border-radius:12px !important;');
+L.push('background:rgba(238,244,255,.92) !important;border:1px solid rgba(188,212,255,.6) !important;');
+L.push('color:#2465ee !important;display:flex !important;align-items:center !important;');
+L.push('justify-content:center !important;transform:translateY(6px);');
+L.push('box-shadow:0 2px 10px rgba(20,33,61,.08) !important;}');
+L.push('body.kb-night .kb-sheet-x{background:rgba(20,29,51,.92) !important;');
+L.push('border-color:rgba(148,180,255,.25) !important;color:#9dc4ff !important;}');
+// ---------- вердикт: заголовок и чипы не наезжают ----------
+L.push('article.station.kb-card-v2 .kbc-status .verdict{align-items:center !important;');
+L.push('padding:11px 12px !important;}');
+L.push('article.station.kb-card-v2 .kbc-status .verdict .v-txt{display:flex !important;');
+L.push('flex-direction:column !important;justify-content:center !important;gap:5px !important;');
+L.push('position:static !important;height:auto !important;min-width:0 !important;flex:1 !important;}');
+L.push('article.station.kb-card-v2 .kbc-status .verdict-t{position:static !important;');
+L.push('display:block !important;margin:0 !important;font-size:13.5px !important;');
+L.push('font-weight:900 !important;line-height:1.25 !important;text-decoration:none !important;');
+L.push('color:var(--kbc-ink) !important;}');
+L.push('article.station.kb-card-v2 .kbc-status .verdict-s{position:static !important;');
+L.push('display:flex !important;flex-wrap:wrap !important;gap:5px !important;margin:0 !important;');
+L.push('font-size:0 !important;line-height:1 !important;}');
+L.push('.kb-v-chip{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;');
+L.push('line-height:1.2;padding:4px 9px;border-radius:99px;font-style:normal;');
+L.push('background:rgba(255,255,255,.78);border:1px solid rgba(20,33,61,.07);color:#5b6b86;}');
+L.push('.kb-v-chip .ic{width:11px;height:11px;flex:none;}');
+L.push('.kb-v-chip.q{color:#c26a2a;}.kb-v-chip.q.calm{color:#12855c;}');
+L.push('.kb-v-chip.p{color:#2465ee;}.kb-v-chip.w{color:#1746c8;}');
+L.push('body.kb-night .kb-v-chip{background:rgba(148,180,255,.08);');
+L.push('border-color:rgba(148,180,255,.16);color:#93a0b8;}');
+L.push('body.kb-night .kb-v-chip.q{color:#f5a05a;}body.kb-night .kb-v-chip.q.calm{color:#2fd39a;}');
+L.push('body.kb-night .kb-v-chip.p{color:#7db4ff;}body.kb-night .kb-v-chip.w{color:#9dc4ff;}');
+// ---------- плитки топлива: статус + источник ----------
+L.push('article.station.kb-card-v2 .kbc-status .f-tile{min-height:108px !important;gap:3px !important;}');
+L.push('article.station.kb-card-v2 .kbc-status .f-tile .f-st{display:inline-flex !important;');
+L.push('align-items:center !important;gap:5px !important;font-size:12px !important;');
+L.push('font-weight:900 !important;line-height:1.2 !important;}');
+L.push('article.station.kb-card-v2 .kbc-status .f-tile .f-st b{font-weight:900;}');
+L.push('article.station.kb-card-v2 .kbc-status .f-tile .f-st .ic{width:12px;height:12px;}');
+L.push('.kb-f-src{font-size:8.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;');
+L.push('color:#93a1b8;line-height:1.2;}');
+L.push('body.kb-night .kb-f-src{color:#8fa0bb;}');
+L.push('body.kb-lite .kb-closebar,.body.kb-lite .kb-closebar-w{transition:none;}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+
+// ---------- родной крестик шторки: найти и подружить ----------
+function findCloseBtn() {
+var sheet = document.getElementById('sheet');
+if (!sheet) return null;
+var body = document.getElementById('sheetBody');
+function ok(el) { return el && !(body && body.contains(el)) && !el.closest('.kb-closebar'); }
+var a = sheet.querySelector('[onclick*="closeSheet"]');
+if (ok(a)) return a;
+var b = sheet.querySelector('#sheetClose,.sheet-close,.sheet-x,.sheetClose,[data-sheet-close]');
+if (ok(b)) return b;
+var all = sheet.querySelectorAll('button,div,span');
+for (var i = 0; i < all.length; i++) {
+var el = all[i];
+if (!ok(el)) continue;
+var t = (el.textContent || '').trim();
+if (t === '\u00D7' || t === '\u2715' || t === '\u2716' || t === 'x' || t === 'X') return el;
+}
+return null;
+}
+function syncClose() {
+try {
+var body = document.getElementById('sheetBody');
+var btn = findCloseBtn();
+if (!body || !btn) return;
+var has = !!body.querySelector('.kb-closebar');
+btn.style.display = has ? 'none' : '';
+if (!has) btn.classList.add('kb-sheet-x');
+} catch (e) {}
+}
+
+// ---------- какое топливо реально видно ----------
+function firstFuel(st, obs) {
+var order = ['95', '92', 'diesel'];
+for (var i = 0; i < order.length; i++) {
+var f = order[i];
+try {
+if (typeof window.kbFuelView === 'function') {
+var v = window.kbFuelView(st.id, obs, f);
+if (v && v.v === true) return f;
+} else {
+var col = f === '92' ? 'fuel_92_status' : f === '95' ? 'fuel_95_status' : 'diesel_status';
+if (obs && obs[col] === true) return f;
+}
+} catch (e) {}
+}
+return null;
+}
+
+// ---------- пересборка карточки ----------
+var _sc = stationCard;
+stationCard = function (st, obs, pred) {
+var html = _sc(st, obs, pred);
+var tpl = document.createElement('template');
+tpl.innerHTML = html;
+var art = tpl.content.querySelector('article.station');
+if (!art) return html;
+
+// 1) полоса «ЗАКРЫТЬ» вместо крестика в углу
+if (!art.querySelector('.kb-closebar')) {
+var bar = document.createElement('div');
+bar.className = 'kb-closebar';
+bar.setAttribute('data-kbclosebar', '1');
+bar.setAttribute('role', 'button');
+bar.setAttribute('tabindex', '0');
+bar.setAttribute('aria-label', 'Закрыть карточку');
+bar.innerHTML = '<span class="kb-closebar-w">Закрыть</span>';
+art.insertBefore(bar, art.firstChild);
+}
+
+// 2) вердикт: чипы вместо слипшейся строки
+var v = art.querySelector('.verdict');
+var vs = v && v.querySelector('.verdict-s');
+if (vs) {
+var lq = 0, qHigh = false, qAge = null;
+try { lq = liveQueueCount(st.id); } catch (e) {}
+try { qHigh = !!(obs && obs.queue_level === 'high'); } catch (e) {}
+try { qAge = queueAgeMin(st.id); } catch (e) {}
+var qTxt, calm = false;
+if (lq) qTxt = lq + ' вод. стоят сейчас';
+else if (qHigh) qTxt = (qAge != null) ? ('очередь стоит ' + ageRu(qAge)) : 'на станции очередь';
+else { qTxt = 'об очереди не сообщали'; calm = true; }
+var chips = ['<i class="kb-v-chip q' + (calm ? ' calm' : '') + '">' + ic('i-queue') + esc(qTxt) + '</i>'];
+if (v.classList.contains('v-good')) {
+var f = firstFuel(st, obs);
+if (f) {
+var col = f === '92' ? 'price_92' : f === '95' ? 'price_95' : 'price_diesel';
+var pr = '';
+try { pr = priceShort(st.id, col); } catch (e) {}
+chips.push('<i class="kb-v-chip p">' + ic('i-rub') + esc(fuelLabel(f)) + ' · ' + esc(pr) + '</i>');
+}
+} else if (v.classList.contains('v-wait') && pred && pred.from_time) {
+var c = Math.round((pred.confidence || 0) * 100);
+chips.push('<i class="kb-v-chip w">' + ic('i-clock') + 'окно ' +
+time5(pred.from_time) + '–' + time5(pred.to_time) + ' · ' + c + '%</i>');
+} else if (v.classList.contains('v-unknown')) {
+var m = null;
+try { m = getFreshnessMin(obs); } catch (e) {}
+chips.push('<i class="kb-v-chip">' + ic('i-clock') +
+esc(m != null ? ('источник молчит ' + agoRu(m)) : 'источник пока молчит') + '</i>');
+}
+vs.innerHTML = chips.join('');
+}
+
+// 3) плитки: «есть народ» → статус + источник отдельной строкой
+art.querySelectorAll('.f-tile').forEach(function (tile) {
+var s = tile.querySelector('.f-st');
+if (!s || tile.querySelector('.kb-f-src')) return;
+var raw = (s.textContent || '').replace(/\s+/g, ' ').trim();
+var svg = s.querySelector('svg');
+var ico = svg ? svg.outerHTML : '';
+var word, src = '';
+if (/^есть/.test(raw)) word = 'есть';
+else if (/^нет данных/.test(raw)) word = 'нет данных';
+else if (/^нет/.test(raw)) word = 'нет';
+else word = raw.replace(/ (народ|с места)$/, '');
+if (/народ/.test(raw)) src = 'народ';
+else if (/с места/.test(raw)) src = 'с места';
+else if (/^(есть|нет)$/.test(raw) || /^не подтверждён/.test(raw)) src = 'источник';
+s.innerHTML = '<b>' + esc(word) + '</b>' + ico;
+if (src) {
+var tag = document.createElement('span');
+tag.className = 'kb-f-src';
+tag.textContent = src;
+s.parentNode.insertBefore(tag, s.nextSibling);
+}
+});
+
+return tpl.innerHTML;
+};
+
+// ---------- закрытие по полосе ----------
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+if (t.closest('[data-kbclosebar]')) { try { closeSheet(); } catch (err) {} }
+}, true);
+document.addEventListener('keydown', function (e) {
+if (e.key !== 'Enter' && e.key !== ' ') return;
+var t = e.target;
+if (t && t.closest && t.closest('[data-kbclosebar]')) { e.preventDefault(); try { closeSheet(); } catch (err) {} }
+});
+
+// ---------- держим синхронизацию крестика ----------
+var sb = document.getElementById('sheetBody');
+if (sb) new MutationObserver(function () { setTimeout(syncClose, 0); }).observe(sb, { childList: true });
+syncClose();
+setTimeout(syncClose, 600);
+setInterval(syncClose, 1200);
+})();
+// ============================================================
+// KB LIVE SYNC v1 — тихое автообновление без перезагрузки.
+// Каждые ~25 сек два крошечных «маяка»: последняя отметка источника
+// и последняя народная отметка. Ничего не изменилось — больше ничего
+// не качаем. Изменилось — добираем ТОЛЬКО новое: наблюдения, народные
+// отметки, события; раз в ~100 сек ещё прогнозы, цены и эпизоды очередей.
+// Дальше тихая перерисовка панелей, открытой карточки (не закрывая её
+// и не сбрасывая скролл) и открытого советника. Мастер отметок не трогаем.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbLiveSync) return;
+window.__kbLiveSync = 1;
+
+var TICK = 25000, busy = false, ticks = 0, wmObs = '', wmFb = '', cardSig = '';
+
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbLiveSyncCss';
+s.textContent =
+'#slimDrop.kb-sync{animation:kbSyncPulse .9s ease-out}' +
+'@keyframes kbSyncPulse{0%{box-shadow:0 0 0 0 rgba(25,183,122,.5)}' +
+'100%{box-shadow:0 0 0 9px rgba(25,183,122,0)}}' +
+'@media (prefers-reduced-motion:reduce){#slimDrop.kb-sync{animation:none}}';
+document.head.appendChild(s);
+})();
+
+function lastMap() {
+if (!Object.keys(allLastObs).length) {
+var g = getLastObservations();
+for (var k in g) allLastObs[k] = g[k];
+}
+return allLastObs;
+}
+function maxObsMs() {
+var last = lastMap(), t = 0;
+for (var k in last) {
+var x = new Date(last[k].timestamp).getTime();
+if (x > t) t = x;
+}
+return t;
+}
+function maxFbMs() {
+var t = 0;
+for (var i = 0; i < allFeedback.length; i++) {
+var x = new Date(allFeedback[i].created_at).getTime();
+if (x > t) t = x;
+}
+return t;
+}
+function sinceIso(ms) {
+return new Date(ms ? ms - 1000 : Date.now() - 20 * 60000).toISOString();
+}
+function pulse() {
+var d = document.getElementById('slimDrop');
+if (!d) return;
+d.classList.remove('kb-sync'); void d.offsetWidth; d.classList.add('kb-sync');
+setTimeout(function () { d.classList.remove('kb-sync'); }, 1000);
+}
+
+function mergeObs(rows) {
+var last = lastMap(), fresh = [];
+for (var i = rows.length - 1; i >= 0; i--) {
+var r = rows[i], cur = last[r.station_id];
+if (cur && new Date(cur.timestamp).getTime() >= new Date(r.timestamp).getTime()) continue;
+last[r.station_id] = r;
+fresh.push(r);
+}
+if (fresh.length) allObservations = fresh.reverse().concat(allObservations).slice(0, 4000);
+return fresh.length;
+}
+function mergeFb(rows) {
+var have = {}, fresh = [];
+for (var i = 0; i < allFeedback.length; i++) {
+if (allFeedback[i].id != null) have[allFeedback[i].id] = 1;
+}
+for (var j = rows.length - 1; j >= 0; j--) {
+var r = rows[j];
+if (r.id != null && have[r.id]) continue;
+if (r.id != null) have[r.id] = 1;
+fresh.push(r);
+}
+if (fresh.length) allFeedback = fresh.reverse().concat(allFeedback).slice(0, 600);
+return fresh.length;
+}
+function evKey(e) {
+return e.station_id + '|' + e.event_type + '|' + (e.fuel_type || '') + '|' + e.detected_at;
+}
+function mergeEv(rows) {
+var fuel = rows.filter(function (e) {
+return e.event_type === 'fuel_disappeared' || e.event_type === 'fuel_restored';
+});
+var haveW = {}, have7 = {}, addW = [], add7 = [];
+var i;
+for (i = 0; i < allWaveEvents.length; i++) haveW[evKey(allWaveEvents[i])] = 1;
+for (i = 0; i < allEvents7.length; i++) have7[evKey(allEvents7[i])] = 1;
+for (i = rows.length - 1; i >= 0; i--) {
+var e = rows[i], k = evKey(e);
+if (!have7[k]) { have7[k] = 1; add7.push(e); }
+}
+for (i = fuel.length - 1; i >= 0; i--) {
+var f = fuel[i], kf = evKey(f);
+if (!haveW[kf]) { haveW[kf] = 1; addW.push(f); }
+}
+if (add7.length) allEvents7 = add7.reverse().concat(allEvents7).slice(0, 3000);
+if (addW.length) allWaveEvents = addW.reverse().concat(allWaveEvents).slice(0, 5000);
+return add7.length + addW.length;
+}
+
+async function pull() {
+var eSince = new Date(Date.now() - 30 * 60000).toISOString();
+var res = await Promise.all([
+dbQuery('/rest/v1/observations?timestamp=gt.' + sinceIso(maxObsMs()) +
+'&order=timestamp.desc&limit=800&select=station_id,timestamp,fuel_92_status,' +
+'fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state'),
+dbQuery('/rest/v1/user_feedback?created_at=gt.' + sinceIso(maxFbMs()) +
+'&order=created_at.desc&limit=300'),
+dbQuery('/rest/v1/events?detected_at=gt.' + eSince +
+'&select=station_id,event_type,fuel_type,detected_at,source&order=detected_at.desc&limit=400')
+]);
+var n = mergeObs(res[0] || []) + mergeFb(res[1] || []) + mergeEv(res[2] || []);
+if (ticks % 4 === 0) {
+try {
+var pp = await dbQueryAll('/rest/v1/predictions?select=&result=eq.PENDING' +
+'&is_verified=eq.false&model_version=not.like.%7Cshadow*');
+pendingPreds = pp || [];
+allPredictions = pendingPreds.concat(verifiedPreds);
+} catch (e) {}
+try {
+var ids = cityStationList().map(function (s) { return '"' + s.id + '"'; }).join(',');
+if (ids) {
+var pr = await dbQuery('/rest/v1/station_last_price?select=station_id,price_92,' +
+'price_95,price_diesel&station_id=in.(' + ids + ')');
+allLastPrice = {};
+for (var i = 0; i < (pr || []).length; i++) allLastPrice[pr[i].station_id] = pr[i];
+}
+} catch (e) {}
+try {
+queueEpisodes = await dbQuery('/rest/v1/city_queue_episodes?select=station_id,' +
+'started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600000).toISOString() +
+'&order=started_at.desc&limit=1000') || [];
+} catch (e) {}
+}
+return n;
+}
+
+function sigOf(id) {
+var o = getLastObservations()[id] || {};
+var p = pickPrediction(id, o), n = 0;
+for (var i = 0; i < allFeedback.length; i++) if (allFeedback[i].station_id === id) n++;
+return [o.timestamp, o.fuel_92_status, o.fuel_95_status, o.diesel_status, o.queue_level,
+p ? p.from_time + '-' + p.to_time : '-', n, liveQueueCount(id)].join('|');
+}
+function refreshCard() {
+var sheet = document.getElementById('sheet'), sb = document.getElementById('sheetBody');
+if (!sheet || !sb || !sheet.classList.contains('open')) { cardSig = ''; return; }
+var fav = sb.querySelector('.favorite');
+var id = fav && fav.getAttribute('data-station-id');
+if (!id) return;
+var wiz = document.getElementById('kbWiz');
+if (wiz && wiz.classList.contains('open')) return;
+var sig = sigOf(id);
+if (!cardSig) { cardSig = sig; return; }
+if (sig === cardSig) return;
+cardSig = sig;
+var st = stationById(id);
+if (!st) return;
+var o = getLastObservations()[id], top = sb.scrollTop;
+try {
+disposeCardMap();
+sb.innerHTML = stationCard(st, o, pickPrediction(id, o));
+sb.scrollTop = top;
+requestAnimationFrame(function () { mountCardMap(st); });
+} catch (e) {}
+}
+function refreshAdvice() {
+var ap = document.getElementById('advicePop');
+if (!ap || !ap.classList.contains('open')) return;
+var top = ap.scrollTop;
+try { renderAdvicePop(); } catch (e) {}
+ap.scrollTop = top;
+}
+
+async function tick() {
+if (document.hidden || offlineMode || refreshing || startRunning || busy) return;
+if (!allStations.length) return;
+busy = true;
+try {
+var pr = await Promise.all([
+dbQuery('/rest/v1/observations?select=timestamp&order=timestamp.desc&limit=1'),
+dbQuery('/rest/v1/user_feedback?select=created_at&order=created_at.desc&limit=1')
+]);
+var o = (pr[0] && pr[0][0] && pr[0][0].timestamp) || '';
+var f = (pr[1] && pr[1][0] && pr[1][0].created_at) || '';
+if (!wmObs && !wmFb) { wmObs = o; wmFb = f; return; }
+if (o === wmObs && f === wmFb) return;
+wmObs = o; wmFb = f; ticks++;
+await pull();
+try { softRefresh(); } catch (e) {}
+refreshCard();
+refreshAdvice();
+pulse();
+} catch (e) {} finally { busy = false; }
+}
+
+function loop() {
+setTimeout(function () { tick().then(loop, loop); }, TICK + Math.random() * 8000);
+}
+loop();
+document.addEventListener('visibilitychange', function () {
+if (document.visibilityState === 'visible') tick();
+});
 })();
