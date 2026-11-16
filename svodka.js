@@ -825,10 +825,19 @@ async function run(opts) {
 
   const D = await collect();
   write(dir, 'svodka.html', render(D));
+  let keep = [];
+  try {
+    const old = fs.readFileSync(path.join(dir, 'sitemap.xml'), 'utf8');
+    keep = (old.match(/<url>[\s\S]*?<\/url>/g) || []).filter(u => {
+      const loc = (u.match(/<loc>([^<]+)<\/loc>/) || [])[1] || '';
+      return loc.replace(/\/$/, '') !== SITE && loc !== SITE + '/svodka.html';
+    });
+  } catch (e) {}
   write(dir, 'sitemap.xml',
     '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
     '  <url><loc>' + SITE + '/</loc><lastmod>' + bIso + '</lastmod><changefreq>hourly</changefreq><priority>1.0</priority></url>\n' +
     '  <url><loc>' + SITE + '/svodka.html</loc><lastmod>' + bIso + '</lastmod><changefreq>hourly</changefreq><priority>0.9</priority></url>\n' +
+    (keep.length ? keep.map(u => '  ' + u.replace(/\s+/g, ' ').trim()).join('\n') + '\n' : '') +
     '</urlset>\n');
   const rp = path.join(dir, 'robots.txt');
   let body = '';
