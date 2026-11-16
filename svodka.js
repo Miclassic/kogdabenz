@@ -852,24 +852,7 @@ async function run(opts) {
     cities: D.cities.map(c => ({ key: c.key, name: c.name, total: c.total, known: c.known, a92: c.a92, a95: c.a95, adt: c.adt, q: c.q, wins: c.wins.length, level: c.level }))
   }, null, 1));
 
-  let pushed = false;
-  if (isGit) {
-    try {
-      git(dir, ['add', 'svodka.html', 'sitemap.xml', 'robots.txt', 'svodka.json']);
-      let dirty = true;
-      try { git(dir, ['diff', '--cached', '--quiet']); dirty = false; } catch (e) { dirty = true; }
-      if (dirty) {
-        git(dir, ['commit', '-m', 'svodka: выпуск ' + stamp(B) + ' МСК']);
-        git(dir, ['push']);
-        pushed = true;
-      } else { pushed = true; }
-    } catch (e) {
-      console.log('   ! Сводка юга: git не смог опубликовать (' + String(e.message).split('\n')[0].slice(0, 140) + ').');
-      console.log('     Проверь доступ на push: git -C ' + dir + ' push');
-    }
-  } else {
-    console.log('   ! Сводка юга: ' + dir + ' не git-репозиторий — файлы записаны, опубликуй их сам.');
-  }
+  const pushed = true; // коммит и push делает workflow .github/workflows/svodka.yml
 
   if (pushed || !isGit) {
     try {
