@@ -59,6 +59,14 @@ function freshMin(o) {
   return null;
 }
 const trust = o => { const m = freshMin(o); return m !== null && m <= 360 && !SUSPECT[o.fuel_state]; };
+// газовые заправки бензин не продают — в сводку не берём.
+// Бензиновые сети со словом «газ» в имени остаются.
+function isGasOnly(st) {
+  const t = String((st.name || '') + ' ' + (st.brand || '')).toLowerCase();
+  if (/газпром|газон|газпрайм|нефтегаз|gas\s*oil/.test(t)) return false;
+  if (/агзс|агнкс|пропан|метан|бутан|газовая заправка|заправка газ|автогаз|трансгаз|росгаз|сибгаз|техгаз/.test(t)) return true;
+  return /(^|[^а-яёa-z])газ([^а-яёa-z]|$)/.test(t);
+}
 function agoTxt(m) {
   if (m == null) return 'давно';
   if (m < 60) return m + ' мин назад';
@@ -162,7 +170,7 @@ async function collect() {
 
   for (const st of stations) {
     const ck = cityOf(st);
-    if (!ck) continue;
+    if (!ck || isGasOnly(st)) continue;
     const c = cities[ck], o = last[st.id];
     c.total++;
     const v92 = view(st.id, o, '92'), v95 = view(st.id, o, '95'), vdt = view(st.id, o, 'diesel');
@@ -190,11 +198,12 @@ async function collect() {
   const list = Object.keys(cities).map(k => cities[k]).filter(c => c.total > 0);
   for (const c of list) {
     c.share = c.known ? c.a95 / c.known : null;
-    c.level = c.known < 3 ? 'n' : c.share >= 0.6 ? 'g' : c.share >= 0.25 ? 'y' : 'r';
+    c.cover = c.total ? c.known / c.total : 0;
+    c.level = (c.known < 5 || c.cover < 0.2) ? 'n' : c.share >= 0.6 ? 'g' : c.share >= 0.25 ? 'y' : 'r';
     c.wins.sort((a, b) => a.k - b.k);
     c.rows.sort((a, b) => a.key - b.key || a.name.localeCompare(b.name, 'ru'));
   }
-  list.sort((a, b) => (a.known >= 3 ? 0 : 1) - (b.known >= 3 ? 0 : 1) ||
+  list.sort((a, b) => (a.level === 'n' ? 1 : 0) - (b.level === 'n' ? 1 : 0) ||
     (a.share == null ? 9 : a.share) - (b.share == null ? 9 : b.share) || b.total - a.total);
 
   const T = { total: 0, known: 0, a92: 0, a95: 0, adt: 0, q: 0, wins: 0, cities: list.length };
@@ -386,6 +395,12 @@ td .ad{display:block;font-size:11px;color:var(--dim);margin-top:1px}
 .cf .track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--green),var(--blue));width:0;transition:width 1s cubic-bezier(.2,.8,.2,1)}
 .cf span{font-size:10.5px;color:var(--mut);font-weight:800;font-variant-numeric:tabular-nums}
 .none{color:var(--dim);font-size:11.5px;font-style:italic}
+.idle{margin:10px 2px 4px;border:1px solid var(--line);border-radius:12px;padding:9px 13px;background:rgba(120,160,235,.04)}
+.idle summary{cursor:pointer;font-size:12px;font-weight:800;color:var(--mut);list-style:none;display:flex;gap:8px;align-items:center}
+.idle summary::-webkit-details-marker{display:none}
+.idle summary::before{content:'+';color:var(--blue);font-weight:900}
+.idle[open] summary::before{content:'–'}
+.idle p{margin:8px 0 0;font-size:11.5px;line-height:1.6;color:var(--dim)}
 .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:11px}
 .pil{padding:16px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(158deg,var(--surf2),var(--surf))}
 .pil i{display:grid;place-items:center;width:34px;height:34px;border-radius:12px;margin-bottom:10px}
@@ -486,7 +501,9 @@ function render(D) {
   const nav = D.cities.map(c => '<a href="#c-' + c.key + '">' + e(c.name) + '</a>').join('');
 
   const cityBlocks = D.cities.map(c => {
-    const rows = c.rows.map(r => {
+    const live = c.rows.filter(r => r.pred || r.v92.v !== -2 || r.v95.v !== -2 || r.vdt.v !== -2);
+    const idle = c.rows.filter(r => !r.pred && r.v92.v === -2 && r.v95.v === -2 && r.vdt.v === -2);
+    const rows = live.map(r => {
       const p = r.pred;
       const win = p
         ? '<span class="wt">' + t5(p.from_time) + '–' + t5(p.to_time) + '</span>' +
@@ -512,7 +529,10 @@ function render(D) {
       '<span>окон <b>' + c.wins.length + '</b></span><span>очередей <b>' + c.q + '</b></span></span></div>' +
       '<div class="tw"><table><thead><tr><th>АЗС и адрес</th><th data-col="92">АИ-92</th>' +
       '<th data-col="95" class="hl">АИ-95</th><th data-col="diesel">Дизель</th><th>Очередь</th><th>Окно привоза</th>' +
-      '</tr></thead><tbody>' + rows + '</tbody></table></div></article>';
+      '</tr></thead><tbody>' + (rows || '<tr><td colspan="6" class="none">Свежих данных по этому городу пока нет</td></tr>') + '</tbody></table></div>' +
+      (idle.length ? '<details class="idle"><summary>Ещё ' + idle.length + ' АЗС без данных</summary><p>' +
+        idle.map(r => e(r.name + (r.address ? ' (' + r.address + ')' : ''))).join(', ') + '</p></details>' : '') +
+      '</article>';
   }).join('');
 
   const faq = [
@@ -672,7 +692,7 @@ function apply(){
     var vis=0;
     rows.forEach(function(r){
       var ok=true;
-      if(query && r.getAttribute('data-name').indexOf(query)<0) ok=false;
+      if(query && (r.getAttribute('data-name')||'').indexOf(query)<0) ok=false;
       if(onlyWin && r.getAttribute('data-win')!=='1') ok=false;
       r.style.display=ok?'':'none';
       if(ok) vis++;
