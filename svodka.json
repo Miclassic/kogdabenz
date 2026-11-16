@@ -1,0 +1,147 @@
+{
+ "generated": "2026-11-16T05:00:00.000Z",
+ "totals": {
+  "total": 667,
+  "known": 113,
+  "a92": 14,
+  "a95": 11,
+  "adt": 10,
+  "q": 0,
+  "wins": 96,
+  "cities": 11
+ },
+ "cities": [
+  {
+   "key": "stavropol",
+   "name": "Ставрополь",
+   "total": 118,
+   "known": 16,
+   "a92": 1,
+   "a95": 0,
+   "adt": 1,
+   "q": 0,
+   "wins": 0,
+   "level": "r"
+  },
+  {
+   "key": "anapa",
+   "name": "Анапа",
+   "total": 30,
+   "known": 3,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 7,
+   "level": "r"
+  },
+  {
+   "key": "krymsk",
+   "name": "Крымск",
+   "total": 28,
+   "known": 3,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 5,
+   "level": "r"
+  },
+  {
+   "key": "maykop",
+   "name": "Майкоп",
+   "total": 28,
+   "known": 3,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 7,
+   "level": "r"
+  },
+  {
+   "key": "tuapse",
+   "name": "Туапсе",
+   "total": 8,
+   "known": 3,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "r"
+  },
+  {
+   "key": "rostov",
+   "name": "Ростов-на-Дону",
+   "total": 150,
+   "known": 23,
+   "a92": 1,
+   "a95": 1,
+   "adt": 1,
+   "q": 0,
+   "wins": 0,
+   "level": "r"
+  },
+  {
+   "key": "sochi",
+   "name": "Сочи",
+   "total": 51,
+   "known": 13,
+   "a92": 2,
+   "a95": 1,
+   "adt": 0,
+   "q": 0,
+   "wins": 6,
+   "level": "r"
+  },
+  {
+   "key": "novorossiysk",
+   "name": "Новороссийск",
+   "total": 34,
+   "known": 8,
+   "a92": 2,
+   "a95": 1,
+   "adt": 1,
+   "q": 0,
+   "wins": 7,
+   "level": "r"
+  },
+  {
+   "key": "krasnodar",
+   "name": "Краснодар",
+   "total": 160,
+   "known": 39,
+   "a92": 8,
+   "a95": 8,
+   "adt": 7,
+   "q": 0,
+   "wins": 61,
+   "level": "r"
+  },
+  {
+   "key": "armavir",
+   "name": "Армавир",
+   "total": 49,
+   "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 2,
+   "level": "n"
+  },
+  {
+   "key": "gelendzhik",
+   "name": "Геленджик",
+   "total": 11,
+   "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 1,
+   "level": "n"
+  }
+ ]
+}
