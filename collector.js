@@ -801,6 +801,7 @@ await tgUpstreamThrottled('⚠️ GdeBenz недоступен (похоже н�
 if (upstreamDown) {
 await outageCrowdCycle();
 await southDigest();
+try { await require(require('path').join(__dirname, 'svodka.js')).run(); } catch (e) { console.log('   ! Сводка юга: ' + e.message); }
 console.log('✅ Цикл завершён в аварийном режиме: толпа и уборка без источника');
 return;
 }
@@ -1433,6 +1434,7 @@ await tg('⚡ ' + hh + (total ? ' · ' + total : '') +
   body, true);
 }
 await southDigest();
+try { await require(require('path').join(__dirname, 'svodka.js')).run(); } catch (e) { console.log('   ! Сводка юга: ' + e.message); }
   console.log('✅ Цикл завершён');
 }
 
