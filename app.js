@@ -7927,7 +7927,8 @@ function tickClock() {
     renderBootLiveStations();
   } catch (e) { console.log('мгновенный снимок: ' + e.message); }
   // плашку «данные на ЧЧ:ММ» показываем только если сеть не успела за 4 сек
-  setTimeout(() => { if (!window.__netOk && !offlineMode) showOfflineBar(c.t); }, 4000);
+  // «Нет связи» только при реальном offline браузера, а не при медленной загрузке
+setTimeout(() => { if (!window.__netOk && !offlineMode && navigator.onLine === false) showOfflineBar(c.t); }, 4000);
   // капли не будет вовсе: данные уже на экране
   const bb = document.getElementById('bootBack');
   if (bb) bb.style.display = 'none';
@@ -8857,6 +8858,33 @@ function lentiPolish() {
   })();
 })();
 // ============================================================
+// === KB PIPELINE v1: одна обёртка на функцию, шаги регистрируются паками ===
+window.__kbPipe = { advicePre: [], advice: [], card: [], now: [], soft: [] };
+(function () {
+  var P = window.__kbPipe;
+  var bAdvice = renderAdvicePop;
+  renderAdvicePop = function () {
+    var ctx = {};
+    for (var i = 0; i < P.advicePre.length; i++) { try { P.advicePre[i](ctx); } catch (e) {} }
+    var ok = bAdvice();
+    ctx.ok = ok;
+    for (var j = 0; j < P.advice.length; j++) { try { P.advice[j](ctx); } catch (e) {} }
+    return ok;
+  };
+  var bCard = stationCard;
+  stationCard = function (st, obs, pred) {
+    var html = bCard(st, obs, pred);
+    var tpl = document.createElement('template');
+    tpl.innerHTML = html;
+    var root = tpl.content, art = root.querySelector('article.station');
+    for (var i = 0; i < P.card.length; i++) { try { P.card[i](root, art, st, obs, pred); } catch (e) {} }
+    return tpl.innerHTML;
+  };
+  var bNow = renderNow;
+  renderNow = function () { var r = bNow(); for (var i = 0; i < P.now.length; i++) { try { P.now[i](); } catch (e) {} } return r; };
+  var bSoft = softRefresh;
+  softRefresh = function () { bSoft(); for (var i = 0; i < P.soft.length; i++) { try { P.soft[i](); } catch (e) {} } };
+})();
 // KB RETENTION PACK v1
 // Telegram без блокировок + крючки возврата.
 // Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
@@ -9236,21 +9264,19 @@ function lentiPolish() {
   renderTop3 = function () { var r = _kbRenderTop3(); try { kbOrderTop3(); } catch (e) {} return r; };
 
   // Честная строка в советнике: город + радиус «своего района».
-  var _kbRenderAdvicePop = renderAdvicePop;
-  renderAdvicePop = function () {
-    var ok = _kbRenderAdvicePop();
-    try {
-      if (ok) {
-        var lead = document.querySelector('#advicePop .help-lead');
-        if (lead && lead.innerHTML.indexOf('Район:') < 0) {
-          var R = kbRadiusKm();
-          var txt = R > 0 ? 'сначала рядом ≤' + R + ' км' : 'весь город';
-          lead.innerHTML += ' <b style="color:#2465ee">Район: ' + escapeHtml(userCityName()) + '</b> — ' + txt + (kbHasRealGeo() ? ' (по геопозиции)' : ' (от центра города)') + '.';
-        }
-      }
-    } catch (e) {}
-    return ok;
-  };
+  window.__kbPipe.advice.push(function (ctx) {
+var ok = ctx.ok;
+try {
+if (ok) {
+var lead = document.querySelector('#advicePop .help-lead');
+if (lead && lead.innerHTML.indexOf('Район:') < 0) {
+var R = kbRadiusKm();
+var txt = R > 0 ? 'сначала рядом ≤' + R + ' км' : 'весь город';
+lead.innerHTML += ' <b style="color:#2465ee">Район: ' + escapeHtml(userCityName()) + '</b> — ' + txt + (kbHasRealGeo() ? ' (по геопозиции)' : ' (от центра города)') + '.';
+}
+}
+} catch (e) {}
+});
 
   function kbAskPrefs() {
     if (LS.get('kbPrefsAsked', false)) return;
@@ -9544,33 +9570,29 @@ function lentiPolish() {
   }
 
   // кнопки «Поделиться»/«Напомнить» в советнике и карточке АЗС
-  var _renderAdvicePop = renderAdvicePop;
-  renderAdvicePop = function () {
-    var ok = _renderAdvicePop();
-    try {
-      if (ok) {
-        var pop = document.getElementById('advicePop');
-        if (pop) pop.querySelectorAll('.adv-card').forEach(function (card, i) {
-          var it = adviceList[i];
-          if (!it || card.querySelector('.kb-adv-extra')) return;
-          var ex = document.createElement('div');
-          ex.className = 'kb-adv-extra';
-          var watch = (it.pred && adviceWinState(it.pred) === 'soon')
-            ? '<button data-kbwatch="' + i + '">⏰ Напомнить про окно</button>' : '';
-          ex.innerHTML = '<button data-kbshare="' + it.st.id + '">📤 Поделиться</button>' + watch;
-          card.appendChild(ex);
-        });
-      }
-    } catch (e) {}
-    return ok;
-  };
+  window.__kbPipe.advice.push(function (ctx) {
+var ok = ctx.ok;
+try {
+if (ok) {
+var pop = document.getElementById('advicePop');
+if (pop) pop.querySelectorAll('.adv-card').forEach(function (card, i) {
+var it = adviceList[i];
+if (!it || card.querySelector('.kb-adv-extra')) return;
+var ex = document.createElement('div');
+ex.className = 'kb-adv-extra';
+var watch = (it.pred && adviceWinState(it.pred) === 'soon')
+? '<button data-kbwatch="' + i + '">⏰ Напомнить про окно</button>' : '';
+ex.innerHTML = '<button data-kbshare="' + it.st.id + '">📤 Поделиться</button>' + watch;
+card.appendChild(ex);
+});
+}
+} catch (e) {}
+});
 
-  var _stationCard = stationCard;
-  stationCard = function (st, obs, pred) {
-    var h = _stationCard(st, obs, pred);
-    var extra = '<div class="kb-card-extra" style="padding:0 14px 14px"><button data-kbshare="' + st.id + '">📤 Поделиться заправкой</button></div>';
-    return h.replace('</article>', extra + '</article>');
-  };
+  window.__kbPipe.card.push(function (root, art, st) {
+if (!art) return;
+art.insertAdjacentHTML('beforeend', '<div class="kb-card-extra" style="padding:0 14px 14px"><button data-kbshare="' + st.id + '">📤 Поделиться заправкой</button></div>');
+});
 
   // ============================================================
   // 8) ХУКИ: после top-3/onboarding, живой цикл, делегирование
@@ -9771,17 +9793,15 @@ function lentiPolish() {
   }
 
   // оборачиваем отрисовку и загрузчики: сжигание до показа + пересборка после
-  var _rap = renderAdvicePop;
-  renderAdvicePop = function () { var ch = localBurn(); var r = _rap(); if (ch) scheduleSweep(); return r; };
+  window.__kbPipe.advicePre.push(function (ctx) { ctx.ch = localBurn(); });
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ch) scheduleSweep(); });
   var _raw = loadAdviceReactionsForListRaw;
   loadAdviceReactionsForListRaw = async function () { await _raw(); localBurn(); await serverSweep(); };
   var _lst = loadAdviceReactionsForList;
   loadAdviceReactionsForList = async function (list) { await _lst(list); localBurn(); await serverSweep(); };
-  var _sr = softRefresh;
-  softRefresh = function () {
-    _sr();
-    if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
-  };
+  window.__kbPipe.soft.push(function () {
+if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
+});
   setInterval(function () {
     if (document.hidden) return;
     if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
@@ -10270,12 +10290,7 @@ if (lead && lead.innerHTML.indexOf('kbm-lead') < 0) {
 lead.insertAdjacentHTML('beforeend', ' <span class="kbm-lead">Плитки топлива учитывают источник, отметки водителей («народ») и «с места» — как в карточке АЗС.</span>');
 }
 }
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-var ok = _rap();
-if (ok) { try { mergeAdviceDom(); } catch (e) { console.log('fuel merge: ' + e.message); } }
-return ok;
-};
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { mergeAdviceDom(); } catch (e) { console.log('fuel merge: ' + e.message); } } });
 
 // ---------- живое обновление: новая народная отметка сразу перекрашивает открытый советник ----------
 var _bump = bumpContrib;
@@ -10433,12 +10448,7 @@ tiles[k].setAttribute('title', pv.txt + (mins !== null ? ' · ' + fmtMin(mins) :
 }
 }
 
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-var ok = _rap();
-if (ok) { try { fixTiles(); } catch (e) { console.log('tile clarity: ' + e.message); } }
-return ok;
-};
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { fixTiles(); } catch (e) { console.log('tile clarity: ' + e.message); } } });
 })();
 // ============================================================
 // KB REACTION TIME v1 — время вашей отметки реакции в советнике
@@ -10620,12 +10630,7 @@ return r;
 };
 
 // ---------- отрисовка советника + живое «мин назад» ----------
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-var ok = _rap();
-if (ok) { try { paint(); loadServer(); } catch (e) {} }
-return ok;
-};
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { paint(); loadServer(); } catch (e) {} } });
 setInterval(function () {
 if (document.hidden) return;
 var pop = document.getElementById('advicePop');
@@ -11009,12 +11014,7 @@ function applyGo() {
 }
 
 // после каждой перерисовки советника (обёртка поверх всех паков)
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-  var ok = _rap();
-  if (ok) { try { applyGo(); } catch (e) { console.log('go intent: ' + e.message); } }
-  return ok;
-};
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { applyGo(); } catch (e) { console.log('go intent: ' + e.message); } } });
 
 // price_click: тап по цене в советнике и в карточке АЗС
 document.addEventListener('click', function (e) {
@@ -11168,12 +11168,7 @@ function addQuote() {
   }
 }
 
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-  var ok = _rap();
-  if (ok) { try { addQuote(); } catch (e) { console.log('our why: ' + e.message); } }
-  return ok;
-};
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { addQuote(); } catch (e) { console.log('our why: ' + e.message); } } });
 setTimeout(addQuote, 600);
 })();
 // ============================================================
@@ -11857,12 +11852,7 @@ function fixAdviceTitle() {
     '<span>' + escapeHtml(userCityName()) + '</span>' +
     '<i class="kb-adv-city-dot"></i></span>';
 }
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-  var ok = _rap();
-  if (ok) { try { fixAdviceTitle(); } catch (e) {} }
-  return ok;
-};
+window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { fixAdviceTitle(); } catch (e) {} } });
 setTimeout(fixAdviceTitle, 800);
 })();
 // ============================================================
@@ -12449,27 +12439,18 @@ return '<div class="kb-pred">' + head +
 }
 
 // ---------- оборачиваем карточку ----------
-var _sc = stationCard;
-stationCard = function (station, obs, pred) {
-var html = _sc(station, obs, pred);
-var tpl = document.createElement('template');
-tpl.innerHTML = html;
-var root = tpl.content;
-// убираем старые плашки/кнопки отметки
+window.__kbPipe.card.push(function (root, art, st, obs, pred) {
+if (!art) return;
 root.querySelectorAll('.folk-add').forEach(function (b) { b.remove(); });
 root.querySelectorAll('.feedback-panel').forEach(function (p) { p.remove(); });
 root.querySelectorAll('.mf-plate button[onclick^="toggleFeedback"]').forEach(function (b) { b.remove(); });
-// окно прогноза — сразу после шапки
 var header = root.querySelector('.station-header');
-if (header) header.insertAdjacentHTML('afterend', predHtml(station, pred));
-// третья зелёная кнопка
+if (header) header.insertAdjacentHTML('afterend', predHtml(st, pred));
 var btns = root.querySelector('.card-btns');
 if (btns) btns.insertAdjacentHTML('beforeend',
-'<button class="cta-btn big kb-mark-btn" onclick="kbMarkOpen(\'' + station.id + '\')">' + icon('i-check') + 'Отметить топливо и очередь</button>');
-// контейнер мастера сразу после кнопок
-if (btns) btns.insertAdjacentHTML('afterend', '<div class="kb-wiz" id="kbWiz" data-st="' + station.id + '"></div>');
-return tpl.innerHTML;
-};
+'<button class="cta-btn big kb-mark-btn" onclick="kbMarkOpen(\'' + st.id + '\')">' + icon('i-check') + 'Отметить топливо и очередь</button>');
+if (btns) btns.insertAdjacentHTML('afterend', '<div class="kb-wiz" id="kbWiz" data-st="' + st.id + '"></div>');
+});
 
 // ---------- открытие мастера ----------
 window.kbMarkOpen = function (id) {
@@ -13371,14 +13352,8 @@ if (host && card.parentNode !== host) host.insertBefore(card, host.firstChild);
 }
 if (!card.innerHTML) schedule();
 }
-if (typeof softRefresh === 'function') {
-var _sr = softRefresh;
-softRefresh = function () { _sr(); schedule(); };
-}
-if (typeof renderNow === 'function') {
-var _rn = renderNow;
-renderNow = function () { var r = _rn(); schedule(); return r; };
-}
+if (typeof softRefresh === 'function') { window.__kbPipe.soft.push(function () { schedule(); }); }
+if (typeof renderNow === 'function') { window.__kbPipe.now.push(function () { schedule(); }); }
 // следим за сменой региона даже без перерисовки панелей
 var lastReg = kbSvRegion();
 setInterval(function () {
@@ -13635,20 +13610,14 @@ s.textContent = L.join('');
 document.head.appendChild(s);
 })();
 
-var _sc = stationCard;
-stationCard = function (st, obs, pred) {
-var html = _sc(st, obs, pred);
-var tpl = document.createElement('template');
-tpl.innerHTML = html;
-var art = tpl.content.querySelector('article.station');
-if (!art) return html;
+window.__kbPipe.card.push(function (root, art, st) {
+if (!art) return;
 art.classList.add('kb-card-v2');
 var bc = null;
 try { bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || null; } catch (e) {}
 bc = bc || '#2465ee';
 art.style.setProperty('--kbc-brand', bc);
 art.style.setProperty('--kbc-brand-soft', bc + '1F');
-
 var verdict = art.querySelector('.verdict'), tiles = art.querySelector('.f-tiles');
 if (verdict && tiles && verdict.parentNode) {
 var wrap = document.createElement('div');
@@ -13669,7 +13638,6 @@ var f = art.querySelector('.card-facts'); if (f) f.classList.add('kbc-facts');
 var b = art.querySelector('.card-btns'); if (b) b.classList.add('kbc-actions');
 var m = art.querySelector('.card-maprow'); if (m) m.classList.add('kbc-map');
 var p = art.querySelector('.kb-pred'); if (p) p.classList.add('kbc-pred');
-
 var plate = art.querySelector('.mf-plate');
 if (plate) {
 plate.classList.add('kbc-folkverdict');
@@ -13685,8 +13653,7 @@ plate.removeAttribute('style');
 }
 var sh = art.querySelector('.kb-card-extra [data-kbshare]');
 if (sh) sh.innerHTML = (typeof icon === 'function' ? icon('i-spark', 'ic-s') : '') + 'Поделиться заправкой';
-return tpl.innerHTML;
-};
+});
 })();
 // ============================================================
 // KB CARD FIX + MARK STUDIO v2
@@ -14206,25 +14173,17 @@ return evTxt + ' · ' + marksN + ' ' + plural(marksN, ['отметка', 'отм
 }
 
 // ---------- переносим «вторичное» в спойлер ----------
-var _sc = stationCard;
-stationCard = function (st, obs, pred) {
-var html = _sc(st, obs, pred);
-var tpl = document.createElement('template');
-tpl.innerHTML = html;
-var art = tpl.content.querySelector('article.station');
-if (!art) return html;
-
+window.__kbPipe.card.push(function (root, art, st) {
+if (!art) return;
 var bc = null;
 try { bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || null; } catch (e) {}
 art.style.setProperty('--kbc-brand-ring', (bc || '#2465ee') + '2E');
-
 var parts = [];
 ['.card-ev', '.mf-plate', '.folk-card', '.sc-rowline'].forEach(function (sel) {
 var el = art.querySelector(sel);
 if (el && el.parentNode) parts.push(el);
 });
-if (!parts.length) return tpl.innerHTML;
-
+if (!parts.length) return;
 var sub = summaryOf(art);
 var box = document.createElement('div');
 box.className = 'kb-more';
@@ -14248,8 +14207,7 @@ box.appendChild(head);
 box.appendChild(body);
 parts[0].parentNode.insertBefore(box, parts[0]);
 parts.forEach(function (el) { inner.appendChild(el); });
-return tpl.innerHTML;
-};
+});
 
 // ---------- раскрытие / сворачивание ----------
 function calm() {
@@ -14442,15 +14400,8 @@ return null;
 }
 
 // ---------- пересборка карточки ----------
-var _sc = stationCard;
-stationCard = function (st, obs, pred) {
-var html = _sc(st, obs, pred);
-var tpl = document.createElement('template');
-tpl.innerHTML = html;
-var art = tpl.content.querySelector('article.station');
-if (!art) return html;
-
-// 1) полоса «ЗАКРЫТЬ» вместо крестика в углу
+window.__kbPipe.card.push(function (root, art, st, obs, pred) {
+if (!art) return;
 if (!art.querySelector('.kb-closebar')) {
 var bar = document.createElement('div');
 bar.className = 'kb-closebar';
@@ -14461,8 +14412,6 @@ bar.setAttribute('aria-label', 'Закрыть карточку');
 bar.innerHTML = '<span class="kb-closebar-w">Закрыть</span>';
 art.insertBefore(bar, art.firstChild);
 }
-
-// 2) вердикт: чипы вместо слипшейся строки
 var v = art.querySelector('.verdict');
 var vs = v && v.querySelector('.verdict-s');
 if (vs) {
@@ -14495,8 +14444,6 @@ esc(m != null ? ('источник молчит ' + agoRu(m)) : 'источни�
 }
 vs.innerHTML = chips.join('');
 }
-
-// 3) плитки: «есть народ» → статус + источник отдельной строкой
 art.querySelectorAll('.f-tile').forEach(function (tile) {
 var s = tile.querySelector('.f-st');
 if (!s || tile.querySelector('.kb-f-src')) return;
@@ -14519,9 +14466,7 @@ tag.textContent = src;
 s.parentNode.insertBefore(tag, s.nextSibling);
 }
 });
-
-return tpl.innerHTML;
-};
+});
 
 // ---------- закрытие по полосе ----------
 document.addEventListener('click', function (e) {
@@ -15298,17 +15243,14 @@ s.textContent = L.join('');
 document.head.appendChild(s);
 })();
 /* ---------- заголовок главной: обстановка вместо ленты ---------- */
-var _rn = renderNow;
-renderNow = function () {
-var r = _rn();
+window.__kbPipe.now.push(function () {
 try {
 var t = document.getElementById('nowTitle');
 if (t && t.innerHTML.indexOf('Обстановка') !== 0) {
 t.innerHTML = 'Обстановка в городе <b class="pl-city">' + escapeHtml(cityGenitive()) + '</b>';
 }
 } catch (e) {}
-return r;
-};
+});
 /* ---------- карта: фуллскрин панели при входе + ресайз камеры ---------- */
 var mapPanel = document.querySelectorAll('.panel')[2] || null;
 if (mapPanel) mapPanel.classList.add('kb-map-panel');
@@ -15405,46 +15347,17 @@ mapObj.setPaintProperty('zones-line', 'line-width', zoneRamp(ZONE_STOPS.width, z
 }
 } catch (e) {}
 // ---------- 2) карточка АЗС: без «Очередь» и «Обновлено» ----------
-var _sc = stationCard;
-stationCard = function (st, obs, pred) {
-var html = _sc(st, obs, pred);
-try {
-var tpl = document.createElement('template');
-tpl.innerHTML = html;
-var cfs = tpl.content.querySelectorAll('.card-facts .cf');
+window.__kbPipe.card.push(function (root) {
+var cfs = root.querySelectorAll('.card-facts .cf');
 for (var i = 0; i < cfs.length; i++) {
 var t = (cfs[i].textContent || '').replace(/\s+/g, ' ');
 if (t.indexOf('Очередь') >= 0 || t.indexOf('Обновлено') >= 0) {
 cfs[i].parentNode.removeChild(cfs[i]);
 }
 }
-html = tpl.innerHTML;
-} catch (e) {}
-return html;
-};
+});
 // ---------- 3) советник: только новая версия ----------
-function adviceIsOld(pop) {
-if (!pop) return false;
-if (pop.querySelector('.kb-why-our')) return false;
-if (pop.querySelector('.kb-go-hint')) return false;
-if (pop.querySelector('.kb-adv-title')) return false;
-return !!pop.querySelector('.adv-card');
-}
-var advHealTried = 0;
-function healAdvice() {
-var pop = document.getElementById('advicePop');
-if (!pop || !pop.classList.contains('open')) return;
-if (!window.__kbOurWhy && !window.__kbGoIntent) return; // файл старый — лечить нечем
-if (!adviceIsOld(pop)) return;
-if (advHealTried++ >= 2) return;
-try { renderAdvicePop(); } catch (e) {}
-}
-var _rap = renderAdvicePop;
-renderAdvicePop = function () {
-var ok = _rap();
-if (ok) setTimeout(healAdvice, 250);
-return ok;
-};
+
 // ---------- 4) подсказки жестов: убрать узлы совсем ----------
 setTimeout(function () {
 ['kbHint2A', 'kbHint2B', 'kbHintA', 'kbHintB'].forEach(function (id) {
@@ -15488,9 +15401,7 @@ s.textContent =
 document.head.appendChild(s);
 })();
 // ---------- 2) убрать пустышку «Прогнозы созревают» ----------
-var _rn = renderNow;
-renderNow = function () {
-var r = _rn();
+window.__kbPipe.now.push(function () {
 try {
 var cta = document.getElementById('ctaBest');
 var box = cta && cta.parentNode;
@@ -15499,37 +15410,8 @@ var t = (cta.textContent || '').replace(/\s+/g, ' ');
 box.style.display = t.indexOf('Прогнозы созревают') >= 0 ? 'none' : '';
 }
 } catch (e) {}
-return r;
-};
-// ---------- 3) самолечение советника ----------
-function needHeal() {
-var p = document.getElementById('advicePop');
-if (!p || !p.classList.contains('open')) return false;
-if (window.__kbGoIntent && !p.querySelector('.kb-go-btn')) return true;
-if (window.__kbBrandVisual2 && !p.querySelector('.kb-adv-title')) return true;
-if (window.__kbFuelMerge && p.querySelector('.adv-card') && !p.querySelector('.adv-fc.kbm')) return true;
-if (window.__kbOurWhy && p.querySelector('.adv-card.our') && !p.querySelector('.kb-why-our')) return true;
-return false;
-}
-var heals = 0, timers = [];
-function healTick() {
-if (!needHeal() || heals >= 3) return;
-heals++;
-try { renderAdvicePop(); } catch (e) {}
-}
-function onOpen() {
-heals = 0;
-timers.forEach(clearTimeout);
-timers = [setTimeout(healTick, 250), setTimeout(healTick, 700), setTimeout(healTick, 1500)];
-}
-var pop = document.getElementById('advicePop');
-if (pop) {
-new MutationObserver(function () {
-if (pop.classList.contains('open')) {
-if (!pop.__kbWasOpen) { pop.__kbWasOpen = 1; onOpen(); }
-} else pop.__kbWasOpen = 0;
-}).observe(pop, { attributes: true, attributeFilter: ['class'] });
-}
+});
+
 try { console.log('КогдаБенз сборка: ' + window.kbBuildStamp); } catch (e) {}
 })();
 // ============================================================
