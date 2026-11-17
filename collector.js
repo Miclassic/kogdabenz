@@ -1135,20 +1135,20 @@ try {
   } else {
     const FUEL_RU = { '92': 'АИ-92', '95': 'АИ-95', 'diesel': 'дизель' };
     const QUEUE_SHORT = { small: '2–3', medium: '4–6', large: '7+', huge: '100+' };
-    const stIds = [...new Set(evs.map(e => e.station_id))];
-    const favs = await sbGetAll('/rest/v1/user_favorites?station_id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')&select=device_id,station_id');
+    const stSet = new Set(evs.map(e => e.station_id));
+// 414: список id не влезает в заголовки nginx. Избранного мало —
+// качаем целиком и отсеиваем по событиям в памяти.
+const favs = (await sbGetAll('/rest/v1/user_favorites?select=device_id,station_id')).filter(f => stSet.has(f.station_id));
     if (!favs.length) {
       console.log('   Избранного по этим станциям нет');
     } else {
       // имя И адрес станции — чтобы водитель понял, о какой заправке речь
-      const names = await sbGetAll('/rest/v1/stations?select=id,name,address&id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')');
-      const LABEL = {};
-      for (const s of names) LABEL[s.id] = escTg((s.name || 'АЗС') + (s.address ? ' · ' + s.address : ''));
+      const LABEL = nameById; // имена с адресами уже собраны на шаге 2
       // размер народной очереди живёт в user_feedback.queue_size, а не в событии:
       // стыкуем отметку и событие по станции и минуте (detected_at = created_at)
       const fbByKey = {};
       if (evs.some(e => e.event_type === 'queue_high')) {
-        const qfb = await sbGetAll('/rest/v1/user_feedback?feedback_type=eq.queue&station_id=in.(' + stIds.map(i => '"' + i + '"').join(',') + ')&select=station_id,created_at,queue_size');
+        const qfb = await sbGetAll('/rest/v1/user_feedback?feedback_type=eq.queue&created_at=gte.' + encodeURIComponent(prev) + '&select=station_id,created_at,queue_size');
         for (const f of qfb) fbByKey[f.station_id + '|' + f.created_at] = f;
       }
       const hhmm = iso => { const d = new Date(new Date(iso).getTime() + 3 * 3600 * 1000); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
@@ -1344,7 +1344,7 @@ try {
           const col = c.fuel_type === '92' ? 'fuel_92_status' : c.fuel_type === '95' ? 'fuel_95_status' : 'diesel_status';
           const obs = await sbGet(
             '/rest/v1/observations?station_id=eq.' + c.station_id +
-            '&timestamp=gt.' + c.created_at +
+            '&timestamp=gt.' + encodeURIComponent(c.created_at) +
             '&timestamp=lte.' + new Date(new Date(c.created_at).getTime() + 2 * 3600 * 1000).toISOString() +
             '&order=timestamp.asc&limit=12&select=timestamp,' + col
           );

@@ -2801,15 +2801,19 @@ function drawRouteCanvas() {
     const z = mapObj.getZoom();
     const a = z <= 10 ? 0.6 : z >= 12 ? 0 : 0.6 * (12 - z) / 2;
     if (a > 0.02) {
-      const pts = [];
-      for (let i = 0; i < serviceRing.length; i++) pts.push(mapObj.project(serviceRing[i]));
-      // зебра снаружи
-      g.save();
-      g.beginPath();
-      g.rect(0, 0, box.width, box.height);
-      for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
-      g.closePath();
-      g.clip('evenodd');
+      const rings = serviceRing.map(r => r.map(c => mapObj.project(c)));
+const traceRings = () => {
+  for (const pts of rings) {
+    for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
+    g.closePath();
+  }
+};
+// зебра снаружи обеих зон
+g.save();
+g.beginPath();
+g.rect(0, 0, box.width, box.height);
+traceRings();
+g.clip('evenodd');
       const step = 14, HH = box.height;
       g.lineWidth = 6;
       g.strokeStyle = 'rgba(255,255,255,' + (a * 0.5).toFixed(3) + ')';
@@ -2867,9 +2871,8 @@ function drawRouteCanvas() {
         g.clip('evenodd');
       }
       g.beginPath();
-      for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
-      g.closePath();
-      g.lineJoin = 'round';
+traceRings();
+g.lineJoin = 'round';
       g.lineCap = 'round';
       g.setLineDash([]);
       g.lineWidth = 10;
@@ -5507,18 +5510,17 @@ function roundedRing(pts, r, seg) {
   return out;
 }
 function serviceAreaData() {
-  // ВАЖНО: пары вида [долгота, широта] (GeoJSON), сначала долгота!
-  const pts = [
-    [37.20, 43.30], [45.90, 43.30], [45.90, 48.60], [37.20, 48.60]
-  ];
-  const ring = roundedRing(pts, 0.35, 10);
-  const hole = ring.slice().reverse();
-  const outer = [[20, 35], [55, 35], [55, 55], [20, 55], [20, 35]];
+  // две зоны сбора: юг и северо-запад. Между ними не наблюдаем —
+  // поэтому это два отдельных кольца, а не один большой прямоугольник.
+  const south = [[37.20, 43.30], [45.90, 43.30], [45.90, 48.60], [37.20, 48.60]];
+  const nw = [[28.00, 58.50], [35.50, 58.50], [35.50, 62.50], [28.00, 62.50]];
+  const rings = [roundedRing(south, 0.35, 10), roundedRing(nw, 0.35, 10)];
+  const outer = [[-10, 20], [80, 20], [80, 80], [-10, 80], [-10, 20]];
   return {
     type: 'FeatureCollection',
     features: [
-      { type: 'Feature', properties: { kind: 'dim' }, geometry: { type: 'Polygon', coordinates: [outer, hole] } },
-      { type: 'Feature', properties: { kind: 'line' }, geometry: { type: 'Polygon', coordinates: [ring] } }
+      { type: 'Feature', properties: { kind: 'dim' }, geometry: { type: 'Polygon', coordinates: [outer].concat(rings.map(r => r.slice().reverse())) } },
+      { type: 'Feature', properties: { kind: 'line' }, geometry: { type: 'MultiPolygon', coordinates: rings.map(r => [r]) } }
     ]
   };
 }
@@ -5656,7 +5658,7 @@ mapObj = new maplibregl.Map({
     // область обслуживания: границу рисуем на канвасе (drawRouteCanvas) —
     // GL-линия на этом устройстве не отрисовалась, канвас рисуется гарантированно.
     // Запоминаем точки кольца и сразу рисуем границу.
-    serviceRing = organicServiceRing(serviceAreaData().features[1].geometry.coordinates[0]);
+    serviceRing = serviceAreaData().features[1].geometry.coordinates.map(c => organicServiceRing(c[0]));
     routeCanvasEl();
     drawRouteCanvas();
     zoneReady = true;
@@ -6639,7 +6641,7 @@ async function start() {
     bootDone();
   };
   try {
-    const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon&or=(region.is.null,region.neq.northwest)');
+    const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
     allStations = stations || [];
     bootLoadTotal = 16;
     bootReportLoad('станции');
