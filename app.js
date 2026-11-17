@@ -2771,160 +2771,173 @@ function closeSheet() {
    зон), а обычный канвас рисуется гарантированно. Перерисовка на каждом
    движении карты; крестик на плашке очищает канвас. */
 function routeCanvasEl() {
-  if (!mapObj) return null;
-  let cv = document.getElementById('routeCanvas');
-  if (!cv) {
-    cv = document.createElement('canvas');
-    cv.id = 'routeCanvas';
-    cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4';
-    mapObj.getContainer().appendChild(cv);
-    mapObj.on('move', drawRouteCanvas);
-    mapObj.on('resize', drawRouteCanvas);
-  }
-  return cv;
+if (!mapObj) return null;
+let cv = document.getElementById('routeCanvas');
+if (!cv) {
+cv = document.createElement('canvas');
+cv.id = 'routeCanvas';
+cv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4';
+mapObj.getContainer().appendChild(cv);
+mapObj.on('move', drawRouteCanvas);
+mapObj.on('resize', drawRouteCanvas);
+// воду для вырубки зебры перечитываем только на остановках карты
+mapObj.on('moveend', function () { svcWaterDirty = true; drawRouteCanvas(); });
+mapObj.on('zoomend', function () { svcWaterDirty = true; drawRouteCanvas(); });
+}
+return cv;
+}
+// === Граница области обслуживания: зебра паттерном + кэш воды ===
+// Раньше каждый кадр движения рисовал полосы линиями и запрашивал
+// ВСЮ воду вьюпорта (queryRenderedFeatures) — отсюда лаги панорамирования.
+// Теперь: плитка-паттерн создаётся один раз, вода запрашивается только
+// когда карта стоит (в движении — проекция кэша), кадры склеены rAF.
+let svcWaterPolys = [], svcWaterDirty = true, svcRaf = 0, svcStripeTile = null, svcStripeDpr = 0;
+function svcStripeTileEl(dpr) {
+if (svcStripeTile && svcStripeDpr === dpr) return svcStripeTile;
+const t = document.createElement('canvas');
+t.width = Math.round(14 * dpr); t.height = Math.round(14 * dpr);
+const c = t.getContext('2d');
+c.scale(dpr, dpr);
+c.lineWidth = 6; c.lineCap = 'butt';
+c.strokeStyle = 'rgba(57,124,255,0.18)';
+c.beginPath(); c.moveTo(-4, -4); c.lineTo(18, 18); c.stroke();
+c.strokeStyle = 'rgba(255,255,255,0.5)';
+c.beginPath(); c.moveTo(3, -4); c.lineTo(25, 18); c.stroke();
+c.beginPath(); c.moveTo(-11, -4); c.lineTo(11, 18); c.stroke();
+svcStripeTile = t; svcStripeDpr = dpr;
+return t;
+}
+function svcRefreshWater(box) {
+svcWaterPolys = [];
+try {
+const opts = waterLayerIds.length ? { layers: waterLayerIds } : undefined;
+const wf = mapObj.queryRenderedFeatures([[0, 0], [box.width, box.height]], opts);
+for (const f of wf) {
+if (!f.layer || String(f.layer.id).indexOf('water') < 0) continue;
+const gg = f.geometry;
+if (!gg) continue;
+const polys = gg.type === 'Polygon' ? [gg.coordinates] : gg.type === 'MultiPolygon' ? gg.coordinates : null;
+if (!polys) continue;
+for (const poly of polys) svcWaterPolys.push(poly);
+}
+} catch (e) {}
+svcWaterDirty = false;
 }
 function drawRouteCanvas() {
-  const cv = document.getElementById('routeCanvas');
-  if (!cv || !mapObj) return;
-  const box = mapObj.getContainer().getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const W = Math.max(1, Math.round(box.width * dpr)), H = Math.max(1, Math.round(box.height * dpr));
-  if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-  const g = cv.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, box.width, box.height);
-  // граница области обслуживания: волнистый живой контур + штриховка
-  // «недоступно» снаружи (красно-белая диагональная зебра, как запрещённые
-  // зоны в играх). Клип evenodd: прямоугольник экрана минус кольцо —
-  // зебра ложится только ВНЕ области обслуживания. Тает к уличному зуму.
-  if (serviceRing) {
-    const z = mapObj.getZoom();
-    const a = z <= 10 ? 0.6 : z >= 12 ? 0 : 0.6 * (12 - z) / 2;
-    if (a > 0.02) {
-      const rings = serviceRing.map(r => r.map(c => mapObj.project(c)));
+if (svcRaf) return; // move может стрелять чаще кадров — клеим в один rAF
+svcRaf = requestAnimationFrame(function () { svcRaf = 0; drawRouteCanvasNow(); });
+}
+function drawRouteCanvasNow() {
+const cv = document.getElementById('routeCanvas');
+if (!cv || !mapObj) return;
+const box = mapObj.getContainer().getBoundingClientRect();
+const dpr = window.devicePixelRatio || 1;
+const W = Math.max(1, Math.round(box.width * dpr)), H = Math.max(1, Math.round(box.height * dpr));
+if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+const g = cv.getContext('2d');
+g.setTransform(dpr, 0, 0, dpr, 0, 0);
+g.clearRect(0, 0, box.width, box.height);
+// граница области обслуживания: зебра снаружи + пунктир по кромке
+if (serviceRing) {
+const z = mapObj.getZoom();
+const a = z <= 10 ? 0.6 : z >= 12 ? 0 : 0.6 * (12 - z) / 2;
+if (a > 0.02) {
+const rings = serviceRing.map(r => r.map(c => mapObj.project(c)));
+// вода: запрос только на остановке, в движении — кэш в lon/lat + проекция
+if (svcWaterDirty && !mapObj.isMoving()) svcRefreshWater(box);
+const waterPolys = svcWaterPolys.map(poly => poly.map(ring => ring.map(c => mapObj.project(c))));
 const traceRings = () => {
-  for (const pts of rings) {
-    for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
-    g.closePath();
-  }
+for (const pts of rings) {
+for (let i = 0; i < pts.length; i++) { if (i) g.lineTo(pts[i].x, pts[i].y); else g.moveTo(pts[i].x, pts[i].y); }
+g.closePath();
+}
 };
-// зебра снаружи обеих зон
 g.save();
 g.beginPath();
 g.rect(0, 0, box.width, box.height);
 traceRings();
 g.clip('evenodd');
-      const step = 14, HH = box.height;
-      g.lineWidth = 6;
-      g.strokeStyle = 'rgba(255,255,255,' + (a * 0.5).toFixed(3) + ')';
-      g.beginPath();
-      for (let x = -HH + step / 2; x < box.width + HH; x += step) { g.moveTo(x, 0); g.lineTo(x + HH, HH); }
-      g.stroke();
-      g.strokeStyle = 'rgba(57,124,255,' + (a * 0.18).toFixed(3) + ')';
-      g.beginPath();
-      for (let x = -HH; x < box.width + HH; x += step) { g.moveTo(x, 0); g.lineTo(x + HH, HH); }
-      g.stroke();
-      // вода: собираем экранные полигоны один раз — они нужны и для вырубки
-      // зебры, и для клипа пунктирной кромки (граница не должна идти по морю)
-      let waterPolys = [];
-      try {
-        const opts = waterLayerIds.length ? { layers: waterLayerIds } : undefined;
-        const wf = mapObj.queryRenderedFeatures([[0, 0], [box.width, box.height]], opts);
-        for (const f of wf) {
-          if (!f.layer || String(f.layer.id).indexOf('water') < 0) continue;
-          const gg = f.geometry;
-          if (!gg) continue;
-          const polys = gg.type === 'Polygon' ? [gg.coordinates] : gg.type === 'MultiPolygon' ? gg.coordinates : null;
-          if (!polys) continue;
-          for (const poly of polys) waterPolys.push(poly.map(ring => ring.map(c => mapObj.project(c))));
-        }
-      } catch (e) {}
-      // вырубаем зебру над водой: на море не может быть АЗС.
-      // destination-out стирает только пиксели зебры на этом канвасе, море чистое.
-      if (waterPolys.length) {
-        g.globalCompositeOperation = 'destination-out';
-        for (const poly of waterPolys) {
-          g.beginPath();
-          for (const ring of poly) {
-            for (let i = 0; i < ring.length; i++) { if (i) g.lineTo(ring[i].x, ring[i].y); else g.moveTo(ring[i].x, ring[i].y); }
-            g.closePath();
-          }
-          g.fill('evenodd'); // evenodd сохраняет острова внутри воды нетронутыми
-        }
-        g.globalCompositeOperation = 'source-over';
-      }
-      g.restore();
-      // сама кромка: мягкое свечение + точки поверх зебры.
-      // Клип по воде (evenodd: прямоугольник экрана минус полигоны воды) —
-      // граница не перечёркивает море: над водой линия просто не рисуется,
-      // обрываясь на берегу, а на суше и на островах остаётся.
-      g.save();
-      if (waterPolys.length) {
-        g.beginPath();
-        g.rect(0, 0, box.width, box.height);
-        for (const poly of waterPolys) {
-          for (const ring of poly) {
-            for (let i = 0; i < ring.length; i++) { if (i) g.lineTo(ring[i].x, ring[i].y); else g.moveTo(ring[i].x, ring[i].y); }
-            g.closePath();
-          }
-        }
-        g.clip('evenodd');
-      }
-      g.beginPath();
+// зебра одним fill готовым паттерном (в device-пикселях, без масштаба трансформом)
+g.setTransform(1, 0, 0, 1, 0, 0);
+g.globalAlpha = a;
+g.fillStyle = g.createPattern(svcStripeTileEl(dpr), 'repeat');
+g.fillRect(0, 0, cv.width, cv.height);
+g.globalAlpha = 1;
+g.setTransform(dpr, 0, 0, dpr, 0, 0);
+// вырубаем зебру над водой: на море не может быть АЗС
+if (waterPolys.length) {
+g.globalCompositeOperation = 'destination-out';
+for (const poly of waterPolys) {
+g.beginPath();
+for (const ring of poly) {
+for (let i = 0; i < ring.length; i++) { if (i) g.lineTo(ring[i].x, ring[i].y); else g.moveTo(ring[i].x, ring[i].y); }
+g.closePath();
+}
+g.fill('evenodd');
+}
+g.globalCompositeOperation = 'source-over';
+}
+g.restore();
+// сама кромка: мягкое свечение + точки поверх зебры, клип по воде
+g.save();
+if (waterPolys.length) {
+g.beginPath();
+g.rect(0, 0, box.width, box.height);
+for (const poly of waterPolys) {
+for (const ring of poly) {
+for (let i = 0; i < ring.length; i++) { if (i) g.lineTo(ring[i].x, ring[i].y); else g.moveTo(ring[i].x, ring[i].y); }
+g.closePath();
+}
+}
+g.clip('evenodd');
+}
+g.beginPath();
 traceRings();
 g.lineJoin = 'round';
-      g.lineCap = 'round';
-      g.setLineDash([]);
-      g.lineWidth = 10;
-      g.strokeStyle = 'rgba(57,124,255,' + (a * 0.10).toFixed(3) + ')';
-      g.stroke();
-      g.setLineDash([0.5, 8.5]);
-      g.lineWidth = 2;
-      g.strokeStyle = 'rgba(57,124,255,' + (a * 0.7).toFixed(3) + ')';
-      g.stroke();
-      g.restore();
-    }
-  }
-  if (!routeFeature || !routeFeature.geometry) return;
-  const coords = routeFeature.geometry.coordinates;
-  const step = Math.max(1, Math.floor(coords.length / 400));
-  const pts = [];
-  for (let i = 0; i < coords.length; i += step) pts.push(mapObj.project([coords[i][0], coords[i][1]]));
-  const lastC = coords[coords.length - 1];
-  pts.push(mapObj.project([lastC[0], lastC[1]]));
-  // линия как в навигаторе: мягкая синяя тень 	 белая окантовка 	 синий
-  // стержень; углы сглажены квадратами через середины отрезков — лаконично
-  const trace = () => {
-    g.beginPath();
-    g.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
-      g.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
-    }
-    const lp = pts[pts.length - 1];
-    g.lineTo(lp.x, lp.y);
-  };
-  g.lineJoin = 'round'; g.lineCap = 'round';
-  // фокус на маршруте: лёгкая мягкая вуаль по всей карте, затем вокруг
-  // линии вырезается коридор с пером (края затухают ступенями) — внимание
-  // остаётся на маршруте, остальное уходит в тень
-  // туман только в обзорном виде: на уличном зуме карта чистая и цветная,
-  // между z 14 и 15.2 вуаль и коридоры плавно тают — на глубоком зуме серая
-  // каша и «прожекторы» не мешают читать улицы
-  const veil = Math.max(0, Math.min(1, (15.2 - mapObj.getZoom()) / 1.2));
-  if (veil > 0.02) {
-    g.fillStyle = 'rgba(20,33,61,' + (0.22 * veil).toFixed(3) + ')';
-    g.fillRect(0, 0, box.width, box.height);
-    g.globalCompositeOperation = 'destination-out';
-    trace(); g.strokeStyle = 'rgba(0,0,0,' + veil.toFixed(3) + ')'; g.lineWidth = 26; g.stroke();
-    trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.6 * veil).toFixed(3) + ')'; g.lineWidth = 46; g.stroke();
-    trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.3 * veil).toFixed(3) + ')'; g.lineWidth = 68; g.stroke();
-    trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.12 * veil).toFixed(3) + ')'; g.lineWidth = 120; g.stroke();
-    g.globalCompositeOperation = 'source-over';
-  }
-  trace(); g.strokeStyle = 'rgba(23,70,200,.16)'; g.lineWidth = 12; g.stroke();
-  trace(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 8.5; g.stroke();
-  trace(); g.strokeStyle = '#2465ee'; g.lineWidth = 5; g.stroke();
+g.lineCap = 'round';
+g.setLineDash([]);
+g.lineWidth = 10;
+g.strokeStyle = 'rgba(57,124,255,' + (a * 0.10).toFixed(3) + ')';
+g.stroke();
+g.setLineDash([0.5, 8.5]);
+g.lineWidth = 2;
+g.strokeStyle = 'rgba(57,124,255,' + (a * 0.7).toFixed(3) + ')';
+g.stroke();
+g.restore();
+}
+}
+if (!routeFeature || !routeFeature.geometry) return;
+const coords = routeFeature.geometry.coordinates;
+const step = Math.max(1, Math.floor(coords.length / 400));
+const pts = [];
+for (let i = 0; i < coords.length; i += step) pts.push(mapObj.project([coords[i][0], coords[i][1]]));
+const lastC = coords[coords.length - 1];
+pts.push(mapObj.project([lastC[0], lastC[1]]));
+const trace = () => {
+g.beginPath();
+g.moveTo(pts[0].x, pts[0].y);
+for (let i = 1; i < pts.length - 1; i++) {
+const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
+g.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+}
+const lp = pts[pts.length - 1];
+g.lineTo(lp.x, lp.y);
+};
+g.lineJoin = 'round'; g.lineCap = 'round';
+const veil = Math.max(0, Math.min(1, (15.2 - mapObj.getZoom()) / 1.2));
+if (veil > 0.02) {
+g.fillStyle = 'rgba(20,33,61,' + (0.22 * veil).toFixed(3) + ')';
+g.fillRect(0, 0, box.width, box.height);
+g.globalCompositeOperation = 'destination-out';
+trace(); g.strokeStyle = 'rgba(0,0,0,' + veil.toFixed(3) + ')'; g.lineWidth = 26; g.stroke();
+trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.6 * veil).toFixed(3) + ')'; g.lineWidth = 46; g.stroke();
+trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.3 * veil).toFixed(3) + ')'; g.lineWidth = 68; g.stroke();
+trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.12 * veil).toFixed(3) + ')'; g.lineWidth = 120; g.stroke();
+g.globalCompositeOperation = 'source-over';
+}
+trace(); g.strokeStyle = 'rgba(23,70,200,.16)'; g.lineWidth = 12; g.stroke();
+trace(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 8.5; g.stroke();
+trace(); g.strokeStyle = '#2465ee'; g.lineWidth = 5; g.stroke();
 }
 function showOnMap(id) {
   const st = allStations.find(s => s.id === id);
@@ -15518,4 +15531,374 @@ try { detectUserCity(); } catch (e) {}
 if (userCityKey !== beforeCity || userRegion !== beforeRegion) kbRegionRefresh(false);
 watchEcg();
 setTimeout(function () { kbBuildRow(); kbSyncUI(); kbPlaceThumb(); }, 900);
+})();
+// ============================================================
+// KB MAIN CLEAN v1 — главная без лишнего, карта чище и во весь экран,
+// возврат загрузочного экрана.
+// 1) Главная: скрыты карточка ленты событий, мини-карта и тепловая
+//    матрица. DOM и функции живы: лента питает ветки топ-3, события
+//    карточек, сводку и Телеграм; матрица/мини-карта просто не видны здесь.
+//    Заголовок панели — «Обстановка в городе» вместо «Лента событий».
+// 2) Карта: без строки чипов сверху, без описания в заголовке, без легенд
+//    снизу; заголовок с табами — стеклянная пилюля поверх карты.
+// 3) Вход в панель карты: карта плавно разворачивается на всю панель,
+//    камера ресайзится после анимации.
+// 4) Boot-оверлей снова показывается при тёплом кэше и уходит по факту
+//    готовности данных.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbMainClean) return;
+window.__kbMainClean = 1;
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbMainCleanCss';
+var L = [];
+/* главная: лента, мини-карта и матрица скрыты (DOM и функции живы) */
+L.push('.p1 .pulse-feed{display:none !important;}');
+L.push('.p1 .pulse-grid{grid-template-columns:1fr !important;}');
+L.push('.p1 .mini-map-wrap{display:none !important;}');
+L.push('.p1 .hm-wrap{display:none !important;}');
+/* карта: без чипов, описания и легенд */
+L.push('#mapPlate{display:none !important;}');
+L.push('#mapSub{display:none !important;}');
+L.push('#legQueue,#legFuel,#legHeat{display:none !important;}');
+/* панель карты: карта на всю панель, заголовок — пилюля поверх */
+L.push('.kb-map-panel{position:relative;padding:0 !important;overflow:hidden;}');
+L.push('.kb-map-panel .map-wrap{position:absolute;inset:0;min-height:0;height:auto;flex:none;}');
+L.push('.kb-map-panel .map-box{border:0;border-radius:0;}');
+L.push('.kb-map-panel .p1-head{position:absolute;left:10px;right:10px;top:10px;z-index:8;margin:0;');
+L.push('padding:8px 10px;border-radius:14px;pointer-events:none;');
+L.push('background:rgba(255,255,255,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);');
+L.push('border:1px solid rgba(226,232,244,.9);box-shadow:0 6px 18px rgba(15,27,51,.12);}');
+L.push('.kb-map-panel .p1-head .mg-tabs{pointer-events:auto;}');
+L.push('body.kb-night .kb-map-panel .p1-head{background:rgba(13,18,32,.72);');
+L.push('border-color:rgba(148,180,255,.22);box-shadow:0 8px 22px rgba(0,0,0,.45);}');
+/* плавное развёртывание карты при входе на панель */
+L.push('.kb-map-panel.kb-fs .map-wrap{animation:kbMapIn .5s cubic-bezier(.2,.8,.2,1);}');
+L.push('@keyframes kbMapIn{from{opacity:.35;transform:scale(.97);}to{opacity:1;transform:none;}}');
+L.push('body.kb-lite .kb-map-panel.kb-fs .map-wrap{animation:none;}');
+L.push('@media (prefers-reduced-motion:reduce){.kb-map-panel.kb-fs .map-wrap{animation:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+/* ---------- заголовок главной: обстановка вместо ленты ---------- */
+var _rn = renderNow;
+renderNow = function () {
+var r = _rn();
+try {
+var t = document.getElementById('nowTitle');
+if (t && t.innerHTML.indexOf('Обстановка') !== 0) {
+t.innerHTML = 'Обстановка в городе <b class="pl-city">' + escapeHtml(cityGenitive()) + '</b>';
+}
+} catch (e) {}
+return r;
+};
+/* ---------- карта: фуллскрин панели при входе + ресайз камеры ---------- */
+var mapPanel = document.querySelectorAll('.panel')[2] || null;
+if (mapPanel) mapPanel.classList.add('kb-map-panel');
+var lastPanel = -1;
+function syncMapFs() {
+var pg = document.getElementById('pager');
+var i = (typeof currentPanel !== 'undefined') ? currentPanel : 0;
+if (pg && pg.clientWidth) i = Math.round(pg.scrollLeft / pg.clientWidth);
+if (i === lastPanel) return;
+lastPanel = i;
+if (!mapPanel) return;
+var on = (i === 2);
+mapPanel.classList.toggle('kb-fs', on);
+if (on) {
+setTimeout(function () { try { if (mapObj) mapObj.resize(); } catch (e) {} }, 80);
+setTimeout(function () { try { if (mapObj) mapObj.resize(); } catch (e) {} }, 560);
+}
+}
+var pgEl = document.getElementById('pager');
+if (pgEl) pgEl.addEventListener('scroll', function () { syncMapFs(); }, { passive: true });
+setInterval(syncMapFs, 400);
+syncMapFs();
+/* ---------- возврат загрузочного экрана при тёплом кэше ---------- */
+try {
+if (window.__cacheRendered && bootOver && bootLoadDone < bootLoadTotal) {
+var bb = document.getElementById('bootBack');
+if (bb) {
+bb.style.display = '';
+bb.classList.remove('off');
+bootOver = false;
+bootFailed = false;
+bootStart();
+}
+}
+} catch (e) {}
+})();
+// ============================================================
+// KB BOOT CALM v1 — загрузка без микроподлагов.
+// 1) При тёплом кэше бут-оверлей больше не блюрит живую страницу
+//    (backdrop-filter поверх анимаций = главная цена кадра на телефоне)
+//    и ставит фоновые декор-анимации на паузу, пока он открыт.
+// 2) Жёсткий потолок 3 секунды при тёплом кэше: данные уже на экране
+//    из снимка, оверлей уходит сам, сеть дообновляет цифры фоном.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbBootCalm) return;
+window.__kbBootCalm = 1;
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbBootCalmCss';
+s.textContent =
+'body.kb-booting #bootBack{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;' +
+'background:rgba(7,10,18,.94) !important;}' +
+'body.kb-booting .panel::before,body.kb-booting .kb-hint2-in::after,body.kb-booting .kb-hint::after,' +
+'body.kb-booting .kb-glow,body.kb-booting .kbf-cap,body.kb-booting .kbf-starwrap,body.kb-booting .kbf-info,' +
+'body.kb-booting .kbf-level,body.kb-booting .kbf-wave,body.kb-booting .pulse-feed-t .live i,' +
+'body.kb-booting .kbs-live i,body.kb-booting .kb-region-dot{animation:none !important;}';
+document.head.appendChild(s);
+})();
+document.body.classList.add('kb-booting');
+// потолок: тёплый кэш уже показал данные — оверлей не держим дольше 3 сек
+setTimeout(function () {
+try {
+if (window.__cacheRendered && !bootOver && bootLoadDone < bootLoadTotal) bootDone();
+} catch (e) {}
+}, 3000);
+var iv = setInterval(function () {
+var bb = document.getElementById('bootBack');
+var gone = !bb || bootOver;
+document.body.classList.toggle('kb-booting', !gone);
+if (gone) clearInterval(iv);
+}, 400);
+})();
+// ============================================================
+// KB CALM UI v1 — тихий пульс, чистая карточка, без подсказок,
+// и только ОДИН (новый) советник «Куда ехать».
+// 1) Пульс зон: интервал 130мс -> 400мс, амплитуда «дыхания» вдвое
+//    меньше — карта не дёргает GPU каждый кадр, лаги панорамы уходят.
+// 2) Карточка АЗС: колонки «Очередь» и «Обновлено» убраны из блока
+//    фактов (цены остаются), блок становится в одну колонку.
+// 3) Советник: если окно открылось в старом оформлении (без цитаты,
+//    без пилюли города, без подсказки) при живых новых паках —
+//    одна принудительная перерисовка в новый вид.
+// 4) Полосы-подсказки жестов под линзой и под тулбаром скрыты и удалены.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять (кроме версии).
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCalmUi) return;
+window.__kbCalmUi = 1;
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbCalmUiCss';
+s.textContent =
+'#kbHint2A,#kbHint2B,#kbHintA,#kbHintB,.kb-hint2,.kb-hint{display:none !important;}' +
+'article.station .card-facts{grid-template-columns:1fr !important;}' +
+'.kb-card-v2 .card-facts{grid-template-columns:1fr !important;}';
+document.head.appendChild(s);
+})();
+// ---------- 1) приглушённый пульс зон и тепла ----------
+try {
+if (typeof startZonePulse === 'function') {
+startZonePulse = function () {
+if (zonePulseTimer) return;
+var t0 = Date.now();
+zonePulseTimer = setInterval(function () {
+if (!mapObj || !zoneReady) return;
+if (currentPanel !== 2) return;
+if (pagerTouching) return;
+var sh = document.getElementById('sheet');
+if (sh && sh.classList.contains('open')) return;
+var hb = document.getElementById('helloBack');
+if (hb && hb.classList.contains('open')) return;
+var z = mapObj.getZoom();
+var pf = 0.97 + 0.03 * Math.sin((Date.now() - t0) / 1600);
+var ff = zoneStreetFade(z);
+for (var i = 0; i < FH_LAYERS.length; i++) {
+mapObj.setPaintProperty(FH_LAYERS[i], 'heatmap-radius', zoneRamp(FH_RADIUS, z));
+mapObj.setPaintProperty(FH_LAYERS[i], 'heatmap-opacity', zoneRamp(FH_OPACITY, z) * ff * pf * heatStrength);
+}
+if (z < 12) return;
+var p = 0.95 + 0.05 * Math.sin((Date.now() - t0) / 1100);
+var f = zoneStreetFade(z);
+mapObj.setPaintProperty('zones-halo', 'fill-opacity', zoneRamp(ZONE_STOPS.halo, z) * p * f);
+mapObj.setPaintProperty('zones-fill', 'fill-opacity', zoneRamp(ZONE_STOPS.fill, z) * p * f);
+mapObj.setPaintProperty('zones-core', 'fill-opacity', zoneRamp(ZONE_STOPS.core, z) * p * f);
+mapObj.setPaintProperty('zones-line', 'line-opacity', zoneRamp(ZONE_STOPS.line, z) * p * f);
+mapObj.setPaintProperty('zones-line', 'line-width', zoneRamp(ZONE_STOPS.width, z));
+}, 400);
+};
+}
+} catch (e) {}
+// ---------- 2) карточка АЗС: без «Очередь» и «Обновлено» ----------
+var _sc = stationCard;
+stationCard = function (st, obs, pred) {
+var html = _sc(st, obs, pred);
+try {
+var tpl = document.createElement('template');
+tpl.innerHTML = html;
+var cfs = tpl.content.querySelectorAll('.card-facts .cf');
+for (var i = 0; i < cfs.length; i++) {
+var t = (cfs[i].textContent || '').replace(/\s+/g, ' ');
+if (t.indexOf('Очередь') >= 0 || t.indexOf('Обновлено') >= 0) {
+cfs[i].parentNode.removeChild(cfs[i]);
+}
+}
+html = tpl.innerHTML;
+} catch (e) {}
+return html;
+};
+// ---------- 3) советник: только новая версия ----------
+function adviceIsOld(pop) {
+if (!pop) return false;
+if (pop.querySelector('.kb-why-our')) return false;
+if (pop.querySelector('.kb-go-hint')) return false;
+if (pop.querySelector('.kb-adv-title')) return false;
+return !!pop.querySelector('.adv-card');
+}
+var advHealTried = 0;
+function healAdvice() {
+var pop = document.getElementById('advicePop');
+if (!pop || !pop.classList.contains('open')) return;
+if (!window.__kbOurWhy && !window.__kbGoIntent) return; // файл старый — лечить нечем
+if (!adviceIsOld(pop)) return;
+if (advHealTried++ >= 2) return;
+try { renderAdvicePop(); } catch (e) {}
+}
+var _rap = renderAdvicePop;
+renderAdvicePop = function () {
+var ok = _rap();
+if (ok) setTimeout(healAdvice, 250);
+return ok;
+};
+// ---------- 4) подсказки жестов: убрать узлы совсем ----------
+setTimeout(function () {
+['kbHint2A', 'kbHint2B', 'kbHintA', 'kbHintB'].forEach(function (id) {
+var el = document.getElementById(id);
+if (el && el.parentNode) el.parentNode.removeChild(el);
+});
+}, 1200);
+})();
+// ============================================================
+// KB MAP UI FIX v1 — три точечных правки:
+// 1) Шкала зума (+/−) переезжает из левого нижнего угла на правый
+//    край карты (зона, помеченная на скриншоте), только CSS.
+// 2) Кнопка «Прогнозы созревают» на главной скрыта: это пустое
+//    состояние «Куда ехать», а живая кнопка уже есть в пульсе и топ-3.
+//    Как только появляется адрес — кнопка возвращается сама.
+// 3) Советник «Куда ехать»: самолечение оформления. Если окно открылось
+//    со старой разметкой (без пилюли-города, золотой цитаты, плиток kbm,
+//    кнопки «Поеду сюда») — принудительная перерисовка через текущую
+//    цепочку renderAdvicePop (до 3 раз за открытие).
+// ШТАМП СБОРКИ: window.kbBuildStamp. Диагностика «старого советника»:
+// открой в браузере сам файл, который отдаёт сервер
+// (localhost:26543/app.js), и поищи там kbBuildStamp или __kbMapUiFix.
+// Нет штампа в ОТДАВАЕМОМ файле — сервер лежит на старой копии app.js,
+// и никакая очистка кэша не поможет, пока не заменишь файл на сервере.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbMapUiFix) return;
+window.__kbMapUiFix = 1;
+window.kbBuildStamp = '2026-11-18-mapui-fix';
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbMapUiFixCss';
+s.textContent =
+'#mapBox .maplibregl-ctrl-bottom-left{left:auto !important;right:8px !important;bottom:auto !important;top:30% !important;}' +
+'#mapBox .maplibregl-ctrl-bottom-left .maplibregl-ctrl-group{box-shadow:0 6px 18px rgba(15,27,51,.25);}' +
+'body.kb-night #mapBox .maplibregl-ctrl-bottom-left .maplibregl-ctrl-group{background:#1a2234;border-color:rgba(148,180,255,.25);}' +
+'body.kb-night #mapBox .maplibregl-ctrl-bottom-left .maplibregl-ctrl-group button{background:#1a2234;color:#9dc4ff;}' +
+'body.kb-night #mapBox .maplibregl-ctrl-bottom-left .maplibregl-ctrl-group button + button{border-top-color:rgba(148,180,255,.25);}';
+document.head.appendChild(s);
+})();
+// ---------- 2) убрать пустышку «Прогнозы созревают» ----------
+var _rn = renderNow;
+renderNow = function () {
+var r = _rn();
+try {
+var cta = document.getElementById('ctaBest');
+var box = cta && cta.parentNode;
+if (box && box.classList && box.classList.contains('nowcard-cta')) {
+var t = (cta.textContent || '').replace(/\s+/g, ' ');
+box.style.display = t.indexOf('Прогнозы созревают') >= 0 ? 'none' : '';
+}
+} catch (e) {}
+return r;
+};
+// ---------- 3) самолечение советника ----------
+function needHeal() {
+var p = document.getElementById('advicePop');
+if (!p || !p.classList.contains('open')) return false;
+if (window.__kbGoIntent && !p.querySelector('.kb-go-btn')) return true;
+if (window.__kbBrandVisual2 && !p.querySelector('.kb-adv-title')) return true;
+if (window.__kbFuelMerge && p.querySelector('.adv-card') && !p.querySelector('.adv-fc.kbm')) return true;
+if (window.__kbOurWhy && p.querySelector('.adv-card.our') && !p.querySelector('.kb-why-our')) return true;
+return false;
+}
+var heals = 0, timers = [];
+function healTick() {
+if (!needHeal() || heals >= 3) return;
+heals++;
+try { renderAdvicePop(); } catch (e) {}
+}
+function onOpen() {
+heals = 0;
+timers.forEach(clearTimeout);
+timers = [setTimeout(healTick, 250), setTimeout(healTick, 700), setTimeout(healTick, 1500)];
+}
+var pop = document.getElementById('advicePop');
+if (pop) {
+new MutationObserver(function () {
+if (pop.classList.contains('open')) {
+if (!pop.__kbWasOpen) { pop.__kbWasOpen = 1; onOpen(); }
+} else pop.__kbWasOpen = 0;
+}).observe(pop, { attributes: true, attributeFilter: ['class'] });
+}
+try { console.log('КогдаБенз сборка: ' + window.kbBuildStamp); } catch (e) {}
+})();
+// ============================================================
+// KB FINAL TOUCH v1 — три точечные правки:
+// 1) Карточка АЗС: цены становятся продольной плашкой на всю
+//    ширину — три плитки-ценника в ряд, без пустоты справа.
+// 2) Рейтинг: кто уже оценил сервис — док со звёздами больше не
+//    всплывает сам при загрузке (открытие только вручную через
+//    звезду в шапке / «Рейтинг сервиса»). Кто не оценил — раз за сессию.
+// 3) Загрузочный экран убран полностью: узел оверлея вырезается
+//    из DOM до первой отрисовки кадра, прогресс и капля не мелькают.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbFinalTouch) return;
+window.__kbFinalTouch = 1;
+// ---------- 1) цены продольной плашкой ----------
+(function css() {
+var s = document.createElement('style');
+s.id = 'kbFinalTouchCss';
+s.textContent =
+'.kb-card-v2 .card-facts{grid-template-columns:1fr !important;}' +
+'.kb-card-v2 .card-facts .cf{width:100%;min-width:0;}' +
+'.kb-card-v2 .cf-prices{display:grid !important;grid-template-columns:repeat(3,1fr) !important;gap:8px !important;margin-top:8px !important;}' +
+'.kb-card-v2 .pr-row{display:flex !important;align-items:center !important;justify-content:center !important;gap:7px !important;' +
+'padding:10px 6px !important;border-radius:13px !important;' +
+'background:linear-gradient(160deg,#f8fafd,#f1f5fb) !important;border:1px solid #e6ecf5 !important;}' +
+'.kb-card-v2 .pr-row b{font-size:14px !important;font-weight:900;letter-spacing:-.3px;color:#14213d !important;}' +
+'.kb-card-v2 .pr-ico{width:22px !important;height:18px !important;font-size:9px !important;}' +
+'body.kb-night .kb-card-v2 .pr-row{background:rgba(148,180,255,.07) !important;border-color:rgba(148,180,255,.15) !important;}' +
+'body.kb-night .kb-card-v2 .pr-row b{color:#ebf3ff !important;}' +
+// ---------- 3) загрузочного экрана нет вовсе ----------
+'#bootBack,.boot-back{display:none !important;}';
+document.head.appendChild(s);
+})();
+// ---------- 2) рейтинг не всплывает у оценивших ----------
+try {
+var mr = JSON.parse(localStorage.getItem('kbRateMine') || 'null');
+if (mr && mr.overall) sessionStorage.setItem('kbRateDockThanked', '1');
+} catch (e) {}
+// ---------- 3) вырезаем узел загрузки до первой отрисовки ----------
+try {
+var bb = document.getElementById('bootBack');
+if (bb && bb.parentNode) bb.parentNode.removeChild(bb);
+} catch (e) {}
 })();
