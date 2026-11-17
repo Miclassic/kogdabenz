@@ -228,16 +228,7 @@ function escapeHtml(v) { return String(v ?? '').replace(/&/g,'&amp;').replace(/<
 function time5(v) { if (!v) return '—'; const s = String(v); return s.length >= 5 ? s.substring(0,5) : s; }
 function fuelLabel(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
 function icon(n, cls) { return '<svg class="ic ' + (cls || '') + '"><use href="#' + n + '"/></svg>'; }
-function fuelHtml(ok, trust) {
-  if (ok === null || ok === undefined) return '<span class="unknown"><span class="dot gray"></span>нет данных</span>';
-  if (ok) {
-    // наличие утверждаем только свежим И достоверным снимком источника
-    // (свежесть ≤6 ч + машина состояний против блефа чужих отметок)
-    if (trust === false) return '<span class="unknown"><span class="dot gray"></span>не подтверждён</span>';
-    return '<span class="yes"><span class="dot green"></span>есть</span>';
-  }
-  return '<span class="no"><span class="dot red"></span>нет</span>';
-}
+
 function getPrediction(pred) {
   if (!pred) return { time: 'Пока нет прогноза', confidence: 0, note: 'Нужно больше наблюдений, чтобы понять ритм этой АЗС.', eta: null };
   const confidence = Math.max(0, Math.min(100, Math.round((pred.confidence || 0) * 100)));
@@ -322,16 +313,7 @@ function confPercent(obs) {
   if (m === null) return null;
   return Math.max(8, Math.round(95 * Math.exp(-m / 720)));
 }
-function fuelConfLine(obs, status) {
-  const c = confPercent(obs);
-  if (status === null || status === undefined) {
-    const m = getFreshnessMin(obs);
-    if (m === null) return '—';
-    const t = m < 60 ? m + ' мин' : m < 1440 ? Math.round(m / 60) + ' ч' : Math.round(m / 1440) + ' дн';
-    return 'данные источника: ' + t + ' назад';
-  }
-  return '≈ ' + (status ? c : Math.max(3, 100 - c)) + '%';
-}
+
 // === вердикт-плашка карточки АЗС: мгновенный ответ водителю ===
 function agoRu(min) {
   if (min === null || min === undefined) return 'времени нет';
@@ -385,89 +367,18 @@ function seenStripHtml(stationId) {
   }
   return '<span class="cf-strip">' + cells + '</span>';
 }
-function createGraph(stationId) {
-  const rows = allHourly.filter(h => h.station_id === stationId).sort((a, b) => new Date(a.hour) - new Date(b.hour)).slice(-14);
-  const points = rows.length ? rows : Array.from({ length: 14 }, (_, i) => ({ hour: new Date(Date.now() - (13 - i) * 3600000).toISOString(), total: 0, available_95: 0 }));
-  const ratios = points.map(p => p.total ? p.available_95 / p.total : 0);
-  const max = Math.max(1, ...ratios);
-  return points.map((p, index) => {
-    const ratio = p.total ? p.available_95 / p.total : 0;
-    const height = p.total ? Math.max(6, Math.round(ratio / max * 46)) : 5;
-    let cls = 'bar';
-    if (p.total && ratio >= .7) cls += ' good';
-    if (p.total && ratio <= .3) cls += ' bad';
-    if (index === points.length - 1 && p.total) cls += ' current';
-    return '<div class="bar-wrap"><div class="' + cls + '" style="height:' + height + 'px"></div></div>';
-  }).join('');
-}
-function lastRestoration(id) {
-  const ev = (allEvents || []).filter(e => e.station_id === id).sort((a,b) => new Date(b.detected_at) - new Date(a.detected_at))[0];
-  if (!ev || !ev.detected_at) return 'ещё не было';
-  const d = new Date(ev.detected_at);
-  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
-  const hh = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-  if (days <= 0) return 'сегодня, ' + hh;
-  if (days === 1) return 'вчера, ' + hh;
-  return days + ' дн назад, ' + hh;
-}
+
+
 // короткая версия для плитки карточки: день без времени (время уйдёт в факт подсказки)
-function lastRestorationShort(id) { return lastRestoration(id).replace(/, \d{2}:\d{2}$/, ''); }
+
 function accuracyLabel(id) {
   const v = allPredictions.filter(p => p.station_id === id && p.is_verified);
   if (v.length < 10) return 'мало данных';
   return Math.round(v.filter(p => p.result === 'SUCCESS').length / v.length * 100) + '%';
 }
 function accuracyShort(id) { return accuracyLabel(id); }
-function isSoon(pred) {
-  if (!pred || !pred.from_time) return false;
-  const [h, m] = pred.from_time.split(':').map(Number);
-  const diff = (h * 60 + m) - (new Date().getHours() * 60 + new Date().getMinutes());
-  return diff <= 120 && diff >= -60;
-}
-function recentFeedback(stationId) {
-  const all = allFeedback.filter(f => f.station_id === stationId);
-  if (!all.length) return 'Пока отметок нет.';
-  // старше 24 часов не показываем: вчерашние пакеты уходят из карточки
-  const since = Date.now() - 24 * 3600 * 1000;
-  const items = all.filter(f => new Date(f.created_at).getTime() >= since);
-  if (!items.length) return 'Отметок за последние 24 часа нет.';
-  // группируем отметки по пакетам отправки (ключ — минута created_at),
-  // показываем все факты пакета, а не первые три строки
-  const batches = {};
-  for (const f of items) {
-    const key = String(f.created_at).slice(0, 16);
-    (batches[key] = batches[key] || []).push(f);
-  }
-  const fuelShort = t => t === '92' ? 'АИ-92' : t === '95' ? 'АИ-95' : 'дизель';
-  const queueShort = { small: '2–3', medium: '4–6', large: '7+', huge: '100+' };
-  // те же плашки, что на панели точности: иконка слева, время и факты в центре,
-  // очередь или привоз — цветным бейджем справа
-  return Object.keys(batches).sort().reverse().slice(0, 2).map(k => {
-    const g = batches[k];
-    const minutes = Math.max(0, Math.round((Date.now() - new Date(g[0].created_at).getTime()) / 60000));
-    const ago = minutes < 60 ? minutes + ' мин' : Math.round(minutes / 60) + ' ч';
-    const onSite = g.filter(f => f.verified_on_site).length;
-    // факты — цветные плитки с иконкой: число/пометка в своём квадратике,
-    // смысл читается по цвету и знаку, а не по голому зелёному/красному тексту
-    const tiles = [];
-    for (const f of g) if (f.feedback_type === 'available') tiles.push('<span class="fb-fact yes">' + icon('i-check', 'ic-s') + fuelShort(f.fuel_type) + '</span>');
-    for (const f of g) if (f.feedback_type === 'unavailable') tiles.push('<span class="fb-fact no">' + icon('i-cross', 'ic-s') + fuelShort(f.fuel_type) + '</span>');
-    for (const f of g) if (f.feedback_type === 'queue') tiles.push('<span class="fb-fact queue">' + icon('i-queue', 'ic-s') + 'очередь ' + (queueShort[f.queue_size] || '') + '</span>');
-    for (const f of g) if (f.feedback_type === 'delivery') tiles.push('<span class="fb-fact inf">' + icon('i-truck', 'ic-s') + 'привезли</span>');
-    for (const f of g) if (f.feedback_type === 'free') tiles.push('<span class="fb-fact yes">' + icon('i-check', 'ic-s') + 'свободно</span>');
-    for (const f of g) if (f.feedback_type === 'in_queue') tiles.push('<span class="fb-fact queue">' + icon('i-queue', 'ic-s') + 'в очереди сейчас</span>');
-    const comment = (g.find(f => f.comment_text) || {}).comment_text || '';
-    const hasFuel = g.some(f => f.feedback_type === 'available' || f.feedback_type === 'unavailable');
-    const ids = g.map(f => f.id).join(',');
-    const mine = g.some(f => f.device_id === deviceId);
-    const repBtn = (!mine && !isReported(ids)) ? '<button class="acc-rep" data-ids="' + ids + '" onclick="repTap(this)" aria-label="Пожаловаться на отметку">' + icon('i-flag', 'ic-s') + '</button>' : '';
-    return '<div class="acc-last folk">' +
-      '<span class="folk-head">' + icon(hasFuel ? 'i-pump' : 'i-queue') +
-      '<span class="acc-last-txt"><b>' + ago + ' назад' + (onSite ? '   с места: ' + onSite : '') + '</b></span>' + repBtn + '</span>' +
-      '<span class="fb-facts">' + tiles.join('') + '</span>' +
-      (comment ? '<span class="fb-comment">«' + escapeHtml(comment) + '»</span>' : '') + '</div>';
-  }).join('');
-}
+
+
 // === Жалоба на отметку: двухтаповая кнопка на народной плашке ===
 // 1-й тап — взвод (краснеет), 2-й — отправка жалобы в feedback_reports.
 // Коллектор в следующем цикле увидит 2 жалобы от разных device_id —
@@ -1784,11 +1695,7 @@ function onSiteCount24(stationId) {
   }
   return n;
 }
-function onSiteStrip(stationId) {
-  const n = onSiteCount24(stationId);
-  if (!n) return '';
-  return '<div class="dg-strip" style="margin-top:6px">' + icon('i-pin', 'ic-s') + '<span>' + n + ' вод. отметили с места (24 ч)</span></div>';
-}
+
 // === Живая очередь: сколько водителей стоят в очереди ПРЯМО СЕЙЧАС ===
 // Считаем разные device_id с отметкой in_queue за последние 30 минут.
 // Это опережающий сигнал: человек физически в очереди, а не «видел проезжая».
@@ -1803,11 +1710,7 @@ function liveQueueCount(stationId) {
   }
   return devs.size;
 }
-function liveQueueStrip(stationId) {
-  const n = liveQueueCount(stationId);
-  if (!n) return '';
-  return '<div class="dg-strip" style="margin-top:6px">' + icon('i-queue', 'ic-s') + '<span>' + n + ' вод. стоят в очереди прямо сейчас</span></div>';
-}
+
 // === Тень заправки: пассивное обнаружение визита ===
 // Пока сайт открыт, раз в 60 сек тихо сверяем геолокацию. Водитель в радиусе
 // АЗС и НЕ движется 3+ минуты (стоит, а не проезжает) — мягко предлагаем
@@ -2059,34 +1962,10 @@ let ok = true;
   sendBtn.textContent = sendBtnOrigText;
   panel.querySelectorAll('.feedback-option').forEach(b => b.classList.remove('selected'));
 }
-function whyHtml(pred) {
-  const f = pred && pred.features ? pred.features : null;
-  if (!f) return '';
-  const items = [];
-  const regimeLbl = { NORMAL: 'в городе спокойно', LOCAL_SHORTAGE: 'в городе локальный дефицит', CITY_SHORTAGE: 'в городе общий дефицит', RECOVERY: 'город восстанавливается' };
-  if (f.regime && regimeLbl[f.regime]) items.push(regimeLbl[f.regime] + (f.regime === 'RECOVERY' && f.restores_6h ? ': ' + f.restores_6h + ' возвратов за 6ч' : ''));
-  if (f.deficit_age_min !== null && f.deficit_age_min !== undefined) {
-    const h = Math.floor(f.deficit_age_min / 60), m = f.deficit_age_min % 60;
-    items.push('дефицит длится ' + (h ? h + 'ч ' : '') + m + 'м');
-  }
-  if (f.queue_trend === 'falling') items.push('очередь на АЗС снижается');
-  if (f.queue_trend === 'rising') items.push('очередь на АЗС растёт');
-  if (f.knn_support) items.push('в прошлом было ' + f.knn_support + ' похожих случаев' + (f.knn_p_restore_2h !== null && f.knn_p_restore_2h !== undefined ? ': привозили в ближайшие 2 ч в ' + f.knn_p_restore_2h + '%' : ''));
-  if (f.nearby_missing95) items.push('рядом без АИ-95: ' + f.nearby_missing95 + ' из ' + f.nearby_total);
-  if (!items.length) return '';
-  return '<div class="why"><div class="why-t">Почему такой прогноз</div>' + items.map(t => '<span class="why-i">' + escapeHtml(t) + '</span>').join('') + '</div>';
-}
+
 /* операционный вердикт источника (поле status): отдельно от топлива —
    «работает» не значит «есть бензин», а «не работает» объясняет «нет данных» */
-function workStrip(obs) {
-  if (!obs) return '';
-  const st = obs.source_status;
-  let txt, ico = 'i-minus';
-  if (st === 'yes' || st === 'queue' || st === 'low') { txt = 'источник: станция работает'; ico = 'i-check'; }
-  else if (st === 'no') { txt = 'источник: станция не работает'; ico = 'i-cross'; }
-  else { txt = 'источник молчит о станции'; }
-  return '<div class="dg-strip chip3 tap why-tap" style="margin:0 0 10px" onclick="openWhyChip(this,\'work\')">' + icon(ico, 'ic-s') + '<span>' + txt + '</span></div>';
-}
+
 // === КогдаБенз Score (этап 4): паспорт на сайте ===
 // Теневая таблица score_shadow (ночной скорер): Score по связкам домашнего бокса.
 // Уровни доказательности: none — недостаточно данных (цифру НЕ показываем),
@@ -2094,18 +1973,8 @@ function workStrip(obs) {
 // или честность владельца — только доверие к сведениям КогдаБенз по топливу.
 const SC_EV = { none: ['e0', 'данных ещё мало'], forming: ['e1', 'накапливается'], stable: ['e2', 'данных достаточно'], strong: ['e3', 'данных много'] };
 function scoreRow(stationId, fuel) { return scoreMap[stationId + '|' + fuel] || null; }
-function scoreTileHtml(stationId, fuel, label) {
-  const r = scoreRow(stationId, fuel);
-  const ev = r ? (SC_EV[r.evidence] || SC_EV.none) : SC_EV.none;
-  const num = (r && r.evidence !== 'none') ? r.score : '—';
-  return '<div class="sc-tile ' + ev[0] + '" onclick="openScorePop(\'' + stationId + '\',\'' + fuel + '\')"><small>' + label + '</small><b>' + num + '</b><i>' + ev[1] + '</i></div>';
-}
-function scorePlateHtml(station) {
-  if (!scoreRow(station.id, '95') && !scoreRow(station.id, '92') && !scoreRow(station.id, 'diesel')) return '';
-  return '<div class="sc-plate"><div class="sc-head">' + icon('i-spark', 'ic-s') + 'КогдаБенз Score   надёжность данных<small>тап — паспорт</small></div><div class="sc-tiles">' +
-    scoreTileHtml(station.id, '95', 'АИ-95') + scoreTileHtml(station.id, '92', 'АИ-92') + scoreTileHtml(station.id, 'diesel', 'дизель') +
-    '</div></div>';
-}
+
+
 function scWord(score, ev) {
   if (ev === 'none') return ['Данные ещё накапливаются', 'w0'];
   if (score >= 75) return ['Данным можно доверять', 'w3'];
@@ -3176,18 +3045,7 @@ function renderHeat() {
   if (line) { const d = new Date(); line.style.setProperty('--frac', ((d.getHours() + d.getMinutes() / 60) / 24).toFixed(3)); }
 }
 /* цена станции для карточки: последняя известная цена + дельта к городу */
-function priceCell(stationId, col, cityKey) {
-  const p = allLastPrice[stationId];
-  const v = p ? p[col] : null;
-  if (v === null || v === undefined) return '<div class="info-value">нет данных</div>';
-  const cur = priceHourly.find(r => r[cityKey] !== null);
-  let d = 'город: —';
-  if (cur) {
-    const dv = v - cur[cityKey];
-    d = (dv > 0.049 ? '+' : dv < -0.049 ? '−' : '±') + Math.abs(dv).toFixed(1) + ' ₽ к городу';
-  }
-  return '<div class="info-value">' + Number(v).toFixed(1) + ' ₽</div><div class="info-delta">' + d + '</div>';
-}
+
 function goodRow(r) {
   if (!r) return false;
   const bad = r.k95 ? 1 - r.a95 / r.k95 : 0.5;
@@ -4197,32 +4055,9 @@ function pulseCore(avail95, qshare) {
   if (avail95 === null || avail95 === undefined || qshare === null || qshare === undefined) return null;
   return 10 * (0.65 * avail95 + 0.35 * (1 - qshare));
 }
-function activeStationsCount(fromH, toH) {
-  const now = Date.now();
-  const a = now - toH * 3600 * 1000, b = now - fromH * 3600 * 1000;
-  const city = new Set(cityStationList().map(s => s.id));
-  const set = new Set();
-  for (const o of allObservations) {
-    if (!city.has(o.station_id)) continue; // только город пользователя, не весь юг
-    const t = new Date(o.timestamp).getTime();
-    if (t >= a && t < b) set.add(o.station_id);
-  }
-  return set.size;
-}
-function pulseSetDelta(elI, now, prev, upGood) {
-  if (!elI) return;
-  if (now === null || now === undefined || prev === null || prev === undefined) { elI.textContent = ''; return; }
-  const pp = Math.round((now - prev) * 100);
-  elI.textContent = pp === 0 ? '±0   сутки' : (pp > 0 ? '+' + pp : '−' + Math.abs(pp)) + ' п.п.   сутки';
-  elI.className = pp === 0 ? 'n' : ((pp > 0) === upGood ? 'g' : 'r');
-}
-function pulseFillD24(b, val, invert) {
-  if (!b) return;
-  if (val === null || val === undefined) { b.textContent = '—'; b.className = 'n'; return; }
-  const good = invert ? -val : val;
-  b.textContent = val === 0 ? '±0' : (val > 0 ? '+' + val : '−' + Math.abs(val));
-  b.className = val === 0 ? 'n' : (good > 0 ? 'g' : 'r');
-}
+
+
+
 // Плитки пользы: тап открывает карточку конкретной АЗС (куда ехать / где дёшево)
 let pulseGoId = null, pulseCheapId = null;
 function pulseGoOpen() { if (pulseGoId) openSheet(pulseGoId); }
@@ -4741,30 +4576,7 @@ function top3ThreadHtml(list) {
 }
 // лента событий одной станции за 24 ч — живёт в карточке АЗС;
 // пустая история = блок не рисуется вовсе, карточка не растягивается
-function stationEventsHtml(stationId) {
-  const since = Date.now() - 24 * 3600 * 1000;
-  const list = [];
-  for (const e of allWaveEvents) {
-    if (e.station_id !== stationId) continue;
-    const t = new Date(e.detected_at).getTime();
-    if (t < since) continue;
-    list.push({ kind: e.event_type === 'fuel_restored' ? 'restored' : 'gone', fuel: e.fuel_type, t: t });
-  }
-  for (const f of allFeedback) {
-    if (f.station_id !== stationId) continue;
-    const t = new Date(f.created_at).getTime();
-    if (t < since) continue;
-    if (f.feedback_type === 'available') list.push({ kind: 'folk_yes', fuel: f.fuel_type, t: t });
-    else if (f.feedback_type === 'unavailable') list.push({ kind: 'folk_no', fuel: f.fuel_type, t: t });
-    else if (f.feedback_type === 'delivery') list.push({ kind: 'delivery', t: t });
-    else if (f.feedback_type === 'queue') list.push({ kind: 'queue', q: f.queue_size, t: t });
-    else if (f.feedback_type === 'in_queue') list.push({ kind: 'queue_live', t: t });
-  }
-  if (!list.length) return '';
-  list.sort((a, b) => b.t - a.t);
-  return '<div class="st-ev"><div class="st-ev-t">' + icon('i-spark', 'ic-s') + 'События по станции   24 часа</div>' +
-    '<div class="t3-thread">' + list.slice(0, 6).map(threadRowHtml).join('') + '</div></div>';
-}
+
 function top3RowHtml(st, o, pred, thread) {
   const today = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 10);
   const f = Number(String(pred.from_time).slice(0, 2)) * 60 + Number(String(pred.from_time).slice(3, 5));
@@ -5842,20 +5654,7 @@ function cityQueueMedian24() {
   durs.sort((a, b) => a - b);
   return Math.round(durs.length % 2 ? durs[(durs.length - 1) / 2] : (durs[durs.length / 2 - 1] + durs[durs.length / 2]) / 2);
 }
-function queueStrip(stationId, obs) {
-  const age = queueAgeMin(stationId);
-  const high = obs && obs.queue_level === 'high';
-  if (age === null && !high) return '';
-  // источник больше не подтверждает очередь (статус null или не high):
-  // эпизод из вьюхи может висеть «открытым» сутками — честная тусклая строка
-  if (!high) {
-    return '<div class="dg-strip" style="margin-top:8px;opacity:.75">' + icon('i-queue', 'ic-s') + '<span>очередь сообщали ' + ageRu(age) + ' назад — источник больше не подтверждает</span></div>';
-  }
-  const txt = age !== null
-    ? 'очередь стоит <b>' + ageRu(age) + '</b>'
-    : 'очередь сейчас — началась только что';
-  return '<div class="dg-strip" style="margin-top:8px">' + icon('i-queue', 'ic-s') + '<span>' + txt + '</span></div>';
-}
+
 /* Прогноз очереди (шаг 5): медианное окно появления очереди по истории.
    Берём часы, когда очередь появлялась, строим медиану ± разброс. Своих
    событий станции мало (<3) — берём весь город. Оценка по прошлому, не гарантия. */
@@ -5884,14 +5683,7 @@ function queueWindowFor(stationId) {
     src: src
   };
 }
-function queueForecastStrip(stationId) {
-  const fw = queueWindowFor(stationId);
-  if (!fw) return '';
-  const srcTxt = fw.src === 'own' ? 'по истории этой АЗС' : 'по городу (по этой АЗС мало)';
-  return '<div class="dg-strip tap why-tap" data-qf="' + srcTxt + '" style="margin-top:6px" onclick="openWhyChip(this,\'qfcst\')">' +
-    icon('i-clock', 'ic-s') +
-    '<span>Очередь вероятна: <b>' + fw.window + '</b>   ' + fw.confidence + '%</span></div>';
-}
+
 // Народный консенсус (защита от фейковых отметок): считаем голоса РАЗНЫХ
 // устройств (device_id) за последние 60 минут. Источник всегда в приоритете:
 // народ красит пин только когда источник молчит обо всех топливах.
@@ -5982,11 +5774,7 @@ function obsFresh(o) {
   const m = getFreshnessMin(o);
   return m !== null && m <= 360;
 }
-function fuelChip(label, status) {
-  if (status === true) return '<span class="rc-chip yes">' + icon('i-pump', 'ic-s') + label + ' есть</span>';
-  if (status === false) return '<span class="rc-chip no">' + icon('i-cross', 'ic-s') + label + ' нет</span>';
-  return '<span class="rc-chip" style="background:#eef2f8;color:#7487a7">' + icon('i-minus', 'ic-s') + label + ' нет данных</span>';
-}
+
 /* зоны спроса — не круги с рамкой, а «лужи»: радиус гуляет по контуру тремя
    плавными гармониками; фазы из хэша id станции — каждая лужа своя, но не
    дрожит и не переползает между перерисовками. Три слоя: ореол, тело, ядро. */
@@ -11100,80 +10888,6 @@ setTimeout(watchGeo, 2500);
 setInterval(watchGeo, 3000);
 })();
 // ============================================================
-// KB HINTS ATTACH v3 — аккуратный воздух (без лишних дыр) + анимация
-// Отступы подобраны так, чтобы подсказки прилегали к своим 
-// элементам, но не слипались с ними.
-// ============================================================
-(function () {
-'use strict';
-if (window.__kbHintsAttach) return;
-window.__kbHintsAttach = 1;
-
-(function css() {
-if (document.getElementById('kbHintsAttachCss')) return;
-var s = document.createElement('style');
-s.id = 'kbHintsAttachCss';
-s.textContent =
-'#mnWrap{margin: 4px 0 6px !important;}' +
-// Анимация (10 секунд)
-'.kb-hint2{position:relative;z-index:4; animation: kbHintCycle 10s cubic-bezier(0.4, 0, 0.2, 1) infinite;}' +
-// Умеренные отступы (по 4-6px)
-'.kb-hint2.a{margin: 2px 12px 4px;}' +
-'.kb-hint2.b{margin: 4px 12px 6px;}' +
-'.kb-hint2::before{content:"";position:absolute;top:-5px;left:50%;width:10px;height:10px;' +
-'transform:translateX(-50%) rotate(45deg);background:#eef4ff;border-left:1px solid #dfe8f2;border-top:1px solid #dfe8f2;z-index:1;}' +
-'.kb-hint2-in{position:relative;display:flex;align-items:center;justify-content:center;gap:6px;' +
-'padding:6px 10px;border:1px solid #dfe8f2;border-radius:10px;' +
-'background:linear-gradient(90deg,#eef4ff 0%,#f8fafd 55%,#eef4ff 100%);' +
-'color:#5b6b86;font-size:10px;font-weight:600;line-height:1.3;text-align:center;overflow:hidden;font-family:inherit;}' +
-'.kb-hint2-in .ic{width:12px;height:12px;flex:none;color:#2465ee;}' +
-'.kb-hint2-in b{color:#2465ee;font-weight:800;}' +
-'.kb-hint2-in::after{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;pointer-events:none;' +
-'background:linear-gradient(105deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.85) 45%,rgba(188,212,255,.5) 60%,rgba(255,255,255,0) 100%);' +
-'transform:translateX(-130%) skewX(-18deg);animation:kbHint2Shine 6s ease-in-out infinite;}' +
-'.kb-hint2.b .kb-hint2-in::after{animation-delay:3s;}' +
-'@keyframes kbHint2Shine{0%{transform:translateX(-130%) skewX(-18deg);opacity:0;}10%{opacity:1;}' +
-'42%{transform:translateX(260%) skewX(-18deg);opacity:0;}100%{transform:translateX(260%) skewX(-18deg);opacity:0;}}' +
-// Цикл исчезновения и появления
-'@keyframes kbHintCycle{' +
-'0%, 100% { opacity: 0; visibility: hidden; transform: translateY(-5px); }' +
-'10%, 90% { opacity: 1; visibility: visible; transform: translateY(0); }' +
-'}' +
-'body.kb-lite .kb-hint2-in::after{animation:none;opacity:0;}' +
-'@media (prefers-reduced-motion:reduce){.kb-hint2-in::after{animation:none;opacity:0;}.kb-hint2{animation:none;opacity:1;visibility:visible;transform:none;}}';
-document.head.appendChild(s);
-})();
-
-var ICO_ROTATE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/></svg>';
-var ICO_SWIPE = '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5"/><path d="M16 7l5 5-5 5"/></svg>';
-
-function build() {
-// старые «висящие» полосы убираем
-['kbHintA', 'kbHintB'].forEach(function (id) {
-var el = document.getElementById(id);
-if (el && el.parentNode) el.parentNode.removeChild(el);
-});
-if (document.getElementById('kbHint2A')) return;
-var mn = document.getElementById('mnWrap');
-if (!mn || !mn.parentNode) return;
-
-var a = document.createElement('div');
-a.id = 'kbHint2A'; a.className = 'kb-hint2 a';
-a.innerHTML = '<div class="kb-hint2-in">' + ICO_ROTATE + '<span>Карточку выше можно <b>крутить</b> — ведите пальцем вбок, внутри 4 сцены</span></div>';
-
-var b = document.createElement('div');
-b.id = 'kbHint2B'; b.className = 'kb-hint2 b';
-b.innerHTML = '<div class="kb-hint2-in">' + ICO_SWIPE + '<span>Панели можно <b>перелистывать</b> — свайп вбок или тап по вкладкам</span></div>';
-
-mn.parentNode.insertBefore(a, mn);            // над вкладками
-mn.parentNode.insertBefore(b, mn.nextSibling); // под вкладками
-}
-
-build();
-// если шапка/вкладки пересоберутся позже — держим подсказки на месте
-setTimeout(build, 800);
-})();
-// ============================================================
 // React-попап поверх шторки «Куда ехать»
 // Иначе #reactBack открывается ПОД #adviceBack — виден только край слева
 // ============================================================
@@ -15630,45 +15344,6 @@ bootStart();
 }
 }
 } catch (e) {}
-})();
-// ============================================================
-// KB BOOT CALM v1 — загрузка без микроподлагов.
-// 1) При тёплом кэше бут-оверлей больше не блюрит живую страницу
-//    (backdrop-filter поверх анимаций = главная цена кадра на телефоне)
-//    и ставит фоновые декор-анимации на паузу, пока он открыт.
-// 2) Жёсткий потолок 3 секунды при тёплом кэше: данные уже на экране
-//    из снимка, оверлей уходит сам, сеть дообновляет цифры фоном.
-// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
-// ============================================================
-(function () {
-'use strict';
-if (window.__kbBootCalm) return;
-window.__kbBootCalm = 1;
-(function css() {
-var s = document.createElement('style');
-s.id = 'kbBootCalmCss';
-s.textContent =
-'body.kb-booting #bootBack{backdrop-filter:none !important;-webkit-backdrop-filter:none !important;' +
-'background:rgba(7,10,18,.94) !important;}' +
-'body.kb-booting .panel::before,body.kb-booting .kb-hint2-in::after,body.kb-booting .kb-hint::after,' +
-'body.kb-booting .kb-glow,body.kb-booting .kbf-cap,body.kb-booting .kbf-starwrap,body.kb-booting .kbf-info,' +
-'body.kb-booting .kbf-level,body.kb-booting .kbf-wave,body.kb-booting .pulse-feed-t .live i,' +
-'body.kb-booting .kbs-live i,body.kb-booting .kb-region-dot{animation:none !important;}';
-document.head.appendChild(s);
-})();
-document.body.classList.add('kb-booting');
-// потолок: тёплый кэш уже показал данные — оверлей не держим дольше 3 сек
-setTimeout(function () {
-try {
-if (window.__cacheRendered && !bootOver && bootLoadDone < bootLoadTotal) bootDone();
-} catch (e) {}
-}, 3000);
-var iv = setInterval(function () {
-var bb = document.getElementById('bootBack');
-var gone = !bb || bootOver;
-document.body.classList.toggle('kb-booting', !gone);
-if (gone) clearInterval(iv);
-}, 400);
 })();
 // ============================================================
 // KB CALM UI v1 — тихий пульс, чистая карточка, без подсказок,
