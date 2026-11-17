@@ -26,7 +26,8 @@ jobs:
           const vm = require('vm');
           const FILE = process.argv[2] || 'app.js';
           const orig = fs.readFileSync(FILE, 'utf8');
-          let src = orig;
+          const hadCRLF = orig.indexOf('\r\n') >= 0;
+          let src = hadCRLF ? orig.split('\r\n').join('\n') : orig;
           const log = [];
           function fail(msg) { console.error('ОТКАТ: ' + msg); console.log('Оригинал не тронут.'); process.exit(1); }
           function rep(old, nw, label) {
@@ -566,7 +567,7 @@ jobs:
           try { new vm.Script(src, { filename: FILE }); }
           catch (e) { fail('синтаксис: ' + (e.message || e)); }
           fs.writeFileSync(FILE + '.backup-flatten', orig);
-          fs.writeFileSync(FILE, src);
+          fs.writeFileSync(FILE, hadCRLF ? src.split('\n').join('\r\n') : src);
           console.log(log.join('\n'));
           console.log('Было ' + orig.length + ' байт → стало ' + src.length + ' байт.');
           console.log('syntax: OK');
