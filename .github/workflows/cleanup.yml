@@ -1,0 +1,145 @@
+name: Чистка app.js
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Чистка
+        run: |
+          cat > cleanup-app.js <<'EOF'
+          #!/usr/bin/env node
+          'use strict';
+          // Чистка app.js: удаляет мёртвые пакеты и мёртвые функции.
+          // Безопасно: бэкап + проверка ссылок + node --check. Пишет только если всё ОК.
+          const fs = require('fs');
+          const cp = require('child_process');
+
+          const FILE = process.argv[2] || 'app.js';
+          if (!fs.existsSync(FILE)) { console.error('Нет файла: ' + FILE); process.exit(1); }
+          const orig = fs.readFileSync(FILE, 'utf8');
+          let src = orig;
+          const backup = FILE + '.backup-' + new Date().toISOString().replace(/[:.]/g, '-');
+          fs.writeFileSync(backup, orig);
+          const log = [];
+
+          // ---- 1. Мёртвые пакеты целиком (границы по заголовкам) ----
+          const HEADERS = [
+            'KB RETENTION PACK v1','KB LIVE RESET + NEARBY CARE','KB MAYBE-FUEL:',
+            'KB FUEL MERGE v1','KB CHOICE GUARD v1','KB TILE CLARITY v1','KB REACTION TIME v1',
+            'KB HINTS + STATUS v1','KB HINTS ATTACH v3','React-попап поверх шторки',
+            'KB GO INTENT v1','KB OUR WHY v1','KB SITE RATING v2','KB BRAND VISUAL v2',
+            'KB BRAND LINE FIX v1','KB WORD COLOR v1','KB RATE DOCK v4','KB HEADER STAR v4',
+            'KB CARD PREDICTION + MARK WIZARD v1','KB SOUTH DIGEST v2','KB CARD POLISH v1',
+            'KB CARD FIX + MARK STUDIO v2','KB CARD HERO + SPOILER v1','KB CARD CLOSEBAR + VERDICT FIX v1',
+            'KB LIVE SYNC v1','KB REGIONS + TILE ECG v1','KB MAIN CLEAN v1','KB BOOT CALM v1',
+            'KB CALM UI v1','KB MAP UI FIX v1','KB FINAL TOUCH v1'
+          ];
+          const DEAD_PACKS = ['KB HINTS ATTACH v3', 'KB BOOT CALM v1'];
+          function spans(s) {
+            return HEADERS.map(h => ({ h, i: s.indexOf(h) })).filter(x => x.i >= 0).sort((a, b) => a.i - b.i);
+          }
+          for (const dead of DEAD_PACKS) {
+            const sp = spans(src);
+            const k = sp.findIndex(x => x.h === dead);
+            if (k < 0) { log.push('пакет не найден (пропуск): ' + dead); continue; }
+            const lineStart = src.lastIndexOf('\n', sp[k].i) + 1;
+            const end = k + 1 < sp.length ? src.lastIndexOf('\n', sp[k + 1].i) + 1 : src.length;
+            src = src.slice(0, lineStart) + src.slice(end);
+            log.push('удалён мёртвый пакет: ' + dead);
+          }
+
+          // ---- 2. Мёртвые функции-сироты ----
+          // Конец функции ищем счётчиком скобок (учитывает строки, комментарии, template ${}).
+          function fnEnd(s, start) {
+            const i = s.indexOf('{', start);
+            if (i < 0) return -1;
+            let depth = 0, mode = null; const tpl = [];
+            for (let j = i; j < s.length; j++) {
+              const c = s[j], n = s[j + 1];
+              if (mode === '//') { if (c === '\n') mode = null; continue; }
+              if (mode === '/*') { if (c === '*' && n === '/') { mode = null; j++; } continue; }
+              if (mode === "'" || mode === '"') { if (c === '\\') { j++; continue; } if (c === mode) mode = null; continue; }
+              if (mode === '`') {
+                if (c === '\\') { j++; continue; }
+                if (c === '`') { mode = null; continue; }
+                if (c === '$' && n === '{') { tpl.push(depth); depth++; j++; mode = null; continue; }
+                continue;
+              }
+              if (c === '/' && n === '/') { mode = '//'; j++; continue; }
+              if (c === '/' && n === '*') { mode = '/*'; j++; continue; }
+              if (c === "'" || c === '"' || c === '`') { mode = c; continue; }
+              if (c === '{') { depth++; continue; }
+              if (c === '}') {
+                depth--;
+                if (depth === 0) return j + 1;
+                if (tpl.length && depth === tpl[tpl.length - 1]) { tpl.pop(); mode = '`'; }
+              }
+            }
+            return -1;
+          }
+          const DEAD_FNS = [
+            'fuelHtml','fuelConfLine','createGraph','lastRestoration','lastRestorationShort',
+            'isSoon','recentFeedback','queueStrip','queueForecastStrip','onSiteStrip','liveQueueStrip',
+            'fuelChip','priceCell','stationEventsHtml','scorePlateHtml','scoreTileHtml','workStrip',
+            'whyHtml','activeStationsCount','pulseSetDelta','pulseFillD24'
+          ];
+          for (let pass = 0; pass < 2; pass++) {
+            for (const name of DEAD_FNS) {
+              const m = new RegExp('function\\s+' + name + '\\s*\\(').exec(src);
+              if (!m) continue;
+              const end = fnEnd(src, m.index);
+              if (end < 0) continue;
+              const candidate = src.slice(0, m.index) + src.slice(end);
+              // Защита: если имя ещё где-то используется — НЕ удаляем (иначе сломается в рантайме).
+              if (new RegExp('\\b' + name + '\\b').test(candidate)) continue;
+              src = candidate;
+              log.push('удалена мёртвая функция: ' + name);
+            }
+          }
+
+          // ---- 3. Ворота синтаксиса: пишем только если node --check прошёл ----
+          const tmp = FILE + '.tmp-check';
+          fs.writeFileSync(tmp, src);
+          let ok = true, err = '';
+          try { cp.execFileSync(process.execPath, ['--check', tmp], { stdio: 'pipe' }); }
+          catch (e) { ok = false; err = String(e.stderr || e.message); }
+          fs.unlinkSync(tmp);
+          if (!ok) {
+            console.error('Синтаксис сломан — оригинал НЕ тронут.\n' + err);
+            console.log('Бэкап на всякий случай: ' + backup);
+            process.exit(1);
+          }
+          fs.writeFileSync(FILE, src);
+          console.log(log.length ? log.join('\n') : 'Мёртвых блоков не найдено — файл уже чистый.');
+          console.log('Было ' + orig.length + ' байт → стало ' + src.length + ' байт (−' + (orig.length - src.length) + ').');
+          console.log('node --check: OK');
+          console.log('Бэкап: ' + backup);
+          EOF
+          node cleanup-app.js app.js
+
+      - name: Коммит и пуш
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          if git diff --cached --quiet; then
+            echo "Файл уже чистый — коммит не нужен."
+          else
+            git commit -m "cleanup: убраны мёртвые блоки из app.js"
+            git pull --rebase origin main
+            git push origin main
+          fi
