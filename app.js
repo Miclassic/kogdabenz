@@ -6674,10 +6674,10 @@ async function start() {
       { all: true, orderCol: 'id', path: '/rest/v1/predictions?select=id,station_id,fuel_type,from_time,to_time,target_date,result,is_verified,error_minutes,baseline_error_minutes,verified_at,actual_restore_at,prediction_source&is_verified=eq.true&model_version=not.like.*%7Cshadow*', set: r => { verifiedPreds = r || []; allPredictions = pendingPreds.concat(verifiedPreds); } },
       { all: false, path: '/rest/v1/events?event_type=eq.fuel_restored&order=detected_at.desc&limit=1000&select=station_id,event_type,detected_at', set: r => { allEvents = r || []; } },
       { all: false, path: '/rest/v1/user_feedback?order=created_at.desc&limit=300', set: r => { allFeedback = r || []; } },
-      { all: false, path: '/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allHourly = r || []; } },
+      { all: false, path: '/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + (cityStationList().map(s => '"' + s.id + '"').join(',') || '"0"') + ')', set: r => { allHourly = r || []; hourlyCityKey = userCityKey; } },
       { all: true, orderCol: 'station_id', path: '/rest/v1/station_queue?select=station_id,q24,n24,q7,n7', set: r => { allQueue = r || []; queueById = {}; for (const x of allQueue) queueById[x.station_id] = x; } },
       { all: true, orderCol: 'station_id', path: '/rest/v1/station_last_obs?select=station_id,timestamp,fuel_92_status,fuel_95_status,diesel_status,queue_level,data_freshness_minutes,source_status,fuel_state', set: r => { allLastObs = {}; for (const o of (r || [])) allLastObs[o.station_id] = o; firstPaint(); renderBootLiveStations(); } },
-      { all: false, path: '/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel&station_id=in.(' + localIds.map(i => '"' + i + '"').join(',') + ')', set: r => { allLastPrice = {}; for (const x of (r || [])) allLastPrice[x.station_id] = x; } },
+      { all: true, orderCol: 'station_id', path: '/rest/v1/station_last_price?select=station_id,price_92,price_95,price_diesel', set: r => { allLastPrice = {}; for (const x of (r || [])) allLastPrice[x.station_id] = x; recomputeCityPrice(); } },
       { all: false, path: '/rest/v1/city_price_hourly?select=hour,p92,p95,pdt,min95,max95,n95&order=hour.desc&limit=168', set: r => { priceHourly = r || []; } },
       { all: false, path: '/rest/v1/city_queue_episodes?select=station_id,started_at,ended_at&started_at=gte.' + new Date(Date.now() - 72 * 3600 * 1000).toISOString() + '&order=started_at.desc&limit=1000', set: r => { queueEpisodes = r || []; } },
       { all: true, orderCol: 'id', path: '/rest/v1/events?event_type=in.(queue_appeared,queue_high)&detected_at=gte.' + since30 + '&select=station_id,event_type,detected_at', set: r => { allQueueEvents = r || []; } },
@@ -7125,6 +7125,65 @@ async function loadPulse() {
   // ← ключевая заплатка: после того как pulseEv пришёл, дайджест и шапка узнают правду
   setTimeout(() => { renderNow(); }, 400);
 }
+// === ЦЕНЫ И РИТМ ВО ВСЕХ РЕГИОНАХ ===
+// station_last_price качается по всем станциям (без рамки) — цены в карточках
+// любого города и региона. «К городу» = среднее текущих цен ТЕКУЩЕГО города
+// (recomputeCityPrice), почасовой ритм station_hourly — по текущему городу,
+// авто-дозагрузка при смене города/региона + точечно для открытой карточки.
+let hourlyCityKey = null;
+function recomputeCityPrice() {
+let s92 = 0, n92 = 0, s95 = 0, n95 = 0, sdt = 0, ndt = 0, mn = 1e9, mx = -1e9;
+for (const s of cityStationList()) {
+const p = allLastPrice[s.id];
+if (!p) continue;
+if (p.price_92 !== null && p.price_92 !== undefined) { s92 += Number(p.price_92); n92++; }
+if (p.price_95 !== null && p.price_95 !== undefined) { const v = Number(p.price_95); s95 += v; n95++; if (v < mn) mn = v; if (v > mx) mx = v; }
+if (p.price_diesel !== null && p.price_diesel !== undefined) { sdt += Number(p.price_diesel); ndt++; }
+}
+priceHourly = [{
+hour: new Date().toISOString(),
+p92: n92 ? Math.round(s92 / n92 * 100) / 100 : null,
+p95: n95 ? Math.round(s95 / n95 * 100) / 100 : null,
+pdt: ndt ? Math.round(sdt / ndt * 100) / 100 : null,
+min95: n95 ? mn : null, max95: n95 ? mx : null, n95: n95
+}];
+}
+async function reloadCityHourly() {
+if (!allStations.length) return;
+const ids = cityStationList().map(s => '"' + s.id + '"');
+if (!ids.length) return;
+hourlyCityKey = userCityKey;
+const sinceH = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+try {
+const rows = await dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + ids.join(',') + ')');
+allHourly = rows || [];
+const sheet = document.getElementById('sheet'), sb = document.getElementById('sheetBody');
+if (sheet && sb && sheet.classList.contains('open')) {
+const fav = sb.querySelector('.favorite');
+const id = fav && fav.getAttribute('data-station-id');
+if (id && !allHourly.some(h => h.station_id === id)) {
+try {
+const one = await dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=eq.' + encodeURIComponent(id));
+if (one && one.length) allHourly = allHourly.concat(one);
+} catch (e) {}
+}
+const st = id && allStations.find(s => s.id === id);
+if (st) {
+const top = sb.scrollTop;
+sb.innerHTML = stationCard(st, getLastObservations()[id], pickPrediction(id, getLastObservations()[id]));
+sb.scrollTop = top;
+requestAnimationFrame(() => mountCardMap(st));
+}
+}
+try { renderStations(lastRendered, true); } catch (e) {}
+} catch (e) { console.log('hourly города: ' + e.message); }
+}
+setInterval(function () {
+if (document.hidden || offlineMode || refreshing || !allStations.length) return;
+if (userCityKey === hourlyCityKey) return;
+reloadCityHourly();
+recomputeCityPrice();
+}, 4000);
 /* помощь: карточка вопрос-ответ простым языком + окно при первом заходе */
 function helpHtml() {
   return '<div class="help-h">Что такое КогдаБенз и чем он помогает</div>' +
@@ -12805,301 +12864,289 @@ try { softRefresh(); } catch (e) {}
 };
 })();
 // ============================================================
-// KB SOUTH DIGEST v1 — «Сводка по Югу»: автовыпуск каждые 4 часа.
-// Вся территория (11 городов), а не город пользователя.
-// Выпуски: 00:00 / 04:00 / 08:00 / 12:00 / 16:00 / 20:00 МСК.
-// Дата и время выпуска, города, АЗС, окна привоза, изменения за выпуск,
-// сравнение с прошлым выпуском, шеринг-картинка всего юга,
-// ссылка на индексируемую статическую страницу /svodka.html.
-// Новых запросов к базе нет: считаем из уже загруженных массивов.
-// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// KB SOUTH DIGEST v2 — региональная сводка: Юг / Северо-Запад.
+// Следует за тумблером региона (window.kbRegionGet / body.kb-region-nw).
+// В режиме СЗ считает по городам Северо-Запада, меняет заголовок,
+// подписи, шеринг и дельты; южную SEO-ссылку прячет.
+// Выпуск каждые 4 часа (00/04/08/12/16/20 МСК). Новых запросов нет.
 // ============================================================
 (function () {
-  'use strict';
-  if (window.__kbSouthDigest) return;
-  window.__kbSouthDigest = 1;
-
-  var SITE = 'https://kogdabenz.ru';
-  var H = 3600000;
-  var BUCKET_MS = 4 * H;
-
-  // ---------- утилиты ----------
-  function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
-  function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
-  function ssGet(k, d) { try { var v = sessionStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
-  function ssSet(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
-  function esc(s) { return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s); }
-  function ic(n, c) { return typeof icon === 'function' ? icon(n, c) : ''; }
-  function pad(n) { return String(n).padStart(2, '0'); }
-  function plural(n, f) { var a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
-  function mskDate(ms) { return new Date((ms == null ? Date.now() : ms) + 3 * H); }
-  function mskMinutes() { var d = mskDate(); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
-  function mskToday() { return mskDate().toISOString().slice(0, 10); }
-  function bucketStart() { return Math.floor((Date.now() + 3 * H) / BUCKET_MS) * BUCKET_MS - 3 * H; }
-  function stamp(ts) { var d = mskDate(ts); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ', ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
-  function hm(ts) { var d = mskDate(ts); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
-  function hhmm(v) { var s = String(v || ''); return Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)); }
-  function t5(v) { return typeof time5 === 'function' ? time5(v) : String(v || '').slice(0, 5); }
-  function fl(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
-  function flShort(f) { return f === '92' ? '92' : f === '95' ? '95' : 'ДТ'; }
-
-  var GEN = {
-    novorossiysk: 'Новороссийска', gelendzhik: 'Геленджика', anapa: 'Анапы', krymsk: 'Крымска',
-    krasnodar: 'Краснодара', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавира',
-    maykop: 'Майкопа', rostov: 'Ростова-на-Дону', stavropol: 'Ставрополя'
-  };
-
-  function boxes() { return (typeof CITY_BOXES !== 'undefined' && CITY_BOXES) ? CITY_BOXES : []; }
-  function cityKeyOf(st) {
-    var b = boxes(), lat = Number(st.lat), lon = Number(st.lon);
-    if (!isFinite(lat) || !isFinite(lon)) return null;
-    for (var i = 0; i < b.length; i++) {
-      var c = b[i];
-      if (lat >= c.lat1 && lat <= c.lat2 && lon >= c.lon1 && lon <= c.lon2) return c.key;
-    }
-    return null;
-  }
-  function winKey(p) {
-    if (!p || !p.from_time) return 1e9;
-    var f = hhmm(p.from_time), t = hhmm(p.to_time), now = mskMinutes(), today = mskToday();
-    if (p.target_date && p.target_date > today) return 1440 + f;
-    if (p.target_date && p.target_date < today) return 1e9;
-    if (now >= f && now <= t) return 0;
-    if (f > now) return f - now;
-    return 1e8;
-  }
-  function winBadge(k) {
-    if (k === 0) return { cls: 'now', txt: 'сейчас' };
-    if (k >= 1440) return { cls: 'tom', txt: 'завтра' };
-    if (k <= 180) return { cls: 'soon', txt: 'скоро' };
-    return { cls: 'later', txt: 'потом' };
-  }
-
-  // ---------- настройки карточки ----------
-  function prefFuel() { var f = lsGet('kbSvFuel', '95'); return (f === '92' || f === '95' || f === 'diesel') ? f : '95'; }
-  function prefSort() { return lsGet('kbSvSort', 'deficit'); }
-  function prefOnlyWin() { return !!lsGet('kbSvOnlyWin', false); }
-
-  // ---------- индексы: один проход по массивам, без O(n²) ----------
-  function buildIdx() {
-    var now = Date.now();
-    var fb = (typeof allFeedback !== 'undefined' && allFeedback) ? allFeedback : [];
-    var ev = (typeof allWaveEvents !== 'undefined' && allWaveEvents) ? allWaveEvents : [];
-    var preds = (typeof allPredictions !== 'undefined' && allPredictions) ? allPredictions : [];
-
-    var chg = {};
-    for (var i = 0; i < ev.length; i++) {
-      var e = ev[i];
-      if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
-      var t = new Date(e.detected_at).getTime();
-      var k = e.station_id + '|' + e.fuel_type;
-      if (!chg[k] || t > chg[k]) chg[k] = t;
-    }
-
-    var folk = {}, onSite = {}, live = {}, folkLatest = {};
-    var floor24 = now - 24 * H, floor2 = now - 2 * H, floor30 = now - 30 * 60000;
-    for (var j = 0; j < fb.length; j++) {
-      var f = fb[j];
-      var ft = new Date(f.created_at).getTime();
-      var key = f.station_id + '|' + (f.fuel_type || '');
-      if (f.feedback_type === 'in_queue') {
-        if (ft >= floor30) {
-          var s = live[f.station_id] || (live[f.station_id] = {});
-          s[f.device_id || '?'] = 1;
-        }
-        continue;
-      }
-      if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
-      if (!f.fuel_type) continue;
-      if (ft >= floor2 && f.feedback_type === 'available' && f.verified_on_site) onSite[key] = Math.max(onSite[key] || 0, ft);
-      if (ft < floor24) continue;
-      if (chg[key] && ft <= chg[key]) continue;
-      var g = folk[key] || (folk[key] = { yes: 0, no: 0, dy: {}, dn: {} });
-      if (f.feedback_type === 'available') { g.yes++; g.dy[f.device_id || '?'] = 1; folkLatest[key + '|y'] = Math.max(folkLatest[key + '|y'] || 0, ft); }
-      else { g.no++; g.dn[f.device_id || '?'] = 1; folkLatest[key + '|n'] = Math.max(folkLatest[key + '|n'] || 0, ft); }
-    }
-
-    var bySt = {};
-    for (var p = 0; p < preds.length; p++) {
-      var pr = preds[p];
-      if (pr.result !== 'PENDING') continue;
-      (bySt[pr.station_id] || (bySt[pr.station_id] = [])).push(pr);
-    }
-    return { chg: chg, folk: folk, onSite: onSite, live: live, latest: folkLatest, preds: bySt };
-  }
-
-  function fuelState(st, o, f, idx) {
-    var col = f === '92' ? 'fuel_92_status' : f === '95' ? 'fuel_95_status' : 'diesel_status';
-    var key = st.id + '|' + f;
-    if (idx.onSite[key]) return { v: true, src: 'scene' };
-    var trust = false;
-    try { trust = o ? availTrustworthy(o) : false; } catch (e) { trust = false; }
-    var raw = o ? o[col] : null;
-    if (trust && raw === true) return { v: true, src: 'source' };
-    if (trust && raw === false) return { v: false, src: 'source' };
-    var g = idx.folk[key];
-    if (g) {
-      var ny = Object.keys(g.dy).length, nn = Object.keys(g.dn).length;
-      if (ny >= 2 && ny > nn) return { v: true, src: 'folk', votes: ny };
-      if (nn >= 2 && nn > ny) return { v: false, src: 'folk', votes: nn };
-      if (g.yes >= 2 && g.yes > g.no) return { v: true, src: 'folk', votes: g.yes };
-      if (g.no >= 2 && g.no > g.yes) return { v: false, src: 'folk', votes: g.no };
-      if (ny >= 1 && nn >= 1) return { v: null, src: 'conflict' };
-    }
-    if (raw === true) return { v: null, src: 'stale' };
-    if (raw === false) return { v: false, src: 'stale-no' };
-    return { v: null, src: 'none' };
-  }
-
-  function pickPred(stId, o, idx, wantFuel) {
-    var list = idx.preds[stId];
-    if (!list || !list.length) return null;
-    var ok = list.filter(function (p) { return winKey(p) < 1e8 && Math.round((p.confidence || 0) * 100) >= 35; });
-    if (!ok.length) return null;
-    if (wantFuel) {
-      var f = ok.filter(function (p) { return p.fuel_type === wantFuel; });
-      if (f.length) { f.sort(function (a, b) { return winKey(a) - winKey(b); }); return f[0]; }
-      return null;
-    }
-    ok.sort(function (a, b) { return winKey(a) - winKey(b); });
-    return ok[0];
-  }
-
-  // ---------- сбор выпуска ----------
-  function collect() {
-    var stations = (typeof allStations !== 'undefined' && allStations) ? allStations : [];
-    if (!stations.length) return null;
-    var last = {};
-    try { last = getLastObservations() || {}; } catch (e) { last = {}; }
-    var idx = buildIdx();
-    var B = boxes();
-    var map = {}, order = [];
-    for (var i = 0; i < B.length; i++) {
-      map[B[i].key] = { key: B[i].key, name: B[i].name, gen: GEN[B[i].key] || B[i].name, total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: [], sts: [] };
-      order.push(B[i].key);
-    }
-    var fuel = prefFuel();
-    for (var s = 0; s < stations.length; s++) {
-      var st = stations[s];
-      var ck = cityKeyOf(st);
-      if (!ck || !map[ck]) continue;
-      var c = map[ck], o = last[st.id];
-      c.total++;
-      var v92 = fuelState(st, o, '92', idx), v95 = fuelState(st, o, '95', idx), vdt = fuelState(st, o, 'diesel', idx);
-      var known = !!(v92.src !== 'none' || v95.src !== 'none' || vdt.src !== 'none');
-      if (known) c.known++;
-      if (v92.v === true) c.a92++;
-      if (v95.v === true) c.a95++;
-      if (vdt.v === true) c.adt++;
-      var hasAny = v92.v === true || v95.v === true || vdt.v === true;
-      if (hasAny) c.any++;
-      var lq = idx.live[st.id] ? Object.keys(idx.live[st.id]).length : 0;
-      var hi = !!(o && o.queue_level === 'high');
-      if (lq || hi) c.q++;
-      var pr = pickPred(st.id, o, idx, null);
-      var row = { st: st, o: o, v92: v92, v95: v95, vdt: vdt, lq: lq, hi: hi, pred: pr, has: hasAny };
-      c.sts.push(row);
-      if (pr) {
-        c.wins.push({ st: st, city: c.name, cityKey: c.key, pred: pr, key: winKey(pr), conf: Math.round((pr.confidence || 0) * 100) });
-      }
-    }
-
-    var cities = order.map(function (k) { return map[k]; }).filter(function (c) { return c.total > 0; });
-    cities.forEach(function (c) {
-      c.fuelN = fuel === '92' ? c.a92 : fuel === 'diesel' ? c.adt : c.a95;
-      c.share = c.known ? c.fuelN / c.known : null;
-      c.level = c.known < 3 ? 'n' : (c.share >= 0.6 ? 'g' : c.share >= 0.25 ? 'y' : 'r');
-      c.wins.sort(function (a, b) { return a.key - b.key; });
-      c.sts.sort(function (a, b) {
-        if (a.has !== b.has) return a.has ? -1 : 1;
-        if (!!a.pred !== !!b.pred) return a.pred ? -1 : 1;
-        return (a.pred ? winKey(a.pred) : 1e9) - (b.pred ? winKey(b.pred) : 1e9);
-      });
-    });
-
-    var sort = prefSort();
-    cities.sort(function (a, b) {
-      if (sort === 'alpha') return a.name.localeCompare(b.name, 'ru');
-      if (sort === 'fuel') return (b.fuelN - a.fuelN) || (b.total - a.total);
-      if (sort === 'wins') return (b.wins.length - a.wins.length) || (b.total - a.total);
-      var na = a.known >= 3 ? 0 : 1, nb = b.known >= 3 ? 0 : 1;
-      if (na !== nb) return na - nb;
-      return (a.share - b.share) || (b.total - a.total);
-    });
-    if (prefOnlyWin()) cities = cities.filter(function (c) { return c.wins.length > 0; });
-
-    var T = { total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: 0, cities: cities.length };
-    cities.forEach(function (c) {
-      T.total += c.total; T.known += c.known; T.a92 += c.a92; T.a95 += c.a95; T.adt += c.adt;
-      T.any += c.any; T.q += c.q; T.wins += c.wins.length;
-    });
-    T.fuelN = fuel === '92' ? T.a92 : fuel === 'diesel' ? T.adt : T.a95;
-
-    var allWins = [];
-    cities.forEach(function (c) {
-      c.wins.forEach(function (w) { if (w.pred.fuel_type === fuel) allWins.push(w); });
-    });
-    if (!allWins.length) cities.forEach(function (c) { c.wins.forEach(function (w) { allWins.push(w); }); });
-    allWins.sort(function (a, b) { return a.key - b.key; });
-
-    var B0 = bucketStart(), changes = [];
-    var ev = (typeof allWaveEvents !== 'undefined' && allWaveEvents) ? allWaveEvents : [];
-    for (var e2 = 0; e2 < ev.length; e2++) {
-      var evr = ev[e2];
-      if (evr.event_type !== 'fuel_restored' && evr.event_type !== 'fuel_disappeared') continue;
-      var tt = new Date(evr.detected_at).getTime();
-      if (tt < B0) continue;
-      var stn = null;
-      try { stn = stationById(evr.station_id); } catch (er) { stn = null; }
-      if (!stn) continue;
-      var ck2 = cityKeyOf(stn);
-      if (!ck2 || !map[ck2]) continue;
-      changes.push({ t: tt, st: stn, city: map[ck2].name, fuel: evr.fuel_type, back: evr.event_type === 'fuel_restored' });
-    }
-    changes.sort(function (a, b) { return b.t - a.t; });
-
-    var wave = null;
-    try { wave = (typeof cityWaveStats === 'function' && allWaveEvents.length) ? cityWaveStats() : null; } catch (er) { wave = null; }
-    var loud = [];
-    if (wave) Object.keys(wave).forEach(function (k) {
-      var w = wave[k];
-      if (w.level === 'wave' || w.level === 'tense') loud.push(w);
-    });
-
-    return { ts: Date.now(), bucket: B0, fuel: fuel, cities: cities, T: T, wins: allWins.slice(0, 6), changes: changes.slice(0, 6), changeN: changes.length, loud: loud };
-  }
-
-  // ---------- снимки выпусков и дельты ----------
-  function snapshot(D) {
-    var cur = { bucket: D.bucket, any: D.T.any, a95: D.T.a95, wins: D.T.wins, q: D.T.q };
-    var prevCur = lsGet('kbSvCur', null);
-    if (!prevCur || prevCur.bucket !== cur.bucket) {
-      if (prevCur) lsSet('kbSvPrev', prevCur);
-      lsSet('kbSvCur', cur);
-    }
-    return lsGet('kbSvPrev', null);
-  }
-  function deltaHtml(prev, D) {
-    if (!prev || prev.bucket === D.bucket) {
-      return '<div class="kbs-delta n">' + ic('i-clock', 'ic-s') + '<span>Первый выпуск на этом устройстве — сравнение появится со следующего, через 4 часа.</span></div>';
-    }
-    var dAny = D.T.any - prev.any, dWin = D.T.wins - prev.wins, dQ = D.T.q - prev.q;
-    function chip(v, goodUp, label) {
-      var cls = v === 0 ? 'n' : ((v > 0) === goodUp ? 'g' : 'r');
-      var sign = v > 0 ? '+' : v < 0 ? '−' : '±';
-      return '<span class="kbs-d ' + cls + '">' + sign + Math.abs(v) + ' ' + label + '</span>';
-    }
-    return '<div class="kbs-delta">' + ic('i-chart', 'ic-s') +
-      '<span class="kbs-dt">к выпуску ' + stamp(prev.bucket) + ':</span>' +
-      chip(dAny, true, 'АЗС с топливом') + chip(dWin, true, plural(Math.abs(dWin), ['окно', 'окна', 'окон'])) + chip(dQ, false, 'очередей') + '</div>';
-  }
-
-  // ---------- палитра ----------
-  (function css() {
-    if (document.getElementById('kbSvCss')) return;
-    var s = document.createElement('style');
-    s.id = 'kbSvCss';
-    s.textContent =
+'use strict';
+if (window.__kbSouthDigest2) return;
+window.__kbSouthDigest2 = 1;
+var SITE = 'https://kogdabenz.ru';
+var H = 3600000;
+var BUCKET_MS = 4 * H;
+function lsGet(k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function ssGet(k, d) { try { var v = sessionStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }
+function ssSet(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function esc(s) { return typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s); }
+function ic(n, c) { return typeof icon === 'function' ? icon(n, c) : ''; }
+function pad(n) { return String(n).padStart(2, '0'); }
+function plural(n, f) { var a = Math.abs(n) % 100, b = a % 10; if (a > 10 && a < 20) return f[2]; if (b > 1 && b < 5) return f[1]; if (b === 1) return f[0]; return f[2]; }
+function mskDate(ms) { return new Date((ms == null ? Date.now() : ms) + 3 * H); }
+function mskMinutes() { var d = mskDate(); return d.getUTCHours() * 60 + d.getUTCMinutes(); }
+function mskToday() { return mskDate().toISOString().slice(0, 10); }
+function bucketStart() { return Math.floor((Date.now() + 3 * H) / BUCKET_MS) * BUCKET_MS - 3 * H; }
+function stamp(ts) { var d = mskDate(ts); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ', ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+function hm(ts) { var d = mskDate(ts); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+function hhmm(v) { var s = String(v || ''); return Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5)); }
+function t5(v) { return typeof time5 === 'function' ? time5(v) : String(v || '').slice(0, 5); }
+function fl(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 'diesel' ? 'дизель' : 'топливо'; }
+function flShort(f) { return f === '92' ? '92' : f === '95' ? '95' : 'ДТ'; }
+// ---------- регион ----------
+function kbSvRegion() {
+try { if (typeof window.kbRegionGet === 'function') return window.kbRegionGet() === 'nw' ? 'nw' : 'south'; } catch (e) {}
+return (document.body && document.body.classList.contains('kb-region-nw')) ? 'nw' : 'south';
+}
+function kbSvNw() { return kbSvRegion() === 'nw'; }
+function kbSvTitle() { return kbSvNw() ? 'Сводка по Северо-Западу' : 'Сводка по Югу'; }
+function kbSvDat() { return kbSvNw() ? 'Северо-Западу' : 'югу'; }
+function kbSvPre() { return kbSvNw() ? 'Северо-Западе' : 'юге'; }
+function kbSvGenLow() { return kbSvNw() ? 'Северо-Запада' : 'юга'; }
+function kbSvAll() { return kbSvNw() ? 'весь Северо-Запад' : 'весь юг'; }
+var GEN = {
+novorossiysk: 'Новороссийска', gelendzhik: 'Геленджика', anapa: 'Анапы', krymsk: 'Крымска',
+krasnodar: 'Краснодара', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавира',
+maykop: 'Майкопа', rostov: 'Ростова-на-Дону', stavropol: 'Ставрополя',
+spb: 'Санкт-Петербурга', petrozavodsk: 'Петрозаводска', kirishi: 'Киришей',
+ustluga: 'Усть-Луги', vyborg: 'Выборга', vnovgorod: 'Великого Новгорода',
+tikhvin: 'Тихвина', luga: 'Луги', sortavala: 'Сортавалы', sosnovybor: 'Соснового Бора',
+gatchina: 'Гатчины', volhov: 'Волхова', vsevolozhsk: 'Всеволожска', kolpino: 'Колпина'
+};
+function boxes() {
+if (kbSvNw()) {
+try { if (window.kbRegionBoxes && window.kbRegionBoxes.nw && window.kbRegionBoxes.nw.length) return window.kbRegionBoxes.nw; } catch (e) {}
+return [];
+}
+return (typeof CITY_BOXES !== 'undefined' && CITY_BOXES) ? CITY_BOXES : [];
+}
+function cityKeyOf(st) {
+var b = boxes(), lat = Number(st.lat), lon = Number(st.lon);
+if (!isFinite(lat) || !isFinite(lon)) return null;
+for (var i = 0; i < b.length; i++) {
+var c = b[i];
+if (lat >= c.lat1 && lat <= c.lat2 && lon >= c.lon1 && lon <= c.lon2) return c.key;
+}
+return null;
+}
+function winKey(p) {
+if (!p || !p.from_time) return 1e9;
+var f = hhmm(p.from_time), t = hhmm(p.to_time), now = mskMinutes(), today = mskToday();
+if (p.target_date && p.target_date > today) return 1440 + f;
+if (p.target_date && p.target_date < today) return 1e9;
+if (now >= f && now <= t) return 0;
+if (f > now) return f - now;
+return 1e8;
+}
+function winBadge(k) {
+if (k === 0) return { cls: 'now', txt: 'сейчас' };
+if (k >= 1440) return { cls: 'tom', txt: 'завтра' };
+if (k <= 180) return { cls: 'soon', txt: 'скоро' };
+return { cls: 'later', txt: 'потом' };
+}
+function prefFuel() { var f = lsGet('kbSvFuel', '95'); return (f === '92' || f === '95' || f === 'diesel') ? f : '95'; }
+function prefSort() { return lsGet('kbSvSort', 'deficit'); }
+function prefOnlyWin() { return !!lsGet('kbSvOnlyWin', false); }
+function buildIdx() {
+var now = Date.now();
+var fb = (typeof allFeedback !== 'undefined' && allFeedback) ? allFeedback : [];
+var ev = (typeof allWaveEvents !== 'undefined' && allWaveEvents) ? allWaveEvents : [];
+var preds = (typeof allPredictions !== 'undefined' && allPredictions) ? allPredictions : [];
+var chg = {};
+for (var i = 0; i < ev.length; i++) {
+var e = ev[i];
+if (e.event_type !== 'fuel_restored' && e.event_type !== 'fuel_disappeared') continue;
+var t = new Date(e.detected_at).getTime();
+var k = e.station_id + '|' + e.fuel_type;
+if (!chg[k] || t > chg[k]) chg[k] = t;
+}
+var folk = {}, onSite = {}, live = {}, folkLatest = {};
+var floor24 = now - 24 * H, floor2 = now - 2 * H, floor30 = now - 30 * 60000;
+for (var j = 0; j < fb.length; j++) {
+var f = fb[j];
+var ft = new Date(f.created_at).getTime();
+var key = f.station_id + '|' + (f.fuel_type || '');
+if (f.feedback_type === 'in_queue') {
+if (ft >= floor30) {
+var s = live[f.station_id] || (live[f.station_id] = {});
+s[f.device_id || '?'] = 1;
+}
+continue;
+}
+if (f.feedback_type !== 'available' && f.feedback_type !== 'unavailable') continue;
+if (!f.fuel_type) continue;
+if (ft >= floor2 && f.feedback_type === 'available' && f.verified_on_site) onSite[key] = Math.max(onSite[key] || 0, ft);
+if (ft < floor24) continue;
+if (chg[key] && ft <= chg[key]) continue;
+var g = folk[key] || (folk[key] = { yes: 0, no: 0, dy: {}, dn: {} });
+if (f.feedback_type === 'available') { g.yes++; g.dy[f.device_id || '?'] = 1; folkLatest[key + '|y'] = Math.max(folkLatest[key + '|y'] || 0, ft); }
+else { g.no++; g.dn[f.device_id || '?'] = 1; folkLatest[key + '|n'] = Math.max(folkLatest[key + '|n'] || 0, ft); }
+}
+var bySt = {};
+for (var p = 0; p < preds.length; p++) {
+var pr = preds[p];
+if (pr.result !== 'PENDING') continue;
+(bySt[pr.station_id] || (bySt[pr.station_id] = [])).push(pr);
+}
+return { chg: chg, folk: folk, onSite: onSite, live: live, latest: folkLatest, preds: bySt };
+}
+function fuelState(st, o, f, idx) {
+var col = f === '92' ? 'fuel_92_status' : f === '95' ? 'fuel_95_status' : 'diesel_status';
+var key = st.id + '|' + f;
+if (idx.onSite[key]) return { v: true, src: 'scene' };
+var trust = false;
+try { trust = o ? availTrustworthy(o) : false; } catch (e) { trust = false; }
+var raw = o ? o[col] : null;
+if (trust && raw === true) return { v: true, src: 'source' };
+if (trust && raw === false) return { v: false, src: 'source' };
+var g = idx.folk[key];
+if (g) {
+var ny = Object.keys(g.dy).length, nn = Object.keys(g.dn).length;
+if (ny >= 2 && ny > nn) return { v: true, src: 'folk', votes: ny };
+if (nn >= 2 && nn > ny) return { v: false, src: 'folk', votes: nn };
+if (g.yes >= 2 && g.yes > g.no) return { v: true, src: 'folk', votes: g.yes };
+if (g.no >= 2 && g.no > g.yes) return { v: false, src: 'folk', votes: g.no };
+if (ny >= 1 && nn >= 1) return { v: null, src: 'conflict' };
+}
+if (raw === true) return { v: null, src: 'stale' };
+if (raw === false) return { v: false, src: 'stale-no' };
+return { v: null, src: 'none' };
+}
+function pickPred(stId, o, idx, wantFuel) {
+var list = idx.preds[stId];
+if (!list || !list.length) return null;
+var ok = list.filter(function (p) { return winKey(p) < 1e8 && Math.round((p.confidence || 0) * 100) >= 35; });
+if (!ok.length) return null;
+if (wantFuel) {
+var f = ok.filter(function (p) { return p.fuel_type === wantFuel; });
+if (f.length) { f.sort(function (a, b) { return winKey(a) - winKey(b); }); return f[0]; }
+return null;
+}
+ok.sort(function (a, b) { return winKey(a) - winKey(b); });
+return ok[0];
+}
+function collect() {
+var stations = (typeof allStations !== 'undefined' && allStations) ? allStations : [];
+if (!stations.length) return null;
+var last = {};
+try { last = getLastObservations() || {}; } catch (e) { last = {}; }
+var idx = buildIdx();
+var B = boxes();
+var map = {}, order = [];
+for (var i = 0; i < B.length; i++) {
+map[B[i].key] = { key: B[i].key, name: B[i].name, gen: GEN[B[i].key] || B[i].name, total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: [], sts: [] };
+order.push(B[i].key);
+}
+var fuel = prefFuel();
+for (var s = 0; s < stations.length; s++) {
+var st = stations[s];
+var ck = cityKeyOf(st);
+if (!ck || !map[ck]) continue;
+var c = map[ck], o = last[st.id];
+c.total++;
+var v92 = fuelState(st, o, '92', idx), v95 = fuelState(st, o, '95', idx), vdt = fuelState(st, o, 'diesel', idx);
+var known = !!(v92.src !== 'none' || v95.src !== 'none' || vdt.src !== 'none');
+if (known) c.known++;
+if (v92.v === true) c.a92++;
+if (v95.v === true) c.a95++;
+if (vdt.v === true) c.adt++;
+var hasAny = v92.v === true || v95.v === true || vdt.v === true;
+if (hasAny) c.any++;
+var lq = idx.live[st.id] ? Object.keys(idx.live[st.id]).length : 0;
+var hi = !!(o && o.queue_level === 'high');
+if (lq || hi) c.q++;
+var pr = pickPred(st.id, o, idx, null);
+var row = { st: st, o: o, v92: v92, v95: v95, vdt: vdt, lq: lq, hi: hi, pred: pr, has: hasAny };
+c.sts.push(row);
+if (pr) c.wins.push({ st: st, city: c.name, cityKey: c.key, pred: pr, key: winKey(pr), conf: Math.round((pr.confidence || 0) * 100) });
+}
+var cities = order.map(function (k) { return map[k]; }).filter(function (c) { return c.total > 0; });
+cities.forEach(function (c) {
+c.fuelN = fuel === '92' ? c.a92 : fuel === 'diesel' ? c.adt : c.a95;
+c.share = c.known ? c.fuelN / c.known : null;
+c.level = c.known < 3 ? 'n' : (c.share >= 0.6 ? 'g' : c.share >= 0.25 ? 'y' : 'r');
+c.wins.sort(function (a, b) { return a.key - b.key; });
+c.sts.sort(function (a, b) {
+if (a.has !== b.has) return a.has ? -1 : 1;
+if (!!a.pred !== !!b.pred) return a.pred ? -1 : 1;
+return (a.pred ? winKey(a.pred) : 1e9) - (b.pred ? winKey(b.pred) : 1e9);
+});
+});
+var sort = prefSort();
+cities.sort(function (a, b) {
+if (sort === 'alpha') return a.name.localeCompare(b.name, 'ru');
+if (sort === 'fuel') return (b.fuelN - a.fuelN) || (b.total - a.total);
+if (sort === 'wins') return (b.wins.length - a.wins.length) || (b.total - a.total);
+var na = a.known >= 3 ? 0 : 1, nb = b.known >= 3 ? 0 : 1;
+if (na !== nb) return na - nb;
+return (a.share - b.share) || (b.total - a.total);
+});
+if (prefOnlyWin()) cities = cities.filter(function (c) { return c.wins.length > 0; });
+var T = { total: 0, known: 0, a92: 0, a95: 0, adt: 0, any: 0, q: 0, wins: 0, cities: cities.length };
+cities.forEach(function (c) {
+T.total += c.total; T.known += c.known; T.a92 += c.a92; T.a95 += c.a95; T.adt += c.adt;
+T.any += c.any; T.q += c.q; T.wins += c.wins.length;
+});
+T.fuelN = fuel === '92' ? T.a92 : fuel === 'diesel' ? T.adt : T.a95;
+var allWins = [];
+cities.forEach(function (c) { c.wins.forEach(function (w) { if (w.pred.fuel_type === fuel) allWins.push(w); }); });
+if (!allWins.length) cities.forEach(function (c) { c.wins.forEach(function (w) { allWins.push(w); }); });
+allWins.sort(function (a, b) { return a.key - b.key; });
+var B0 = bucketStart(), changes = [];
+var ev = (typeof allWaveEvents !== 'undefined' && allWaveEvents) ? allWaveEvents : [];
+for (var e2 = 0; e2 < ev.length; e2++) {
+var evr = ev[e2];
+if (evr.event_type !== 'fuel_restored' && evr.event_type !== 'fuel_disappeared') continue;
+var tt = new Date(evr.detected_at).getTime();
+if (tt < B0) continue;
+var stn = null;
+try { stn = stationById(evr.station_id); } catch (er) { stn = null; }
+if (!stn) continue;
+var ck2 = cityKeyOf(stn);
+if (!ck2 || !map[ck2]) continue;
+changes.push({ t: tt, st: stn, city: map[ck2].name, fuel: evr.fuel_type, back: evr.event_type === 'fuel_restored' });
+}
+changes.sort(function (a, b) { return b.t - a.t; });
+var wave = null;
+try { wave = (typeof cityWaveStats === 'function' && allWaveEvents.length) ? cityWaveStats() : null; } catch (er) { wave = null; }
+var loud = [];
+if (wave) Object.keys(wave).forEach(function (k) {
+var w = wave[k];
+if (w.level === 'wave' || w.level === 'tense') loud.push(w);
+});
+return { ts: Date.now(), bucket: B0, fuel: fuel, cities: cities, T: T, wins: allWins.slice(0, 6), changes: changes.slice(0, 6), changeN: changes.length, loud: loud };
+}
+function snapshot(D) {
+var cur = { bucket: D.bucket, any: D.T.any, a95: D.T.a95, wins: D.T.wins, q: D.T.q };
+var kCur = 'kbSvCur_' + kbSvRegion(), kPrev = 'kbSvPrev_' + kbSvRegion();
+var prevCur = lsGet(kCur, null);
+if (!prevCur || prevCur.bucket !== cur.bucket) {
+if (prevCur) lsSet(kPrev, prevCur);
+lsSet(kCur, cur);
+}
+return lsGet(kPrev, null);
+}
+function deltaHtml(prev, D) {
+if (!prev || prev.bucket === D.bucket) {
+return '<div class="kbs-delta n">' + ic('i-clock', 'ic-s') + '<span>Первый выпуск на этом устройстве — сравнение появится со следующего, через 4 часа.</span></div>';
+}
+var dAny = D.T.any - prev.any, dWin = D.T.wins - prev.wins, dQ = D.T.q - prev.q;
+function chip(v, goodUp, label) {
+var cls = v === 0 ? 'n' : ((v > 0) === goodUp ? 'g' : 'r');
+var sign = v > 0 ? '+' : v < 0 ? '−' : '±';
+return '<span class="kbs-d ' + cls + '">' + sign + Math.abs(v) + ' ' + label + '</span>';
+}
+return '<div class="kbs-delta">' + ic('i-chart', 'ic-s') +
+'<span class="kbs-dt">к выпуску ' + stamp(prev.bucket) + ':</span>' +
+chip(dAny, true, 'АЗС с топливом') + chip(dWin, true, plural(Math.abs(dWin), ['окно', 'окна', 'окон'])) + chip(dQ, false, 'очередей') + '</div>';
+}
+(function css() {
+if (document.getElementById('kbSvCss')) return;
+var s = document.createElement('style');
+s.id = 'kbSvCss';
+s.textContent =
 '#kbSvCard{margin:10px 0 12px;border-radius:20px;padding:12px 12px 10px;position:relative;overflow:hidden;' +
 'background:linear-gradient(165deg,#fdfeff 0%,#eef4ff 46%,#e6eeff 100%);border:1px solid #dfe8f2;box-shadow:0 4px 18px rgba(20,33,61,.08);font-family:inherit;}' +
 '#kbSvCard::before{content:"";position:absolute;right:-60px;top:-70px;width:220px;height:220px;border-radius:50%;pointer-events:none;' +
@@ -13165,7 +13212,7 @@ try { softRefresh(); } catch (e) {}
 'body.kb-night .kbs-win{background:#121a2e;border-color:rgba(148,180,255,.14);}' +
 '.kbs-wb{flex:none;border-radius:9px;padding:4px 7px;font-size:9px;font-weight:900;text-align:center;min-width:52px;}' +
 '.kbs-wb.now{background:#e5f8ef;color:#12855c;}.kbs-wb.soon{background:#fff6ec;color:#c26a2a;}' +
-'.kbs-wb.later{background:#eef4ff;color:#2465ee;}.kbs-wb.tom{background:#f2eeff;color:#6b4fd8;}' +
+'.kbs-wb.later{background:#eef4ff;color:#2465ee;}.kbs-wb.tom{background:#f2efff;color:#6b4fd8;}' +
 'body.kb-night .kbs-wb.now{background:rgba(25,183,122,.16);color:#2fd39a;}' +
 'body.kb-night .kbs-wb.soon{background:rgba(245,160,90,.16);color:#f5a05a;}' +
 'body.kb-night .kbs-wb.later{background:rgba(91,157,255,.14);color:#9dc4ff;}' +
@@ -13240,423 +13287,386 @@ try { softRefresh(); } catch (e) {}
 '.kbs-toast.on{opacity:1;transform:none;}' +
 'body.kb-lite .kbs-live i{animation:none;}' +
 '@media (prefers-reduced-motion:reduce){.kbs-live i{animation:none;}.kbs-body.on{animation:none;}}';
-    document.head.appendChild(s);
-  })();
-
-  function toast(msg) {
-    var t = document.getElementById('kbsToast');
-    if (!t) { t = document.createElement('div'); t.id = 'kbsToast'; t.className = 'kbs-toast'; document.body.appendChild(t); }
-    t.textContent = msg;
-    t.classList.add('on');
-    clearTimeout(t._tm);
-    t._tm = setTimeout(function () { t.classList.remove('on'); }, 3200);
-  }
-
-  // ---------- отрисовка ----------
-  var DATA = null, renderT = null, openSet = ssGet('kbSvOpen', []);
-  var COL = { g: '#19b77a', y: '#f5a05a', r: '#ef5350', n: '#a7b1c1' };
-
-  function levelWord(l) { return l === 'g' ? 'спокойно' : l === 'y' ? 'напряжённо' : l === 'r' ? 'дефицит' : 'мало данных'; }
-
-  function fuelChips(row) {
-    function one(v, f) {
-      var cls = v.v === true ? 'y' : v.v === false ? 'n' : 'u';
-      return '<i class="' + cls + '">' + flShort(f) + '</i>';
-    }
-    return '<span class="kbs-fc">' + one(row.v92, '92') + one(row.v95, '95') + one(row.vdt, 'diesel') + '</span>';
-  }
-
-  function stLogo(st) {
-    try { return typeof stationLogo === 'function' ? stationLogo(st) : ''; } catch (e) { return ''; }
-  }
-
-  function winRow(w) {
-    var b = winBadge(w.key), p = w.pred;
-    return '<div class="kbs-win" data-kbs-st="' + esc(w.st.id) + '">' +
-      '<span class="kbs-wb ' + b.cls + '">' + b.txt + '</span>' +
-      '<span class="kbs-wt"><b>' + esc(w.st.name || 'АЗС') + '</b>' +
-      '<span>' + esc(w.city) + ' · ' + esc(w.st.address || '') + '</span></span>' +
-      '<span class="kbs-wr"><b>' + t5(p.from_time) + '–' + t5(p.to_time) + '</b><i>' + fl(p.fuel_type) + ' · ' + w.conf + '%</i></span>' +
-      '</div>';
-  }
-
-  function cityRow(c) {
-    var open = openSet.indexOf(c.key) >= 0;
-    var pct = c.share == null ? 0 : Math.round(c.share * 100);
-    var mine = (typeof userCityKey !== 'undefined' && userCityKey === c.key);
-    var w0 = c.wins[0];
-    var body = c.sts.slice(0, 5).map(function (r) {
-      var p = r.pred;
-      return '<div class="kbs-st" data-kbs-st="' + esc(r.st.id) + '">' +
-        '<span class="kbs-stl">' + stLogo(r.st) + '</span>' +
-        '<span class="kbs-stt"><b>' + esc(r.st.name || 'АЗС') + '</b><span>' + esc(r.st.address || '') + (r.lq ? ' · ' + r.lq + ' в очереди' : (r.hi ? ' · очередь' : '')) + '</span></span>' +
-        fuelChips(r) +
-        '<span class="kbs-stw">' + (p ? t5(p.from_time) + '–' + t5(p.to_time) + '<br>' + Math.round((p.confidence || 0) * 100) + '%' : 'окна нет') + '</span>' +
-        '</div>';
-    }).join('');
-    if (!body) body = '<div class="kbs-empty">В этой зоне пока нет станций.</div>';
-    return '<button type="button" class="kbs-city' + (open ? ' on' : '') + '" data-kbs-city="' + c.key + '">' +
-      '<i class="d ' + c.level + '"></i>' +
-      '<span class="kbs-cn">' + esc(c.name) + (mine ? '<em>твой город</em>' : '') + '</span>' +
-      '<span class="kbs-bar"><i style="width:' + pct + '%;background:' + COL[c.level] + '"></i></span>' +
-      '<span class="kbs-num">' + c.fuelN + '/' + c.known + '</span>' +
-      '<span class="kbs-cw">' + (w0 ? t5(w0.pred.from_time) + '–' + t5(w0.pred.to_time) : '—') + '</span>' +
-      '<svg class="kbs-chev ic"><use href="#i-arrow"/></svg>' +
-      '</button><div class="kbs-body' + (open ? ' on' : '') + '">' + body + '</div>';
-  }
-
-  function render() {
-    var card = document.getElementById('kbSvCard');
-    if (!card) return;
-    var D = collect();
-    if (!D) {
-      card.innerHTML = '<div class="kbs-head"><span class="kbs-ico">' + ic('i-chart') + '</span>' +
-        '<div class="kbs-ht"><b>Сводка по Югу</b><span>собираем данные по всем городам…</span></div></div>' +
-        '<div class="kbs-empty" style="margin-top:10px">Как только доедут отметки АЗС, здесь появится общий выпуск по югу.</div>';
-      return;
-    }
-    DATA = D;
-    var prev = snapshot(D);
-    var T = D.T, fuel = D.fuel;
-    var isNew = lsGet('kbSvSeen', 0) !== D.bucket;
-    var share = T.known ? T.fuelN / T.known : 0;
-    var lvl = T.known < 5 ? 'b' : share >= 0.6 ? 'g' : share >= 0.25 ? 'y' : 'r';
-    var nextIn = D.bucket + BUCKET_MS - Date.now();
-    var hh = Math.max(0, Math.floor(nextIn / H)), mm = Math.max(0, Math.floor((nextIn % H) / 60000));
-
-    var kpi =
-      '<div class="kbs-k ' + lvl + '"><small>' + ic('i-pump', 'ic-s') + fl(fuel) + '</small><b>' + T.fuelN + '</b><i>из ' + T.known + ' АЗС с данными</i></div>' +
-      '<div class="kbs-k b"><small>' + ic('i-clock', 'ic-s') + 'окна</small><b>' + T.wins + '</b><i>прогнозов привоза</i></div>' +
-      '<div class="kbs-k ' + (T.q ? 'y' : 'g') + '"><small>' + ic('i-queue', 'ic-s') + 'очереди</small><b>' + T.q + '</b><i>АЗС с очередью</i></div>' +
-      '<div class="kbs-k ' + (D.loud.length ? 'r' : 'g') + '"><small>' + ic('i-spark', 'ic-s') + 'волна</small><b>' + D.loud.length + '</b><i>' + (D.loud.length ? esc(D.loud[0].name) : 'города спокойны') + '</i></div>';
-
-    var wins = D.wins.length
-      ? '<div class="kbs-list">' + D.wins.map(winRow).join('') + '</div>'
-      : '<div class="kbs-empty">Ближайших окон привоза по югу пока нет — прогнозы копятся.</div>';
-
-    var changes = D.changes.length
-      ? '<div class="kbs-list">' + D.changes.map(function (c) {
-        return '<div class="kbs-ch" data-kbs-st="' + esc(c.st.id) + '"><i class="d ' + (c.back ? 'g' : 'r') + '"></i>' +
-          '<span><b>' + esc(c.city) + '</b> · ' + esc(c.st.name || 'АЗС') + ' — ' + fl(c.fuel) + (c.back ? ' вернулось' : ' пропало') + '</span>' +
-          '<em>' + hm(c.t) + '</em></div>';
-      }).join('') + '</div>'
-      : '<div class="kbs-empty">За этот выпуск изменений на юге не зафиксировано — спокойно.</div>';
-
-    var cities = D.cities.length
-      ? '<div class="kbs-list" style="max-height:340px">' + D.cities.map(cityRow).join('') + '</div>'
-      : '<div class="kbs-empty">Нет городов с окнами привоза — снимите фильтр.</div>';
-
-    var offline = (typeof offlineMode !== 'undefined' && offlineMode) ? ' · офлайн-снимок' : '';
-
-    card.innerHTML =
-      '<div class="kbs-head">' +
-        '<span class="kbs-ico">' + ic('i-chart') + '</span>' +
-        '<div class="kbs-ht"><b>Сводка по Югу</b>' +
-        '<span><span class="kbs-live"><i></i>выпуск ' + stamp(D.bucket) + ' МСК</span> · ' + D.cities.length + ' ' + plural(D.cities.length, ['город', 'города', 'городов']) + ' · ' + T.total + ' АЗС' + offline + '</span></div>' +
-        '<div class="kbs-hr">' + (isNew ? '<span class="kbs-new">новый выпуск</span>' : '') +
-        '<span class="kbs-next" id="kbsNext">следующий через ' + hh + ':' + pad(mm) + '</span></div>' +
-      '</div>' +
-      '<div class="kbs-ctrl">' +
-        '<span class="kbs-seg">' + ['92', '95', 'diesel'].map(function (f) {
-          return '<button type="button" data-kbs-fuel="' + f + '" class="' + (fuel === f ? 'on' : '') + '">' + flShort(f) + '</button>';
-        }).join('') + '</span>' +
-        '<select class="kbs-sel" data-kbs-sort="1">' +
-          '<option value="deficit"' + (prefSort() === 'deficit' ? ' selected' : '') + '>сначала дефицит</option>' +
-          '<option value="fuel"' + (prefSort() === 'fuel' ? ' selected' : '') + '>больше топлива</option>' +
-          '<option value="wins"' + (prefSort() === 'wins' ? ' selected' : '') + '>больше окон</option>' +
-          '<option value="alpha"' + (prefSort() === 'alpha' ? ' selected' : '') + '>по алфавиту</option>' +
-        '</select>' +
-        '<span class="kbs-seg"><button type="button" data-kbs-only="1" class="' + (prefOnlyWin() ? 'on' : '') + '">только с окнами</button></span>' +
-      '</div>' +
-      '<div class="kbs-kpi">' + kpi + '</div>' +
-      deltaHtml(prev, D) +
-      '<div class="kbs-sec">' + ic('i-clock', 'ic-s') + 'Ближайшие окна привоза · весь юг<em>' + fl(fuel) + '</em></div>' + wins +
-      '<div class="kbs-sec">' + ic('i-spark', 'ic-s') + 'Что изменилось за выпуск<em>' + D.changeN + ' ' + plural(D.changeN, ['событие', 'события', 'событий']) + '</em></div>' + changes +
-      '<div class="kbs-sec">' + ic('i-pin', 'ic-s') + 'Города юга<em>' + fl(fuel) + ': есть / с данными · окно привоза</em></div>' + cities +
-      '<div class="kbs-foot">' +
-        '<button type="button" class="kbs-btn p" data-kbs-share="1">' + ic('i-spark', 'ic-s') + 'Поделиться сводкой</button>' +
-        '<button type="button" class="kbs-btn" data-kbs-copy="1">' + ic('i-check', 'ic-s') + 'Скопировать текст</button>' +
-        '<a class="kbs-btn" id="kbsSeo" href="' + SITE + '/svodka.html" target="_blank" rel="noopener" data-kbs-seo="1" style="display:none">' + ic('i-search', 'ic-s') + 'Версия для поиска</a>' +
-      '</div>' +
-      '<div class="kbs-note">Автовыпуск каждые <b>4 часа</b>: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 МСК. Данные всего юга, не одного города. Прогноз — вероятность, а не гарантия привоза.</div>';
-
-    checkSeo();
-  }
-
-  function schedule() {
-    if (renderT) clearTimeout(renderT);
-    renderT = setTimeout(function () { renderT = null; try { render(); } catch (e) { console.log('south digest: ' + e.message); } }, 260);
-  }
-
-  function tick() {
-    var el = document.getElementById('kbsNext');
-    var B = bucketStart();
-    if (DATA && DATA.bucket !== B) { schedule(); return; }
-    if (!el) return;
-    var left = B + BUCKET_MS - Date.now();
-    var hh = Math.max(0, Math.floor(left / H)), mm = Math.max(0, Math.floor((left % H) / 60000));
-    el.textContent = 'следующий через ' + hh + ':' + pad(mm);
-  }
-
-  // ---------- ссылка на индексируемую страницу ----------
-  var seoChecked = false;
-  function checkSeo() {
-    var a = document.getElementById('kbsSeo');
-    if (!a) return;
-    if (seoChecked === true) { a.style.display = ''; return; }
-    if (seoChecked === 'pending') return;
-    seoChecked = 'pending';
-    fetch(SITE + '/svodka.html', { method: 'HEAD', cache: 'no-store' })
-      .then(function (r) { seoChecked = !!r.ok; var el = document.getElementById('kbsSeo'); if (el && r.ok) el.style.display = ''; })
-      .catch(function () { seoChecked = false; });
-  }
-
-  // ---------- текст и картинка выпуска ----------
-  function digestText(D) {
-    var T = D.T;
-    var lines = [];
-    lines.push('⛽ КОГДАБЕНЗ · СВОДКА ПО ЮГУ');
-    lines.push('Выпуск ' + stamp(D.bucket) + ' МСК');
-    lines.push('');
-    lines.push(fl(D.fuel) + ': ' + T.fuelN + ' из ' + T.known + ' АЗС · окон привоза: ' + T.wins + ' · очередей: ' + T.q);
-    lines.push('');
-    lines.push('ГОРОДА:');
-    D.cities.forEach(function (c) {
-      lines.push('• ' + c.name + ' — ' + c.fuelN + '/' + c.known + ' (' + levelWord(c.level) + ')' + (c.wins[0] ? ', окно ' + t5(c.wins[0].pred.from_time) + '–' + t5(c.wins[0].pred.to_time) : ''));
-    });
-    if (D.wins.length) {
-      lines.push('');
-      lines.push('БЛИЖАЙШИЕ ОКНА:');
-      D.wins.slice(0, 5).forEach(function (w) {
-        lines.push('• ' + w.city + ', ' + (w.st.name || 'АЗС') + ' — ' + t5(w.pred.from_time) + '–' + t5(w.pred.to_time) + ' · ' + fl(w.pred.fuel_type) + ' · ' + w.conf + '%');
-      });
-    }
-    lines.push('');
-    lines.push('Живая карта и прогнозы: ' + SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=svodka');
-    return lines.join('\n');
-  }
-
-  function wrap(g, text, x, y, maxW, lh) {
-    var words = String(text).split(' '), line = '';
-    for (var i = 0; i < words.length; i++) {
-      var test = line ? line + ' ' + words[i] : words[i];
-      if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); y += lh; line = words[i]; }
-      else line = test;
-    }
-    if (line) g.fillText(line, x, y);
-    return y;
-  }
-
-  function digestImage(D) {
-    return new Promise(function (res) {
-      var W = 1080, Hh = 1440;
-      var cv = document.createElement('canvas');
-      cv.width = W; cv.height = Hh;
-      var g = cv.getContext('2d');
-      var bg = g.createLinearGradient(0, 0, W, Hh);
-      bg.addColorStop(0, '#12203f'); bg.addColorStop(.55, '#0e1730'); bg.addColorStop(1, '#0a1024');
-      g.fillStyle = bg; g.fillRect(0, 0, W, Hh);
-      var glow = g.createRadialGradient(W - 140, 120, 20, W - 140, 120, 420);
-      glow.addColorStop(0, 'rgba(36,101,238,.45)'); glow.addColorStop(1, 'rgba(36,101,238,0)');
-      g.fillStyle = glow; g.fillRect(0, 0, W, 600);
-      var glow2 = g.createRadialGradient(120, Hh - 200, 20, 120, Hh - 200, 420);
-      glow2.addColorStop(0, 'rgba(25,183,122,.28)'); glow2.addColorStop(1, 'rgba(25,183,122,0)');
-      g.fillStyle = glow2; g.fillRect(0, Hh - 620, W, 620);
-
-      g.fillStyle = 'rgba(255,255,255,.62)'; g.font = '800 30px system-ui,sans-serif';
-      g.fillText('КОГДАБЕНЗ · АВТОВЫПУСК КАЖДЫЕ 4 ЧАСА', 60, 76);
-      g.fillStyle = '#fff'; g.font = '900 74px system-ui,sans-serif';
-      g.fillText('СВОДКА ПО ЮГУ', 60, 158);
-      g.fillStyle = '#7db4ff'; g.font = '800 34px system-ui,sans-serif';
-      g.fillText(stamp(D.bucket) + ' МСК · ' + D.cities.length + ' городов · ' + D.T.total + ' АЗС', 60, 210);
-
-      var T = D.T;
-      var cards = [
-        { v: T.fuelN, l: fl(D.fuel), c: '#2fd39a' },
-        { v: T.wins, l: 'окон привоза', c: '#7db4ff' },
-        { v: T.q, l: 'очередей', c: '#f5a05a' }
-      ];
-      cards.forEach(function (c, i) {
-        var x = 60 + i * 325, y = 250;
-        g.fillStyle = 'rgba(255,255,255,.07)';
-        g.beginPath(); g.roundRect ? g.roundRect(x, y, 300, 130, 22) : g.rect(x, y, 300, 130); g.fill();
-        g.fillStyle = c.c; g.font = '900 62px system-ui,sans-serif';
-        g.fillText(String(c.v), x + 24, y + 76);
-        g.fillStyle = 'rgba(255,255,255,.7)'; g.font = '700 26px system-ui,sans-serif';
-        g.fillText(c.l, x + 24, y + 110);
-      });
-
-      g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '900 26px system-ui,sans-serif';
-      g.fillText('ГОРОДА · ' + fl(D.fuel) + ' ЕСТЬ / С ДАННЫМИ', 60, 440);
+document.head.appendChild(s);
+})();
+function toast(msg) {
+var t = document.getElementById('kbsToast');
+if (!t) { t = document.createElement('div'); t.id = 'kbsToast'; t.className = 'kbs-toast'; document.body.appendChild(t); }
+t.textContent = msg;
+t.classList.add('on');
+clearTimeout(t._tm);
+t._tm = setTimeout(function () { t.classList.remove('on'); }, 3200);
+}
+var DATA = null, renderT = null, openSet = ssGet('kbSvOpen', []);
+var COL = { g: '#19b77a', y: '#f5a05a', r: '#ef5350', n: '#a7b1c1' };
+function levelWord(l) { return l === 'g' ? 'спокойно' : l === 'y' ? 'напряжённо' : l === 'r' ? 'дефицит' : 'мало данных'; }
+function fuelChips(row) {
+function one(v, f) {
+var cls = v.v === true ? 'y' : v.v === false ? 'n' : 'u';
+return '<i class="' + cls + '">' + flShort(f) + '</i>';
+}
+return '<span class="kbs-fc">' + one(row.v92, '92') + one(row.v95, '95') + one(row.vdt, 'diesel') + '</span>';
+}
+function stLogo(st) { try { return typeof stationLogo === 'function' ? stationLogo(st) : ''; } catch (e) { return ''; } }
+function winRow(w) {
+var b = winBadge(w.key), p = w.pred;
+return '<div class="kbs-win" data-kbs-st="' + esc(w.st.id) + '">' +
+'<span class="kbs-wb ' + b.cls + '">' + b.txt + '</span>' +
+'<span class="kbs-wt"><b>' + esc(w.st.name || 'АЗС') + '</b>' +
+'<span>' + esc(w.city) + ' · ' + esc(w.st.address || '') + '</span></span>' +
+'<span class="kbs-wr"><b>' + t5(p.from_time) + '–' + t5(p.to_time) + '</b><i>' + fl(p.fuel_type) + ' · ' + w.conf + '%</i></span>' +
+'</div>';
+}
+function cityRow(c) {
+var open = openSet.indexOf(c.key) >= 0;
+var pct = c.share == null ? 0 : Math.round(c.share * 100);
+var mine = (typeof userCityKey !== 'undefined' && userCityKey === c.key);
+var w0 = c.wins[0];
+var body = c.sts.slice(0, 5).map(function (r) {
+var p = r.pred;
+return '<div class="kbs-st" data-kbs-st="' + esc(r.st.id) + '">' +
+'<span class="kbs-stl">' + stLogo(r.st) + '</span>' +
+'<span class="kbs-stt"><b>' + esc(r.st.name || 'АЗС') + '</b><span>' + esc(r.st.address || '') + (r.lq ? ' · ' + r.lq + ' в очереди' : (r.hi ? ' · очередь' : '')) + '</span></span>' +
+fuelChips(r) +
+'<span class="kbs-stw">' + (p ? t5(p.from_time) + '–' + t5(p.to_time) + '<br>' + Math.round((p.confidence || 0) * 100) + '%' : 'окна нет') + '</span>' +
+'</div>';
+}).join('');
+if (!body) body = '<div class="kbs-empty">В этой зоне пока нет станций.</div>';
+return '<button type="button" class="kbs-city' + (open ? ' on' : '') + '" data-kbs-city="' + c.key + '">' +
+'<i class="d ' + c.level + '"></i>' +
+'<span class="kbs-cn">' + esc(c.name) + (mine ? ' <em>твой город</em>' : '') + '</span>' +
+'<span class="kbs-bar"><i style="width:' + pct + '%;background:' + COL[c.level] + '"></i></span>' +
+'<span class="kbs-num">' + c.fuelN + '/' + c.known + '</span>' +
+'<span class="kbs-cw">' + (w0 ? t5(w0.pred.from_time) + '–' + t5(w0.pred.to_time) : '—') + '</span>' +
+'<svg class="kbs-chev ic"><use href="#i-arrow"/></svg>' +
+'</button><div class="kbs-body' + (open ? ' on' : '') + '">' + body + '</div>';
+}
+function render() {
+var card = document.getElementById('kbSvCard');
+if (!card) return;
+var D = collect();
+if (!D) {
+card.innerHTML = '<div class="kbs-head"><span class="kbs-ico">' + ic('i-chart') + '</span>' +
+'<div class="kbs-ht"><b>' + kbSvTitle() + '</b><span>собираем данные по всем городам…</span></div></div>' +
+'<div class="kbs-empty" style="margin-top:10px">Как только доедут отметки АЗС, здесь появится общий выпуск по ' + kbSvDat() + '.</div>';
+return;
+}
+DATA = D;
+var prev = snapshot(D);
+var T = D.T, fuel = D.fuel;
+var isNew = lsGet('kbSvSeen_' + kbSvRegion(), 0) !== D.bucket;
+var share = T.known ? T.fuelN / T.known : 0;
+var lvl = T.known < 5 ? 'b' : share >= 0.6 ? 'g' : share >= 0.25 ? 'y' : 'r';
+var nextIn = D.bucket + BUCKET_MS - Date.now();
+var hh = Math.max(0, Math.floor(nextIn / H)), mm = Math.max(0, Math.floor((nextIn % H) / 60000));
+var kpi =
+'<div class="kbs-k ' + lvl + '"><small>' + ic('i-pump', 'ic-s') + fl(fuel) + '</small><b>' + T.fuelN + '</b><i>из ' + T.known + ' АЗС с данными</i></div>' +
+'<div class="kbs-k b"><small>' + ic('i-clock', 'ic-s') + 'окна</small><b>' + T.wins + '</b><i>прогнозов привоза</i></div>' +
+'<div class="kbs-k ' + (T.q ? 'y' : 'g') + '"><small>' + ic('i-queue', 'ic-s') + 'очереди</small><b>' + T.q + '</b><i>АЗС с очередью</i></div>' +
+'<div class="kbs-k ' + (D.loud.length ? 'r' : 'g') + '"><small>' + ic('i-spark', 'ic-s') + 'волна</small><b>' + D.loud.length + '</b><i>' + (D.loud.length ? esc(D.loud[0].name) : 'города спокойны') + '</i></div>';
+var wins = D.wins.length
+? '<div class="kbs-list">' + D.wins.map(winRow).join('') + '</div>'
+: '<div class="kbs-empty">Ближайших окон привоза по ' + kbSvDat() + ' пока нет — прогнозы копятся.</div>';
+var changes = D.changes.length
+? '<div class="kbs-list">' + D.changes.map(function (c) {
+return '<div class="kbs-ch" data-kbs-st="' + esc(c.st.id) + '"><i class="d ' + (c.back ? 'g' : 'r') + '"></i>' +
+'<span><b>' + esc(c.city) + '</b> · ' + esc(c.st.name || 'АЗС') + ' — ' + fl(c.fuel) + (c.back ? ' вернулось' : ' пропало') + '</span>' +
+'<em>' + hm(c.t) + '</em></div>';
+}).join('') + '</div>'
+: '<div class="kbs-empty">За этот выпуск изменений на ' + kbSvPre() + ' не зафиксировано — спокойно.</div>';
+var cities = D.cities.length
+? '<div class="kbs-list" style="max-height:340px">' + D.cities.map(cityRow).join('') + '</div>'
+: '<div class="kbs-empty">Нет городов с окнами привоза — снимите фильтр.</div>';
+var offline = (typeof offlineMode !== 'undefined' && offlineMode) ? ' · офлайн-снимок' : '';
+card.innerHTML =
+'<div class="kbs-head">' +
+'<span class="kbs-ico">' + ic('i-chart') + '</span>' +
+'<div class="kbs-ht"><b>' + kbSvTitle() + '</b>' +
+'<span><span class="kbs-live"><i></i>выпуск ' + stamp(D.bucket) + ' МСК</span> · ' + D.cities.length + ' ' + plural(D.cities.length, ['город', 'города', 'городов']) + ' · ' + T.total + ' АЗС' + offline + '</span></div>' +
+'<div class="kbs-hr">' + (isNew ? '<span class="kbs-new">новый выпуск</span>' : '') +
+'<span class="kbs-next" id="kbsNext">следующий через ' + hh + ':' + pad(mm) + '</span></div>' +
+'</div>' +
+'<div class="kbs-ctrl">' +
+'<span class="kbs-seg">' + ['92', '95', 'diesel'].map(function (f) {
+return '<button type="button" data-kbs-fuel="' + f + '" class="' + (fuel === f ? 'on' : '') + '">' + flShort(f) + '</button>';
+}).join('') + '</span>' +
+'<select class="kbs-sel" data-kbs-sort="1">' +
+'<option value="deficit"' + (prefSort() === 'deficit' ? ' selected' : '') + '>сначала дефицит</option>' +
+'<option value="fuel"' + (prefSort() === 'fuel' ? ' selected' : '') + '>больше топлива</option>' +
+'<option value="wins"' + (prefSort() === 'wins' ? ' selected' : '') + '>больше окон</option>' +
+'<option value="alpha"' + (prefSort() === 'alpha' ? ' selected' : '') + '>по алфавиту</option>' +
+'</select>' +
+'<span class="kbs-seg"><button type="button" data-kbs-only="1" class="' + (prefOnlyWin() ? 'on' : '') + '">только с окнами</button></span>' +
+'</div>' +
+'<div class="kbs-kpi">' + kpi + '</div>' +
+deltaHtml(prev, D) +
+'<div class="kbs-sec">' + ic('i-clock', 'ic-s') + 'Ближайшие окна привоза · ' + kbSvAll() + '<em>' + fl(fuel) + '</em></div>' + wins +
+'<div class="kbs-sec">' + ic('i-spark', 'ic-s') + 'Что изменилось за выпуск<em>' + D.changeN + ' ' + plural(D.changeN, ['событие', 'события', 'событий']) + '</em></div>' + changes +
+'<div class="kbs-sec">' + ic('i-pin', 'ic-s') + 'Города ' + kbSvGenLow() + '<em>' + fl(fuel) + ': есть / с данными · окно привоза</em></div>' + cities +
+'<div class="kbs-foot">' +
+'<button type="button" class="kbs-btn p" data-kbs-share="1">' + ic('i-spark', 'ic-s') + 'Поделиться сводкой</button>' +
+'<button type="button" class="kbs-btn" data-kbs-copy="1">' + ic('i-check', 'ic-s') + 'Скопировать текст</button>' +
+'<a class="kbs-btn" id="kbsSeo" href="' + seoUrl() + '" target="_blank" rel="noopener" data-kbs-seo="1" style="display:none">' + ic('i-search', 'ic-s') + 'Версия для поиска</a>' +
+'</div>' +
+'<div class="kbs-note">Автовыпуск каждые <b>4 часа</b>: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 МСК. Данные всего ' + kbSvGenLow() + ', не одного города. Прогноз — вероятность, а не гарантия привоза.</div>';
+checkSeo();
+}
+function schedule() {
+if (renderT) clearTimeout(renderT);
+renderT = setTimeout(function () { renderT = null; try { render(); } catch (e) { console.log('digest: ' + e.message); } }, 260);
+}
+function tick() {
+var el = document.getElementById('kbsNext');
+var B = bucketStart();
+if (DATA && DATA.bucket !== B) { schedule(); return; }
+if (!el) return;
+var left = B + BUCKET_MS - Date.now();
+var hh = Math.max(0, Math.floor(left / H)), mm = Math.max(0, Math.floor((left % H) / 60000));
+el.textContent = 'следующий через ' + hh + ':' + pad(mm);
+}
+var seoChecked = false, seoCheckedUrl = '';
+function seoUrl() { return kbSvNw() ? SITE + '/svodka-sz.html' : SITE + '/svodka.html'; }
+function checkSeo() {
+var a = document.getElementById('kbsSeo');
+if (!a) return;
+var url = seoUrl();
+if (seoCheckedUrl !== url) { seoChecked = false; seoCheckedUrl = url; }
+if (seoChecked === true) { a.style.display = ''; return; }
+if (seoChecked === 'pending') return;
+seoChecked = 'pending';
+fetch(url, { method: 'HEAD', cache: 'no-store' })
+.then(function (r) { seoChecked = !!r.ok; var el = document.getElementById('kbsSeo'); if (el && r.ok && seoUrl() === url) el.style.display = ''; })
+.catch(function () { seoChecked = false; });
+}
+function digestText(D) {
+var T = D.T;
+var lines = [];
+lines.push('⛽ КОГДАБЕНЗ · СВОДКА ПО ' + kbSvDat().toUpperCase());
+lines.push('Выпуск ' + stamp(D.bucket) + ' МСК');
+lines.push('');
+lines.push(fl(D.fuel) + ': ' + T.fuelN + ' из ' + T.known + ' АЗС · окон привоза: ' + T.wins + ' · очередей: ' + T.q);
+lines.push('');
+lines.push('ГОРОДА:');
+D.cities.forEach(function (c) {
+lines.push('• ' + c.name + ' — ' + c.fuelN + '/' + c.known + ' (' + levelWord(c.level) + ')' + (c.wins[0] ? ', окно ' + t5(c.wins[0].pred.from_time) + '–' + t5(c.wins[0].pred.to_time) : ''));
+});
+if (D.wins.length) {
+lines.push('');
+lines.push('БЛИЖАЙШИЕ ОКНА:');
+D.wins.slice(0, 5).forEach(function (w) {
+lines.push('• ' + w.city + ', ' + (w.st.name || 'АЗС') + ' — ' + t5(w.pred.from_time) + '–' + t5(w.pred.to_time) + ' · ' + fl(w.pred.fuel_type) + ' · ' + w.conf + '%');
+});
+}
+lines.push('');
+lines.push('Живая карта и прогнозы: ' + SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=svodka');
+return lines.join('\n');
+}
+function wrap(g, text, x, y, maxW, lh) {
+var words = String(text).split(' '), line = '';
+for (var i = 0; i < words.length; i++) {
+var test = line ? line + ' ' + words[i] : words[i];
+if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); y += lh; line = words[i]; }
+else line = test;
+}
+if (line) g.fillText(line, x, y);
+return y;
+}
+function digestImage(D) {
+return new Promise(function (res) {
+var W = 1080, Hh = 1440;
+var cv = document.createElement('canvas');
+cv.width = W; cv.height = Hh;
+var g = cv.getContext('2d');
+var bg = g.createLinearGradient(0, 0, W, Hh);
+bg.addColorStop(0, '#12203f'); bg.addColorStop(.55, '#0e1730'); bg.addColorStop(1, '#0a1024');
+g.fillStyle = bg; g.fillRect(0, 0, W, Hh);
+var glow = g.createRadialGradient(W - 140, 120, 20, W - 140, 120, 420);
+glow.addColorStop(0, 'rgba(36,101,238,.45)'); glow.addColorStop(1, 'rgba(36,101,238,0)');
+g.fillStyle = glow; g.fillRect(0, 0, W, 600);
+var glow2 = g.createRadialGradient(120, Hh - 200, 20, 120, Hh - 200, 420);
+glow2.addColorStop(0, 'rgba(25,183,122,.28)'); glow2.addColorStop(1, 'rgba(25,183,122,0)');
+g.fillStyle = glow2; g.fillRect(0, Hh - 620, W, 620);
+g.fillStyle = 'rgba(255,255,255,.62)'; g.font = '800 30px system-ui,sans-serif';
+g.fillText('КОГДАБЕНЗ · АВТОВЫПУСК КАЖДЫЕ 4 ЧАСА', 60, 76);
+g.fillStyle = '#fff'; g.font = '900 ' + (kbSvNw() ? 54 : 74) + 'px system-ui,sans-serif';
+g.fillText('СВОДКА ПО ' + kbSvDat().toUpperCase(), 60, 158);
+g.fillStyle = '#7db4ff'; g.font = '800 34px system-ui,sans-serif';
+g.fillText(stamp(D.bucket) + ' МСК · ' + D.cities.length + ' городов · ' + D.T.total + ' АЗС', 60, 210);
+var T = D.T;
+var cards = [
+{ v: T.fuelN, l: fl(D.fuel), c: '#2fd39a' },
+{ v: T.wins, l: 'окон привоза', c: '#7db4ff' },
+{ v: T.q, l: 'очередей', c: '#f5a05a' }
+];
+cards.forEach(function (c, i) {
+var x = 60 + i * 325, y = 250;
+g.fillStyle = 'rgba(255,255,255,.07)';
+g.beginPath(); g.roundRect ? g.roundRect(x, y, 300, 130, 22) : g.rect(x, y, 300, 130); g.fill();
+g.fillStyle = c.c; g.font = '900 62px system-ui,sans-serif';
+g.fillText(String(c.v), x + 24, y + 76);
+g.fillStyle = 'rgba(255,255,255,.7)'; g.font = '700 26px system-ui,sans-serif';
+g.fillText(c.l, x + 24, y + 110);
+});
+g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '900 26px system-ui,sans-serif';
+g.fillText('ГОРОДА · ' + fl(D.fuel) + ' ЕСТЬ / С ДАННЫМИ', 60, 440);
 g.textAlign = 'right'; g.fillText('ОКНО ПРИВОЗА', W - 60, 440); g.textAlign = 'left';
-      var y = 480;
-      D.cities.slice(0, 11).forEach(function (c) {
-        g.fillStyle = COL[c.level];
-        g.beginPath(); g.arc(72, y - 9, 9, 0, 7); g.fill();
-        g.fillStyle = '#fff'; g.font = '800 32px system-ui,sans-serif';
-        g.fillText(c.name, 96, y);
-        g.fillStyle = 'rgba(255,255,255,.55)'; g.font = '700 26px system-ui,sans-serif';
-        g.fillText(levelWord(c.level), 470, y);
-        g.fillStyle = '#fff'; g.font = '900 32px system-ui,sans-serif';
-        g.textAlign = 'right';
-        g.fillText(c.fuelN + '/' + c.known, 760, y);
-        g.fillStyle = '#7db4ff'; g.font = '800 27px system-ui,sans-serif';
-        g.fillText(c.wins[0] ? t5(c.wins[0].pred.from_time) + '–' + t5(c.wins[0].pred.to_time) : '—', W - 60, y);
-        g.textAlign = 'left';
-        y += 46;
-      });
-
-      y += 24;
-      g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '900 26px system-ui,sans-serif';
-      g.fillText('БЛИЖАЙШИЕ ОКНА ПРИВОЗА · КОГДА ОБЫЧНО ВОЗВРАЩАЕТСЯ', 60, y);
-      y += 44;
-      D.wins.slice(0, 3).forEach(function (w) {
-        g.fillStyle = '#fff'; g.font = '800 30px system-ui,sans-serif';
-        wrap(g, w.city + ' · ' + (w.st.name || 'АЗС') + (w.st.address ? ' · ' + w.st.address : ''), 60, y, 640, 32);
-        g.fillStyle = '#2fd39a'; g.font = '900 30px system-ui,sans-serif';
-        g.textAlign = 'right';
-        g.fillText(t5(w.pred.from_time) + '–' + t5(w.pred.to_time) + '  ' + w.conf + '%', W - 60, y);
-        g.textAlign = 'left';
-        y += 78;
-      });
-
-      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(60, Hh - 118, W - 120, 2);
-      g.fillStyle = '#fff'; g.font = '900 40px system-ui,sans-serif';
-      g.fillText('kogdabenz.ru', 60, Hh - 58);
-      g.fillStyle = 'rgba(255,255,255,.55)'; g.font = '700 26px system-ui,sans-serif';
-      g.textAlign = 'right';
-      g.fillText('прогноз — вероятность, не гарантия', W - 60, Hh - 60);
-      g.textAlign = 'left';
-
-      cv.toBlob(function (b) { res(b); }, 'image/png');
-    });
-  }
-
-  function copyText(txt) {
-    function ok() { toast('Текст сводки скопирован — отправьте в чат'); }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(txt).then(ok).catch(fb);
-    } else fb();
-    function fb() {
-      var ta = document.createElement('textarea');
-      ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); ok(); } catch (e) { toast('Не удалось скопировать'); }
-      document.body.removeChild(ta);
-    }
-  }
-
-  async function shareDigest() {
-    if (!DATA) return;
-    try { track('svodka_share', null, null); } catch (e) {}
-    var txt = digestText(DATA);
-    var url = SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=svodka';
-    try {
-      if (navigator.share) {
-        var payload = { title: 'КогдаБенз · Сводка по Югу', text: txt, url: url };
-        try {
-          var blob = await digestImage(DATA);
-          if (blob && navigator.canShare) {
-            var file = new File([blob], 'kogdabenz-svodka.png', { type: 'image/png' });
-            if (navigator.canShare({ files: [file] })) payload.files = [file];
-          }
-        } catch (e) {}
-        await navigator.share(payload);
-        try { track('svodka_share_done', null, null); } catch (e) {}
-        return;
-      }
-    } catch (e) { if (e && e.name === 'AbortError') return; }
-    copyText(txt);
-  }
-
-  // ---------- события ----------
-  document.addEventListener('click', function (e) {
-    var t = e.target;
-    if (!t || !t.closest) return;
-    var card = t.closest('#kbSvCard');
-    if (!card) return;
-
-    if (lsGet('kbSvSeen', 0) !== bucketStart()) {
-      lsSet('kbSvSeen', bucketStart());
-      var nb = card.querySelector('.kbs-new');
-      if (nb) nb.remove();
-    }
-
-    var f = t.closest('[data-kbs-fuel]');
-    if (f) { lsSet('kbSvFuel', f.getAttribute('data-kbs-fuel')); render(); return; }
-    var only = t.closest('[data-kbs-only]');
-    if (only) { lsSet('kbSvOnlyWin', !prefOnlyWin()); render(); return; }
-    var city = t.closest('[data-kbs-city]');
-    if (city) {
-      var k = city.getAttribute('data-kbs-city');
-      var i = openSet.indexOf(k);
-      if (i >= 0) openSet.splice(i, 1); else openSet.push(k);
-      ssSet('kbSvOpen', openSet);
-      try { track('svodka_city', null, null); } catch (er) {}
-      render();
-      return;
-    }
-    var st = t.closest('[data-kbs-st]');
-    if (st) {
-      var id = st.getAttribute('data-kbs-st');
-      try { track('svodka_station', null, id); } catch (er) {}
-      try { openSheet(id); } catch (er) {}
-      return;
-    }
-    if (t.closest('[data-kbs-share]')) { shareDigest(); return; }
-    if (t.closest('[data-kbs-copy]')) {
-      if (!DATA) return;
-      try { track('svodka_copy', null, null); } catch (er) {}
-      copyText(digestText(DATA));
-      return;
-    }
-    if (t.closest('[data-kbs-seo]')) { try { track('svodka_seo', null, null); } catch (er) {} return; }
-  }, true);
-
-  document.addEventListener('change', function (e) {
-    var s = e.target;
-    if (!s || !s.closest || !s.closest('#kbSvCard')) return;
-    if (s.matches('[data-kbs-sort]')) { lsSet('kbSvSort', s.value); render(); }
-  }, true);
-
-  // ---------- размещение и хуки ----------
-  function mount() {
-    var card = document.getElementById('kbSvCard');
-    if (!card) {
-      card = document.createElement('div');
-      card.id = 'kbSvCard';
-    }
-    var anchor = document.getElementById('ctmCard') || document.getElementById('lentiBox');
-    if (anchor && anchor.parentNode) {
-      if (card.parentNode !== anchor.parentNode || card.previousElementSibling !== anchor) {
-        anchor.parentNode.insertBefore(card, anchor.nextSibling);
-      }
-    } else {
-      var panels = document.querySelectorAll('.panel');
-      var host = panels[1];
-      if (host && card.parentNode !== host) host.insertBefore(card, host.firstChild);
-    }
-    if (!card.innerHTML) schedule();
-  }
-
-  if (typeof softRefresh === 'function') {
-    var _sr = softRefresh;
-    softRefresh = function () { _sr(); schedule(); };
-  }
-  if (typeof renderNow === 'function') {
-    var _rn = renderNow;
-    renderNow = function () { var r = _rn(); schedule(); return r; };
-  }
-
-  mount();
-  setTimeout(mount, 900);
-  setTimeout(mount, 2600);
-  setTimeout(function () { try { render(); } catch (e) {} }, 1800);
-  setInterval(mount, 5000);
-  setInterval(tick, 30000);
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') { tick(); schedule(); }
-  });
+var y = 480;
+D.cities.slice(0, 11).forEach(function (c) {
+g.fillStyle = COL[c.level];
+g.beginPath(); g.arc(72, y - 9, 9, 0, 7); g.fill();
+g.fillStyle = '#fff'; g.font = '800 32px system-ui,sans-serif';
+g.fillText(c.name, 96, y);
+g.fillStyle = 'rgba(255,255,255,.55)'; g.font = '700 26px system-ui,sans-serif';
+g.fillText(levelWord(c.level), 470, y);
+g.fillStyle = '#fff'; g.font = '900 32px system-ui,sans-serif';
+g.textAlign = 'right';
+g.fillText(c.fuelN + '/' + c.known, 760, y);
+g.fillStyle = '#7db4ff'; g.font = '800 27px system-ui,sans-serif';
+g.fillText(c.wins[0] ? t5(c.wins[0].pred.from_time) + '–' + t5(c.wins[0].pred.to_time) : '—', W - 60, y);
+g.textAlign = 'left';
+y += 46;
+});
+y += 24;
+g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '900 26px system-ui,sans-serif';
+g.fillText('БЛИЖАЙШИЕ ОКНА ПРИВОЗА · КОГДА ОБЫЧНО ВОЗВРАЩАЕТСЯ', 60, y);
+y += 44;
+D.wins.slice(0, 3).forEach(function (w) {
+g.fillStyle = '#fff'; g.font = '800 30px system-ui,sans-serif';
+wrap(g, w.city + ' · ' + (w.st.name || 'АЗС') + (w.st.address ? ' · ' + w.st.address : ''), 60, y, 640, 32);
+g.fillStyle = '#2fd39a'; g.font = '900 30px system-ui,sans-serif';
+g.textAlign = 'right';
+g.fillText(t5(w.pred.from_time) + '–' + t5(w.pred.to_time) + '  ' + w.conf + '%', W - 60, y);
+g.textAlign = 'left';
+y += 78;
+});
+g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(60, Hh - 118, W - 120, 2);
+g.fillStyle = '#fff'; g.font = '900 40px system-ui,sans-serif';
+g.fillText('kogdabenz.ru', 60, Hh - 58);
+g.fillStyle = 'rgba(255,255,255,.55)'; g.font = '700 26px system-ui,sans-serif';
+g.textAlign = 'right';
+g.fillText('прогноз — вероятность, не гарантия', W - 60, Hh - 60);
+g.textAlign = 'left';
+cv.toBlob(function (b) { res(b); }, 'image/png');
+});
+}
+function copyText(txt) {
+function ok() { toast('Текст сводки скопирован — отправьте в чат'); }
+if (navigator.clipboard && navigator.clipboard.writeText) {
+navigator.clipboard.writeText(txt).then(ok).catch(fb);
+} else fb();
+function fb() {
+var ta = document.createElement('textarea');
+ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+document.body.appendChild(ta); ta.select();
+try { document.execCommand('copy'); ok(); } catch (e) { toast('Не удалось скопировать'); }
+document.body.removeChild(ta);
+}
+}
+async function shareDigest() {
+if (!DATA) return;
+try { track('svodka_share', null, null); } catch (e) {}
+var txt = digestText(DATA);
+var url = SITE + '/?utm_source=share&utm_medium=driver&utm_campaign=svodka';
+try {
+if (navigator.share) {
+var payload = { title: 'КогдаБенз · ' + kbSvTitle(), text: txt, url: url };
+try {
+var blob = await digestImage(DATA);
+if (blob && navigator.canShare) {
+var file = new File([blob], 'kogdabenz-svodka.png', { type: 'image/png' });
+if (navigator.canShare({ files: [file] })) payload.files = [file];
+}
+} catch (e) {}
+await navigator.share(payload);
+try { track('svodka_share_done', null, null); } catch (e) {}
+return;
+}
+} catch (e) { if (e && e.name === 'AbortError') return; }
+copyText(txt);
+}
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+var card = t.closest('#kbSvCard');
+if (!card) return;
+if (lsGet('kbSvSeen_' + kbSvRegion(), 0) !== bucketStart()) {
+lsSet('kbSvSeen_' + kbSvRegion(), bucketStart());
+var nb = card.querySelector('.kbs-new');
+if (nb) nb.remove();
+}
+var f = t.closest('[data-kbs-fuel]');
+if (f) { lsSet('kbSvFuel', f.getAttribute('data-kbs-fuel')); render(); return; }
+var only = t.closest('[data-kbs-only]');
+if (only) { lsSet('kbSvOnlyWin', !prefOnlyWin()); render(); return; }
+var city = t.closest('[data-kbs-city]');
+if (city) {
+var k = city.getAttribute('data-kbs-city');
+var i = openSet.indexOf(k);
+if (i >= 0) openSet.splice(i, 1); else openSet.push(k);
+ssSet('kbSvOpen', openSet);
+try { track('svodka_city', null, null); } catch (er) {}
+render();
+return;
+}
+var st = t.closest('[data-kbs-st]');
+if (st) {
+var id = st.getAttribute('data-kbs-st');
+try { track('svodka_station', null, id); } catch (er) {}
+try { openSheet(id); } catch (er) {}
+return;
+}
+if (t.closest('[data-kbs-share]')) { shareDigest(); return; }
+if (t.closest('[data-kbs-copy]')) {
+if (!DATA) return;
+try { track('svodka_copy', null, null); } catch (er) {}
+copyText(digestText(DATA));
+return;
+}
+if (t.closest('[data-kbs-seo]')) { try { track('svodka_seo', null, null); } catch (er) {} return; }
+}, true);
+document.addEventListener('change', function (e) {
+var s = e.target;
+if (!s || !s.closest || !s.closest('#kbSvCard')) return;
+if (s.matches('[data-kbs-sort]')) { lsSet('kbSvSort', s.value); render(); }
+}, true);
+function mount() {
+var card = document.getElementById('kbSvCard');
+if (!card) { card = document.createElement('div'); card.id = 'kbSvCard'; }
+var anchor = document.getElementById('ctmCard') || document.getElementById('lentiBox');
+if (anchor && anchor.parentNode) {
+if (card.parentNode !== anchor.parentNode || card.previousElementSibling !== anchor) {
+anchor.parentNode.insertBefore(card, anchor.nextSibling);
+}
+} else {
+var panels = document.querySelectorAll('.panel');
+var host = panels[1];
+if (host && card.parentNode !== host) host.insertBefore(card, host.firstChild);
+}
+if (!card.innerHTML) schedule();
+}
+if (typeof softRefresh === 'function') {
+var _sr = softRefresh;
+softRefresh = function () { _sr(); schedule(); };
+}
+if (typeof renderNow === 'function') {
+var _rn = renderNow;
+renderNow = function () { var r = _rn(); schedule(); return r; };
+}
+// следим за сменой региона даже без перерисовки панелей
+var lastReg = kbSvRegion();
+setInterval(function () {
+var r = kbSvRegion();
+if (r !== lastReg) { lastReg = r; schedule(); }
+}, 1200);
+mount();
+setTimeout(mount, 900);
+setTimeout(mount, 2600);
+setTimeout(function () { try { render(); } catch (e) {} }, 1800);
+setInterval(mount, 5000);
+setInterval(tick, 30000);
+document.addEventListener('visibilitychange', function () {
+if (document.visibilityState === 'visible') { tick(); schedule(); }
+});
 })();
 // ============================================================
 // KB CARD POLISH v1 — аккуратная и красивая карточка АЗС.
@@ -15018,4 +15028,494 @@ loop();
 document.addEventListener('visibilitychange', function () {
 if (document.visibilityState === 'visible') tick();
 });
+})();
+// ============================================================
+// KB REGIONS + TILE ECG v1
+// 1) Два региона: Юг и Северо-Запад. Тумблер под шапкой, приписка
+//    в названии (юг / северо-запад), авто по геолокации + ручной
+//    выбор с памятью. Переключение меняет город, список, ленту,
+//    пульс, теплокарту, топ-3, советник, волны и камеру карты.
+// 2) Белая кардиограмма активности АЗС внутри плиток теплокарты
+//    города (события с 00:00, честно: тихо = прямая линия).
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbRegionsEcg) return;
+window.__kbRegionsEcg = 1;
+
+// ---------- города Северо-Запада (юг остаётся в CITY_BOXES как был) ----------
+var NW_BOXES = [
+{ key: 'spb',          name: 'Санкт-Петербург',  nameIn: 'Санкт-Петербурге',  lat1: 59.80, lat2: 60.10, lon1: 30.05, lon2: 30.55 },
+{ key: 'vsevolozhsk',  name: 'Всеволожск',       nameIn: 'Всеволожске',       lat1: 59.95, lat2: 60.12, lon1: 30.55, lon2: 30.82 },
+{ key: 'kolpino',      name: 'Колпино',          nameIn: 'Колпине',           lat1: 59.66, lat2: 59.82, lon1: 30.45, lon2: 30.75 },
+{ key: 'gatchina',     name: 'Гатчина',          nameIn: 'Гатчине',           lat1: 59.48, lat2: 59.66, lon1: 29.95, lon2: 30.32 },
+{ key: 'sosnovybor',   name: 'Сосновый Бор',     nameIn: 'Сосновом Бору',     lat1: 59.80, lat2: 59.99, lon1: 28.90, lon2: 29.32 },
+{ key: 'ustluga',      name: 'Усть-Луга',        nameIn: 'Усть-Луге',         lat1: 59.58, lat2: 59.78, lon1: 28.15, lon2: 28.50 },
+{ key: 'vyborg',       name: 'Выборг',           nameIn: 'Выборге',           lat1: 60.58, lat2: 60.84, lon1: 28.55, lon2: 29.00 },
+{ key: 'luga',         name: 'Луга',             nameIn: 'Луге',              lat1: 58.62, lat2: 58.84, lon1: 29.68, lon2: 30.02 },
+{ key: 'vnovgorod',    name: 'Великий Новгород', nameIn: 'Великом Новгороде', lat1: 58.44, lat2: 58.64, lon1: 31.08, lon2: 31.48 },
+{ key: 'kirishi',      name: 'Кириши',           nameIn: 'Киришах',           lat1: 59.36, lat2: 59.54, lon1: 31.88, lon2: 32.18 },
+{ key: 'volhov',       name: 'Волхов',           nameIn: 'Волхове',           lat1: 59.84, lat2: 60.02, lon1: 32.18, lon2: 32.50 },
+{ key: 'tikhvin',      name: 'Тихвин',           nameIn: 'Тихвине',           lat1: 59.56, lat2: 59.74, lon1: 33.38, lon2: 33.68 },
+{ key: 'sortavala',    name: 'Сортавала',        nameIn: 'Сортавале',         lat1: 61.60, lat2: 61.80, lon1: 30.52, lon2: 30.88 },
+{ key: 'petrozavodsk', name: 'Петрозаводск',     nameIn: 'Петрозаводске',     lat1: 61.68, lat2: 61.90, lon1: 34.18, lon2: 34.52 }
+];
+var ALL_BOXES = CITY_BOXES.concat(NW_BOXES);
+function kbBoxes() { return userRegion === 'nw' ? NW_BOXES : CITY_BOXES; }
+function kbGeoRegion(loc) { return (loc && Number(loc.lat) >= 53) ? 'nw' : 'south'; }
+window.kbRegionBoxes = { south: CITY_BOXES, nw: NW_BOXES, all: ALL_BOXES };
+window.kbRegionGet = function () { return userRegion; };
+function kbRegionWord() { return userRegion === 'nw' ? 'северо-запад' : 'юг'; }
+function kbRegionTitle() { return userRegion === 'nw' ? 'Северо-Запад' : 'Юг'; }
+
+// ---------- состояние региона ----------
+var userRegion = 'south';
+var regionManual = false;
+try {
+var savedR = localStorage.getItem('kbRegion');
+if (savedR === 'nw' || savedR === 'south') userRegion = savedR;
+regionManual = localStorage.getItem('kbRegionManual') === '1';
+} catch (e) {}
+// ---------- палитра ----------
+(function css() {
+if (document.getElementById('kbRegionsEcgCss')) return;
+var s = document.createElement('style');
+s.id = 'kbRegionsEcgCss';
+var L = [];
+L.push('.kb-region{display:flex;align-items:center;justify-content:center;gap:6px;margin:0 0 6px;}');
+L.push('.kb-region-seg{position:relative;display:inline-flex;align-items:center;gap:2px;padding:3px;border-radius:99px;');
+L.push('background:rgba(255,255,255,.82);border:1px solid #dfe8f2;box-shadow:0 4px 14px rgba(38,69,120,.10),inset 0 1px 0 rgba(255,255,255,.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);}');
+L.push('.kb-region-thumb{position:absolute;top:3px;bottom:3px;left:3px;width:60px;border-radius:99px;z-index:0;');
+L.push('background:linear-gradient(135deg,#ffb46a,#f5a05a 55%,#e05a2b);box-shadow:0 3px 10px rgba(224,90,43,.4),inset 0 1px 0 rgba(255,255,255,.5);');
+L.push('transition:left .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1),background .3s;}');
+L.push('.kb-region-thumb.nw{background:linear-gradient(135deg,#38bdf8,#2465ee 55%,#1746c8);box-shadow:0 3px 10px rgba(36,101,238,.45),inset 0 1px 0 rgba(255,255,255,.45);}');
+L.push('.kb-region-seg button{position:relative;z-index:1;display:inline-flex;align-items:center;gap:5px;border:0;background:none;cursor:pointer;');
+L.push('border-radius:99px;padding:6px 13px;font-family:inherit;font-size:11px;font-weight:800;color:#7487a7;white-space:nowrap;transition:color .25s;}');
+L.push('.kb-region-seg button .ic{width:12px;height:12px;}');
+L.push('.kb-region-seg button.on{color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.18);}');
+L.push('.kb-region-seg button:active{transform:scale(.96);}');
+L.push('.kb-region-dot{display:none;width:5px;height:5px;border-radius:50%;background:#d9ffe9;box-shadow:0 0 0 2px rgba(255,255,255,.25);animation:kbRegDot 1.8s infinite;}');
+L.push('.kb-region.is-auto .kb-region-seg button.on .kb-region-dot{display:inline-block;}');
+L.push('@keyframes kbRegDot{0%,100%{opacity:1}50%{opacity:.35}}');
+L.push('.kb-region-auto{display:none;width:28px;height:28px;border-radius:50%;border:1px solid #bcd4ff;background:#eef4ff;color:#2465ee;cursor:pointer;place-items:center;box-shadow:0 3px 8px rgba(36,101,238,.18);}');
+L.push('.kb-region-auto .ic{width:13px;height:13px;}');
+L.push('.kb-region-auto:active{transform:scale(.92);}');
+L.push('body.kb-night .kb-region-seg{background:rgba(13,18,32,.82);border-color:rgba(148,180,255,.18);box-shadow:0 6px 16px rgba(0,0,0,.45),inset 0 1px 0 rgba(148,180,255,.08);}');
+L.push('body.kb-night .kb-region-seg button{color:#8b98b3;}');
+L.push('body.kb-night .kb-region-seg button.on{color:#fff;}');
+L.push('body.kb-night .kb-region-auto{background:rgba(91,157,255,.12);border-color:rgba(91,157,255,.35);color:#9dc4ff;}');
+L.push('body.kb-lite .kb-region-dot{animation:none;}');
+L.push('@media (prefers-reduced-motion:reduce){.kb-region-thumb{transition:none}.kb-region-dot{animation:none}}');
+// приписка в шапке: длинное слово не рвёт бар
+L.push('.slim-ver{min-width:0;}');
+L.push('body.kb-region-nw .slim-sup{font-size:7px;letter-spacing:0;top:-4px;}');
+L.push('body.kb-region-nw .slim-name{font-size:12px;}');
+L.push('body.kb-region-nw .slim-ver .slim-name::after{background:linear-gradient(90deg,#38bdf8,#2465ee 65%,rgba(56,189,248,.25));}');
+L.push('@media(max-width:380px){body.kb-region-nw .slim-sup{font-size:6px;}body.kb-region-nw .slim-name{font-size:11px;}.kb-region-seg button{padding:6px 10px;font-size:10.5px;}}');
+// тост региона
+L.push('.kb-reg-toast{position:fixed;left:50%;top:calc(100px + env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:130;');
+L.push('background:#14213d;color:#fff;border-radius:12px;padding:9px 15px;font-size:12px;font-weight:800;box-shadow:0 12px 30px rgba(15,27,51,.4);');
+L.push('opacity:0;pointer-events:none;transition:.3s cubic-bezier(.2,.8,.2,1);white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kb-reg-toast.on{opacity:1;transform:translate(-50%,0);}');
+L.push('body.kb-night .kb-reg-toast{background:#1a2234;border:1px solid rgba(148,180,255,.25);}');
+// ---------- кардиограмма в плитках ----------
+L.push('.ctm-ecg{position:absolute;left:0;top:16%;width:100%;height:68%;pointer-events:none;z-index:0;overflow:visible;}');
+L.push('.ctm-ecg path{fill:none;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke;}');
+L.push('.ctm-ecg-shadow{stroke:rgba(10,18,38,.28);stroke-width:3.5px;}');
+L.push('.ctm-ecg-glow{stroke:rgba(255,255,255,.20);stroke-width:6px;}');
+L.push('.ctm-ecg-line{stroke:#fff;stroke-width:1.8px;stroke-dasharray:100;stroke-dashoffset:0;animation:ctmEcgDraw 1.1s cubic-bezier(.3,.7,.3,1) both;}');
+L.push('.ctm-ecg.flat .ctm-ecg-line{opacity:.4;}');
+L.push('.ctm-ecg.flat .ctm-ecg-glow{opacity:.4;}');
+L.push('@keyframes ctmEcgDraw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}');
+L.push('.ctm-ecg-dot{fill:#fff;stroke:rgba(10,18,38,.25);stroke-width:.5;transform-box:fill-box;transform-origin:center;animation:ctmEcgDot 1.6s ease-in-out infinite;}');
+L.push('@keyframes ctmEcgDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(1.55)}}');
+L.push('body.kb-lite .ctm-ecg-line,body.kb-lite .ctm-ecg-dot{animation:none;}');
+L.push('@media (prefers-reduced-motion:reduce){.ctm-ecg-line,.ctm-ecg-dot{animation:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+
+function kbToast(msg) {
+var t = document.getElementById('kbRegToast');
+if (!t) { t = document.createElement('div'); t.id = 'kbRegToast'; t.className = 'kb-reg-toast'; document.body.appendChild(t); }
+t.textContent = msg;
+t.classList.add('on');
+clearTimeout(t._tm);
+t._tm = setTimeout(function () { t.classList.remove('on'); }, 2600);
+}
+
+// ---------- тумблер ----------
+var segEl = null, thumbEl = null, autoBtn = null, rowEl = null;
+function kbBuildRow() {
+if (document.getElementById('kbRegionRow')) return;
+var lb = document.getElementById('lentiBox');
+if (!lb || !lb.parentNode) return;
+var anchor = lb.previousElementSibling;
+if (!(anchor && anchor.classList && anchor.classList.contains('kb-glow'))) anchor = lb;
+rowEl = document.createElement('div');
+rowEl.className = 'kb-region'; rowEl.id = 'kbRegionRow';
+rowEl.innerHTML =
+'<span class="kb-region-seg" id="kbRegionSeg">' +
+'<i class="kb-region-thumb" id="kbRegionThumb"></i>' +
+'<button type="button" data-kbregion="south"><svg class="ic"><use href="#i-sun"/></svg>Юг<i class="kb-region-dot"></i></button>' +
+'<button type="button" data-kbregion="nw"><svg class="ic"><use href="#i-nav"/></svg>Северо-Запад<i class="kb-region-dot"></i></button>' +
+'</span>' +
+'<button type="button" class="kb-region-auto" id="kbRegionAuto" title="Вернуть автовыбор по геолокации" aria-label="Вернуть автовыбор по геолокации"><svg class="ic"><use href="#i-pin"/></svg></button>';
+anchor.parentNode.insertBefore(rowEl, anchor);
+segEl = document.getElementById('kbRegionSeg');
+thumbEl = document.getElementById('kbRegionThumb');
+autoBtn = document.getElementById('kbRegionAuto');
+}
+function kbPlaceThumb() {
+if (!segEl || !thumbEl) return;
+var b = segEl.querySelector('[data-kbregion="' + userRegion + '"]');
+if (!b) return;
+thumbEl.style.left = b.offsetLeft + 'px';
+thumbEl.style.width = b.offsetWidth + 'px';
+thumbEl.classList.toggle('nw', userRegion === 'nw');
+}
+function kbRealLoc() {
+var l = loadUserLocation();
+return (l && !l.kbCityAnchor) ? l : null;
+}
+function kbSyncUI() {
+var word = kbRegionWord();
+document.querySelectorAll('.slim-sup,.logo-sup').forEach(function (el) { if (el.textContent !== word) el.textContent = word; });
+document.body.classList.toggle('kb-region-nw', userRegion === 'nw');
+document.body.classList.toggle('kb-region-south', userRegion !== 'nw');
+if (segEl) segEl.querySelectorAll('[data-kbregion]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-kbregion') === userRegion); });
+if (rowEl) rowEl.classList.toggle('is-auto', !regionManual && !!kbRealLoc());
+if (autoBtn) autoBtn.style.display = regionManual ? 'grid' : 'none';
+try {
+if (typeof WHY_MAP !== 'undefined' && WHY_MAP.wavePlate) {
+WHY_MAP.wavePlate.t = 'Соседи: обзор ' + (userRegion === 'nw' ? 'Северо-Запада' : 'юга');
+}
+} catch (e) {}
+requestAnimationFrame(kbPlaceThumb);
+}
+
+// ---------- полная перерисовка под новый регион ----------
+function kbRegionRefresh(fly) {
+try { var si = document.getElementById('searchInput'); if (si) si.value = ''; } catch (e) {}
+try { renderStations(cityStationList()); } catch (e) {}
+try { renderHeat(); } catch (e) {}
+try { lastWaveStats = allWaveEvents.length ? cityWaveStats() : null; renderWave(); } catch (e) {}
+try { if (mapObj) clearRoute(); } catch (e) {}
+try {
+if (mapObj && zoneReady) {
+renderMap();
+if (fly) {
+var c = cityBox(), loc = kbRealLoc();
+var clon = (c.lon1 + c.lon2) / 2, clat = (c.lat1 + c.lat2) / 2;
+mapObj.stop();
+mapObj.easeTo({ center: loc ? [loc.lon, loc.lat] : [clon, clat], zoom: loc ? 11.5 : 9.2, duration: 900 });
+}
+}
+} catch (e) {}
+try { miniFittedCity = null; renderMiniMap(); } catch (e) {}
+try { renderCityTreemap(); } catch (e) {}
+try { renderAdviceIfOpen(); } catch (e) {}
+try { loadPulse(); } catch (e) {}
+try { updateSlimBar(); updateMapPlate(); } catch (e) {}
+try { saveCache(); } catch (e) {}
+}
+
+function kbSetRegion(r, manual) {
+if (r !== 'south' && r !== 'nw') return;
+var changed = r !== userRegion;
+userRegion = r;
+if (manual) {
+regionManual = true;
+try { localStorage.setItem('kbRegionManual', '1'); localStorage.setItem('kbRegion', r); } catch (e) {}
+}
+var boxes = kbBoxes();
+if (!boxes.some(function (c) { return c.key === userCityKey; })) {
+var pick = boxes[0].key;
+var loc = kbRealLoc();
+if (loc && kbGeoRegion(loc) === r) {
+var best = null, bestD = 1e9;
+for (var i = 0; i < boxes.length; i++) {
+var c = boxes[i], clat = (c.lat1 + c.lat2) / 2, clon = (c.lon1 + c.lon2) / 2;
+var dLa = (loc.lat - clat) * 111, dLo = (loc.lon - clon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+var d = Math.sqrt(dLa * dLa + dLo * dLo);
+if (d < bestD) { bestD = d; best = c.key; }
+}
+if (best) pick = best;
+}
+userCityKey = pick;
+}
+kbSyncUI();
+if (changed) {
+try { track('region_switch'); } catch (e) {}
+kbToast('Регион: ' + kbRegionTitle() + ' · ' + userCityName());
+kbRegionRefresh(true);
+}
+}
+
+// ---------- регион-aware версии городских функций ----------
+userCityName = function () {
+var c = ALL_BOXES.find(function (x) { return x.key === userCityKey; });
+return c ? c.name : 'регион';
+};
+cityBox = function () {
+return ALL_BOXES.find(function (x) { return x.key === userCityKey; }) || kbBoxes()[0];
+};
+scopeIds = function () {
+var c = ALL_BOXES.find(function (x) { return x.key === userCityKey; });
+if (!c) return localIdsGlobal;
+return localIdsGlobal.filter(function (id) {
+var s = stationById(id);
+return s && s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2;
+});
+};
+detectUserCity = function () {
+var loc = loadUserLocation();
+if (!loc) return;
+var real = !loc.kbCityAnchor;
+var changed = false;
+if (real && !regionManual) {
+var r = kbGeoRegion(loc);
+if (r !== userRegion) {
+userRegion = r;
+try { localStorage.setItem('kbRegion', r); } catch (e) {}
+changed = true;
+}
+}
+var boxes = kbBoxes(), found = null, i, c;
+for (i = 0; i < boxes.length; i++) {
+c = boxes[i];
+if (loc.lat >= c.lat1 && loc.lat <= c.lat2 && loc.lon >= c.lon1 && loc.lon <= c.lon2) { found = c.key; break; }
+}
+if (!found) {
+var best = null, bestD = 60;
+for (i = 0; i < boxes.length; i++) {
+c = boxes[i];
+var clat = (c.lat1 + c.lat2) / 2, clon = (c.lon1 + c.lon2) / 2;
+var dLa = (loc.lat - clat) * 111, dLo = (loc.lon - clon) * 111 * Math.cos(loc.lat * Math.PI / 180);
+var d = Math.sqrt(dLa * dLa + dLo * dLo);
+if (d < bestD) { bestD = d; best = c.key; }
+}
+if (best) found = best;
+}
+if (found) userCityKey = found;
+else if (!boxes.some(function (x) { return x.key === userCityKey; })) userCityKey = boxes[0].key;
+kbSyncUI();
+if (changed) {
+kbToast('Регион по геолокации: ' + kbRegionTitle());
+kbRegionRefresh(true);
+}
+};
+cityGenitive = function () {
+var G = {
+novorossiysk: 'Новороссийска', gelendzhik: 'Геленджика', anapa: 'Анапы', krymsk: 'Крымска',
+krasnodar: 'Краснодара', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавира',
+maykop: 'Майкопа', rostov: 'Ростова-на-Дону', stavropol: 'Ставрополя',
+spb: 'Санкт-Петербурга', petrozavodsk: 'Петрозаводска', kirishi: 'Киришей',
+ustluga: 'Усть-Луги', vyborg: 'Выборга', vnovgorod: 'Великого Новгорода',
+tikhvin: 'Тихвина', luga: 'Луги', sortavala: 'Сортавалы', sosnovybor: 'Соснового Бора',
+gatchina: 'Гатчины', volhov: 'Волхова', vsevolozhsk: 'Всеволожска', kolpino: 'Колпина'
+};
+return G[userCityKey] || userCityName();
+};
+// волны «соседей» — только города активного региона
+cityWaveStats = function () {
+var now = Date.now(), H24 = 24 * 3600 * 1000, boxes = kbBoxes();
+var stCity = {};
+for (var si = 0; si < allStations.length; si++) {
+var s = allStations[si], k = null;
+for (var bi = 0; bi < boxes.length; bi++) {
+var c = boxes[bi];
+if (s.lat >= c.lat1 && s.lat <= c.lat2 && s.lon >= c.lon1 && s.lon <= c.lon2) { k = c.key; break; }
+}
+stCity[s.id] = k;
+}
+var acc = {};
+for (var ai = 0; ai < boxes.length; ai++) {
+var bc = boxes[ai];
+acc[bc.key] = { key: bc.key, name: bc.name, d24: 0, r24: 0, dPrev: 0, rPrev: 0 };
+}
+for (var ei = 0; ei < allWaveEvents.length; ei++) {
+var e = allWaveEvents[ei], kk = stCity[e.station_id];
+if (!kk) continue;
+var age = now - new Date(e.detected_at).getTime();
+if (age < 0 || age > 7 * H24) continue;
+var dis = e.event_type === 'fuel_disappeared';
+if (!dis && e.event_type !== 'fuel_restored') continue;
+if (age <= H24) { if (dis) acc[kk].d24++; else acc[kk].r24++; }
+else { if (dis) acc[kk].dPrev++; else acc[kk].rPrev++; }
+}
+for (var key in acc) {
+var a = acc[key];
+a.dBase = a.dPrev / 6; a.rBase = a.rPrev / 6;
+if (!(a.dPrev >= 12)) { a.level = 'calm'; a.noBase = true; continue; }
+var base = Math.max(1, a.dBase);
+a.level = (a.d24 >= 4 && a.d24 >= 3 * base) ? 'wave' : (a.d24 >= 3 && a.d24 >= 2 * base) ? 'tense' : 'calm';
+if (a.level === 'calm' && a.r24 >= 4 && a.r24 >= 3 * Math.max(1, a.rBase)) a.level = 'returns';
+}
+return acc;
+};
+// «на основе N АЗС Новороссийска» — честное имя текущего города
+var _getPrediction = getPrediction;
+getPrediction = function (pred) {
+var g = _getPrediction(pred);
+try {
+if (g && g.note && userCityKey !== 'novorossiysk' && g.note.indexOf('Новороссийска') >= 0) {
+g.note = g.note.replace('Новороссийска', cityGenitive());
+}
+} catch (e) {}
+return g;
+};
+// «Рядом» — явное желание гео: снимаем ручной регион
+var _findNearby = findNearby;
+findNearby = function () {
+regionManual = false;
+try { localStorage.removeItem('kbRegionManual'); } catch (e) {}
+return _findNearby();
+};
+
+// ---------- клики тумблера ----------
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+var b = t.closest('[data-kbregion]');
+if (b) { kbSetRegion(b.getAttribute('data-kbregion'), true); return; }
+if (t.closest('#kbRegionAuto')) {
+regionManual = false;
+try { localStorage.removeItem('kbRegionManual'); } catch (e) {}
+var loc = kbRealLoc();
+var r = loc ? kbGeoRegion(loc) : userRegion;
+kbSetRegion(r, false);
+kbToast(loc ? ('Автовыбор: ' + kbRegionTitle() + ' по геолокации') : 'Автовыбор включён — регион определится по геолокации');
+return;
+}
+}, true);
+window.addEventListener('resize', function () { requestAnimationFrame(kbPlaceThumb); });
+
+// ============================================================
+// Кардиограмма активности в плитках теплокарты города
+// ============================================================
+var ECG_N = 36;
+(function ecgFixCss() {
+if (document.getElementById('kbEcgFixCss')) return;
+var s = document.createElement('style');
+s.id = 'kbEcgFixCss';
+s.textContent =
+'.ctm-ecg{top:20%;height:40%;}' +
+'.ctm-ecg-dot{position:absolute;right:3px;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#fff;' +
+'box-shadow:0 0 0 1px rgba(10,18,38,.25),0 0 8px rgba(255,255,255,.75);pointer-events:none;z-index:0;' +
+'animation:ctmEcgDot 1.6s ease-in-out infinite;}' +
+'body.kb-lite .ctm-ecg-dot{animation:none;}' +
+'@media (prefers-reduced-motion:reduce){.ctm-ecg-dot{animation:none;}}';
+document.head.appendChild(s);
+})();
+function ecgSvgFor(id, T) {
+var since = ctmDay.since, now = ctmDay.nowMs;
+var end = Math.max(since + 60000, Math.min(T, now));
+var span = end - since;
+var list = ctmDay.perSt[id] || [];
+var bins = new Array(ECG_N).fill(0), any = false;
+for (var i = 0; i < list.length; i++) {
+var x = list[i];
+if (x.t > end) continue;
+var bi = Math.min(ECG_N - 1, Math.floor((x.t - since) / span * ECG_N));
+bins[bi] += x.w; any = true;
+}
+var W = 100, B = 22, step = W / ECG_N;
+var d = 'M0 ' + B;
+for (var k = 0; k < ECG_N; k++) {
+var a = bins[k];
+if (!(a > 0)) continue;
+var cx = k * step + step / 2;
+var h = 7 + Math.min(13, a * 1.8);
+d += ' L' + (cx - step * 0.30).toFixed(1) + ' ' + B;
+d += ' L' + (cx - step * 0.16).toFixed(1) + ' ' + (B - 2.2).toFixed(1);
+d += ' L' + (cx - step * 0.05).toFixed(1) + ' ' + (B + 2.5).toFixed(1);
+d += ' L' + (cx + step * 0.06).toFixed(1) + ' ' + (B - h).toFixed(1);
+d += ' L' + (cx + step * 0.18).toFixed(1) + ' ' + (B + h * 0.38).toFixed(1);
+d += ' L' + (cx + step * 0.30).toFixed(1) + ' ' + B;
+}
+d += ' L100 ' + B;
+return '<svg class="ctm-ecg' + (any ? '' : ' flat') + '" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">' +
+'<path class="ctm-ecg-shadow" d="' + d + '" pathLength="100"/>' +
+'<path class="ctm-ecg-glow" d="' + d + '" pathLength="100"/>' +
+'<path class="ctm-ecg-line" d="' + d + '" pathLength="100"/>' +
+'</svg>';
+}
+// полоса кардиограммы = ТОЛЬКО свободное место между адресом и строками фактов
+function ecgPlace(el, svg) {
+var h = el.clientHeight || 0;
+if (!h) return;
+var addr = el.querySelector('.ctm-a');
+var rows = el.querySelector('.ctm-rows');
+var top = addr ? (addr.offsetTop + addr.offsetHeight + 5) : Math.round(h * 0.16);
+var bot = rows ? (rows.offsetTop - 5) : (h - 26);
+var band = bot - top;
+var dot = el.querySelector('.ctm-ecg-dot');
+if (band < 10) {
+svg.style.display = 'none';
+if (dot) dot.style.display = 'none';
+return;
+}
+svg.style.display = '';
+svg.style.top = top + 'px';
+svg.style.height = band + 'px';
+if (!dot) {
+el.insertAdjacentHTML('beforeend', '<i class="ctm-ecg-dot"></i>');
+dot = el.querySelector('.ctm-ecg-dot');
+}
+if (dot) { dot.style.display = ''; dot.style.top = (top + band / 2) + 'px'; }
+}
+function paintEcg() {
+if (typeof ctmDay === 'undefined' || !ctmDay) return;
+if (typeof ctmTileEls === 'undefined') return;
+var T = (ctmCurT != null) ? ctmCurT : ctmDay.nowMs;
+for (var id in ctmTileEls) {
+var el = ctmTileEls[id];
+if (!el || !el.isConnected) continue;
+var area = el.offsetWidth * el.offsetHeight;
+var svg = el.querySelector('.ctm-ecg');
+if (area <= 1200) {
+if (svg) svg.remove();
+var d0 = el.querySelector('.ctm-ecg-dot'); if (d0) d0.remove();
+continue;
+}
+var ev = 0, list = ctmDay.perSt[id] || [];
+for (var i = 0; i < list.length; i++) if (list[i].t <= T) ev++;
+var sig = 'v2|' + ev + '|' + (ctmCurT != null ? Math.round(T / 60000) : 'live');
+if (!svg || svg.dataset.sig !== sig) {
+var html = ecgSvgFor(id, T);
+if (svg) svg.outerHTML = html;
+else el.insertAdjacentHTML('afterbegin', html);
+svg = el.querySelector('.ctm-ecg');
+if (svg) svg.dataset.sig = sig;
+}
+if (svg) ecgPlace(el, svg);
+}
+}
+var ecgRaf = null;
+function scheduleEcg() {
+if (ecgRaf) return;
+ecgRaf = requestAnimationFrame(function () { ecgRaf = null; try { paintEcg(); } catch (e) {} });
+}
+var _rct = renderCityTreemap;
+renderCityTreemap = function () { var r = _rct(); scheduleEcg(); return r; };
+function watchEcg() {
+var body = document.getElementById('ctmBody');
+if (!body || body.__kbEcgWatch) return;
+body.__kbEcgWatch = true;
+new MutationObserver(scheduleEcg).observe(body, { childList: true, subtree: true });
+scheduleEcg();
+}
+setInterval(watchEcg, 1500);
+setInterval(function () { if (!document.hidden) scheduleEcg(); }, 60000);
+
+// ---------- запуск ----------
+kbBuildRow();
+kbSyncUI();
+var beforeCity = userCityKey, beforeRegion = userRegion;
+try { detectUserCity(); } catch (e) {}
+if (userCityKey !== beforeCity || userRegion !== beforeRegion) kbRegionRefresh(false);
+watchEcg();
+setTimeout(function () { kbBuildRow(); kbSyncUI(); kbPlaceThumb(); }, 900);
 })();

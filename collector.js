@@ -801,8 +801,8 @@ await tgUpstreamThrottled('⚠️ GdeBenz недоступен (похоже н�
 }
 if (upstreamDown) {
 await outageCrowdCycle();
+try { await require(require('path').join(__dirname, 'svodka.js')).run(); } catch (e) { console.log('   ! Сводки (svodka.js): ' + e.message); }
 await southDigest();
-try { await require(require('path').join(__dirname, 'svodka.js')).run(); } catch (e) { console.log('   ! Сводка юга: ' + e.message); }
 console.log('✅ Цикл завершён в аварийном режиме: толпа и уборка без источника');
 return;
 }
@@ -1434,9 +1434,9 @@ await tg('⚡ ' + hh + (total ? ' · ' + total : '') +
   (known ? '\n🏙 АИ-95: ' + avail + '/' + known : '') +
   body, true);
 }
+try { await require(require('path').join(__dirname, 'svodka.js')).run(); } catch (e) { console.log('   ! Сводки (svodka.js): ' + e.message); }
 await southDigest();
-try { await require(require('path').join(__dirname, 'svodka.js')).run(); } catch (e) { console.log('   ! Сводка юга: ' + e.message); }
-  console.log('✅ Цикл завершён');
+console.log('✅ Цикл завершён');
 }
 
 // === ШАГ 5.5: суточная сводка city_daily ===
