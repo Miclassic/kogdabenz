@@ -6639,7 +6639,7 @@ async function start() {
     bootDone();
   };
   try {
-    const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon');
+    const stations = await dbQueryAll('/rest/v1/stations?select=id,name,brand,address,lat,lon&or=(region.is.null,region.neq.northwest)');
     allStations = stations || [];
     bootLoadTotal = 16;
     bootReportLoad('станции');

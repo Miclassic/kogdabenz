@@ -27,7 +27,7 @@ const MIN_EVENTS_FULL = 12;
 const HISTORY_DAYS = 30;
 const MIN_WINDOW_MIN = 15;
 // Рамка всего юга (дом + донор Кубань+Адыгея): прогнозы и очереди по всем станциям
-const OWN_BOX = { lat1: 43.20, lat2: 46.10, lon1: 37.20, lon2: 41.60 };
+const OWN_BOX = { lat1: 43.20, lat2: 48.60, lon1: 37.20, lon2: 45.90 };
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -234,8 +234,9 @@ try {
   }
   const cityAvailShare = cityKnown ? cityAvail / cityKnown : null;
   const sixHoursAgo = Date.now() - 6 * 3600 * 1000;
-  const restores6h = restoredEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
-  const disappears6h = disappearedEvents.filter(e => new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+  const ownIdSet = new Set(stations.filter(isOwn).map(s => s.id));
+  const restores6h = restoredEvents.filter(e => ownIdSet.has(e.station_id) && new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+  const disappears6h = disappearedEvents.filter(e => ownIdSet.has(e.station_id) && new Date(e.detected_at).getTime() >= sixHoursAgo).length;
 
   let regime = cityAvailShare === null ? 'UNKNOWN' : 'NORMAL';
   if (cityAvailShare !== null && cityAvailShare < 0.60) {
