@@ -1,0 +1,587 @@
+name: Уплощение обёрток + честная плашка связи
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  flatten:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Правки
+        run: |
+          cat > flatten-app.js <<'EOF'
+          'use strict';
+          const fs = require('fs');
+          const vm = require('vm');
+          const FILE = process.argv[2] || 'app.js';
+          const orig = fs.readFileSync(FILE, 'utf8');
+          let src = orig;
+          const log = [];
+          function fail(msg) { console.error('ОТКАТ: ' + msg); console.log('Оригинал не тронут.'); process.exit(1); }
+          function rep(old, nw, label) {
+            const n = src.split(old).length - 1;
+            if (n !== 1) fail(label + ': найдено ' + n + ', ожидалось 1');
+            src = src.split(old).join(nw);
+            log.push(label);
+          }
+          // счётчик скобок с учётом строк/комментариев: конец блока от '{'
+          function blockEnd(s, i) {
+            let depth = 0, mode = null; const tpl = [];
+            for (let j = i; j < s.length; j++) {
+              const c = s[j], n = s[j + 1];
+              if (mode === '//') { if (c === '\n') mode = null; continue; }
+              if (mode === '/*') { if (c === '*' && n === '/') { mode = null; j++; } continue; }
+              if (mode === "'" || mode === '"') { if (c === '\\') { j++; continue; } if (c === mode) mode = null; continue; }
+              if (mode === '`') {
+                if (c === '\\') { j++; continue; }
+                if (c === '`') { mode = null; continue; }
+                if (c === '$' && n === '{') { tpl.push(depth); depth++; j++; mode = null; continue; }
+                continue;
+              }
+              if (c === '/' && n === '/') { mode = '//'; j++; continue; }
+              if (c === '/' && n === '*') { mode = '/*'; j++; continue; }
+              if (c === "'" || c === '"' || c === '`') { mode = c; continue; }
+              if (c === '{') { depth++; continue; }
+              if (c === '}') { depth--; if (depth === 0) return j + 1; if (tpl.length && depth === tpl[tpl.length - 1]) { tpl.pop(); mode = '`'; } }
+            }
+            return -1;
+          }
+
+          // ---- 1. Честная плашка: показываем «Нет связи» только если браузер реально offline ----
+          rep(
+          "// плашку «данные на ЧЧ:ММ» показываем только если сеть не успела за 4 сек\nsetTimeout(() => { if (!window.__netOk && !offlineMode) showOfflineBar(c.t); }, 4000);",
+          "// плашку «Нет связи» показываем только при реальном offline браузера,\n// а не просто потому что загрузка не успела за 4 сек (сеть может быть живой)\nsetTimeout(() => { if (!window.__netOk && !offlineMode && navigator.onLine === false) showOfflineBar(c.t); }, 4000);",
+          'плашка связи: только реальный offline');
+
+          // ---- 2. Единый конвейер вместо цепочки обёрток ----
+          const BOOT = `// === KB PIPELINE v1: одна обёртка на функцию, шаги регистрируются паками ===
+          window.__kbPipe = { advicePre: [], advice: [], card: [], now: [], soft: [] };
+          (function () {
+            var P = window.__kbPipe;
+            var bAdvice = renderAdvicePop;
+            renderAdvicePop = function () {
+              var ctx = {};
+              for (var i = 0; i < P.advicePre.length; i++) { try { P.advicePre[i](ctx); } catch (e) {} }
+              var ok = bAdvice();
+              ctx.ok = ok;
+              for (var j = 0; j < P.advice.length; j++) { try { P.advice[j](ctx); } catch (e) {} }
+              return ok;
+            };
+            var bCard = stationCard;
+            stationCard = function (st, obs, pred) {
+              var html = bCard(st, obs, pred);
+              var tpl = document.createElement('template');
+              tpl.innerHTML = html;
+              var root = tpl.content, art = root.querySelector('article.station');
+              for (var i = 0; i < P.card.length; i++) { try { P.card[i](root, art, st, obs, pred); } catch (e) {} }
+              return tpl.innerHTML;
+            };
+            var bNow = renderNow;
+            renderNow = function () { var r = bNow(); for (var i = 0; i < P.now.length; i++) { try { P.now[i](); } catch (e) {} } return r; };
+            var bSoft = softRefresh;
+            softRefresh = function () { bSoft(); for (var i = 0; i < P.soft.length; i++) { try { P.soft[i](); } catch (e) {} } };
+          })();
+          `;
+          const anchor = '// KB RETENTION PACK v1';
+          const ai = src.indexOf(anchor);
+          if (ai < 0) fail('не найден заголовок RETENTION PACK');
+          const lineStart = src.lastIndexOf('\n', ai) + 1;
+          src = src.slice(0, lineStart) + BOOT + src.slice(lineStart);
+          log.push('вставлен единый конвейер KB PIPELINE');
+
+          // ---- 3. renderAdvicePop: обёртки -> шаги ----
+          rep(`var _kbRenderAdvicePop = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _kbRenderAdvicePop();
+          try {
+          if (ok) {
+          var lead = document.querySelector('#advicePop .help-lead');
+          if (lead && lead.innerHTML.indexOf('Район:') < 0) {
+          var R = kbRadiusKm();
+          var txt = R > 0 ? 'сначала рядом ≤' + R + ' км' : 'весь город';
+          lead.innerHTML += ' <b style="color:#2465ee">Район: ' + escapeHtml(userCityName()) + '</b> — ' + txt + (kbHasRealGeo() ? ' (по геопозиции)' : ' (от центра города)') + '.';
+          }
+          }
+          } catch (e) {}
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) {
+          var ok = ctx.ok;
+          try {
+          if (ok) {
+          var lead = document.querySelector('#advicePop .help-lead');
+          if (lead && lead.innerHTML.indexOf('Район:') < 0) {
+          var R = kbRadiusKm();
+          var txt = R > 0 ? 'сначала рядом ≤' + R + ' км' : 'весь город';
+          lead.innerHTML += ' <b style="color:#2465ee">Район: ' + escapeHtml(userCityName()) + '</b> — ' + txt + (kbHasRealGeo() ? ' (по геопозиции)' : ' (от центра города)') + '.';
+          }
+          }
+          } catch (e) {}
+          });`,
+          'advice: район (retention)');
+
+          rep(`var _renderAdvicePop = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _renderAdvicePop();
+          try {
+          if (ok) {
+          var pop = document.getElementById('advicePop');
+          if (pop) pop.querySelectorAll('.adv-card').forEach(function (card, i) {
+          var it = adviceList[i];
+          if (!it || card.querySelector('.kb-adv-extra')) return;
+          var ex = document.createElement('div');
+          ex.className = 'kb-adv-extra';
+          var watch = (it.pred && adviceWinState(it.pred) === 'soon')
+          ? '<button data-kbwatch="' + i + '">⏰ Напомнить про окно</button>' : '';
+          ex.innerHTML = '<button data-kbshare="' + it.st.id + '">📤 Поделиться</button>' + watch;
+          card.appendChild(ex);
+          });
+          }
+          } catch (e) {}
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) {
+          var ok = ctx.ok;
+          try {
+          if (ok) {
+          var pop = document.getElementById('advicePop');
+          if (pop) pop.querySelectorAll('.adv-card').forEach(function (card, i) {
+          var it = adviceList[i];
+          if (!it || card.querySelector('.kb-adv-extra')) return;
+          var ex = document.createElement('div');
+          ex.className = 'kb-adv-extra';
+          var watch = (it.pred && adviceWinState(it.pred) === 'soon')
+          ? '<button data-kbwatch="' + i + '">⏰ Напомнить про окно</button>' : '';
+          ex.innerHTML = '<button data-kbshare="' + it.st.id + '">📤 Поделиться</button>' + watch;
+          card.appendChild(ex);
+          });
+          }
+          } catch (e) {}
+          });`,
+          'advice: share/watch (retention)');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () { var ch = localBurn(); var r = _rap(); if (ch) scheduleSweep(); return r; };`,
+          `window.__kbPipe.advicePre.push(function (ctx) { ctx.ch = localBurn(); });
+          window.__kbPipe.advice.push(function (ctx) { if (ctx.ch) scheduleSweep(); });`,
+          'advice: сжигание голосов (live reset)');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) { try { mergeAdviceDom(); } catch (e) { console.log('fuel merge: ' + e.message); } }
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { mergeAdviceDom(); } catch (e) { console.log('fuel merge: ' + e.message); } } });`,
+          'advice: fuel merge');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) { try { fixTiles(); } catch (e) { console.log('tile clarity: ' + e.message); } }
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { fixTiles(); } catch (e) { console.log('tile clarity: ' + e.message); } } });`,
+          'advice: tile clarity');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) { try { paint(); loadServer(); } catch (e) {} }
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { paint(); loadServer(); } catch (e) {} } });`,
+          'advice: reaction time');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) { try { applyGo(); } catch (e) { console.log('go intent: ' + e.message); } }
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { applyGo(); } catch (e) { console.log('go intent: ' + e.message); } } });`,
+          'advice: go intent');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) { try { addQuote(); } catch (e) { console.log('our why: ' + e.message); } }
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { addQuote(); } catch (e) { console.log('our why: ' + e.message); } } });`,
+          'advice: our why');
+
+          rep(`var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) { try { fixAdviceTitle(); } catch (e) {} }
+          return ok;
+          };`,
+          `window.__kbPipe.advice.push(function (ctx) { if (ctx.ok) { try { fixAdviceTitle(); } catch (e) {} } });`,
+          'advice: brand title');
+
+          // самолечение больше не нужно: все шаги всегда выполняются в одном проходе
+          rep(`function adviceIsOld(pop) {
+          if (!pop) return false;
+          if (pop.querySelector('.kb-why-our')) return false;
+          if (pop.querySelector('.kb-go-hint')) return false;
+          if (pop.querySelector('.kb-adv-title')) return false;
+          return !!pop.querySelector('.adv-card');
+          }
+          var advHealTried = 0;
+          function healAdvice() {
+          var pop = document.getElementById('advicePop');
+          if (!pop || !pop.classList.contains('open')) return;
+          if (!window.__kbOurWhy && !window.__kbGoIntent) return; // файл старый — лечить нечем
+          if (!adviceIsOld(pop)) return;
+          if (advHealTried++ >= 2) return;
+          try { renderAdvicePop(); } catch (e) {}
+          }
+          var _rap = renderAdvicePop;
+          renderAdvicePop = function () {
+          var ok = _rap();
+          if (ok) setTimeout(healAdvice, 250);
+          return ok;
+          };`,
+          ``,
+          'advice: убрано самолечение calm ui');
+
+          rep(`// ---------- 3) самолечение советника ----------
+          function needHeal() {
+          var p = document.getElementById('advicePop');
+          if (!p || !p.classList.contains('open')) return false;
+          if (window.__kbGoIntent && !p.querySelector('.kb-go-btn')) return true;
+          if (window.__kbBrandVisual2 && !p.querySelector('.kb-adv-title')) return true;
+          if (window.__kbFuelMerge && p.querySelector('.adv-card') && !p.querySelector('.adv-fc.kbm')) return true;
+          if (window.__kbOurWhy && p.querySelector('.adv-card.our') && !p.querySelector('.kb-why-our')) return true;
+          return false;
+          }
+          var heals = 0, timers = [];
+          function healTick() {
+          if (!needHeal() || heals >= 3) return;
+          heals++;
+          try { renderAdvicePop(); } catch (e) {}
+          }
+          function onOpen() {
+          heals = 0;
+          timers.forEach(clearTimeout);
+          timers = [setTimeout(healTick, 250), setTimeout(healTick, 700), setTimeout(healTick, 1500)];
+          }
+          var pop = document.getElementById('advicePop');
+          if (pop) {
+          new MutationObserver(function () {
+          if (pop.classList.contains('open')) {
+          if (!pop.__kbWasOpen) { pop.__kbWasOpen = 1; onOpen(); }
+          } else pop.__kbWasOpen = 0;
+          }).observe(pop, { attributes: true, attributeFilter: ['class'] });
+          }`,
+          ``,
+          'advice: убрано самолечение map ui fix');
+
+          // ---- 4. stationCard: 6 обёрток -> 6 шагов на одном разборе DOM ----
+          rep(`var _stationCard = stationCard;
+          stationCard = function (st, obs, pred) {
+          var h = _stationCard(st, obs, pred);
+          var extra = '<div class="kb-card-extra" style="padding:0 14px 14px"><button data-kbshare="' + st.id + '">📤 Поделиться заправкой</button></div>';
+          return h.replace('</article>', extra + '</article>');
+          };`,
+          `window.__kbPipe.card.push(function (root, art, st) {
+          if (!art) return;
+          art.insertAdjacentHTML('beforeend', '<div class="kb-card-extra" style="padding:0 14px 14px"><button data-kbshare="' + st.id + '">📤 Поделиться заправкой</button></div>');
+          });`,
+          'card: share (retention)');
+
+          const cardSteps = [
+          // pred wizard
+          `window.__kbPipe.card.push(function (root, art, st, obs, pred) {
+          if (!art) return;
+          root.querySelectorAll('.folk-add').forEach(function (b) { b.remove(); });
+          root.querySelectorAll('.feedback-panel').forEach(function (p) { p.remove(); });
+          root.querySelectorAll('.mf-plate button[onclick^="toggleFeedback"]').forEach(function (b) { b.remove(); });
+          var header = root.querySelector('.station-header');
+          if (header) header.insertAdjacentHTML('afterend', predHtml(st, pred));
+          var btns = root.querySelector('.card-btns');
+          if (btns) btns.insertAdjacentHTML('beforeend',
+          '<button class="cta-btn big kb-mark-btn" onclick="kbMarkOpen(\\'' + st.id + '\\')">' + icon('i-check') + 'Отметить топливо и очередь</button>');
+          if (btns) btns.insertAdjacentHTML('afterend', '<div class="kb-wiz" id="kbWiz" data-st="' + st.id + '"></div>');
+          });`,
+          // polish
+          `window.__kbPipe.card.push(function (root, art, st) {
+          if (!art) return;
+          art.classList.add('kb-card-v2');
+          var bc = null;
+          try { bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || null; } catch (e) {}
+          bc = bc || '#2465ee';
+          art.style.setProperty('--kbc-brand', bc);
+          art.style.setProperty('--kbc-brand-soft', bc + '1F');
+          var verdict = art.querySelector('.verdict'), tiles = art.querySelector('.f-tiles');
+          if (verdict && tiles && verdict.parentNode) {
+          var wrap = document.createElement('div');
+          wrap.className = 'kbc-status';
+          verdict.parentNode.insertBefore(wrap, verdict);
+          wrap.appendChild(verdict);
+          wrap.appendChild(tiles);
+          }
+          art.querySelectorAll('.f-tile').forEach(function (t) {
+          var s = t.querySelector('.f-st');
+          var c = !s ? 't-none'
+          : s.classList.contains('yes') ? 't-yes'
+          : s.classList.contains('no') ? 't-no'
+          : s.classList.contains('unknown') ? 't-unk' : 't-none';
+          t.classList.add(c);
+          });
+          var f = art.querySelector('.card-facts'); if (f) f.classList.add('kbc-facts');
+          var b = art.querySelector('.card-btns'); if (b) b.classList.add('kbc-actions');
+          var m = art.querySelector('.card-maprow'); if (m) m.classList.add('kbc-map');
+          var p = art.querySelector('.kb-pred'); if (p) p.classList.add('kbc-pred');
+          var plate = art.querySelector('.mf-plate');
+          if (plate) {
+          plate.classList.add('kbc-folkverdict');
+          plate.querySelectorAll('button[onclick^="toggleFeedback"]').forEach(function (x) { x.remove(); });
+          plate.querySelectorAll('.mf-row').forEach(function (row) {
+          var pill = row.querySelector('.mf-fuel'), nm = row.querySelector('.mf-name');
+          var isQ = nm && /Очередь|Стоят/.test(nm.textContent || '');
+          var t = pill ? (pill.textContent || '') : '';
+          row.classList.add(isQ ? 'v-q' : /^Есть/.test(t) ? 'v-yes' : /^Нет/.test(t) ? 'v-no' : 'v-mid');
+          });
+          plate.querySelectorAll('[style]').forEach(function (x) { x.removeAttribute('style'); });
+          plate.removeAttribute('style');
+          }
+          var sh = art.querySelector('.kb-card-extra [data-kbshare]');
+          if (sh) sh.innerHTML = (typeof icon === 'function' ? icon('i-spark', 'ic-s') : '') + 'Поделиться заправкой';
+          });`,
+          // hero + spoiler
+          `window.__kbPipe.card.push(function (root, art, st) {
+          if (!art) return;
+          var bc = null;
+          try { bc = (typeof BRAND_COLORS !== 'undefined' && BRAND_COLORS[brandKey(st)]) || null; } catch (e) {}
+          art.style.setProperty('--kbc-brand-ring', (bc || '#2465ee') + '2E');
+          var parts = [];
+          ['.card-ev', '.mf-plate', '.folk-card', '.sc-rowline'].forEach(function (sel) {
+          var el = art.querySelector(sel);
+          if (el && el.parentNode) parts.push(el);
+          });
+          if (!parts.length) return;
+          var sub = summaryOf(art);
+          var box = document.createElement('div');
+          box.className = 'kb-more';
+          var head = document.createElement('button');
+          head.type = 'button';
+          head.className = 'kb-more-head';
+          head.setAttribute('data-kbmore', '1');
+          head.setAttribute('aria-expanded', 'false');
+          head.innerHTML =
+          '<span class="kb-more-ico">' + ic('i-chart') + '</span>' +
+          '<span class="kb-more-t"><b>Подробности станции</b>' +
+          '<span class="kb-more-sub">' + esc(sub) + '</span></span>' +
+          '<span class="kb-more-chev">' + ic('i-arrow') + '</span>';
+          var body = document.createElement('div');
+          body.className = 'kb-more-body';
+          body.setAttribute('role', 'region');
+          var inner = document.createElement('div');
+          inner.className = 'kb-more-in';
+          body.appendChild(inner);
+          box.appendChild(head);
+          box.appendChild(body);
+          parts[0].parentNode.insertBefore(box, parts[0]);
+          parts.forEach(function (el) { inner.appendChild(el); });
+          });`,
+          // closebar + verdict
+          `window.__kbPipe.card.push(function (root, art, st, obs, pred) {
+          if (!art) return;
+          if (!art.querySelector('.kb-closebar')) {
+          var bar = document.createElement('div');
+          bar.className = 'kb-closebar';
+          bar.setAttribute('data-kbclosebar', '1');
+          bar.setAttribute('role', 'button');
+          bar.setAttribute('tabindex', '0');
+          bar.setAttribute('aria-label', 'Закрыть карточку');
+          bar.innerHTML = '<span class="kb-closebar-w">Закрыть</span>';
+          art.insertBefore(bar, art.firstChild);
+          }
+          var v = art.querySelector('.verdict');
+          var vs = v && v.querySelector('.verdict-s');
+          if (vs) {
+          var lq = 0, qHigh = false, qAge = null;
+          try { lq = liveQueueCount(st.id); } catch (e) {}
+          try { qHigh = !!(obs && obs.queue_level === 'high'); } catch (e) {}
+          try { qAge = queueAgeMin(st.id); } catch (e) {}
+          var qTxt, calm = false;
+          if (lq) qTxt = lq + ' вод. стоят сейчас';
+          else if (qHigh) qTxt = (qAge != null) ? ('очередь стоит ' + ageRu(qAge)) : 'на станции очередь';
+          else { qTxt = 'об очереди не сообщали'; calm = true; }
+          var chips = ['<i class="kb-v-chip q' + (calm ? ' calm' : '') + '">' + ic('i-queue') + esc(qTxt) + '</i>'];
+          if (v.classList.contains('v-good')) {
+          var f = firstFuel(st, obs);
+          if (f) {
+          var col = f === '92' ? 'price_92' : f === '95' ? 'price_95' : 'price_diesel';
+          var pr = '';
+          try { pr = priceShort(st.id, col); } catch (e) {}
+          chips.push('<i class="kb-v-chip p">' + ic('i-rub') + esc(fuelLabel(f)) + ' · ' + esc(pr) + '</i>');
+          }
+          } else if (v.classList.contains('v-wait') && pred && pred.from_time) {
+          var c = Math.round((pred.confidence || 0) * 100);
+          chips.push('<i class="kb-v-chip w">' + ic('i-clock') + 'окно ' +
+          time5(pred.from_time) + '–' + time5(pred.to_time) + ' · ' + c + '%</i>');
+          } else if (v.classList.contains('v-unknown')) {
+          var m = null;
+          try { m = getFreshnessMin(obs); } catch (e) {}
+          chips.push('<i class="kb-v-chip">' + ic('i-clock') +
+          esc(m != null ? ('источник молчит ' + agoRu(m)) : 'источник пока молчит') + '</i>');
+          }
+          vs.innerHTML = chips.join('');
+          }
+          art.querySelectorAll('.f-tile').forEach(function (tile) {
+          var s = tile.querySelector('.f-st');
+          if (!s || tile.querySelector('.kb-f-src')) return;
+          var raw = (s.textContent || '').replace(/\\s+/g, ' ').trim();
+          var svg = s.querySelector('svg');
+          var ico = svg ? svg.outerHTML : '';
+          var word, src = '';
+          if (/^есть/.test(raw)) word = 'есть';
+          else if (/^нет данных/.test(raw)) word = 'нет данных';
+          else if (/^нет/.test(raw)) word = 'нет';
+          else word = raw.replace(/ (народ|с места)$/, '');
+          if (/народ/.test(raw)) src = 'народ';
+          else if (/с места/.test(raw)) src = 'с места';
+          else if (/^(есть|нет)$/.test(raw) || /^не подтверждён/.test(raw)) src = 'источник';
+          s.innerHTML = '<b>' + esc(word) + '</b>' + ico;
+          if (src) {
+          var tag = document.createElement('span');
+          tag.className = 'kb-f-src';
+          tag.textContent = src;
+          s.parentNode.insertBefore(tag, s.nextSibling);
+          }
+          });
+          });`,
+          // calm ui: убрать колонки очередь/обновлено
+          `window.__kbPipe.card.push(function (root) {
+          var cfs = root.querySelectorAll('.card-facts .cf');
+          for (var i = 0; i < cfs.length; i++) {
+          var t = (cfs[i].textContent || '').replace(/\\s+/g, ' ');
+          if (t.indexOf('Очередь') >= 0 || t.indexOf('Обновлено') >= 0) {
+          cfs[i].parentNode.removeChild(cfs[i]);
+          }
+          }
+          });`
+          ];
+          let pos = 0;
+          const cardNames = ['card: pred wizard', 'card: polish', 'card: hero+spoiler', 'card: closebar+verdict', 'card: calm ui'];
+          for (let k = 0; k < cardSteps.length; k++) {
+            const a = src.indexOf('var _sc = stationCard;', pos);
+            if (a < 0) fail(cardNames[k] + ': якорь не найден');
+            const brace = src.indexOf('{', src.indexOf('function', a));
+            const end = blockEnd(src, brace);
+            if (end < 0) fail(cardNames[k] + ': не найден конец блока');
+            let stop = end;
+            if (src[stop] === ';') stop++;
+            src = src.slice(0, a) + cardSteps[k] + src.slice(stop);
+            pos = a + cardSteps[k].length;
+            log.push(cardNames[k]);
+          }
+
+          // ---- 5. renderNow / softRefresh: обёртки -> шаги ----
+          rep(`if (typeof renderNow === 'function') {
+          var _rn = renderNow;
+          renderNow = function () { var r = _rn(); schedule(); return r; };
+          }`,
+          `if (typeof renderNow === 'function') { window.__kbPipe.now.push(function () { schedule(); }); }`,
+          'now: digest schedule');
+
+          rep(`var _rn = renderNow;
+          renderNow = function () {
+          var r = _rn();
+          try {
+          var t = document.getElementById('nowTitle');
+          if (t && t.innerHTML.indexOf('Обстановка') !== 0) {
+          t.innerHTML = 'Обстановка в городе <b class="pl-city">' + escapeHtml(cityGenitive()) + '</b>';
+          }
+          } catch (e) {}
+          return r;
+          };`,
+          `window.__kbPipe.now.push(function () {
+          try {
+          var t = document.getElementById('nowTitle');
+          if (t && t.innerHTML.indexOf('Обстановка') !== 0) {
+          t.innerHTML = 'Обстановка в городе <b class="pl-city">' + escapeHtml(cityGenitive()) + '</b>';
+          }
+          } catch (e) {}
+          });`,
+          'now: заголовок обстановки');
+
+          rep(`var _rn = renderNow;
+          renderNow = function () {
+          var r = _rn();
+          try {
+          var cta = document.getElementById('ctaBest');
+          var box = cta && cta.parentNode;
+          if (box && box.classList && box.classList.contains('nowcard-cta')) {
+          var t = (cta.textContent || '').replace(/\\s+/g, ' ');
+          box.style.display = t.indexOf('Прогнозы созревают') >= 0 ? 'none' : '';
+          }
+          } catch (e) {}
+          return r;
+          };`,
+          `window.__kbPipe.now.push(function () {
+          try {
+          var cta = document.getElementById('ctaBest');
+          var box = cta && cta.parentNode;
+          if (box && box.classList && box.classList.contains('nowcard-cta')) {
+          var t = (cta.textContent || '').replace(/\\s+/g, ' ');
+          box.style.display = t.indexOf('Прогнозы созревают') >= 0 ? 'none' : '';
+          }
+          } catch (e) {}
+          });`,
+          'now: скрытие пустой кнопки');
+
+          rep(`var _sr = softRefresh;
+          softRefresh = function () {
+          _sr();
+          if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
+          };`,
+          `window.__kbPipe.soft.push(function () {
+          if (localBurn()) { toast('Топливо обновилось — голоса по этой АЗС сброшены', 'ok'); try { renderAdvicePop(); } catch (e) {} scheduleSweep(); }
+          });`,
+          'soft: live reset');
+
+          rep(`if (typeof softRefresh === 'function') {
+          var _sr = softRefresh;
+          softRefresh = function () { _sr(); schedule(); };
+          }`,
+          `if (typeof softRefresh === 'function') { window.__kbPipe.soft.push(function () { schedule(); }); }`,
+          'soft: digest schedule');
+
+          // ---- 6. Ворота синтаксиса ----
+          try { new vm.Script(src, { filename: FILE }); }
+          catch (e) { fail('синтаксис: ' + (e.message || e)); }
+          fs.writeFileSync(FILE + '.backup-flatten', orig);
+          fs.writeFileSync(FILE, src);
+          console.log(log.join('\n'));
+          console.log('Было ' + orig.length + ' байт → стало ' + src.length + ' байт.');
+          console.log('syntax: OK');
+          EOF
+          node flatten-app.js app.js
+
+      - name: Коммит и пуш
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app.js
+          if git diff --cached --quiet; then
+            echo "Изменений нет."
+          else
+            git commit -m "flatten: один конвейер вместо цепочек обёрток + честная плашка связи"
+            git pull --rebase origin main
+            git push origin main
+          fi
