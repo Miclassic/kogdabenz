@@ -3427,7 +3427,8 @@ function renderMiniMap() {
       if (state === 'full') {
         fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
       } else if (state === 'yes' || state === 'partial' || state === 'part' || state === 'diesel') {
-        fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'partial-old' : 'partial', w: 0.8 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+        const w = state === 'yes' ? 0.85 : state === 'partial' ? 0.65 : 0.5;
+fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: w }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
       } else {
         let hotW = 0;
         if (state === 'no') hotW = 1.0;
@@ -3635,7 +3636,8 @@ function applyCardMap(st) {
     if (state === 'full') {
       fuelFeats.push({ type:'Feature', properties:{ cls: stale?'calm-old':'calm', w:1 }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
     } else if (state === 'yes' || state === 'partial' || state === 'part' || state === 'diesel') {
-      fuelFeats.push({ type:'Feature', properties:{ cls: stale?'partial-old':'partial', w:0.8 }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
+      const w = state === 'yes' ? 0.85 : state === 'partial' ? 0.65 : 0.5;
+fuelFeats.push({ type:'Feature', properties:{ cls: stale?'calm-old':'calm', w:w }, geometry:{ type:'Point', coordinates:[Number(s.lon),Number(s.lat)] } });
     } else {
       let hotW = 0;
       if (state === 'no') hotW = 1.0;
@@ -5418,7 +5420,22 @@ const OUR_LABELS = [
   { name: 'Центральный', lon: 37.77, lat: 44.735, minZoom: 11 },
   { name: 'Южный', lon: 37.79, lat: 44.665, minZoom: 11 },
   { name: 'Восточный', lon: 37.86, lat: 44.745, minZoom: 11 },
-  { name: 'Мысхако', lon: 37.72, lat: 44.635, minZoom: 11 }
+  { name: 'Мысхако', lon: 37.72, lat: 44.635, minZoom: 11 },
+// Северо-Запад: вторая зона сбора
+{ name: 'Санкт-Петербург', lon: 30.3156, lat: 59.9389, minZoom: 0 },
+{ name: 'Петрозаводск', lon: 34.3469, lat: 61.7891, minZoom: 0 },
+{ name: 'Кириши', lon: 32.0206, lat: 59.4497, minZoom: 8 },
+{ name: 'Усть-Луга', lon: 28.3167, lat: 59.6833, minZoom: 9 },
+{ name: 'Выборг', lon: 28.7529, lat: 60.7076, minZoom: 8 },
+{ name: 'Великий Новгород', lon: 31.2755, lat: 58.5215, minZoom: 8 },
+{ name: 'Тихвин', lon: 33.5294, lat: 59.6448, minZoom: 8 },
+{ name: 'Луга', lon: 29.8453, lat: 58.7372, minZoom: 8 },
+{ name: 'Сортавала', lon: 30.6923, lat: 61.7031, minZoom: 8 },
+{ name: 'Сосновый Бор', lon: 29.1167, lat: 59.9000, minZoom: 9 },
+{ name: 'Гатчина', lon: 30.1281, lat: 59.5686, minZoom: 9 },
+{ name: 'Волхов', lon: 32.3389, lat: 59.9264, minZoom: 9 },
+{ name: 'Всеволожск', lon: 30.6450, lat: 60.0200, minZoom: 10 },
+{ name: 'Колпино', lon: 30.5889, lat: 59.7500, minZoom: 10 }
 ];
 let labelCtrls = [];
 // зоны спроса: вдали — лёгкая дымка, с приближением контрастнее и чётче;
@@ -5982,29 +5999,21 @@ function blobFeature(lat, lon, rMeters, color, seed, kind, scale) {
   return { type: 'Feature', properties: { color: color, kind: kind }, geometry: { type: 'Polygon', coordinates: [pts] } };
 }
 function heatKey(o) {
-  if (!o) return 'unknown';
-  const nullish = v => v === null || v === undefined;
-  const g = nullish(o.fuel_95_status) ? null : o.fuel_95_status;
-  const p = nullish(o.fuel_92_status) ? null : o.fuel_92_status;
-  const d = nullish(o.diesel_status) ? null : o.diesel_status;
-
-  // Если вообще нет никаких данных по всем трем видам — станцию не рисуем (серая)
-  if (g === null && p === null && d === null) return 'unknown';
-
-  // Считаем, сколько видов топлива подтверждено (true)
-  let count = 0;
-  if (g === true) count++;
-  if (p === true) count++;
-  if (d === true) count++;
-
-  // Всё топливо есть (3 вида) — зеленый
-  if (count === 3) return 'full';     
-  
-  // Два любых вида есть — бирюзовый
-  if (count === 2) return 'partial';  
-  
-  // Один вид или пусто — красный (дефицит)
-  return 'no';                        
+if (!o) return 'unknown';
+const nullish = v => v === null || v === undefined;
+const g = nullish(o.fuel_95_status) ? null : o.fuel_95_status;
+const p = nullish(o.fuel_92_status) ? null : o.fuel_92_status;
+const d = nullish(o.diesel_status) ? null : o.diesel_status;
+if (g === null && p === null && d === null) return 'unknown';
+// есть хоть одно топливо — это НЕ дефицит, даже если это только 92 или только ДТ
+if (g === true && p === true && d === true) return 'full';
+if (g === true) return 'yes';
+if (p === true && d === true) return 'partial';
+if (p === true) return 'part';
+if (d === true) return 'diesel';
+// дефицит — только когда источник прямо сказал «нет» и ни одного «есть»
+if (g === false || p === false || d === false) return 'no';
+return 'unknown';
 }
 
 function renderMap() {
@@ -6074,7 +6083,8 @@ function renderMap() {
     if (state === 'full') {
       fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: 1 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
     } else if (state === 'yes' || state === 'partial' || state === 'part' || state === 'diesel') {
-      fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'partial-old' : 'partial', w: 0.8 }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
+      const w = state === 'yes' ? 0.85 : state === 'partial' ? 0.65 : 0.5;
+fuelFeats.push({ type: 'Feature', properties: { cls: stale ? 'calm-old' : 'calm', w: w }, geometry: { type: 'Point', coordinates: [Number(st.lon), Number(st.lat)] } });
     } else {
       let hotW = 0;
       if (state === 'no') hotW = 1.0;
