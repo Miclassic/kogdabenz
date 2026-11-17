@@ -31,9 +31,12 @@ jobs:
           const log = [];
           function fail(msg) { console.error('ОТКАТ: ' + msg); console.log('Оригинал не тронут.'); process.exit(1); }
           function rep(old, nw, label) {
-            const n = src.split(old).length - 1;
-            if (n !== 1) fail(label + ': найдено ' + n + ', ожидалось 1');
-            src = src.split(old).join(nw);
+            // сверяем без учёта отступов и переносов: любые пробелы/табы/CR/LF = один пробел
+            const esc = old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const pat = esc.replace(/\s+/g, '\\s+');
+            const cnt = (src.match(new RegExp(pat, 'g')) || []).length;
+            if (cnt !== 1) fail(label + ': найдено ' + cnt + ', ожидалось 1');
+            src = src.replace(new RegExp(pat), function () { return nw; });
             log.push(label);
           }
           // счётчик скобок с учётом строк/комментариев: конец блока от '{'
@@ -61,8 +64,8 @@ jobs:
 
           // ---- 1. Честная плашка: показываем «Нет связи» только если браузер реально offline ----
           rep(
-          "// плашку «данные на ЧЧ:ММ» показываем только если сеть не успела за 4 сек\nsetTimeout(() => { if (!window.__netOk && !offlineMode) showOfflineBar(c.t); }, 4000);",
-          "// плашку «Нет связи» показываем только при реальном offline браузера,\n// а не просто потому что загрузка не успела за 4 сек (сеть может быть живой)\nsetTimeout(() => { if (!window.__netOk && !offlineMode && navigator.onLine === false) showOfflineBar(c.t); }, 4000);",
+          "setTimeout(() => { if (!window.__netOk && !offlineMode) showOfflineBar(c.t); }, 4000);",
+          "// «Нет связи» только при реальном offline браузера, а не при медленной загрузке\nsetTimeout(() => { if (!window.__netOk && !offlineMode && navigator.onLine === false) showOfflineBar(c.t); }, 4000);",
           'плашка связи: только реальный offline');
 
           // ---- 2. Единый конвейер вместо цепочки обёрток ----
