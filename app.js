@@ -15460,19 +15460,20 @@ if (bb && bb.parentNode) bb.parentNode.removeChild(bb);
 } catch (e) {}
 })();
 // ============================================================
-// KB MAP SPEED + VIS STRIP v1
-// 1) Скорость: renderMap схлопывается в один проход (на дальнем
-//    зуме — лениво, 200 мс), обработчики зума не чаще кадра,
-//    «лужи» спроса на дальнем зуме упрощаются (z<10.5 — только
-//    main, z<9 — скрыты: там их прозрачность и так ~5%).
-// 2) Полоса «В кадре»: до 3 ближайших АЗС в границах экрана карты,
-//    сортировка от вашей точки (или центра карты). Тап — чипы
-//    отметки (quickSend) + «Карточка». Оверлей, панель не растёт.
+// KB MAP SPEED + VIS HUD v5 — «профайлер» в стиле Watch Dogs.
+// Фиксы v5:
+// 1) Шторка отметки вписана в панель: чипы скроллятся внутри,
+//    кнопки «Отправить / Карточка» закреплены снизу и видны всегда.
+// 2) Пока шторка открыта — состав целей ЗАМОРОЖЕН: фоновые
+//    пересинхронизации не прячут окно и не сбрасывают выбранные чипы.
+// 3) После отправки показывается «спасибо» (1.4 с), потом закрытие;
+//    если отметка не ушла (лимит/ничего не выбрано) — шторка остаётся.
+// Скорость карты и LOD луж сохранены.
 // ============================================================
 (function () {
 'use strict';
-if (window.__kbMapSpeedVis) return;
-window.__kbMapSpeedVis = 1;
+if (window.__kbMapHud5) return;
+window.__kbMapHud5 = 1;
 
 function kbCoalesce(fn) {
   var q = false;
@@ -15481,6 +15482,10 @@ function kbCoalesce(fn) {
     q = true;
     requestAnimationFrame(function () { q = false; try { fn(); } catch (e) {} });
   };
+}
+function kbDebounce(fn, ms) {
+  var t = 0;
+  return function () { clearTimeout(t); t = setTimeout(fn, ms); };
 }
 
 // --- 1a. зум-обработчики: не чаще одного раза за кадр ---
@@ -15496,13 +15501,13 @@ renderMap = function () {
   var run = function () {
     kbRmPend = false;
     try { kbRmBase(); } catch (e) {}
-    try { kbVisSync(); } catch (e) {}
+    try { hudSync(); } catch (e) {}
   };
   if (z < 10.5) { clearTimeout(kbRmTimer); kbRmTimer = setTimeout(run, 200); }
   else requestAnimationFrame(run);
 };
 
-// --- 1c. LOD «луж» + перехват зум-листенов после загрузки карты ---
+// --- 1c. LOD «луж» ---
 function kbZoneLod(d, z) {
   if (!d || !d.features) return d;
   if (z < 9) return { type: 'FeatureCollection', features: [] };
@@ -15536,169 +15541,404 @@ function kbInstallMapSpeed() {
       }));
     }
   } catch (e) {}
-  try { kbVisSync(); } catch (e) {}
+  try { mapObj.on('move', function () { hudTrackQ(); }); } catch (e) {}
+  try { mapObj.on('moveend', hudReselect); } catch (e) {}
+  try { mapObj.on('zoomend', hudReselect); } catch (e) {}
+  try { hudSync(); } catch (e) {}
 }
-var kbEmBase = ensureMap;
-ensureMap = function () {
-  kbEmBase();
+function kbTryInstall() {
   try {
-    if (mapObj && !mapObj.__kbSpeedHook) {
-      mapObj.__kbSpeedHook = 1;
-      mapObj.on('load', kbInstallMapSpeed);
-      if (mapObj.loaded && mapObj.loaded()) kbInstallMapSpeed();
-    }
+    if (typeof mapObj === 'undefined' || !mapObj) return;
+    if (mapObj.__kbSpeedDone) return;
+    if (mapObj.loaded && mapObj.loaded()) kbInstallMapSpeed();
+    else if (!mapObj.__kbSpeedWait) { mapObj.__kbSpeedWait = 1; mapObj.once('load', kbInstallMapSpeed); }
   } catch (e) {}
-};
+}
+setInterval(kbTryInstall, 800);
+var kbEmBase = ensureMap;
+ensureMap = function () { kbEmBase(); kbTryInstall(); };
 
-// --- 2. полоса «В кадре» ---
-var kbVisSel = null, kbVisSig = '', kbVisEl = null;
+// --- 2. данные для карточек ---
+var hud = { picks: [], sel: null, sig: '', el: null, svg: null, starts: [], obs: {} };
 
-function kbVisPoint() {
+function hudObsMap() {
+  try { if (typeof getLastObservations === 'function') return getLastObservations() || {}; } catch (e) {}
+  return {};
+}
+function hudPoint() {
   try { var m = manualLoc(); if (m && isFinite(m.lat)) return { lat: m.lat, lon: m.lon, me: true }; } catch (e) {}
   try { var l = loadUserLocation(); if (l && isFinite(l.lat)) return { lat: l.lat, lon: l.lon, me: true }; } catch (e) {}
   try { var c = mapObj.getCenter(); return { lat: c.lat, lon: c.lng, me: false }; } catch (e) {}
   return null;
 }
-function kbVisDist(m) { return m < 1000 ? Math.round(m) + ' м' : (m / 1000).toFixed(1) + ' км'; }
-function kbVisAct(st) {
+function hudDist(m) { return m < 1000 ? Math.round(m) + ' м' : (m / 1000).toFixed(1) + ' км'; }
+function hudAct(st) {
   var n = 0, since = Date.now() - 24 * 3600 * 1000;
   try {
     for (var i = 0; i < allFeedback.length; i++) {
       var f = allFeedback[i];
       if (String(f.station_id) !== String(st.id)) continue;
-      var t = new Date(f.created_at).getTime();
-      if (t >= since) n++;
+      if (new Date(f.created_at).getTime() >= since) n++;
     }
   } catch (e) {}
   if (n > 0) return { n: n, t: 'за сутки' };
   try { return { n: demandOf(st.id), t: 'спрос' }; } catch (e) {}
   return { n: 0, t: 'спрос' };
 }
-function kbVisList() {
-  if (!mapObj || !mapObj.__kbSpeedDone) return [];
-  var vb;
-  try { vb = mapObj.getBounds(); } catch (e) { return []; }
-  var p = kbVisPoint(); if (!p) return [];
-  var out = [];
+function hudFuel(st, o) {
+  var trust = false;
+  if (o) {
+    try {
+      if (typeof availTrustworthy === 'function') trust = !!availTrustworthy(o);
+      else if (typeof getFreshnessMin === 'function') { var m = getFreshnessMin(o); trust = m != null && m <= 360; }
+    } catch (e) { trust = false; }
+  }
+  var defs = [['92', '92', 'f92', 'fuel_92_status'], ['95', '95', 'f95', 'fuel_95_status'], ['diesel', 'ДТ', 'fdt', 'diesel_status']];
+  var pills = [], known = 0, yes = 0;
+  for (var i = 0; i < defs.length; i++) {
+    var f = defs[i][0], col = defs[i][3], v = null, label = '';
+    try { if (typeof sceneMark === 'function' && sceneMark(st.id, f)) { v = true; label = 'с места'; } } catch (e) {}
+    var fc = null;
+    try { if (typeof folkFuelSignal === 'function') fc = folkFuelSignal(st.id, f); } catch (e) {}
+    if (v === null) {
+      if (o && o[col] === true && trust) { v = true; label = 'источник'; }
+      else if (fc && fc.verdict === 'yes') { v = true; label = 'народ'; }
+      else if (o && o[col] === false) { v = false; }
+      else if (fc && fc.verdict === 'no') { v = false; }
+    }
+    if (v === true) {
+      yes++; known++;
+      pills.push('<i class="kbv-f ' + defs[i][2] + '" title="' + escapeHtml(defs[i][1] + ': есть · ' + (label || 'подтверждено')) + '">' + defs[i][1] + '</i>');
+    } else if (v === false) known++;
+  }
+  var html = yes ? pills.join('')
+    : known ? '<i class="kbv-f none" title="по известным данным топлива нет">нет топлива</i>'
+    : '<i class="kbv-f unk" title="ни источник, ни водители не сообщали">молчит</i>';
+  return { html: html, state: yes ? 'yes' : known ? 'no' : 'unk', known: known, yes: yes };
+}
+
+// --- 3. выбор целей: разброс по экрану, БЕЗ сортировки по расстоянию ---
+function hudBox() {
+  var b = document.getElementById('mapBox');
+  if (b) return b;
+  try { return mapObj.getContainer(); } catch (e) { return null; }
+}
+function hudCandidates() {
+  if (!mapObj || !mapObj.project) return { list: [], W: 0, H: 0, top: 0 };
+  var box = hudBox(); if (!box) return { list: [], W: 0, H: 0, top: 0 };
+  var W = box.clientWidth, H = box.clientHeight;
+  var top = 0;
+  if (hud.el) {
+    // меряем от НИЗА КАРТОЧЕК, не от шторки — иначе открытая шторка
+    // «съедает» весь кадр и все цели пропадают
+    var ref = hud.el.querySelector('.kbv-row') || hud.el;
+    var br = box.getBoundingClientRect(), sr = ref.getBoundingClientRect();
+    top = Math.max(0, sr.bottom - br.top);
+  }
+  var p0 = hudPoint(); if (!p0) return { list: [], W: W, H: H, top: top };
+  var vb; try { vb = mapObj.getBounds(); } catch (e) { return { list: [], W: W, H: H, top: top }; }
+  var list = [];
   for (var i = 0; i < allStations.length; i++) {
     var s = allStations[i];
     var la = Number(s.lat), lo = Number(s.lon);
     if (!isFinite(la) || !isFinite(lo)) continue;
     if (la < vb.getSouth() || la > vb.getNorth() || lo < vb.getWest() || lo > vb.getEast()) continue;
-    out.push({ st: s, d: distMeters(p.lat, p.lon, la, lo) });
+    var pr; try { pr = mapObj.project([lo, la]); } catch (e) { continue; }
+    if (pr.x < 26 || pr.x > W - 26 || pr.y < top + 34 || pr.y > H - 30) continue;
+    var o = hud.obs[s.id] || null;
+    var fu = hudFuel(s, o), ac = hudAct(s);
+    var central = 1 - Math.min(1, Math.abs(pr.y - (top + H) / 2) / ((H - top) / 2 || 1));
+    list.push({
+      st: s, x: pr.x, y: pr.y, fuel: fu, act: ac,
+      d: distMeters(p0.lat, p0.lon, la, lo),
+      score: fu.yes * 6 + (fu.known ? 2 : 0) + Math.min(ac.n, 6) + central * 2
+    });
   }
-  out.sort(function (a, b) { return a.d - b.d; });
-  return out.slice(0, 3);
+  return { list: list, W: W, H: H, top: top, me: p0.me };
+}
+function hudPick(c) {
+  var W = c.W, list = c.list.slice().sort(function (a, b) { return b.score - a.score; });
+  var picked = [], usedThird = {};
+  function third(x) { return Math.min(2, Math.floor(x / (W / 3 || 1))); }
+  function farEnough(it) {
+    for (var i = 0; i < picked.length; i++) {
+      var dx = it.x - picked[i].x, dy = it.y - picked[i].y;
+      if (Math.sqrt(dx * dx + dy * dy) < 90) return false;
+    }
+    return true;
+  }
+  for (var i = 0; i < list.length && picked.length < 3; i++) {
+    var t = third(list[i].x);
+    if (usedThird[t] || !farEnough(list[i])) continue;
+    usedThird[t] = 1; picked.push(list[i]);
+  }
+  for (var j = 0; j < list.length && picked.length < 3; j++) {
+    if (picked.indexOf(list[j]) >= 0 || !farEnough(list[j])) continue;
+    picked.push(list[j]);
+  }
+  picked.sort(function (a, b) { return a.x - b.x; });
+  return picked;
 }
 
-var KB_VIS_CSS = ''
+// --- 4. CSS ---
+var KB_HUD_CSS = ''
 + '#kbVisStrip{position:absolute;top:76px;left:10px;right:10px;z-index:6;pointer-events:none;display:none;}'
 + '#kbVisStrip.on{display:block;}'
-+ '.kbv-row{display:flex;gap:8px;overflow-x:auto;padding:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:rgba(57,124,255,.55) transparent;}'
-+ '.kbv-row::-webkit-scrollbar{height:4px;}'
-+ '.kbv-row::-webkit-scrollbar-thumb{background:rgba(57,124,255,.55);border-radius:99px;}'
-+ '.kbv-row::-webkit-scrollbar-thumb:hover{background:rgba(57,124,255,.85);}'
-+ '.kbv-row::-webkit-scrollbar-track{background:transparent;}'
-+ '.kbv-card{flex:1 1 0;min-width:118px;max-width:180px;text-align:left;border-radius:16px;padding:9px 10px;cursor:pointer;'
-+ 'border:1px solid rgba(148,180,255,.25);background:rgba(13,20,38,.92);color:#eaf1ff;'
-+ 'box-shadow:0 6px 18px rgba(4,10,26,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
-+ 'animation:kbvIn .28s ease both;transition:border-color .15s,transform .15s;}'
-+ '.kbv-card:nth-child(2){animation-delay:.05s;}.kbv-card:nth-child(3){animation-delay:.1s;}'
++ '.kbv-hud-head{display:flex;align-items:center;gap:6px;margin:0 2px 6px;font-size:9px;font-weight:800;letter-spacing:1.6px;color:#5fd9ff;text-transform:uppercase;text-shadow:0 0 8px rgba(69,216,255,.5);}'
++ '.kbv-hud-head em{font-style:normal;margin-left:auto;color:#7b8db0;letter-spacing:1px;}'
++ '.kbv-live{width:6px;height:6px;border-radius:50%;background:#45d8ff;box-shadow:0 0 8px #45d8ff;animation:kbvPulse 1.6s ease-in-out infinite;}'
++ '@keyframes kbvPulse{0%,100%{opacity:1;}50%{opacity:.35;}}'
++ '.kbv-row{display:flex;gap:8px;pointer-events:none;}'
++ '.kbv-card{flex:1 1 0;min-width:0;position:relative;display:flex;flex-direction:column;gap:5px;text-align:left;border-radius:14px;padding:8px 9px 9px;cursor:pointer;pointer-events:auto;'
++ 'border:1px solid rgba(95,217,255,.28);background:linear-gradient(160deg,rgba(16,26,48,.94),rgba(10,17,34,.94));color:#eaf1ff;'
++ 'box-shadow:0 6px 18px rgba(4,10,26,.5),inset 0 0 18px rgba(69,216,255,.05);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
++ 'animation:kbvIn .3s ease both;transition:border-color .15s,box-shadow .15s,transform .15s;overflow:hidden;}'
++ '.kbv-card::before{content:"";position:absolute;top:0;right:0;width:14px;height:14px;background:linear-gradient(225deg,rgba(95,217,255,.55) 0 48%,transparent 50%);}'
++ '.kbv-card::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--kbv-st,#45d8ff);opacity:.9;}'
++ '.kbv-card:nth-child(2){animation-delay:.06s;}.kbv-card:nth-child(3){animation-delay:.12s;}'
 + '.kbv-card:active{transform:scale(.97);}'
-+ '.kbv-card.on{border-color:#397cff;box-shadow:0 0 0 2px rgba(57,124,255,.35),0 6px 18px rgba(4,10,26,.45);}'
-+ '.kbv-st{display:block;font-weight:700;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
-+ '.kbv-meta{display:flex;gap:6px;margin-top:5px;font-size:10.5px;}'
-+ '.kbv-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;background:rgba(57,124,255,.16);color:#9cc0ff;white-space:nowrap;}'
++ '.kbv-card.on{border-color:var(--kbv-st,#45d8ff);box-shadow:0 0 0 1.5px var(--kbv-st,#45d8ff),0 0 18px rgba(69,216,255,.25),0 6px 18px rgba(4,10,26,.5);}'
++ '.kbv-card.s-yes{--kbv-st:#35e0b0;}.kbv-card.s-no{--kbv-st:#ff7a7a;}.kbv-card.s-unk{--kbv-st:#45d8ff;}'
++ '.kbv-tag{display:flex;align-items:center;gap:5px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:8px;font-weight:700;letter-spacing:1.4px;color:#5fd9ff;opacity:.85;}'
++ '.kbv-tag i{font-style:normal;margin-left:auto;color:#7b8db0;letter-spacing:.5px;}'
++ '.kbv-st{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:700;font-size:11px;line-height:1.25;min-height:27px;}'
++ '.kbv-fuels{display:flex;flex-wrap:wrap;gap:4px;}'
++ '.kbv-f{font-style:normal;padding:2px 6px;border-radius:7px;font-size:9px;font-weight:900;letter-spacing:.2px;white-space:nowrap;}'
++ '.kbv-f.f92{background:rgba(245,160,90,.2);color:#ffc48a;}'
++ '.kbv-f.f95{background:rgba(25,183,122,.2);color:#5fe0ac;}'
++ '.kbv-f.fdt{background:rgba(110,168,255,.2);color:#9cc0ff;}'
++ '.kbv-f.none{background:rgba(226,74,74,.18);color:#ff9d9d;}'
++ '.kbv-f.unk{background:rgba(148,180,255,.12);color:#93a0b8;}'
++ '.kbv-meta{display:flex;flex-wrap:wrap;gap:4px;font-size:9.5px;}'
++ '.kbv-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:99px;background:rgba(57,124,255,.16);color:#9cc0ff;white-space:nowrap;}'
 + '.kbv-chip.act{background:rgba(245,160,90,.16);color:#ffc48a;}'
-+ '.kbv-drawer{pointer-events:auto;margin-top:8px;border-radius:18px;padding:10px;border:1px solid rgba(148,180,255,.25);'
-+ 'background:rgba(13,20,38,.95);box-shadow:0 10px 26px rgba(4,10,26,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:kbvIn .22s ease both;}'
-+ '.kbv-dtitle{font-size:11px;color:#9cc0ff;margin:0 2px 6px;display:flex;justify-content:space-between;align-items:center;gap:8px;}'
++ '.kbv-drawer{pointer-events:auto;margin-top:8px;border-radius:16px;padding:10px;border:1px solid rgba(95,217,255,.3);'
++ 'display:flex;flex-direction:column;overflow:hidden;max-height:60vh;'
++ 'background:rgba(11,18,36,.96);box-shadow:0 10px 26px rgba(4,10,26,.55),inset 0 0 22px rgba(69,216,255,.05);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:kbvIn .22s ease both;}'
++ '.kbv-dtitle{flex:0 0 auto;font-size:11px;color:#5fd9ff;margin:0 2px 6px;display:flex;justify-content:space-between;align-items:center;gap:8px;}'
 + '.kbv-x{border:0;background:rgba(148,180,255,.14);color:#c6d2e8;border-radius:99px;width:24px;height:24px;cursor:pointer;flex:0 0 auto;}'
-+ '.kbv-actions{display:flex;gap:8px;margin-top:8px;}'
++ '.kbv-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;'
++ 'scrollbar-width:thin;scrollbar-color:rgba(95,217,255,.5) rgba(148,180,255,.08);}'
++ '.kbv-scroll::-webkit-scrollbar{width:5px;}'
++ '.kbv-scroll::-webkit-scrollbar-track{background:rgba(148,180,255,.08);border-radius:99px;}'
++ '.kbv-scroll::-webkit-scrollbar-thumb{background:rgba(95,217,255,.45);border-radius:99px;}'
++ '.kbv-scroll::-webkit-scrollbar-thumb:hover{background:rgba(95,217,255,.8);}'
++ '.kbv-actions{flex:0 0 auto;display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(95,217,255,.16);}'
 + '.kbv-send{flex:1;border:0;border-radius:12px;padding:10px;font-weight:700;font-size:13px;cursor:pointer;background:linear-gradient(135deg,#1bb978,#12a06b);color:#fff;}'
 + '.kbv-send:disabled{opacity:.6;}'
-+ '.kbv-open{flex:1;border:1px solid rgba(148,180,255,.3);border-radius:12px;padding:10px;font-weight:600;font-size:13px;cursor:pointer;background:rgba(57,124,255,.14);color:#cfe0ff;}'
-+ 'body:not(.kb-night) .kbv-card{background:rgba(255,255,255,.94);color:#12203c;border-color:rgba(36,101,238,.22);box-shadow:0 6px 18px rgba(20,33,61,.14);}'
++ '.kbv-open{flex:1;border:1px solid rgba(95,217,255,.35);border-radius:12px;padding:10px;font-weight:600;font-size:13px;cursor:pointer;background:rgba(57,124,255,.14);color:#cfe0ff;}'
++ '#kbHudSvg{position:absolute;inset:0;z-index:5;pointer-events:none;overflow:visible;}'
++ '.kbHudG{transition:opacity .25s;animation:kbvIn .35s ease both;}'
++ '.kbHudG.far{opacity:.12;}'
++ '.kbHudLine{fill:none;stroke:url(#kbHudGrad);stroke-width:1.6;stroke-dasharray:7 5;animation:kbHudFlow 1.1s linear infinite;filter:drop-shadow(0 0 4px rgba(69,216,255,.55));}'
++ '.kbHudG.on .kbHudLine{stroke-width:2.2;animation-duration:.55s;}'
++ '@keyframes kbHudFlow{to{stroke-dashoffset:-12;}}'
++ '.kbHudNode{fill:#bff1ff;filter:drop-shadow(0 0 4px rgba(69,216,255,.8));}'
++ '.kbHudRing{fill:none;stroke-width:1.6;stroke-dasharray:5 7;animation:kbHudSpin 7s linear infinite;transform-box:fill-box;transform-origin:center;filter:drop-shadow(0 0 5px rgba(69,216,255,.5));}'
++ '.kbHudG.on .kbHudRing{stroke-width:2.4;animation-duration:2.6s;}'
++ '.kbHudBr{fill:none;stroke-width:2;stroke-linecap:round;}'
++ '.kbHudDot{stroke:none;}'
++ '.kbHudG.s-yes .kbHudRing,.kbHudG.s-yes .kbHudBr{stroke:#35e0b0;}.kbHudG.s-yes .kbHudDot{fill:#35e0b0;}'
++ '.kbHudG.s-no .kbHudRing,.kbHudG.s-no .kbHudBr{stroke:#ff7a7a;}.kbHudG.s-no .kbHudDot{fill:#ff7a7a;}'
++ '.kbHudG.s-unk .kbHudRing,.kbHudG.s-unk .kbHudBr{stroke:#45d8ff;}.kbHudG.s-unk .kbHudDot{fill:#45d8ff;}'
++ '@keyframes kbHudSpin{to{transform:rotate(360deg);}}'
++ 'body:not(.kb-night) .kbv-card{background:linear-gradient(160deg,rgba(255,255,255,.96),rgba(240,247,255,.96));color:#12203c;border-color:rgba(8,145,209,.35);box-shadow:0 6px 18px rgba(20,33,61,.14);}'
++ 'body:not(.kb-night) .kbv-tag{color:#0891d1;}'
++ 'body:not(.kb-night) .kbv-hud-head{color:#0891d1;text-shadow:none;}'
 + 'body:not(.kb-night) .kbv-chip{background:rgba(36,101,238,.1);color:#2465ee;}'
 + 'body:not(.kb-night) .kbv-chip.act{background:rgba(245,160,90,.16);color:#b26a1f;}'
-+ 'body:not(.kb-night) .kbv-drawer{background:rgba(255,255,255,.97);border-color:rgba(36,101,238,.22);}'
-+ 'body:not(.kb-night) .kbv-dtitle{color:#2465ee;}'
++ 'body:not(.kb-night) .kbv-f.f92{background:rgba(245,160,90,.16);color:#b26a1f;}'
++ 'body:not(.kb-night) .kbv-f.f95{background:rgba(25,183,122,.14);color:#12855c;}'
++ 'body:not(.kb-night) .kbv-f.fdt{background:rgba(110,168,255,.16);color:#2465ee;}'
++ 'body:not(.kb-night) .kbv-f.none{background:rgba(226,74,74,.12);color:#c2403f;}'
++ 'body:not(.kb-night) .kbv-f.unk{background:rgba(20,33,61,.08);color:#7485a0;}'
++ 'body:not(.kb-night) .kbv-drawer{background:rgba(255,255,255,.97);border-color:rgba(8,145,209,.3);}'
++ 'body:not(.kb-night) .kbv-dtitle{color:#0891d1;}'
++ 'body:not(.kb-night) .kbv-scroll{scrollbar-color:rgba(36,101,238,.5) rgba(20,33,61,.06);}'
++ 'body:not(.kb-night) .kbv-scroll::-webkit-scrollbar-track{background:rgba(20,33,61,.06);}'
++ 'body:not(.kb-night) .kbv-scroll::-webkit-scrollbar-thumb{background:rgba(36,101,238,.4);}'
++ 'body:not(.kb-night) .kbv-scroll::-webkit-scrollbar-thumb:hover{background:rgba(36,101,238,.7);}'
++ 'body:not(.kb-night) .kbv-actions{border-top-color:rgba(36,101,238,.15);}'
 + 'body:not(.kb-night) .kbv-open{background:rgba(36,101,238,.08);color:#2465ee;border-color:rgba(36,101,238,.3);}'
++ 'body:not(.kb-night) .kbHudLine{stroke:#0891d1;filter:none;}'
++ 'body:not(.kb-night) .kbHudNode{fill:#0891d1;filter:none;}'
 + '@keyframes kbvIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}'
-+ '@media (prefers-reduced-motion:reduce){.kbv-card,.kbv-drawer{animation:none;}}';
++ '@media (prefers-reduced-motion:reduce){.kbv-card,.kbv-drawer,.kbHudG{animation:none;}.kbHudRing,.kbHudLine,.kbv-live{animation:none;}}';
 
-function kbVisMount() {
-  if (kbVisEl) return kbVisEl;
+// --- 5. монтаж полос и SVG-слоя ---
+function hudMount() {
+  if (hud.el && hud.el.parentNode && hud.svg && hud.svg.parentNode) return true;
   var panel = document.querySelectorAll('.panel')[2];
-  if (!panel) return null;
+  var box = hudBox();
+  if (!panel || !box) return false;
+  document.querySelectorAll('#kbVisStrip,#kbVisCss,#kbHudSvg').forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
   var st = document.createElement('style');
-  st.id = 'kbVisCss'; st.textContent = KB_VIS_CSS;
+  st.id = 'kbVisCss'; st.textContent = KB_HUD_CSS;
   document.head.appendChild(st);
-  kbVisEl = document.createElement('div');
-  kbVisEl.id = 'kbVisStrip';
-  panel.appendChild(kbVisEl);
-  kbVisEl.addEventListener('click', function (e) {
+  hud.el = document.createElement('div');
+  hud.el.id = 'kbVisStrip';
+  panel.appendChild(hud.el);
+  hud.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  hud.svg.id = 'kbHudSvg';
+  hud.svg.innerHTML = '<defs><linearGradient id="kbHudGrad" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0" stop-color="#8fe8ff"/><stop offset="1" stop-color="#2f8bff"/></linearGradient></defs>';
+  box.appendChild(hud.svg);
+  hud.el.addEventListener('click', function (e) {
     var b = e.target.closest('[data-kbvis]');
     if (!b) return;
     e.stopPropagation();
     var act = b.getAttribute('data-kbvis'), id = b.getAttribute('data-id');
-    if (act === 'pick') { kbVisSel = (kbVisSel === id ? null : id); try { closeQuick(); } catch (err) {} kbVisSig = ''; kbVisSync(); }
-    else if (act === 'close') { kbVisSel = null; kbVisSig = ''; kbVisSync(); }
-    else if (act === 'card') { kbVisSel = null; kbVisSig = ''; kbVisSync(); try { openSheet(id); } catch (err) {} }
-    else if (act === 'send') { kbVisSend(id, b); }
+    if (act === 'pick') { hud.sel = (hud.sel === id ? null : id); try { closeQuick(); } catch (err) {} hud.sig = ''; hudSync(); }
+    else if (act === 'close') { hud.sel = null; hud.sig = ''; hudSync(); }
+    else if (act === 'card') { hud.sel = null; hud.sig = ''; hudSync(); try { openSheet(id); } catch (err) {} }
+    else if (act === 'send') { hudSend(id, b); }
   });
-  return kbVisEl;
+  return true;
 }
-function kbVisSend(id, btn) {
+function hudSend(id, btn) {
   btn.disabled = true; btn.textContent = 'Отправляю…';
   Promise.resolve(quickSend(id)).then(function () {
-    kbVisSel = null; kbVisSig = '';
-    try { kbVisSync(); } catch (e) {}
+    var panel = document.getElementById('quick-' + id);
+    // чипы на месте = отправка не состоялась (лимит / ничего не выбрано)
+    if (panel && panel.querySelector('.feedback-option')) {
+      btn.disabled = false; btn.textContent = 'Отправить отметку';
+      return;
+    }
+    // «спасибо» видно 1.4 с, потом шторка закрывается
+    setTimeout(function () { hud.sel = null; hud.sig = ''; try { hudSync(); } catch (e) {} }, 1400);
   }).catch(function () {
     btn.disabled = false; btn.textContent = 'Отправить отметку';
     try { toast('Не отправилось — попробуй ещё раз', 'err'); } catch (e) {}
   });
 }
-function kbVisSync() {
-  var el = kbVisMount(); if (!el) return;
+// шторка всегда вписана в панель: кнопки не уезжают за край
+function hudFit() {
+  if (!hud.el) return;
+  var d = hud.el.querySelector('.kbv-drawer'); if (!d) return;
+  var panel = hud.el.parentNode; if (!panel) return;
+  var pr = panel.getBoundingClientRect(), dr = d.getBoundingClientRect();
+  var h = Math.floor(pr.bottom - dr.top - 12);
+  d.style.maxHeight = Math.max(150, h) + 'px';
+}
+
+// --- 6. пересборка (только когда сменился состав/выбор/данные) ---
+function hudSync() {
+  if (!hudMount()) return;
   var pg = document.getElementById('pager');
   var i = 0;
   if (pg && pg.clientWidth) i = Math.round(pg.scrollLeft / pg.clientWidth);
-  if (i !== 2) { el.classList.remove('on'); return; }
-  var list = kbVisList();
-  if (!list.length) { el.classList.remove('on'); kbVisSel = null; kbVisSig = ''; return; }
-  if (kbVisSel && !list.some(function (x) { return x.st.id === kbVisSel; })) kbVisSel = null;
-  var sig = list.map(function (x) { return x.st.id; }).join(',') + '|' + (kbVisSel || '');
-  if (sig === kbVisSig) return; // не трогаем DOM и выбранные чипы без нужды
-  kbVisSig = sig;
-  var p = kbVisPoint();
-  var html = '<div class="kbv-row">' + list.map(function (x) {
-    var a = kbVisAct(x.st);
+  if (i !== 2) { hud.el.classList.remove('on'); hud.svg.style.display = 'none'; return; }
+  hud.svg.style.display = '';
+  // целостность после чужих перерисовок: узлы пропали — пересобрать
+  if (!hud.el.querySelector('.kbv-row') || hud.svg.querySelectorAll('.kbHudG').length !== hud.picks.length) hud.sig = '';
+  // ЗАМОРОЗКА: пока человек выбирает отметку, состав не трогаем —
+  // окно не исчезает и выбранные чипы не сбрасываются
+  if (hud.sel) {
+    var intact = hud.el.querySelector('.kbv-drawer') && hud.svg.querySelectorAll('.kbHudG').length === hud.picks.length;
+    if (intact) { hud.el.classList.add('on'); hudFit(); hudTrack(); return; }
+    hud.sig = '';
+  }
+  hud.obs = hudObsMap();
+  var c = hudCandidates();
+  var picks = hudPick(c);
+  hud.picks = picks;
+  if (!picks.length) { hud.el.classList.remove('on'); hud.svg.style.display = 'none'; hud.sel = null; hud.sig = ''; return; }
+  if (hud.sel && !picks.some(function (x) { return String(x.st.id) === String(hud.sel); })) hud.sel = null;
+  var sig = picks.map(function (x) {
+    return x.st.id + ':' + x.fuel.state + ':' + x.act.n + ':' + Math.round(x.d / 50);
+  }).join(',') + '|' + (hud.sel || '');
+  if (sig === hud.sig) { hudTrack(); return; }
+  hud.sig = sig;
+  var head = '<div class="kbv-hud-head"><i class="kbv-live"></i>Отслеживание · в кадре<em>' + picks.length + ' цел.</em></div>';
+  var html = head + '<div class="kbv-row">' + picks.map(function (x, k) {
     var street = x.st.address || x.st.name || 'АЗС';
-    return '<button class="kbv-card' + (x.st.id === kbVisSel ? ' on' : '') + '" data-kbvis="pick" data-id="' + escapeHtml(String(x.st.id)) + '">' +
+    var hex = String(x.st.id).replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
+    return '<button class="kbv-card s-' + x.fuel.state + (String(x.st.id) === String(hud.sel) ? ' on' : '') + '" data-kbvis="pick" data-id="' + escapeHtml(String(x.st.id)) + '" title="' + escapeHtml(street) + '">' +
+      '<span class="kbv-tag">ЦЕЛЬ·0' + (k + 1) + '<i>#' + escapeHtml(hex) + '</i></span>' +
       '<span class="kbv-st">' + escapeHtml(street) + '</span>' +
-      '<span class="kbv-meta"><span class="kbv-chip">📍 ' + kbVisDist(x.d) + '</span>' +
-      '<span class="kbv-chip act">⚡ ' + a.n + ' ' + a.t + '</span></span></button>';
+      '<span class="kbv-fuels">' + x.fuel.html + '</span>' +
+      '<span class="kbv-meta"><span class="kbv-chip">📍 ' + hudDist(x.d) + '</span>' +
+      '<span class="kbv-chip act" title="' + (x.act.t === 'за сутки' ? 'отметки водителей за сутки' : 'спрос станции') + '">⚡ ' + x.act.n + (x.act.t === 'за сутки' ? ' за сутки' : ' спрос') + '</span></span></button>';
   }).join('') + '</div>';
-  if (kbVisSel) {
-    var cur = list.filter(function (x) { return x.st.id === kbVisSel; })[0];
+  if (hud.sel) {
+    var cur = picks.filter(function (x) { return String(x.st.id) === String(hud.sel); })[0];
     if (cur) {
       html += '<div class="kbv-drawer">' +
-        '<div class="kbv-dtitle"><span>' + escapeHtml(cur.st.name || 'АЗС') + (p && !p.me ? ' · расстояния от центра карты' : '') + '</span>' +
+        '<div class="kbv-dtitle"><span>' + escapeHtml(cur.st.name || 'АЗС') + (c.me === false ? ' · расстояния от центра карты' : '') + '</span>' +
         '<button class="kbv-x" data-kbvis="close">✕</button></div>' +
-        '<div class="feedback-panel open" id="quick-' + escapeHtml(String(cur.st.id)) + '">' + quickChipsHtml() + '</div>' +
+        '<div class="kbv-scroll"><div class="feedback-panel open" id="quick-' + escapeHtml(String(cur.st.id)) + '">' + quickChipsHtml() + '</div></div>' +
         '<div class="kbv-actions"><button class="kbv-send" data-kbvis="send" data-id="' + escapeHtml(String(cur.st.id)) + '">Отправить отметку</button>' +
         '<button class="kbv-open" data-kbvis="card" data-id="' + escapeHtml(String(cur.st.id)) + '">Карточка АЗС</button></div></div>';
     }
   }
-  el.innerHTML = html;
-  el.classList.add('on');
+  hud.el.innerHTML = html;
+  hud.el.classList.add('on');
+  hudFit();
+  var defs = hud.svg.querySelector('defs').outerHTML;
+  var g = '';
+  for (var k = 0; k < picks.length; k++) {
+    var on = String(picks[k].st.id) === String(hud.sel);
+    g += '<g class="kbHudG s-' + picks[k].fuel.state + (on ? ' on' : '') + '" data-k="' + k + '">' +
+      '<path class="kbHudLine" d=""/>' +
+      '<circle class="kbHudNode" r="3"/>' +
+      '<g class="kbHudRet">' +
+      '<circle class="kbHudRing" r="26"/>' +
+      '<path class="kbHudBr" d="M -24,-15 L -24,-24 L -15,-24 M 15,-24 L 24,-24 L 24,-15 M 24,15 L 24,24 L 15,24 M -15,24 L -24,24 L -24,15"/>' +
+      '<circle class="kbHudDot" r="2.4"/>' +
+      '</g></g>';
+  }
+  hud.svg.innerHTML = defs + g;
+  hudStarts();
+  hudTrack();
+}
+function hudStarts() {
+  hud.starts = [];
+  var box = hudBox(); if (!box) return;
+  var br = box.getBoundingClientRect();
+  hud.el.querySelectorAll('.kbv-card').forEach(function (card) {
+    var r = card.getBoundingClientRect();
+    hud.starts.push({ x: r.left + r.width / 2 - br.left, y: r.bottom - br.top + 2 });
+  });
 }
 
-var kbVisSyncQ = kbCoalesce(kbVisSync);
-var kbVisPg = document.getElementById('pager');
-if (kbVisPg) kbVisPg.addEventListener('scroll', kbVisSyncQ, { passive: true });
-window.addEventListener('resize', kbVisSyncQ);
-document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') kbVisSyncQ(); });
-setTimeout(kbVisSyncQ, 1200);
+// --- 7. слежение: каждый кадр движения карты, без пересборки DOM ---
+function hudTrack() {
+  if (!hud.svg || !hud.picks.length || !mapObj || !mapObj.project) return;
+  var box = hudBox(); if (!box) return;
+  var W = box.clientWidth, H = box.clientHeight;
+  var gs = hud.svg.querySelectorAll('.kbHudG');
+  for (var k = 0; k < hud.picks.length && k < gs.length; k++) {
+    var it = hud.picks[k], g = gs[k];
+    var s = hud.starts[k]; if (!s) continue;
+    var p; try { p = mapObj.project([Number(it.st.lon), Number(it.st.lat)]); } catch (e) { continue; }
+    var out = p.x < 6 || p.x > W - 6 || p.y < s.y + 20 || p.y > H - 6;
+    g.classList.toggle('far', out);
+    var ey = Math.max(s.y + 26, p.y - 32);
+    g.querySelector('.kbHudLine').setAttribute('d',
+      'M ' + s.x.toFixed(1) + ' ' + s.y.toFixed(1) +
+      ' L ' + s.x.toFixed(1) + ' ' + (s.y + 12).toFixed(1) +
+      ' L ' + p.x.toFixed(1) + ' ' + ey.toFixed(1));
+    var node = g.querySelector('.kbHudNode');
+    node.setAttribute('cx', s.x.toFixed(1)); node.setAttribute('cy', s.y.toFixed(1));
+    g.querySelector('.kbHudRet').setAttribute('transform', 'translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')');
+  }
+}
+var hudTrackQ = kbCoalesce(hudTrack);
+var hudReselect = kbDebounce(function () {
+  if (hud.sel) { hudStarts(); hudFit(); hudTrack(); return; } // заморожено — не перевыбираем
+  hud.sig = ''; try { hudSync(); } catch (e) {}
+}, 220);
+
+// --- 8. события ---
+var hudSyncQ = kbCoalesce(function () { try { hudSync(); } catch (e) {} });
+var hudPg = document.getElementById('pager');
+if (hudPg) hudPg.addEventListener('scroll', hudSyncQ, { passive: true });
+window.addEventListener('resize', function () { hudStarts(); hudFit(); hudTrackQ(); hudReselect(); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') hudSyncQ(); });
+setTimeout(hudSyncQ, 1200);
+setInterval(function () {
+  var pg = document.getElementById('pager');
+  if (!pg || !pg.clientWidth) return;
+  if (Math.round(pg.scrollLeft / pg.clientWidth) === 2) hudSyncQ();
+}, 5000);
 })();
