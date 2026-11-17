@@ -15459,3 +15459,246 @@ var bb = document.getElementById('bootBack');
 if (bb && bb.parentNode) bb.parentNode.removeChild(bb);
 } catch (e) {}
 })();
+// ============================================================
+// KB MAP SPEED + VIS STRIP v1
+// 1) Скорость: renderMap схлопывается в один проход (на дальнем
+//    зуме — лениво, 200 мс), обработчики зума не чаще кадра,
+//    «лужи» спроса на дальнем зуме упрощаются (z<10.5 — только
+//    main, z<9 — скрыты: там их прозрачность и так ~5%).
+// 2) Полоса «В кадре»: до 3 ближайших АЗС в границах экрана карты,
+//    сортировка от вашей точки (или центра карты). Тап — чипы
+//    отметки (quickSend) + «Карточка». Оверлей, панель не растёт.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbMapSpeedVis) return;
+window.__kbMapSpeedVis = 1;
+
+function kbCoalesce(fn) {
+  var q = false;
+  return function () {
+    if (q) return;
+    q = true;
+    requestAnimationFrame(function () { q = false; try { fn(); } catch (e) {} });
+  };
+}
+
+// --- 1a. зум-обработчики: не чаще одного раза за кадр ---
+try { applyLabelZoom = kbCoalesce(applyLabelZoom); } catch (e) {}
+
+// --- 1b. renderMap: один проход, дальний зум — лениво ---
+var kbRmBase = renderMap, kbRmPend = false, kbRmTimer = 0;
+renderMap = function () {
+  if (kbRmPend) return;
+  kbRmPend = true;
+  var z = 12;
+  try { if (mapObj && mapObj.getZoom) z = mapObj.getZoom(); } catch (e) {}
+  var run = function () {
+    kbRmPend = false;
+    try { kbRmBase(); } catch (e) {}
+    try { kbVisSync(); } catch (e) {}
+  };
+  if (z < 10.5) { clearTimeout(kbRmTimer); kbRmTimer = setTimeout(run, 200); }
+  else requestAnimationFrame(run);
+};
+
+// --- 1c. LOD «луж» + перехват зум-листенов после загрузки карты ---
+function kbZoneLod(d, z) {
+  if (!d || !d.features) return d;
+  if (z < 9) return { type: 'FeatureCollection', features: [] };
+  if (z < 10.5) return { type: 'FeatureCollection', features: d.features.filter(function (f) { return f && f.properties && f.properties.kind === 'main'; }) };
+  return d;
+}
+function kbInstallMapSpeed() {
+  if (!mapObj || mapObj.__kbSpeedDone) return;
+  mapObj.__kbSpeedDone = 1;
+  try { mapObj.off('zoom', applyZoneBadgesZoom); mapObj.on('zoom', kbCoalesce(applyZoneBadgesZoom)); } catch (e) {}
+  try { mapObj.off('zoom', applyServiceZoom); mapObj.on('zoom', kbCoalesce(applyServiceZoom)); } catch (e) {}
+  try {
+    var zs = mapObj.getSource('zones');
+    if (zs && !zs.__kbLod) {
+      zs.__kbLod = 1;
+      var od = zs.setData.bind(zs);
+      zs.__kbFull = null; zs.__kbBand = -1;
+      var band = function (z) { return z < 9 ? 0 : z < 10.5 ? 1 : 2; };
+      zs.setData = function (d) {
+        zs.__kbFull = d;
+        var b = band(mapObj.getZoom());
+        zs.__kbBand = b;
+        return od(b === 2 ? d : kbZoneLod(d, mapObj.getZoom()));
+      };
+      mapObj.on('zoom', kbCoalesce(function () {
+        if (!zs.__kbFull) return;
+        var b = band(mapObj.getZoom());
+        if (b === zs.__kbBand) return;
+        zs.__kbBand = b;
+        try { od(b === 2 ? zs.__kbFull : kbZoneLod(zs.__kbFull, mapObj.getZoom())); } catch (e) {}
+      }));
+    }
+  } catch (e) {}
+  try { kbVisSync(); } catch (e) {}
+}
+var kbEmBase = ensureMap;
+ensureMap = function () {
+  kbEmBase();
+  try {
+    if (mapObj && !mapObj.__kbSpeedHook) {
+      mapObj.__kbSpeedHook = 1;
+      mapObj.on('load', kbInstallMapSpeed);
+      if (mapObj.loaded && mapObj.loaded()) kbInstallMapSpeed();
+    }
+  } catch (e) {}
+};
+
+// --- 2. полоса «В кадре» ---
+var kbVisSel = null, kbVisSig = '', kbVisEl = null;
+
+function kbVisPoint() {
+  try { var m = manualLoc(); if (m && isFinite(m.lat)) return { lat: m.lat, lon: m.lon, me: true }; } catch (e) {}
+  try { var l = loadUserLocation(); if (l && isFinite(l.lat)) return { lat: l.lat, lon: l.lon, me: true }; } catch (e) {}
+  try { var c = mapObj.getCenter(); return { lat: c.lat, lon: c.lng, me: false }; } catch (e) {}
+  return null;
+}
+function kbVisDist(m) { return m < 1000 ? Math.round(m) + ' м' : (m / 1000).toFixed(1) + ' км'; }
+function kbVisAct(st) {
+  var n = 0, since = Date.now() - 24 * 3600 * 1000;
+  try {
+    for (var i = 0; i < allFeedback.length; i++) {
+      var f = allFeedback[i];
+      if (String(f.station_id) !== String(st.id)) continue;
+      var t = new Date(f.created_at).getTime();
+      if (t >= since) n++;
+    }
+  } catch (e) {}
+  if (n > 0) return { n: n, t: 'за сутки' };
+  try { return { n: demandOf(st.id), t: 'спрос' }; } catch (e) {}
+  return { n: 0, t: 'спрос' };
+}
+function kbVisList() {
+  if (!mapObj || !mapObj.__kbSpeedDone) return [];
+  var vb;
+  try { vb = mapObj.getBounds(); } catch (e) { return []; }
+  var p = kbVisPoint(); if (!p) return [];
+  var out = [];
+  for (var i = 0; i < allStations.length; i++) {
+    var s = allStations[i];
+    var la = Number(s.lat), lo = Number(s.lon);
+    if (!isFinite(la) || !isFinite(lo)) continue;
+    if (la < vb.getSouth() || la > vb.getNorth() || lo < vb.getWest() || lo > vb.getEast()) continue;
+    out.push({ st: s, d: distMeters(p.lat, p.lon, la, lo) });
+  }
+  out.sort(function (a, b) { return a.d - b.d; });
+  return out.slice(0, 3);
+}
+
+var KB_VIS_CSS = ''
++ '#kbVisStrip{position:absolute;top:76px;left:10px;right:10px;z-index:6;pointer-events:none;display:none;}'
++ '#kbVisStrip.on{display:block;}'
++ '.kbv-row{display:flex;gap:8px;overflow-x:auto;padding:2px;pointer-events:auto;scrollbar-width:thin;scrollbar-color:rgba(57,124,255,.55) transparent;}'
++ '.kbv-row::-webkit-scrollbar{height:4px;}'
++ '.kbv-row::-webkit-scrollbar-thumb{background:rgba(57,124,255,.55);border-radius:99px;}'
++ '.kbv-row::-webkit-scrollbar-thumb:hover{background:rgba(57,124,255,.85);}'
++ '.kbv-row::-webkit-scrollbar-track{background:transparent;}'
++ '.kbv-card{flex:1 1 0;min-width:118px;max-width:180px;text-align:left;border-radius:16px;padding:9px 10px;cursor:pointer;'
++ 'border:1px solid rgba(148,180,255,.25);background:rgba(13,20,38,.92);color:#eaf1ff;'
++ 'box-shadow:0 6px 18px rgba(4,10,26,.45);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
++ 'animation:kbvIn .28s ease both;transition:border-color .15s,transform .15s;}'
++ '.kbv-card:nth-child(2){animation-delay:.05s;}.kbv-card:nth-child(3){animation-delay:.1s;}'
++ '.kbv-card:active{transform:scale(.97);}'
++ '.kbv-card.on{border-color:#397cff;box-shadow:0 0 0 2px rgba(57,124,255,.35),0 6px 18px rgba(4,10,26,.45);}'
++ '.kbv-st{display:block;font-weight:700;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}'
++ '.kbv-meta{display:flex;gap:6px;margin-top:5px;font-size:10.5px;}'
++ '.kbv-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;background:rgba(57,124,255,.16);color:#9cc0ff;white-space:nowrap;}'
++ '.kbv-chip.act{background:rgba(245,160,90,.16);color:#ffc48a;}'
++ '.kbv-drawer{pointer-events:auto;margin-top:8px;border-radius:18px;padding:10px;border:1px solid rgba(148,180,255,.25);'
++ 'background:rgba(13,20,38,.95);box-shadow:0 10px 26px rgba(4,10,26,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);animation:kbvIn .22s ease both;}'
++ '.kbv-dtitle{font-size:11px;color:#9cc0ff;margin:0 2px 6px;display:flex;justify-content:space-between;align-items:center;gap:8px;}'
++ '.kbv-x{border:0;background:rgba(148,180,255,.14);color:#c6d2e8;border-radius:99px;width:24px;height:24px;cursor:pointer;flex:0 0 auto;}'
++ '.kbv-actions{display:flex;gap:8px;margin-top:8px;}'
++ '.kbv-send{flex:1;border:0;border-radius:12px;padding:10px;font-weight:700;font-size:13px;cursor:pointer;background:linear-gradient(135deg,#1bb978,#12a06b);color:#fff;}'
++ '.kbv-send:disabled{opacity:.6;}'
++ '.kbv-open{flex:1;border:1px solid rgba(148,180,255,.3);border-radius:12px;padding:10px;font-weight:600;font-size:13px;cursor:pointer;background:rgba(57,124,255,.14);color:#cfe0ff;}'
++ 'body:not(.kb-night) .kbv-card{background:rgba(255,255,255,.94);color:#12203c;border-color:rgba(36,101,238,.22);box-shadow:0 6px 18px rgba(20,33,61,.14);}'
++ 'body:not(.kb-night) .kbv-chip{background:rgba(36,101,238,.1);color:#2465ee;}'
++ 'body:not(.kb-night) .kbv-chip.act{background:rgba(245,160,90,.16);color:#b26a1f;}'
++ 'body:not(.kb-night) .kbv-drawer{background:rgba(255,255,255,.97);border-color:rgba(36,101,238,.22);}'
++ 'body:not(.kb-night) .kbv-dtitle{color:#2465ee;}'
++ 'body:not(.kb-night) .kbv-open{background:rgba(36,101,238,.08);color:#2465ee;border-color:rgba(36,101,238,.3);}'
++ '@keyframes kbvIn{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}'
++ '@media (prefers-reduced-motion:reduce){.kbv-card,.kbv-drawer{animation:none;}}';
+
+function kbVisMount() {
+  if (kbVisEl) return kbVisEl;
+  var panel = document.querySelectorAll('.panel')[2];
+  if (!panel) return null;
+  var st = document.createElement('style');
+  st.id = 'kbVisCss'; st.textContent = KB_VIS_CSS;
+  document.head.appendChild(st);
+  kbVisEl = document.createElement('div');
+  kbVisEl.id = 'kbVisStrip';
+  panel.appendChild(kbVisEl);
+  kbVisEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-kbvis]');
+    if (!b) return;
+    e.stopPropagation();
+    var act = b.getAttribute('data-kbvis'), id = b.getAttribute('data-id');
+    if (act === 'pick') { kbVisSel = (kbVisSel === id ? null : id); try { closeQuick(); } catch (err) {} kbVisSig = ''; kbVisSync(); }
+    else if (act === 'close') { kbVisSel = null; kbVisSig = ''; kbVisSync(); }
+    else if (act === 'card') { kbVisSel = null; kbVisSig = ''; kbVisSync(); try { openSheet(id); } catch (err) {} }
+    else if (act === 'send') { kbVisSend(id, b); }
+  });
+  return kbVisEl;
+}
+function kbVisSend(id, btn) {
+  btn.disabled = true; btn.textContent = 'Отправляю…';
+  Promise.resolve(quickSend(id)).then(function () {
+    kbVisSel = null; kbVisSig = '';
+    try { kbVisSync(); } catch (e) {}
+  }).catch(function () {
+    btn.disabled = false; btn.textContent = 'Отправить отметку';
+    try { toast('Не отправилось — попробуй ещё раз', 'err'); } catch (e) {}
+  });
+}
+function kbVisSync() {
+  var el = kbVisMount(); if (!el) return;
+  var pg = document.getElementById('pager');
+  var i = 0;
+  if (pg && pg.clientWidth) i = Math.round(pg.scrollLeft / pg.clientWidth);
+  if (i !== 2) { el.classList.remove('on'); return; }
+  var list = kbVisList();
+  if (!list.length) { el.classList.remove('on'); kbVisSel = null; kbVisSig = ''; return; }
+  if (kbVisSel && !list.some(function (x) { return x.st.id === kbVisSel; })) kbVisSel = null;
+  var sig = list.map(function (x) { return x.st.id; }).join(',') + '|' + (kbVisSel || '');
+  if (sig === kbVisSig) return; // не трогаем DOM и выбранные чипы без нужды
+  kbVisSig = sig;
+  var p = kbVisPoint();
+  var html = '<div class="kbv-row">' + list.map(function (x) {
+    var a = kbVisAct(x.st);
+    var street = x.st.address || x.st.name || 'АЗС';
+    return '<button class="kbv-card' + (x.st.id === kbVisSel ? ' on' : '') + '" data-kbvis="pick" data-id="' + escapeHtml(String(x.st.id)) + '">' +
+      '<span class="kbv-st">' + escapeHtml(street) + '</span>' +
+      '<span class="kbv-meta"><span class="kbv-chip">📍 ' + kbVisDist(x.d) + '</span>' +
+      '<span class="kbv-chip act">⚡ ' + a.n + ' ' + a.t + '</span></span></button>';
+  }).join('') + '</div>';
+  if (kbVisSel) {
+    var cur = list.filter(function (x) { return x.st.id === kbVisSel; })[0];
+    if (cur) {
+      html += '<div class="kbv-drawer">' +
+        '<div class="kbv-dtitle"><span>' + escapeHtml(cur.st.name || 'АЗС') + (p && !p.me ? ' · расстояния от центра карты' : '') + '</span>' +
+        '<button class="kbv-x" data-kbvis="close">✕</button></div>' +
+        '<div class="feedback-panel open" id="quick-' + escapeHtml(String(cur.st.id)) + '">' + quickChipsHtml() + '</div>' +
+        '<div class="kbv-actions"><button class="kbv-send" data-kbvis="send" data-id="' + escapeHtml(String(cur.st.id)) + '">Отправить отметку</button>' +
+        '<button class="kbv-open" data-kbvis="card" data-id="' + escapeHtml(String(cur.st.id)) + '">Карточка АЗС</button></div></div>';
+    }
+  }
+  el.innerHTML = html;
+  el.classList.add('on');
+}
+
+var kbVisSyncQ = kbCoalesce(kbVisSync);
+var kbVisPg = document.getElementById('pager');
+if (kbVisPg) kbVisPg.addEventListener('scroll', kbVisSyncQ, { passive: true });
+window.addEventListener('resize', kbVisSyncQ);
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') kbVisSyncQ(); });
+setTimeout(kbVisSyncQ, 1200);
+})();
