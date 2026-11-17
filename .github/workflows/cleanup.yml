@@ -111,13 +111,11 @@ jobs:
             }
           }
 
-          // ---- 3. Ворота синтаксиса: пишем только если node --check прошёл ----
-          const tmp = FILE + '.tmp-check';
-          fs.writeFileSync(tmp, src);
+          // ---- 3. Ворота синтаксиса: компиляция как браузерного скрипта ----
+          const vm = require('vm');
           let ok = true, err = '';
-          try { cp.execFileSync(process.execPath, ['--check', tmp], { stdio: 'pipe' }); }
-          catch (e) { ok = false; err = String(e.stderr || e.message); }
-          fs.unlinkSync(tmp);
+          try { new vm.Script(src, { filename: FILE }); }
+          catch (e) { ok = false; err = String(e.stack || e.message); }
           if (!ok) {
             console.error('Синтаксис сломан — оригинал НЕ тронут.\n' + err);
             console.log('Бэкап на всякий случай: ' + backup);
@@ -126,7 +124,7 @@ jobs:
           fs.writeFileSync(FILE, src);
           console.log(log.length ? log.join('\n') : 'Мёртвых блоков не найдено — файл уже чистый.');
           console.log('Было ' + orig.length + ' байт → стало ' + src.length + ' байт (−' + (orig.length - src.length) + ').');
-          console.log('node --check: OK');
+          console.log('syntax: OK');
           console.log('Бэкап: ' + backup);
           EOF
           node cleanup-app.js app.js
