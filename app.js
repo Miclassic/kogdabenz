@@ -12608,8 +12608,15 @@ function fl(f) { return f === '92' ? 'АИ-92' : f === '95' ? 'АИ-95' : f === 
 function flShort(f) { return f === '92' ? '92' : f === '95' ? '95' : 'ДТ'; }
 // ---------- регион ----------
 function kbSvRegion() {
-try { if (typeof window.kbRegionGet === 'function') return window.kbRegionGet() === 'nw' ? 'nw' : 'south'; } catch (e) {}
-return (document.body && document.body.classList.contains('kb-region-nw')) ? 'nw' : 'south';
+try {
+if (typeof window.kbRegionGet === 'function') {
+var r = window.kbRegionGet();
+if (r === 'nw' || r === 'ch') return r;
+}
+} catch (e) {}
+if (document.body && document.body.classList.contains('kb-region-nw')) return 'nw';
+if (document.body && document.body.classList.contains('kb-region-ch')) return 'ch';
+return 'south';
 }
 var SV_WORDS = {
 nw: { title: 'Сводка по Северо-Западу', dat: 'Северо-Западу', pre: 'Северо-Западе', gen: 'Северо-Запада', all: 'весь Северо-Запад' },
