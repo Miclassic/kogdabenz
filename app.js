@@ -5260,7 +5260,9 @@ const OUR_LABELS = [
 { name: 'Гатчина', lon: 30.1281, lat: 59.5686, minZoom: 9 },
 { name: 'Волхов', lon: 32.3389, lat: 59.9264, minZoom: 9 },
 { name: 'Всеволожск', lon: 30.6450, lat: 60.0200, minZoom: 10 },
-{ name: 'Колпино', lon: 30.5889, lat: 59.7500, minZoom: 10 }
+{ name: 'Колпино', lon: 30.5889, lat: 59.7500, minZoom: 10 },
+// Чувашия: третья зона сбора
+{ name: 'Чебоксары', lon: 47.2519, lat: 56.1439, city: true, minZoom: 0 }
 ];
 let labelCtrls = [];
 // зоны спроса: вдали — лёгкая дымка, с приближением контрастнее и чётче;
@@ -5355,8 +5357,9 @@ function serviceAreaData() {
   // две зоны сбора: юг и северо-запад. Между ними не наблюдаем —
   // поэтому это два отдельных кольца, а не один большой прямоугольник.
   const south = [[37.20, 43.30], [45.90, 43.30], [45.90, 48.60], [37.20, 48.60]];
-  const nw = [[28.00, 58.50], [35.50, 58.50], [35.50, 62.50], [28.00, 62.50]];
-  const rings = [roundedRing(south, 0.35, 10), roundedRing(nw, 0.35, 10)];
+const nw = [[28.00, 58.50], [35.50, 58.50], [35.50, 62.50], [28.00, 62.50]];
+const ch = [[46.40, 55.05], [48.95, 55.05], [48.95, 56.95], [46.40, 56.95]];
+const rings = [roundedRing(south, 0.35, 10), roundedRing(nw, 0.35, 10), roundedRing(ch, 0.35, 10)];
   const outer = [[-10, 20], [80, 20], [80, 80], [-10, 80], [-10, 20]];
   return {
     type: 'FeatureCollection',
@@ -12608,12 +12611,18 @@ function kbSvRegion() {
 try { if (typeof window.kbRegionGet === 'function') return window.kbRegionGet() === 'nw' ? 'nw' : 'south'; } catch (e) {}
 return (document.body && document.body.classList.contains('kb-region-nw')) ? 'nw' : 'south';
 }
+var SV_WORDS = {
+nw: { title: 'Сводка по Северо-Западу', dat: 'Северо-Западу', pre: 'Северо-Западе', gen: 'Северо-Запада', all: 'весь Северо-Запад' },
+ch: { title: 'Сводка по Чувашии', dat: 'Чувашии', pre: 'Чувашии', gen: 'Чувашии', all: 'вся Чувашия' },
+south: { title: 'Сводка по Югу', dat: 'югу', pre: 'юге', gen: 'юга', all: 'весь юг' }
+};
+function kbSvW() { return SV_WORDS[kbSvRegion()] || SV_WORDS.south; }
 function kbSvNw() { return kbSvRegion() === 'nw'; }
-function kbSvTitle() { return kbSvNw() ? 'Сводка по Северо-Западу' : 'Сводка по Югу'; }
-function kbSvDat() { return kbSvNw() ? 'Северо-Западу' : 'югу'; }
-function kbSvPre() { return kbSvNw() ? 'Северо-Западе' : 'юге'; }
-function kbSvGenLow() { return kbSvNw() ? 'Северо-Запада' : 'юга'; }
-function kbSvAll() { return kbSvNw() ? 'весь Северо-Запад' : 'весь юг'; }
+function kbSvTitle() { return kbSvW().title; }
+function kbSvDat() { return kbSvW().dat; }
+function kbSvPre() { return kbSvW().pre; }
+function kbSvGenLow() { return kbSvW().gen; }
+function kbSvAll() { return kbSvW().all; }
 var GEN = {
 novorossiysk: 'Новороссийска', gelendzhik: 'Геленджика', anapa: 'Анапы', krymsk: 'Крымска',
 krasnodar: 'Краснодара', sochi: 'Сочи', tuapse: 'Туапсе', armavir: 'Армавира',
@@ -12624,8 +12633,12 @@ tikhvin: 'Тихвина', luga: 'Луги', sortavala: 'Сортавалы', so
 gatchina: 'Гатчины', volhov: 'Волхова', vsevolozhsk: 'Всеволожска', kolpino: 'Колпина'
 };
 function boxes() {
-if (kbSvNw()) {
-try { if (window.kbRegionBoxes && window.kbRegionBoxes.nw && window.kbRegionBoxes.nw.length) return window.kbRegionBoxes.nw; } catch (e) {}
+var r = kbSvRegion();
+if (r !== 'south') {
+try {
+var rb = window.kbRegionBoxes && window.kbRegionBoxes[r];
+if (rb && rb.length) return rb;
+} catch (e) {}
 return [];
 }
 return (typeof CITY_BOXES !== 'undefined' && CITY_BOXES) ? CITY_BOXES : [];
@@ -13133,11 +13146,17 @@ var hh = Math.max(0, Math.floor(left / H)), mm = Math.max(0, Math.floor((left % 
 el.textContent = 'следующий через ' + hh + ':' + pad(mm);
 }
 var seoChecked = false, seoCheckedUrl = '';
-function seoUrl() { return kbSvNw() ? SITE + '/svodka-sz.html' : SITE + '/svodka.html'; }
+function seoUrl() {
+var r = kbSvRegion();
+if (r === 'nw') return SITE + '/svodka-sz.html';
+if (r === 'south') return SITE + '/svodka.html';
+return null; // по Чувашии отдельной поисковой страницы пока нет
+}
 function checkSeo() {
 var a = document.getElementById('kbsSeo');
 if (!a) return;
 var url = seoUrl();
+if (!url) { a.style.display = 'none'; seoChecked = false; seoCheckedUrl = ''; return; }
 if (seoCheckedUrl !== url) { seoChecked = false; seoCheckedUrl = url; }
 if (seoChecked === true) { a.style.display = ''; return; }
 if (seoChecked === 'pending') return;
@@ -13196,7 +13215,7 @@ glow2.addColorStop(0, 'rgba(25,183,122,.28)'); glow2.addColorStop(1, 'rgba(25,18
 g.fillStyle = glow2; g.fillRect(0, Hh - 620, W, 620);
 g.fillStyle = 'rgba(255,255,255,.62)'; g.font = '800 30px system-ui,sans-serif';
 g.fillText('КОГДАБЕНЗ · АВТОВЫПУСК КАЖДЫЕ 4 ЧАСА', 60, 76);
-g.fillStyle = '#fff'; g.font = '900 ' + (kbSvNw() ? 54 : 74) + 'px system-ui,sans-serif';
+g.fillStyle = '#fff'; g.font = '900 ' + (kbSvRegion() === 'south' ? 74 : 54) + 'px system-ui,sans-serif';
 g.fillText('СВОДКА ПО ' + kbSvDat().toUpperCase(), 60, 158);
 g.fillStyle = '#7db4ff'; g.font = '800 34px system-ui,sans-serif';
 g.fillText(stamp(D.bucket) + ' МСК · ' + D.cities.length + ' городов · ' + D.T.total + ' АЗС', 60, 210);
@@ -14733,20 +14752,28 @@ var NW_BOXES = [
 { key: 'sortavala',    name: 'Сортавала',        nameIn: 'Сортавале',         lat1: 61.60, lat2: 61.80, lon1: 30.52, lon2: 30.88 },
 { key: 'petrozavodsk', name: 'Петрозаводск',     nameIn: 'Петрозаводске',     lat1: 61.68, lat2: 61.90, lon1: 34.18, lon2: 34.52 }
 ];
-var ALL_BOXES = CITY_BOXES.concat(NW_BOXES);
-function kbBoxes() { return userRegion === 'nw' ? NW_BOXES : CITY_BOXES; }
-function kbGeoRegion(loc) { return (loc && Number(loc.lat) >= 53) ? 'nw' : 'south'; }
-window.kbRegionBoxes = { south: CITY_BOXES, nw: NW_BOXES, all: ALL_BOXES };
+var CH_BOXES = [
+{ key: 'cheboksary', name: 'Чебоксары', nameIn: 'Чебоксарах', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 }
+];
+var ALL_BOXES = CITY_BOXES.concat(NW_BOXES).concat(CH_BOXES);
+function kbBoxes() { return userRegion === 'nw' ? NW_BOXES : userRegion === 'ch' ? CH_BOXES : CITY_BOXES; }
+function kbGeoRegion(loc) {
+if (!loc) return 'south';
+var la = Number(loc.lat), lo = Number(loc.lon);
+if (la >= 55.05 && la <= 56.95 && lo >= 46.40 && lo <= 48.95) return 'ch';
+return la >= 53 ? 'nw' : 'south';
+}
+window.kbRegionBoxes = { south: CITY_BOXES, nw: NW_BOXES, ch: CH_BOXES, all: ALL_BOXES };
 window.kbRegionGet = function () { return userRegion; };
-function kbRegionWord() { return userRegion === 'nw' ? 'северо-запад' : 'юг'; }
-function kbRegionTitle() { return userRegion === 'nw' ? 'Северо-Запад' : 'Юг'; }
+function kbRegionWord() { return userRegion === 'nw' ? 'северо-запад' : userRegion === 'ch' ? 'чувашия' : 'юг'; }
+function kbRegionTitle() { return userRegion === 'nw' ? 'Северо-Запад' : userRegion === 'ch' ? 'Чувашия' : 'Юг'; }
 
 // ---------- состояние региона ----------
 var userRegion = 'south';
 var regionManual = false;
 try {
 var savedR = localStorage.getItem('kbRegion');
-if (savedR === 'nw' || savedR === 'south') userRegion = savedR;
+if (savedR === 'nw' || savedR === 'south' || savedR === 'ch') userRegion = savedR;
 regionManual = localStorage.getItem('kbRegionManual') === '1';
 } catch (e) {}
 // ---------- палитра ----------
@@ -14762,6 +14789,7 @@ L.push('.kb-region-thumb{position:absolute;top:3px;bottom:3px;left:3px;width:60p
 L.push('background:linear-gradient(135deg,#ffb46a,#f5a05a 55%,#e05a2b);box-shadow:0 3px 10px rgba(224,90,43,.4),inset 0 1px 0 rgba(255,255,255,.5);');
 L.push('transition:left .35s cubic-bezier(.2,.8,.2,1),width .35s cubic-bezier(.2,.8,.2,1),background .3s;}');
 L.push('.kb-region-thumb.nw{background:linear-gradient(135deg,#38bdf8,#2465ee 55%,#1746c8);box-shadow:0 3px 10px rgba(36,101,238,.45),inset 0 1px 0 rgba(255,255,255,.45);}');
+L.push('.kb-region-thumb.ch{background:linear-gradient(135deg,#b7a8ff,#7c6dff 55%,#5b48d6);box-shadow:0 3px 10px rgba(124,109,255,.45),inset 0 1px 0 rgba(255,255,255,.45);}');
 L.push('.kb-region-seg button{position:relative;z-index:1;display:inline-flex;align-items:center;gap:5px;border:0;background:none;cursor:pointer;');
 L.push('border-radius:99px;padding:6px 13px;font-family:inherit;font-size:11px;font-weight:800;color:#7487a7;white-space:nowrap;transition:color .25s;}');
 L.push('.kb-region-seg button .ic{width:12px;height:12px;}');
@@ -14783,6 +14811,9 @@ L.push('@media (prefers-reduced-motion:reduce){.kb-region-thumb{transition:none}
 L.push('.slim-ver{min-width:0;}');
 L.push('body.kb-region-nw .slim-sup{font-size:7px;letter-spacing:0;top:-4px;}');
 L.push('body.kb-region-nw .slim-name{font-size:12px;}');
+L.push('body.kb-region-ch .slim-sup{font-size:7px;letter-spacing:0;top:-4px;}');
+L.push('body.kb-region-ch .slim-name{font-size:12px;}');
+L.push('body.kb-region-ch .slim-ver .slim-name::after{background:linear-gradient(90deg,#b7a8ff,#7c6dff 65%,rgba(124,109,255,.25));}');
 L.push('body.kb-region-nw .slim-ver .slim-name::after{background:linear-gradient(90deg,#38bdf8,#2465ee 65%,rgba(56,189,248,.25));}');
 L.push('@media(max-width:380px){body.kb-region-nw .slim-sup{font-size:6px;}body.kb-region-nw .slim-name{font-size:11px;}.kb-region-seg button{padding:6px 10px;font-size:10.5px;}}');
 // тост региона
@@ -14832,6 +14863,7 @@ rowEl.innerHTML =
 '<i class="kb-region-thumb" id="kbRegionThumb"></i>' +
 '<button type="button" data-kbregion="south"><svg class="ic"><use href="#i-sun"/></svg>Юг<i class="kb-region-dot"></i></button>' +
 '<button type="button" data-kbregion="nw"><svg class="ic"><use href="#i-nav"/></svg>Северо-Запад<i class="kb-region-dot"></i></button>' +
+'<button type="button" data-kbregion="ch"><svg class="ic"><use href="#i-drop"/></svg>Чувашия<i class="kb-region-dot"></i></button>' +
 '</span>' +
 '<button type="button" class="kb-region-auto" id="kbRegionAuto" title="Вернуть автовыбор по геолокации" aria-label="Вернуть автовыбор по геолокации"><svg class="ic"><use href="#i-pin"/></svg></button>';
 anchor.parentNode.insertBefore(rowEl, anchor);
@@ -14846,6 +14878,7 @@ if (!b) return;
 thumbEl.style.left = b.offsetLeft + 'px';
 thumbEl.style.width = b.offsetWidth + 'px';
 thumbEl.classList.toggle('nw', userRegion === 'nw');
+thumbEl.classList.toggle('ch', userRegion === 'ch');
 }
 function kbRealLoc() {
 var l = loadUserLocation();
@@ -14855,13 +14888,14 @@ function kbSyncUI() {
 var word = kbRegionWord();
 document.querySelectorAll('.slim-sup,.logo-sup').forEach(function (el) { if (el.textContent !== word) el.textContent = word; });
 document.body.classList.toggle('kb-region-nw', userRegion === 'nw');
-document.body.classList.toggle('kb-region-south', userRegion !== 'nw');
+document.body.classList.toggle('kb-region-ch', userRegion === 'ch');
+document.body.classList.toggle('kb-region-south', userRegion !== 'nw' && userRegion !== 'ch');
 if (segEl) segEl.querySelectorAll('[data-kbregion]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-kbregion') === userRegion); });
 if (rowEl) rowEl.classList.toggle('is-auto', !regionManual && !!kbRealLoc());
 if (autoBtn) autoBtn.style.display = regionManual ? 'grid' : 'none';
 try {
 if (typeof WHY_MAP !== 'undefined' && WHY_MAP.wavePlate) {
-WHY_MAP.wavePlate.t = 'Соседи: обзор ' + (userRegion === 'nw' ? 'Северо-Запада' : 'юга');
+WHY_MAP.wavePlate.t = 'Соседи: обзор ' + (userRegion === 'nw' ? 'Северо-Запада' : userRegion === 'ch' ? 'Чувашии' : 'юга');
 }
 } catch (e) {}
 requestAnimationFrame(kbPlaceThumb);
@@ -14894,7 +14928,7 @@ try { saveCache(); } catch (e) {}
 }
 
 function kbSetRegion(r, manual) {
-if (r !== 'south' && r !== 'nw') return;
+if (r !== 'south' && r !== 'nw' && r !== 'ch') return;
 var changed = r !== userRegion;
 userRegion = r;
 if (manual) {
@@ -14986,7 +15020,8 @@ maykop: 'Майкопа', rostov: 'Ростова-на-Дону', stavropol: 'С
 spb: 'Санкт-Петербурга', petrozavodsk: 'Петрозаводска', kirishi: 'Киришей',
 ustluga: 'Усть-Луги', vyborg: 'Выборга', vnovgorod: 'Великого Новгорода',
 tikhvin: 'Тихвина', luga: 'Луги', sortavala: 'Сортавалы', sosnovybor: 'Соснового Бора',
-gatchina: 'Гатчины', volhov: 'Волхова', vsevolozhsk: 'Всеволожска', kolpino: 'Колпина'
+gatchina: 'Гатчины', volhov: 'Волхова', vsevolozhsk: 'Всеволожска', kolpino: 'Колпина',
+cheboksary: 'Чебоксар'
 };
 return G[userCityKey] || userCityName();
 };
