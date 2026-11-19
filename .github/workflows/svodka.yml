@@ -26,11 +26,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: node svodka.js --force
+      - name: OG previews
+        continue-on-error: true
+        run: node og-publish.js --no-git
       - name: Commit and push
         run: |
           git config user.name "kogdabenz-bot"
           git config user.email "actions@github.com"
-          git add svodka.html sitemap.xml robots.txt svodka.json
+          git add -A
           if git diff --cached --quiet; then
             echo "Нет изменений — коммит не нужен"
           else
