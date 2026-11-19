@@ -48,7 +48,15 @@ const CITIES_NW = [
 { key: 'petrozavodsk', name: 'Петрозаводск', inn: 'Петрозаводске', reg: 'Республика Карелия', lat1: 61.68, lat2: 61.90, lon1: 34.18, lon2: 34.52 }
 ];
 const CITIES_CH = [
-{ key: 'cheboksary', name: 'Чебоксары', inn: 'Чебоксарах', reg: 'Чувашия', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 }
+{ key: 'cheboksary', name: 'Чебоксары', inn: 'Чебоксарах', reg: 'Чувашия', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 },
+{ key: 'novocheboksarsk', name: 'Новочебоксарск', inn: 'Новочебоксарске', reg: 'Чувашия', lat1: 56.05, lat2: 56.18, lon1: 47.40, lon2: 47.62 },
+{ key: 'kanash', name: 'Канаш', inn: 'Канаше', reg: 'Чувашия', lat1: 55.45, lat2: 55.57, lon1: 47.40, lon2: 47.60 },
+{ key: 'alatyr', name: 'Алатырь', inn: 'Алатыре', reg: 'Чувашия', lat1: 54.78, lat2: 54.92, lon1: 46.48, lon2: 46.70 },
+{ key: 'shumerlya', name: 'Шумерля', inn: 'Шумерле', reg: 'Чувашия', lat1: 55.44, lat2: 55.56, lon1: 46.32, lon2: 46.52 },
+{ key: 'tsivilsk', name: 'Цивильск', inn: 'Цивильске', reg: 'Чувашия', lat1: 55.80, lat2: 55.93, lon1: 47.38, lon2: 47.56 },
+{ key: 'mariinskyposad', name: 'Мариинский Посад', inn: 'Мариинском Посаде', reg: 'Чувашия', lat1: 56.05, lat2: 56.18, lon1: 47.62, lon2: 47.82 },
+{ key: 'kozlovka', name: 'Козловка', inn: 'Козловке', reg: 'Чувашия', lat1: 55.78, lat2: 55.90, lon1: 48.15, lon2: 48.36 },
+{ key: 'yadrin', name: 'Ядрин', inn: 'Ядрине', reg: 'Чувашия', lat1: 55.88, lat2: 56.00, lon1: 46.10, lon2: 46.30 }
 ];
 const REGIONS = [
 {

@@ -20,7 +20,7 @@ const DONOR_FRAMES = [
   { region: 'rostov', url: 'https://gdebenz.ru/api/stations?lat1=46.60&lon1=38.80&lat2=48.60&lon2=44.50' },
   { region: 'stavropol', url: 'https://gdebenz.ru/api/stations?lat1=44.20&lon1=41.00&lat2=46.60&lon2=45.90' },
 { region: 'northwest', url: 'https://gdebenz.ru/api/stations?lat1=58.50&lon1=28.00&lat2=62.50&lon2=35.50' },
-{ region: 'chuvashia', url: 'https://gdebenz.ru/api/stations?lat1=55.05&lon1=46.40&lat2=56.95&lon2=48.95' }
+{ region: 'chuvashia', url: 'https://gdebenz.ru/api/stations?lat1=54.70&lon1=46.00&lat2=56.95&lon2=48.95' }
 ];
 
 // "Паспорт браузера", чтобы сайт принимал нас за обычного посетителя
@@ -185,7 +185,15 @@ const CITY_BOXES = [
   { name: 'Туапсе', lat1: 44.00, lat2: 44.20, lon1: 39.00, lon2: 39.25 },
   { name: 'Армавир', lat1: 44.90, lat2: 45.10, lon1: 40.90, lon2: 41.20 },
   { name: 'Майкоп', lat1: 44.55, lat2: 44.75, lon1: 40.00, lon2: 40.30 },
-{ name: 'Чебоксары', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 }
+{ name: 'Чебоксары', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 },
+{ name: 'Новочебоксарск', lat1: 56.05, lat2: 56.18, lon1: 47.40, lon2: 47.62 },
+{ name: 'Канаш', lat1: 55.45, lat2: 55.57, lon1: 47.40, lon2: 47.60 },
+{ name: 'Алатырь', lat1: 54.78, lat2: 54.92, lon1: 46.48, lon2: 46.70 },
+{ name: 'Шумерля', lat1: 55.44, lat2: 55.56, lon1: 46.32, lon2: 46.52 },
+{ name: 'Цивильск', lat1: 55.80, lat2: 55.93, lon1: 47.38, lon2: 47.56 },
+{ name: 'Мариинский Посад', lat1: 56.05, lat2: 56.18, lon1: 47.62, lon2: 47.82 },
+{ name: 'Козловка', lat1: 55.78, lat2: 55.90, lon1: 48.15, lon2: 48.36 },
+{ name: 'Ядрин', lat1: 55.88, lat2: 56.00, lon1: 46.10, lon2: 46.30 }
 ];
 function cityOfStation(s) {
   if (!s) return null;

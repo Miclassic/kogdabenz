@@ -5262,7 +5262,15 @@ const OUR_LABELS = [
 { name: 'Всеволожск', lon: 30.6450, lat: 60.0200, minZoom: 10 },
 { name: 'Колпино', lon: 30.5889, lat: 59.7500, minZoom: 10 },
 // Чувашия: третья зона сбора
-{ name: 'Чебоксары', lon: 47.2519, lat: 56.1439, city: true, minZoom: 0 }
+{ name: 'Чебоксары', lon: 47.2519, lat: 56.1439, city: true, minZoom: 0 },
+{ name: 'Новочебоксарск', lon: 47.4776, lat: 56.1103, minZoom: 9 },
+{ name: 'Канаш', lon: 47.4918, lat: 55.5069, minZoom: 9 },
+{ name: 'Алатырь', lon: 46.5836, lat: 54.8397, minZoom: 9 },
+{ name: 'Шумерля', lon: 46.4178, lat: 55.4979, minZoom: 9 },
+{ name: 'Цивильск', lon: 47.4728, lat: 55.8650, minZoom: 10 },
+{ name: 'Мариинский Посад', lon: 47.7153, lat: 56.1119, minZoom: 10 },
+{ name: 'Козловка', lon: 48.2500, lat: 55.8406, minZoom: 10 },
+{ name: 'Ядрин', lon: 46.2028, lat: 55.9403, minZoom: 10 }
 ];
 let labelCtrls = [];
 // зоны спроса: вдали — лёгкая дымка, с приближением контрастнее и чётче;
@@ -14772,14 +14780,22 @@ var NW_BOXES = [
 { key: 'petrozavodsk', name: 'Петрозаводск',     nameIn: 'Петрозаводске',     lat1: 61.68, lat2: 61.90, lon1: 34.18, lon2: 34.52 }
 ];
 var CH_BOXES = [
-{ key: 'cheboksary', name: 'Чебоксары', nameIn: 'Чебоксарах', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 }
+{ key: 'cheboksary', name: 'Чебоксары', nameIn: 'Чебоксарах', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 },
+{ key: 'novocheboksarsk', name: 'Новочебоксарск', nameIn: 'Новочебоксарске', lat1: 56.05, lat2: 56.18, lon1: 47.40, lon2: 47.62 },
+{ key: 'kanash', name: 'Канаш', nameIn: 'Канаше', lat1: 55.45, lat2: 55.57, lon1: 47.40, lon2: 47.60 },
+{ key: 'alatyr', name: 'Алатырь', nameIn: 'Алатыре', lat1: 54.78, lat2: 54.92, lon1: 46.48, lon2: 46.70 },
+{ key: 'shumerlya', name: 'Шумерля', nameIn: 'Шумерле', lat1: 55.44, lat2: 55.56, lon1: 46.32, lon2: 46.52 },
+{ key: 'tsivilsk', name: 'Цивильск', nameIn: 'Цивильске', lat1: 55.80, lat2: 55.93, lon1: 47.38, lon2: 47.56 },
+{ key: 'mariinskyposad', name: 'Мариинский Посад', nameIn: 'Мариинском Посаде', lat1: 56.05, lat2: 56.18, lon1: 47.62, lon2: 47.82 },
+{ key: 'kozlovka', name: 'Козловка', nameIn: 'Козловке', lat1: 55.78, lat2: 55.90, lon1: 48.15, lon2: 48.36 },
+{ key: 'yadrin', name: 'Ядрин', nameIn: 'Ядрине', lat1: 55.88, lat2: 56.00, lon1: 46.10, lon2: 46.30 }
 ];
 var ALL_BOXES = CITY_BOXES.concat(NW_BOXES).concat(CH_BOXES);
 function kbBoxes() { return userRegion === 'nw' ? NW_BOXES : userRegion === 'ch' ? CH_BOXES : CITY_BOXES; }
 function kbGeoRegion(loc) {
 if (!loc) return 'south';
 var la = Number(loc.lat), lo = Number(loc.lon);
-if (la >= 55.05 && la <= 56.95 && lo >= 46.40 && lo <= 48.95) return 'ch';
+if (la >= 54.70 && la <= 56.95 && lo >= 46.00 && lo <= 48.95) return 'ch';
 return la >= 53 ? 'nw' : 'south';
 }
 window.kbRegionBoxes = { south: CITY_BOXES, nw: NW_BOXES, ch: CH_BOXES, all: ALL_BOXES };
@@ -15040,7 +15056,10 @@ spb: 'Санкт-Петербурга', petrozavodsk: 'Петрозаводск�
 ustluga: 'Усть-Луги', vyborg: 'Выборга', vnovgorod: 'Великого Новгорода',
 tikhvin: 'Тихвина', luga: 'Луги', sortavala: 'Сортавалы', sosnovybor: 'Соснового Бора',
 gatchina: 'Гатчины', volhov: 'Волхова', vsevolozhsk: 'Всеволожска', kolpino: 'Колпина',
-cheboksary: 'Чебоксар'
+cheboksary: 'Чебоксар',
+novocheboksarsk: 'Новочебоксарска', kanash: 'Канаша', alatyr: 'Алатыря',
+shumerlya: 'Шумерли', tsivilsk: 'Цивильска', mariinskyposad: 'Мариинского Посада',
+kozlovka: 'Козловки', yadrin: 'Ядрина'
 };
 return G[userCityKey] || userCityName();
 };

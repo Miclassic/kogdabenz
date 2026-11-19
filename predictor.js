@@ -33,7 +33,7 @@ const OWN_BOX = { lat1: 43.20, lat2: 48.60, lon1: 37.20, lon2: 45.90 };
 const REGION_BOXES = [
 { key: 'south', lat1: 43.20, lat2: 48.60, lon1: 37.20, lon2: 45.90 },
 { key: 'northwest', lat1: 58.50, lat2: 62.50, lon1: 28.00, lon2: 35.50 },
-{ key: 'chuvashia', lat1: 55.05, lat2: 56.95, lon1: 46.40, lon2: 48.95 }
+{ key: 'chuvashia', lat1: 54.70, lat2: 56.95, lon1: 46.00, lon2: 48.95 }
 ];
 function regionOf(s) {
 for (const b of REGION_BOXES) {
