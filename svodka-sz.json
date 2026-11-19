@@ -3,12 +3,12 @@
  "region": "nw",
  "totals": {
   "total": 687,
-  "known": 388,
-  "a92": 5,
-  "a95": 5,
-  "adt": 7,
+  "known": 368,
+  "a92": 3,
+  "a95": 3,
+  "adt": 5,
   "q": 0,
-  "wins": 268,
+  "wins": 199,
   "cities": 14
  },
  "cities": [
@@ -21,26 +21,26 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 12,
+   "wins": 10,
    "level": "r"
   },
   {
    "key": "gatchina",
    "name": "Гатчина",
    "total": 29,
-   "known": 13,
+   "known": 14,
    "a92": 0,
    "a95": 0,
    "adt": 3,
    "q": 0,
-   "wins": 11,
+   "wins": 3,
    "level": "r"
   },
   {
    "key": "vsevolozhsk",
    "name": "Всеволожск",
    "total": 16,
-   "known": 9,
+   "known": 8,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -52,7 +52,7 @@
    "key": "sosnovybor",
    "name": "Сосновый Бор",
    "total": 6,
-   "known": 6,
+   "known": 5,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -64,36 +64,36 @@
    "key": "spb",
    "name": "Санкт-Петербург",
    "total": 458,
-   "known": 308,
-   "a92": 4,
-   "a95": 4,
-   "adt": 3,
+   "known": 287,
+   "a92": 2,
+   "a95": 2,
+   "adt": 1,
    "q": 0,
-   "wins": 206,
+   "wins": 161,
    "level": "r"
   },
   {
    "key": "vnovgorod",
    "name": "Великий Новгород",
    "total": 40,
-   "known": 18,
+   "known": 19,
    "a92": 1,
    "a95": 1,
    "adt": 1,
    "q": 0,
-   "wins": 13,
+   "wins": 8,
    "level": "r"
   },
   {
    "key": "petrozavodsk",
    "name": "Петрозаводск",
    "total": 37,
-   "known": 4,
+   "known": 5,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 10,
+   "wins": 5,
    "level": "n"
   },
   {
@@ -105,7 +105,7 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 3,
+   "wins": 1,
    "level": "n"
   },
   {
@@ -117,7 +117,7 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 2,
+   "wins": 1,
    "level": "n"
   },
   {
@@ -129,7 +129,7 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
+   "wins": 0,
    "level": "n"
   },
   {

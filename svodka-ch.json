@@ -3,12 +3,12 @@
  "region": "ch",
  "totals": {
   "total": 111,
-  "known": 30,
+  "known": 25,
   "a92": 1,
   "a95": 1,
   "adt": 1,
   "q": 0,
-  "wins": 1,
+  "wins": 7,
   "cities": 9
  },
  "cities": [
@@ -16,24 +16,24 @@
    "key": "novocheboksarsk",
    "name": "Новочебоксарск",
    "total": 17,
-   "known": 7,
+   "known": 5,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 0,
+   "wins": 2,
    "level": "r"
   },
   {
    "key": "cheboksary",
    "name": "Чебоксары",
    "total": 50,
-   "known": 19,
+   "known": 17,
    "a92": 1,
    "a95": 1,
    "adt": 1,
    "q": 0,
-   "wins": 1,
+   "wins": 5,
    "level": "r"
   },
   {
@@ -64,7 +64,7 @@
    "key": "tsivilsk",
    "name": "Цивильск",
    "total": 6,
-   "known": 2,
+   "known": 1,
    "a92": 0,
    "a95": 0,
    "adt": 0,
