@@ -1,64 +1,44 @@
 {
- "volna-uhod-south-20261119": "2026-11-19T21:31:52.524Z",
- "volna-vozvrat-south-20261119": "2026-11-19T21:31:52.524Z",
- "volna-uhod-northwest-20261119": "2026-11-19T21:31:52.524Z",
- "volna-vozvrat-northwest-20261119": "2026-11-19T21:31:52.524Z",
- "volna-uhod-chuvashia-20261119": "2026-11-19T21:31:52.524Z",
- "volna-vozvrat-chuvashia-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-sochi-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-novorossiysk-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-anapa-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-rostov-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-krasnodar-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-armavir-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-kolpino-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-gatchina-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-vsevolozhsk-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-spb-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-vnovgorod-20261119": "2026-11-19T21:31:52.524Z",
- "deficit-cheboksary-20261119": "2026-11-19T21:31:52.524Z",
- "tochnost-20261119": "2026-11-19T21:31:52.524Z",
  "used": {
   "loss": [
-   "loss:1",
-   "loss:0",
-   "loss:4"
+   "loss:4",
+   "loss:2",
+   "loss:3"
   ],
   "ret": [
-   "ret:0",
+   "ret:5",
    "ret:2",
-   "ret:1"
+   "ret:4"
   ],
   "deficit": [
+   "deficit:3",
    "deficit:1",
+   "deficit:5",
+   "deficit:6",
    "deficit:4",
    "deficit:2",
-   "deficit:2",
-   "deficit:0",
-   "deficit:0",
-   "deficit:5",
-   "deficit:3"
+   "deficit:1",
+   "deficit:7"
   ],
   "acc": [
    "acc:5"
   ]
  },
- "volna-uhod-south-20261120": "2026-11-19T22:17:09.327Z",
- "volna-vozvrat-south-20261120": "2026-11-19T22:17:09.327Z",
- "volna-uhod-northwest-20261120": "2026-11-19T22:17:09.327Z",
- "volna-vozvrat-northwest-20261120": "2026-11-19T22:17:09.327Z",
- "volna-uhod-chuvashia-20261120": "2026-11-19T22:17:09.327Z",
- "volna-vozvrat-chuvashia-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-sochi-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-novorossiysk-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-anapa-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-krasnodar-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-rostov-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-kolpino-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-gatchina-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-vsevolozhsk-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-spb-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-vnovgorod-20261120": "2026-11-19T22:17:09.327Z",
- "deficit-cheboksary-20261120": "2026-11-19T22:17:09.327Z",
- "tochnost-20261120": "2026-11-19T22:17:09.327Z"
+ "volna-uhod-south-20261120": "2026-11-19T23:16:45.240Z",
+ "volna-vozvrat-south-20261120": "2026-11-19T23:16:45.240Z",
+ "volna-uhod-northwest-20261120": "2026-11-19T23:16:45.240Z",
+ "volna-vozvrat-northwest-20261120": "2026-11-19T23:16:45.240Z",
+ "volna-uhod-chuvashia-20261120": "2026-11-19T23:16:45.240Z",
+ "volna-vozvrat-chuvashia-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-krasnodar-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-sochi-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-novorossiysk-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-anapa-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-rostov-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-kolpino-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-vnovgorod-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-gatchina-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-spb-20261120": "2026-11-19T23:16:45.240Z",
+ "deficit-cheboksary-20261120": "2026-11-19T23:16:45.240Z",
+ "tochnost-20261120": "2026-11-19T23:16:45.240Z"
 }
