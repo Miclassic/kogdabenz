@@ -1,0 +1,24 @@
+name: newsroom-reset
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Подтянуть свежие коммиты
+        run: git pull --rebase --autostash
+      - name: Удалить старые новости
+        run: |
+          rm -f news/*.html news/manifest.json news/rss.xml sitemap-news.xml
+          node -e "const fs=require('fs');let s=fs.readFileSync('sitemap.xml','utf8');s=s.replace(/<url>[\s\S]*?<\/url>/g,m=>m.includes('/news/')?'':m);fs.writeFileSync('sitemap.xml',s);for(const f of ['index.html','svodka.html','svodka-sz.html','svodka-ch.html']){try{let h=fs.readFileSync(f,'utf8');h=h.replace(/<!--kb-newsline-->[\s\S]*?<!--\/kb-newsline-->\s*/g,'');fs.writeFileSync(f,h)}catch(e){}}console.log('очищено: статьи, манифест, rss, sitemap, плашки')"
+      - name: Новый выпуск обновлённым редактором
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node newsroom.js
