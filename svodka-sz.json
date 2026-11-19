@@ -3,73 +3,61 @@
  "region": "nw",
  "totals": {
   "total": 687,
-  "known": 339,
-  "a92": 1,
-  "a95": 1,
-  "adt": 2,
+  "known": 261,
+  "a92": 0,
+  "a95": 0,
+  "adt": 1,
   "q": 0,
-  "wins": 199,
+  "wins": 285,
   "cities": 14
  },
  "cities": [
   {
+   "key": "spb",
+   "name": "Санкт-Петербург",
+   "total": 458,
+   "known": 210,
+   "a92": 0,
+   "a95": 0,
+   "adt": 1,
+   "q": 0,
+   "wins": 213,
+   "level": "r"
+  },
+  {
    "key": "kolpino",
    "name": "Колпино",
    "total": 41,
-   "known": 15,
+   "known": 12,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 10,
+   "wins": 13,
    "level": "r"
   },
   {
    "key": "vnovgorod",
    "name": "Великий Новгород",
    "total": 40,
-   "known": 14,
+   "known": 11,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 8,
+   "wins": 18,
    "level": "r"
   },
   {
    "key": "gatchina",
    "name": "Гатчина",
    "total": 29,
-   "known": 9,
-   "a92": 0,
-   "a95": 0,
-   "adt": 1,
-   "q": 0,
-   "wins": 3,
-   "level": "r"
-  },
-  {
-   "key": "vsevolozhsk",
-   "name": "Всеволожск",
-   "total": 16,
-   "known": 6,
+   "known": 8,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 4,
-   "level": "r"
-  },
-  {
-   "key": "spb",
-   "name": "Санкт-Петербург",
-   "total": 458,
-   "known": 277,
-   "a92": 1,
-   "a95": 1,
-   "adt": 1,
-   "q": 0,
-   "wins": 161,
+   "wins": 11,
    "level": "r"
   },
   {
@@ -81,7 +69,19 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 5,
+   "wins": 11,
+   "level": "n"
+  },
+  {
+   "key": "vsevolozhsk",
+   "name": "Всеволожск",
+   "total": 16,
+   "known": 4,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 4,
    "level": "n"
   },
   {
@@ -93,31 +93,31 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
+   "wins": 3,
    "level": "n"
   },
   {
    "key": "tikhvin",
    "name": "Тихвин",
    "total": 12,
-   "known": 2,
+   "known": 1,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
+   "wins": 2,
    "level": "n"
   },
   {
    "key": "kirishi",
    "name": "Кириши",
    "total": 7,
-   "known": 2,
+   "known": 1,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 0,
+   "wins": 2,
    "level": "n"
   },
   {
@@ -165,7 +165,7 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 0,
+   "wins": 1,
    "level": "n"
   },
   {
@@ -177,7 +177,7 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 0,
+   "wins": 1,
    "level": "n"
   }
  ]
