@@ -3,10 +3,10 @@
  "region": "nw",
  "totals": {
   "total": 687,
-  "known": 368,
-  "a92": 3,
-  "a95": 3,
-  "adt": 5,
+  "known": 339,
+  "a92": 1,
+  "a95": 1,
+  "adt": 2,
   "q": 0,
   "wins": 199,
   "cities": 14
@@ -16,7 +16,7 @@
    "key": "kolpino",
    "name": "Колпино",
    "total": 41,
-   "known": 18,
+   "known": 15,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -25,13 +25,25 @@
    "level": "r"
   },
   {
-   "key": "gatchina",
-   "name": "Гатчина",
-   "total": 29,
+   "key": "vnovgorod",
+   "name": "Великий Новгород",
+   "total": 40,
    "known": 14,
    "a92": 0,
    "a95": 0,
-   "adt": 3,
+   "adt": 0,
+   "q": 0,
+   "wins": 8,
+   "level": "r"
+  },
+  {
+   "key": "gatchina",
+   "name": "Гатчина",
+   "total": 29,
+   "known": 9,
+   "a92": 0,
+   "a95": 0,
+   "adt": 1,
    "q": 0,
    "wins": 3,
    "level": "r"
@@ -40,7 +52,7 @@
    "key": "vsevolozhsk",
    "name": "Всеволожск",
    "total": 16,
-   "known": 8,
+   "known": 6,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -49,39 +61,15 @@
    "level": "r"
   },
   {
-   "key": "sosnovybor",
-   "name": "Сосновый Бор",
-   "total": 6,
-   "known": 5,
-   "a92": 0,
-   "a95": 0,
-   "adt": 0,
-   "q": 0,
-   "wins": 5,
-   "level": "r"
-  },
-  {
    "key": "spb",
    "name": "Санкт-Петербург",
    "total": 458,
-   "known": 287,
-   "a92": 2,
-   "a95": 2,
-   "adt": 1,
-   "q": 0,
-   "wins": 161,
-   "level": "r"
-  },
-  {
-   "key": "vnovgorod",
-   "name": "Великий Новгород",
-   "total": 40,
-   "known": 19,
+   "known": 277,
    "a92": 1,
    "a95": 1,
    "adt": 1,
    "q": 0,
-   "wins": 8,
+   "wins": 161,
    "level": "r"
   },
   {
@@ -100,7 +88,7 @@
    "key": "vyborg",
    "name": "Выборг",
    "total": 15,
-   "known": 3,
+   "known": 2,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -118,18 +106,6 @@
    "adt": 0,
    "q": 0,
    "wins": 1,
-   "level": "n"
-  },
-  {
-   "key": "luga",
-   "name": "Луга",
-   "total": 10,
-   "known": 1,
-   "a92": 0,
-   "a95": 0,
-   "adt": 0,
-   "q": 0,
-   "wins": 0,
    "level": "n"
   },
   {
@@ -157,6 +133,18 @@
    "level": "n"
   },
   {
+   "key": "sosnovybor",
+   "name": "Сосновый Бор",
+   "total": 6,
+   "known": 4,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 5,
+   "level": "n"
+  },
+  {
    "key": "sortavala",
    "name": "Сортавала",
    "total": 5,
@@ -169,10 +157,22 @@
    "level": "n"
   },
   {
+   "key": "luga",
+   "name": "Луга",
+   "total": 10,
+   "known": 0,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
    "key": "ustluga",
    "name": "Усть-Луга",
    "total": 4,
-   "known": 1,
+   "known": 0,
    "a92": 0,
    "a95": 0,
    "adt": 0,

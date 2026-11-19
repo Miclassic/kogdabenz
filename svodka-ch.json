@@ -3,7 +3,7 @@
  "region": "ch",
  "totals": {
   "total": 111,
-  "known": 25,
+  "known": 19,
   "a92": 1,
   "a95": 1,
   "adt": 1,
@@ -13,22 +13,10 @@
  },
  "cities": [
   {
-   "key": "novocheboksarsk",
-   "name": "Новочебоксарск",
-   "total": 17,
-   "known": 5,
-   "a92": 0,
-   "a95": 0,
-   "adt": 0,
-   "q": 0,
-   "wins": 2,
-   "level": "r"
-  },
-  {
    "key": "cheboksary",
    "name": "Чебоксары",
    "total": 50,
-   "known": 17,
+   "known": 16,
    "a92": 1,
    "a95": 1,
    "adt": 1,
@@ -37,15 +25,15 @@
    "level": "r"
   },
   {
-   "key": "kanash",
-   "name": "Канаш",
-   "total": 11,
-   "known": 1,
+   "key": "novocheboksarsk",
+   "name": "Новочебоксарск",
+   "total": 17,
+   "known": 2,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 0,
+   "wins": 2,
    "level": "n"
   },
   {
@@ -61,10 +49,10 @@
    "level": "n"
   },
   {
-   "key": "tsivilsk",
-   "name": "Цивильск",
-   "total": 6,
-   "known": 1,
+   "key": "kanash",
+   "name": "Канаш",
+   "total": 11,
+   "known": 0,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -76,6 +64,18 @@
    "key": "yadrin",
    "name": "Ядрин",
    "total": 7,
+   "known": 0,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "tsivilsk",
+   "name": "Цивильск",
+   "total": 6,
    "known": 0,
    "a92": 0,
    "a95": 0,
