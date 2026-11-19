@@ -29,6 +29,12 @@ jobs:
       - name: OG previews
         continue-on-error: true
         run: node og-publish.js --no-git
+      - name: Newsroom
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: node newsroom.js --no-git
       - name: Commit and push
         run: |
           git config user.name "kogdabenz-bot"
