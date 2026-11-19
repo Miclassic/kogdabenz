@@ -47,6 +47,9 @@ const CITIES_NW = [
 { key: 'sortavala', name: 'Сортавала', inn: 'Сортавале', reg: 'Республика Карелия', lat1: 61.60, lat2: 61.80, lon1: 30.52, lon2: 30.88 },
 { key: 'petrozavodsk', name: 'Петрозаводск', inn: 'Петрозаводске', reg: 'Республика Карелия', lat1: 61.68, lat2: 61.90, lon1: 34.18, lon2: 34.52 }
 ];
+const CITIES_CH = [
+{ key: 'cheboksary', name: 'Чебоксары', inn: 'Чебоксарах', reg: 'Чувашия', lat1: 56.05, lat2: 56.25, lon1: 47.10, lon2: 47.40 }
+];
 const REGIONS = [
 {
 key: 'south', cities: CITIES_SOUTH,
@@ -65,10 +68,8 @@ otherFile: 'svodka.html', otherName: 'Юг',
 where: 'на северо-западе России', descHead: 'Сводка по Северо-Западу',
 genRegion: 'Северо-Запада', whole: 'Северо-Запад', calm: 'на северо-западе спокойно',
 leadGeo: 'Санкт-Петербург, Ленинградская и Новгородская области, Карелия',
-descGeo: 'Санкт-Петербург, Ленинградская область, Новгородская область, Карелия',
-kpiCities: 'Городов Северо-Запада', bread: 'Сводка по Северо-Западу'
-}
-];
+descGeo: 'Санкт-Петербург, Ленинградская область, Новгородская область, Карелия',kpiCities: 'Городов Северо-Запада', bread: 'Сводка по Северо-Западу'},
+{key: 'ch', cities: CITIES_CH,file: 'svodka-ch.html', json: 'svodka-ch.json',otherFile: 'svodka.html', otherName: 'Юг',where: 'в Чувашии', descHead: 'Сводка по Чувашии',genRegion: 'Чувашии', whole: 'Чувашия', calm: 'в Чувашии спокойно',leadGeo: 'Чебоксары и республика Чувашия',descGeo: 'Чувашия, Чебоксары',kpiCities: 'Городов Чувашии', bread: 'Сводка по Чувашии'}];
 // ---------- утилиты ----------
 const pad = n => String(n).padStart(2, '0');
 const e = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -903,6 +904,18 @@ headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'applica
 body: JSON.stringify([{ key: 'svodka_bucket', value: bIso, updated_at: new Date().toISOString() }])
 });
 } catch (e) {}
+try {
+if (fs.existsSync(path.join(dir, '.git'))) {
+const cp = require('child_process');
+const gr = c => cp.execSync(c, { cwd: dir, stdio: 'pipe', timeout: 90000 });
+gr('git add -A');
+try { gr('git -c user.name="kogdabenz-bot" -c user.email="bot@kogdabenz.ru" commit -m "svodka: auto update (south/nw/ch)"'); } catch (e) {}
+gr('git push');
+console.log(' Сводки: опубликовано в GitHub Pages');
+} else {
+console.log(' ! Сводки: папка сайта без .git — файлы записаны, но не опубликованы. Задай KB_SITE_DIR/SVODKA_DIR на git-клон репозитория сайта.');
+}
+} catch (e) { console.log(' ! Сводки: git push не удался: ' + e.message); }
 console.log('   Сводки (юг + СЗ): ' + logs.join(' | ') + ' → ' + dir);
 return { ok: true, dir: dir, logs: logs };
 }

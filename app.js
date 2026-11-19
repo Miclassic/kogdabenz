@@ -13168,7 +13168,8 @@ function seoUrl() {
 var r = kbSvRegion();
 if (r === 'nw') return SITE + '/svodka-sz.html';
 if (r === 'south') return SITE + '/svodka.html';
-return null; // по Чувашии отдельной поисковой страницы пока нет
+if (r === 'ch') return SITE + '/svodka-ch.html';
+return null;
 }
 function checkSeo() {
 var a = document.getElementById('kbsSeo');
