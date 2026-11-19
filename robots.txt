@@ -6,3 +6,5 @@ Disallow: /live.html
 Sitemap: https://kogdabenz.ru/sitemap.xml
 
 Host: kogdabenz.ru
+Sitemap: https://kogdabenz.ru/sitemap-news.xml
+Sitemap: https://kogdabenz.ru/news/rss.xml
