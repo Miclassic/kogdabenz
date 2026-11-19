@@ -1,14 +1,13 @@
 'use strict';
-// Автопатч newsroom.js v4: исправления ошибок статей + RSS/SEO.
-// Идемпотентный: уже применённые правки пропускает по probe-строке.
+// Автопатч newsroom.js v4 (исправлен движок вставок + умный bump кэша).
 const fs = require('fs');
 const EDITS = {
 'newsroom.js': [
-{ name: 'unesc helper', probe: 'function unesc', start: 'function p2(n)', end: 'function p2(n)', insert:
+{ name: 'unesc helper', probe: 'function unesc', before: 'function p2(n)', insert:
 "function unesc(s) { return String(s == null ? '' : s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '\"').replace(/&amp;/g, '&'); }\n" },
 { name: 'RK_FIX map', probe: 'const RK_FIX', find: "const FILE_REG = { 'svodka.json': 'south', 'svodka-sz.json': 'northwest', 'svodka-ch.json': 'chuvashia' };", replace:
 "const FILE_REG = { 'svodka.json': 'south', 'svodka-sz.json': 'northwest', 'svodka-ch.json': 'chuvashia' };\nconst RK_FIX = { south: 'south', nw: 'northwest', ch: 'chuvashia' };" },
-{ name: 'winsByReg', probe: 'const winsByReg', start: 'const d = msk(t), day =', end: 'const d = msk(t), day =', insert:
+{ name: 'winsByReg', probe: 'const winsByReg', before: 'const d = msk(t), day =', insert:
 "const winsByReg = {};\nfor (const sv of svodkas) { const rk0 = RK_FIX[sv.region] || sv.region || FILE_REG[sv.file]; winsByReg[rk0] = (sv.totals && sv.totals.wins) || 0; }\n" },
 { name: 'loss wins', probe: 'wins: winsByReg[r] || 0, names: names(E.lostSt', find: 'names: names(E.lostSt, 4), wins: 0', replace: 'names: names(E.lostSt, 4), wins: winsByReg[r] || 0' },
 { name: 'ret wins', probe: 'wins: winsByReg[r] || 0, names: names(E.retSt', find: 'names: names(E.retSt, 4), wins: 0', replace: 'names: names(E.retSt, 4), wins: winsByReg[r] || 0' },
@@ -38,18 +37,23 @@ const EDITS = {
 'index.html': [
 { name: 'rss autodiscovery', probe: 'href="/news/rss.xml"', find: '<link rel="manifest" href="manifest.json">', replace:
 '<link rel="manifest" href="manifest.json">\n<link rel="alternate" type="application/rss+xml" title="КогдаБенз — новости топлива" href="/news/rss.xml">' }
-],
-'sw.js': [
-{ name: 'cache bump', probe: 'kogdabenz-v235', find: "const CACHE_VERSION = 'kogdabenz-v234';", replace: "const CACHE_VERSION = 'kogdabenz-v235';" }
 ]
 };
+// bump кэша нужен только если index.html реально меняется в этом прогоне
+let needBump = false;
+try { needBump = fs.readFileSync('index.html', 'utf8').indexOf('href="/news/rss.xml"') < 0; } catch (e) {}
 const missing = [];
 for (const f of Object.keys(EDITS)) {
 let src;
 try { src = fs.readFileSync(f, 'utf8'); } catch (e) { missing.push(f + ': файл не найден'); continue; }
+let changed = false;
 for (const p of EDITS[f]) {
 if (p.probe && src.indexOf(p.probe) >= 0) { console.log('skip (уже применено): ' + p.name); continue; }
-if (p.start) {
+if (p.before) {
+const i = src.indexOf(p.before);
+if (i < 0) { missing.push(f + ': не найдена строка «' + p.before + '»'); continue; }
+src = src.slice(0, i) + p.insert + src.slice(i);
+} else if (p.start) {
 const i = src.indexOf(p.start);
 const j = src.indexOf(p.end, i + p.start.length);
 if (i < 0 || j < 0) { missing.push(f + ': не найден блок «' + p.start + '»'); continue; }
@@ -59,9 +63,26 @@ const n = src.split(p.find).length - 1;
 if (n !== 1) { missing.push(f + ': совпадений ' + n + ' для «' + p.find.slice(0, 60) + '»'); continue; }
 src = src.replace(p.find, p.replace);
 }
+changed = true;
 console.log('ok: ' + p.name);
 }
-fs.writeFileSync(f, src);
+if (changed) fs.writeFileSync(f, src);
 }
+// sw.js: поднимаем CACHE_VERSION регуляркой (любой vN -> vN+1), только вместе с правкой index
+try {
+let sw = fs.readFileSync('sw.js', 'utf8');
+if (!needBump) console.log('skip: cache bump (index.html уже с RSS-ссылкой)');
+else {
+const m = sw.match(/const CACHE_VERSION = 'kogdabenz-v(\d+)';/);
+if (m) {
+const next = Number(m[1]) + 1;
+sw = sw.replace(m[0], "const CACHE_VERSION = 'kogdabenz-v" + next + "';");
+fs.writeFileSync('sw.js', sw);
+console.log('ok: cache bump v' + m[1] + ' -> v' + next);
+} else {
+console.log('! ВНИМАНИЕ: не нашёл строку CACHE_VERSION в sw.js. Патч не блокирую, но подними версию кэша вручную (правило проекта).');
+}
+}
+} catch (e) { console.log('! sw.js не прочитан: ' + e.message); }
 if (missing.length) { console.log('! НЕ ПРИМЕНЕНО:\n' + missing.join('\n')); process.exit(1); }
 console.log('newsroom-patch: все правки применены');
