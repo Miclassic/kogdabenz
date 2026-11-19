@@ -58,6 +58,15 @@ const CITIES_CH = [
 { key: 'kozlovka', name: 'Козловка', inn: 'Козловке', reg: 'Чувашия', lat1: 55.78, lat2: 55.90, lon1: 48.15, lon2: 48.36 },
 { key: 'yadrin', name: 'Ядрин', inn: 'Ядрине', reg: 'Чувашия', lat1: 55.88, lat2: 56.00, lon1: 46.10, lon2: 46.30 }
 ];
+// SEO: захват данных региона для городских страниц и OG-картинок
+try {
+const _seoBuildRegion = buildRegion;
+buildRegion = function (raw, RG) {
+const built = _seoBuildRegion(raw, RG);
+try { require('./svodka-seo.js').capture(RG, built, raw); } catch (e) { console.log(' ! SEO capture: ' + e.message); }
+return built;
+};
+} catch (e) {}
 const REGIONS = [
 {
 key: 'south', cities: CITIES_SOUTH,
@@ -924,6 +933,10 @@ console.log(' Сводки: опубликовано в GitHub Pages');
 console.log(' ! Сводки: папка сайта без .git — файлы записаны, но не опубликованы. Задай KB_SITE_DIR/SVODKA_DIR на git-клон репозитория сайта.');
 }
 } catch (e) { console.log(' ! Сводки: git push не удался: ' + e.message); }
+try {
+const nSeo = require('./svodka-seo.js').emit(dir);
+console.log(' SEO: городских страниц + OG-картинок — ' + nSeo);
+} catch (e) { console.log(' ! SEO emit: ' + e.message); }
 console.log('   Сводки (юг + СЗ): ' + logs.join(' | ') + ' → ' + dir);
 return { ok: true, dir: dir, logs: logs };
 }
