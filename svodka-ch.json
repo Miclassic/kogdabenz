@@ -2,27 +2,123 @@
  "generated": "2026-11-19T13:00:00.000Z",
  "region": "ch",
  "totals": {
-  "total": 50,
-  "known": 26,
+  "total": 111,
+  "known": 45,
   "a92": 2,
-  "a95": 1,
+  "a95": 2,
   "adt": 1,
   "q": 0,
-  "wins": 7,
-  "cities": 1
+  "wins": 11,
+  "cities": 9
  },
  "cities": [
+  {
+   "key": "novocheboksarsk",
+   "name": "Новочебоксарск",
+   "total": 17,
+   "known": 8,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 4,
+   "level": "r"
+  },
   {
    "key": "cheboksary",
    "name": "Чебоксары",
    "total": 50,
-   "known": 26,
+   "known": 27,
    "a92": 2,
-   "a95": 1,
+   "a95": 2,
    "adt": 1,
    "q": 0,
    "wins": 7,
    "level": "r"
+  },
+  {
+   "key": "kanash",
+   "name": "Канаш",
+   "total": 11,
+   "known": 2,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "shumerlya",
+   "name": "Шумерля",
+   "total": 8,
+   "known": 2,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "yadrin",
+   "name": "Ядрин",
+   "total": 7,
+   "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "tsivilsk",
+   "name": "Цивильск",
+   "total": 6,
+   "known": 2,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "alatyr",
+   "name": "Алатырь",
+   "total": 5,
+   "known": 2,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "mariinskyposad",
+   "name": "Мариинский Посад",
+   "total": 3,
+   "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "kozlovka",
+   "name": "Козловка",
+   "total": 4,
+   "known": 0,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
   }
  ]
 }
