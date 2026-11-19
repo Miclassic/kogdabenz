@@ -17022,3 +17022,81 @@ s.textContent =
 document.head.appendChild(s);
 })();
 })();
+// ============================================================
+// KB INSTANT ADVISOR v1 — «Куда ехать» видно сразу, а не после
+// всех запросов. 1) Снимок топ-3 советника в localStorage.
+// 2) Линза и счётчики мини-меню рисуются сразу после первого
+//    кадра (станции+отметки), не дожидаясь прогнозов/цен/голосов.
+// 3) На первом заходе — прошлый снимок с честной пометкой времени.
+// 4) Как только данные доехали — тихая замена на свежие.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbInstantAdv) return;
+window.__kbInstantAdv = 1;
+var KEY = 'kbAdvSnap';
+function hhmm(t) { var d = new Date(t); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function readSnap() {
+try {
+var s = JSON.parse(localStorage.getItem(KEY) || 'null');
+if (s && s.items && s.items.length && s.city === userCityKey && Date.now() - s.t < 12 * 3600000) return s;
+} catch (e) {}
+return null;
+}
+function writeSnap(list) {
+try {
+localStorage.setItem(KEY, JSON.stringify({
+t: Date.now(), city: userCityKey,
+items: list.slice(0, 3).map(function (it) {
+return { id: it.st.id, name: it.st.name || 'АЗС', addr: it.st.address || '', kind: it.kind, km: it.km, f: it.f };
+})
+}));
+} catch (e) {}
+}
+function paintLens(name, sub) {
+var v = document.getElementById('lentiAdvV'), s = document.getElementById('lentiAdvS');
+if (v && name) v.textContent = name;
+if (s && sub) s.textContent = sub;
+}
+function paintBadge(n) {
+try {
+var b = document.querySelector('#kbQmMenu3 [data-kbq3="1"] .kbq3-badge');
+if (b && (b.textContent || '').trim() === '0' && n > 0) b.textContent = String(n);
+} catch (e) {}
+}
+function instant() {
+try {
+var have = typeof allStations !== 'undefined' && allStations.length &&
+typeof allLastObs !== 'undefined' && Object.keys(allLastObs).length;
+if (have) {
+var list = [];
+try { list = buildAdviceList() || []; } catch (e) {}
+if (list.length) {
+writeSnap(list);
+var it = list[0];
+paintLens(it.st.name || 'АЗС',
+it.kind === 'now' ? 'топливо есть сейчас · тап — подборка'
+: it.kind === 'stale' ? 'источник утверждает топливо · тап — подборка'
+: 'ближайшее окно привоза · тап — подборка');
+paintBadge(list.filter(function (x) { return x.kind === 'now'; }).length);
+return;
+}
+}
+var s = readSnap();
+if (s) {
+var x = s.items[0];
+paintLens(x.name, 'по данным на ' + hhmm(s.t) + ' · тап — подборка');
+paintBadge(s.items.filter(function (i) { return i.kind === 'now'; }).length);
+}
+} catch (e) {}
+}
+var _rs = renderStations;
+renderStations = function (list) { var r = _rs(list); instant(); return r; };
+if (window.__kbPipe) {
+window.__kbPipe.now.push(function () { setTimeout(instant, 0); });
+window.__kbPipe.soft.push(function () { setTimeout(instant, 0); });
+}
+setTimeout(instant, 250);
+setTimeout(instant, 1200);
+})();
