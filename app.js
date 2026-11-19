@@ -2729,7 +2729,7 @@ g.clip('evenodd');
 // зебра одним fill готовым паттерном (в device-пикселях, без масштаба трансформом)
 g.setTransform(1, 0, 0, 1, 0, 0);
 g.globalAlpha = a;
-g.fillStyle = g.createPattern(svcStripeTileEl(dpr), 'repeat');
+g.fillStyle = 'rgba(0,0,0,0)';
 g.fillRect(0, 0, cv.width, cv.height);
 g.globalAlpha = 1;
 g.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5295,7 +5295,15 @@ const FH_OPACITY = [[9, 1], [12, 1], [15, 1], [16.5, 0]];
 const FH_LAYERS = ['fuelheat-calm', 'fuelheat-hot', 'fuelheat-partial', 'fuelheat-calm-old', 'fuelheat-hot-old', 'fuelheat-partial-old'];
 let zonePulseTimer = null;
 function startZonePulse() {
-  if (zonePulseTimer) return;
+if (zonePulseTimer) return;
+if (!window.__kbPinsWatch) {
+window.__kbPinsWatch = setInterval(function () {
+try {
+if (!mapObj) return;
+document.body.classList.toggle('kb-pins-on', mapObj.getZoom() >= 13);
+} catch (e) {}
+}, 300);
+}
   const t0 = Date.now();
   zonePulseTimer = setInterval(() => {
     if (!mapObj || !zoneReady) return;
@@ -5809,6 +5817,9 @@ const g = nullish(o.fuel_95_status) ? null : o.fuel_95_status;
 const p = nullish(o.fuel_92_status) ? null : o.fuel_92_status;
 const d = nullish(o.diesel_status) ? null : o.diesel_status;
 if (g === null && p === null && d === null) return 'unknown';
+// лужа тепла согласована с пином: пин красный («наличию не доверяем») —
+// тепло красное, даже если в снимке когда-то было «дизель есть»
+if (pinKey(o) === 'no') return 'no';
 // есть хоть одно топливо — это НЕ дефицит, даже если это только 92 или только ДТ
 if (g === true && p === true && d === true) return 'full';
 if (g === true) return 'yes';
@@ -15128,32 +15139,55 @@ var since = ctmDay.since, now = ctmDay.nowMs;
 var end = Math.max(since + 60000, Math.min(T, now));
 var span = end - since;
 var list = ctmDay.perSt[id] || [];
-var bins = new Array(ECG_N).fill(0), any = false;
+var raw = new Array(ECG_N).fill(0), any = false;
 for (var i = 0; i < list.length; i++) {
 var x = list[i];
 if (x.t > end) continue;
 var bi = Math.min(ECG_N - 1, Math.floor((x.t - since) / span * ECG_N));
-bins[bi] += x.w; any = true;
+raw[bi] += x.w; any = true;
 }
-var W = 100, B = 22, step = W / ECG_N;
-var d = 'M0 ' + B;
+// расширяем горбы: каждый час «разливается» на соседей, чтобы волна
+// читалась холмами, а не иголками
+var sm = new Array(ECG_N).fill(0);
 for (var k = 0; k < ECG_N; k++) {
-var a = bins[k];
-if (!(a > 0)) continue;
-var cx = k * step + step / 2;
-var h = 7 + Math.min(13, a * 1.8);
-d += ' L' + (cx - step * 0.30).toFixed(1) + ' ' + B;
-d += ' L' + (cx - step * 0.16).toFixed(1) + ' ' + (B - 2.2).toFixed(1);
-d += ' L' + (cx - step * 0.05).toFixed(1) + ' ' + (B + 2.5).toFixed(1);
-d += ' L' + (cx + step * 0.06).toFixed(1) + ' ' + (B - h).toFixed(1);
-d += ' L' + (cx + step * 0.18).toFixed(1) + ' ' + (B + h * 0.38).toFixed(1);
-d += ' L' + (cx + step * 0.30).toFixed(1) + ' ' + B;
+var v = raw[k];
+if (k > 0) v += raw[k - 1] * 0.55;
+if (k < ECG_N - 1) v += raw[k + 1] * 0.55;
+if (k > 1) v += raw[k - 2] * 0.22;
+if (k < ECG_N - 2) v += raw[k + 2] * 0.22;
+sm[k] = v;
 }
-d += ' L100 ' + B;
-return '<svg class="ctm-ecg' + (any ? '' : ' flat') + '" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">' +
-'<path class="ctm-ecg-shadow" d="' + d + '" pathLength="100"/>' +
-'<path class="ctm-ecg-glow" d="' + d + '" pathLength="100"/>' +
-'<path class="ctm-ecg-line" d="' + d + '" pathLength="100"/>' +
+var W = 100, B = 30, HMAX = 20, step = W / ECG_N;
+var pts = [{ x: 0, y: B }];
+for (var k2 = 0; k2 < ECG_N; k2++) {
+var h = sm[k2] > 0 ? 0.25 + 0.75 * Math.min(1, sm[k2] / 8) : 0;
+pts.push({ x: k2 * step + step / 2, y: B - h * HMAX });
+}
+pts.push({ x: W, y: B });
+var line = 'M' + pts[0].x + ' ' + pts[0].y;
+for (var j = 1; j < pts.length - 1; j++) {
+var mx = (pts[j].x + pts[j + 1].x) / 2, my = (pts[j].y + pts[j + 1].y) / 2;
+line += ' Q' + pts[j].x.toFixed(1) + ' ' + pts[j].y.toFixed(1) + ' ' + mx.toFixed(1) + ' ' + my.toFixed(1);
+}
+line += ' L' + W + ' ' + B;
+var area = line + ' L0 ' + B + ' Z';
+// точка — на гребне последнего холма, а не у края плитки;
+// когда событий нет — на линии справа
+var la = -1;
+for (var m = ECG_N - 1; m >= 0; m--) if (raw[m] > 0) { la = m; break; }
+var fx = 1, fy = B / 40;
+if (la >= 0) {
+fx = (la * step + step / 2) / W;
+fy = (B - (0.25 + 0.75 * Math.min(1, sm[la] / 8)) * HMAX) / 40;
+}
+var gid = 'ctmG' + String(id).replace(/[^a-zA-Z0-9]/g, '');
+return '<svg class="ctm-ecg' + (any ? '' : ' flat') + '" data-dotx="' + fx.toFixed(3) + '" data-doty="' + fy.toFixed(3) + '" viewBox="0 0 100 40" preserveAspectRatio="none" aria-hidden="true">' +
+'<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">' +
+'<stop offset="0" stop-color="#fff" stop-opacity=".34"/>' +
+'<stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>' +
+'<path class="ctm-base" d="M0 ' + B + ' L' + W + ' ' + B + '"/>' +
+'<path class="ctm-area" d="' + area + '" fill="url(#' + gid + ')"/>' +
+'<path class="ctm-crest" d="' + line + '" pathLength="100"/>' +
 '</svg>';
 }
 // полоса кардиограммы = ТОЛЬКО свободное место между адресом и строками фактов
@@ -15178,7 +15212,15 @@ if (!dot) {
 el.insertAdjacentHTML('beforeend', '<i class="ctm-ecg-dot"></i>');
 dot = el.querySelector('.ctm-ecg-dot');
 }
-if (dot) { dot.style.display = ''; dot.style.top = (top + band / 2) + 'px'; }
+if (dot) {
+dot.style.display = '';
+var df = parseFloat(svg.dataset.doty); if (!isFinite(df)) df = 0.75;
+var fx2 = parseFloat(svg.dataset.dotx); if (!isFinite(fx2)) fx2 = 1;
+var wpx = el.clientWidth || svg.clientWidth || 0;
+dot.style.right = 'auto';
+dot.style.left = Math.max(2, Math.min(wpx - 8, wpx * fx2)) + 'px';
+dot.style.top = (top + band * df) + 'px';
+}
 }
 function paintEcg() {
 if (typeof ctmDay === 'undefined' || !ctmDay) return;
@@ -15501,6 +15543,7 @@ var bb = document.getElementById('bootBack');
 if (bb && bb.parentNode) bb.parentNode.removeChild(bb);
 } catch (e) {}
 })();
+window.__kbMapHud5 = 1; // отслеживание выключено полностью
 // ============================================================
 // KB MAP SPEED + VIS HUD v5 — «профайлер» в стиле Watch Dogs.
 // Фиксы v5:
@@ -15723,9 +15766,20 @@ function hudPick(c) {
 }
 
 // --- 4. CSS ---
+if (!window.__kbPinsGate) {
+window.__kbPinsGate = setInterval(function () {
+try {
+var z = (typeof mapObj !== 'undefined' && mapObj) ? mapObj.getZoom() : 0;
+document.body.classList.toggle('kb-pins-on', z >= 13);
+} catch (e) {}
+}, 300);
+}
 var KB_HUD_CSS = ''
 + '#kbVisStrip{position:absolute;top:76px;left:10px;right:10px;z-index:6;pointer-events:none;display:none;}'
-+ '#kbVisStrip.on{display:block;}'
++ '#kbVisStrip.on{display:none;}'
++ 'body.kb-pins-on #kbVisStrip.on{display:block;}'
++ 'body:not(.kb-pins-on) [class*="kbv-"],body:not(.kb-pins-on) [id^="kbVis"]{visibility:hidden !important;}'
++ 'body:not(.kb-pins-on) #mapBox canvas:not(.maplibregl-canvas):not(#routeCanvas){visibility:hidden !important;}'
 + '.kbv-hud-head{display:flex;align-items:center;gap:6px;margin:0 2px 6px;font-size:9px;font-weight:800;letter-spacing:1.6px;color:#5fd9ff;text-transform:uppercase;text-shadow:0 0 8px rgba(69,216,255,.5);}'
 + '.kbv-hud-head em{font-style:normal;margin-left:auto;color:#7b8db0;letter-spacing:1px;}'
 + '.kbv-live{width:6px;height:6px;border-radius:50%;background:#45d8ff;box-shadow:0 0 8px #45d8ff;animation:kbvPulse 1.6s ease-in-out infinite;}'
@@ -15983,4 +16037,968 @@ setInterval(function () {
   if (!pg || !pg.clientWidth) return;
   if (Math.round(pg.scrollLeft / pg.clientWidth) === 2) hudSyncQ();
 }, 5000);
+})();
+// ============================================================
+// KB MAP SPEED v6 — только скорость карты, без отслеживания.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbMapSpeed6) return;
+window.__kbMapSpeed6 = 1;
+function kbCoalesce(fn) {
+var q = false;
+return function () {
+if (q) return;
+q = true;
+requestAnimationFrame(function () { q = false; try { fn(); } catch (e) {} });
+};
+}
+try { applyLabelZoom = kbCoalesce(applyLabelZoom); } catch (e) {}
+var kbRmBase = renderMap, kbRmPend = false, kbRmTimer = 0;
+renderMap = function () {
+if (kbRmPend) return;
+kbRmPend = true;
+var z = 12;
+try { if (mapObj && mapObj.getZoom) z = mapObj.getZoom(); } catch (e) {}
+var run = function () {
+kbRmPend = false;
+try { kbRmBase(); } catch (e) {}
+};
+if (z < 10.5) { clearTimeout(kbRmTimer); kbRmTimer = setTimeout(run, 200); }
+else requestAnimationFrame(run);
+};
+function kbZoneLod(d, z) {
+if (!d || !d.features) return d;
+if (z < 9) return { type: 'FeatureCollection', features: [] };
+if (z < 10.5) return { type: 'FeatureCollection', features: d.features.filter(function (f) { return f && f.properties && f.properties.kind === 'main'; }) };
+return d;
+}
+function kbInstallMapSpeed() {
+if (!mapObj || mapObj.__kbSpeedDone) return;
+mapObj.__kbSpeedDone = 1;
+try { mapObj.off('zoom', applyZoneBadgesZoom); mapObj.on('zoom', kbCoalesce(applyZoneBadgesZoom)); } catch (e) {}
+try { mapObj.off('zoom', applyServiceZoom); mapObj.on('zoom', kbCoalesce(applyServiceZoom)); } catch (e) {}
+try {
+var zs = mapObj.getSource('zones');
+if (zs && !zs.__kbLod) {
+zs.__kbLod = 1;
+var od = zs.setData.bind(zs);
+zs.__kbFull = null; zs.__kbBand = -1;
+var band = function (z) { return z < 9 ? 0 : z < 10.5 ? 1 : 2; };
+zs.setData = function (d) {
+zs.__kbFull = d;
+var b = band(mapObj.getZoom());
+zs.__kbBand = b;
+return od(b === 2 ? d : kbZoneLod(d, mapObj.getZoom()));
+};
+mapObj.on('zoom', kbCoalesce(function () {
+if (!zs.__kbFull) return;
+var b = band(mapObj.getZoom());
+if (b === zs.__kbBand) return;
+zs.__kbBand = b;
+try { od(b === 2 ? zs.__kbFull : kbZoneLod(zs.__kbFull, mapObj.getZoom())); } catch (e) {}
+}));
+}
+} catch (e) {}
+}
+function kbTryInstall() {
+try {
+if (typeof mapObj === 'undefined' || !mapObj) return;
+if (mapObj.__kbSpeedDone) return;
+if (mapObj.loaded && mapObj.loaded()) kbInstallMapSpeed();
+else if (!mapObj.__kbSpeedWait) { mapObj.__kbSpeedWait = 1; mapObj.once('load', kbInstallMapSpeed); }
+} catch (e) {}
+}
+setInterval(kbTryInstall, 800);
+var kbEmBase = ensureMap;
+ensureMap = function () { kbEmBase(); kbTryInstall(); };
+})();
+// ============================================================
+// KB QUICK MENU v3 — родное меню из трёх мини-карточек сверху.
+// 1) «Где бензин?»  2) «Когда привезут?»  3) «Возможно есть?»
+// Тап = компактная всплывающая панель; третья содержит живое
+// голосование «возможно есть топливо» (Да/Нет работают как раньше).
+// С главной скрыты: пульс-карточка, Топ-3, плашка голосования,
+// полоска «Написать нам». Меню НЕ липкое, в палитре сайта.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQuickMenu3) return;
+window.__kbQuickMenu3 = 1;
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+function ic(n, c) { return typeof icon === 'function' ? icon(n, c || 'ic-s') : ''; }
+(function css() {
+if (document.getElementById('kbQuickMenu3Css')) return;
+var s = document.createElement('style');
+s.id = 'kbQuickMenu3Css';
+var L = [];
+// гасим старое липкое меню и его панель
+L.push('#kbQmMenu,#kbQmPop,#kbQmBack{display:none !important;}');
+// убираем с главной то, что мешало
+L.push('.pulse-card{display:none !important;}');
+L.push('.top3{display:none !important;}');
+L.push('#maybeFuelPlate{display:none !important;}');
+L.push('.p1 [onclick*="openMailPop"]{display:none !important;}');
+// родное меню: карточка в палитре сайта, не липкая
+L.push('#kbQmMenu3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:0 0 10px;padding:6px;');
+L.push('border-radius:16px;border:1px solid rgba(148,180,255,.16);');
+L.push('background:linear-gradient(165deg,#141d33,#101828);box-shadow:0 2px 10px rgba(0,0,0,.25);}');
+L.push('body:not(.kb-night) #kbQmMenu3{background:linear-gradient(165deg,#fdfeff,#f2f7ff);border-color:#dfe8f2;box-shadow:0 2px 10px rgba(20,33,61,.06);}');
+L.push('.kbq3-btn{display:flex;align-items:center;gap:6px;min-width:0;border:1px solid rgba(148,180,255,.14);');
+L.push('background:rgba(148,180,255,.06);border-radius:12px;padding:9px 8px;cursor:pointer;font-family:inherit;');
+L.push('color:#c6d2e8;transition:transform .15s,background .2s;}');
+L.push('.kbq3-btn:active{transform:scale(.96);}');
+L.push('body:not(.kb-night) .kbq3-btn{background:#fff;border-color:#e6ecf5;color:#33445f;}');
+L.push('.kbq3-btn .ic{width:14px;height:14px;flex:none;}');
+L.push('.kbq3-btn.g .ic{color:#2fd39a;}.kbq3-btn.b .ic{color:#7db4ff;}.kbq3-btn.a .ic{color:#f5a05a;}');
+L.push('.kbq3-bt{flex:1;min-width:0;font-size:10px;font-weight:800;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kbq3-badge{flex:none;border-radius:99px;padding:2px 7px;font-size:9.5px;font-weight:900;font-variant-numeric:tabular-nums;}');
+L.push('.kbq3-btn.g .kbq3-badge{background:rgba(25,183,122,.16);color:#2fd39a;}');
+L.push('.kbq3-btn.b .kbq3-badge{background:rgba(91,157,255,.16);color:#9dc4ff;}');
+L.push('.kbq3-btn.a .kbq3-badge{background:rgba(245,160,90,.16);color:#f5a05a;}');
+L.push('body:not(.kb-night) .kbq3-btn.g .kbq3-badge{background:#e5f8ef;color:#12855c;}');
+L.push('body:not(.kb-night) .kbq3-btn.b .kbq3-badge{background:#eef4ff;color:#2465ee;}');
+L.push('body:not(.kb-night) .kbq3-btn.a .kbq3-badge{background:#fff6ec;color:#c26a2a;}');
+// всплывающая панель
+L.push('.kbq3-back{position:fixed;inset:0;z-index:244;background:rgba(6,10,24,.55);backdrop-filter:blur(3px);');
+L.push('opacity:0;pointer-events:none;transition:opacity .25s;}');
+L.push('.kbq3-back.on{opacity:1;pointer-events:auto;}');
+L.push('.kbq3-pop{position:fixed;left:10px;right:10px;bottom:10px;z-index:245;margin:0 auto;max-width:560px;');
+L.push('max-height:74vh;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;');
+L.push('background:linear-gradient(165deg,#141d33,#101828);border:1px solid rgba(148,180,255,.22);');
+L.push('box-shadow:0 18px 50px rgba(4,10,26,.6);opacity:0;transform:translateY(16px);pointer-events:none;');
+L.push('transition:opacity .25s,transform .3s cubic-bezier(.2,.8,.2,1);}');
+L.push('.kbq3-pop.on{opacity:1;transform:none;pointer-events:auto;}');
+L.push('body:not(.kb-night) .kbq3-pop{background:linear-gradient(165deg,#fdfeff,#f2f7ff);border-color:#dfe8f2;}');
+L.push('.kbq3-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid rgba(148,180,255,.16);}');
+L.push('body:not(.kb-night) .kbq3-head{border-color:#e6ecf5;}');
+L.push('.kbq3-head b{flex:1;min-width:0;font-size:13px;font-weight:900;color:#ebf3ff;}');
+L.push('body:not(.kb-night) .kbq3-head b{color:#14213d;}');
+L.push('.kbq3-stamp{font-size:9px;font-weight:700;color:#93a0b8;}');
+L.push('.kbq3-x{flex:none;width:28px;height:28px;border-radius:50%;border:1px solid rgba(148,180,255,.25);');
+L.push('background:rgba(148,180,255,.1);color:#9dc4ff;font-size:14px;font-weight:800;cursor:pointer;}');
+L.push('.kbq3-sum{flex:none;display:flex;flex-wrap:wrap;gap:5px;padding:10px 14px 0;}');
+L.push('.kbq3-sum i{font-style:normal;border-radius:99px;padding:4px 9px;font-size:9.5px;font-weight:800;background:rgba(91,157,255,.14);color:#9dc4ff;}');
+L.push('.kbq3-list,.kbq3-scroll{flex:1;min-height:0;overflow-y:auto;padding:10px 14px;');
+L.push('scrollbar-width:thin;scrollbar-color:#3f74d6 rgba(148,180,255,.08);}');
+L.push('.kbq3-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;align-content:start;}');
+L.push('.kbq3-list::-webkit-scrollbar,.kbq3-scroll::-webkit-scrollbar{width:6px;}');
+L.push('.kbq3-list::-webkit-scrollbar-track,.kbq3-scroll::-webkit-scrollbar-track{background:rgba(148,180,255,.08);border-radius:99px;}');
+L.push('.kbq3-list::-webkit-scrollbar-thumb,.kbq3-scroll::-webkit-scrollbar-thumb{background:#3f74d6;border-radius:99px;}');
+L.push('.kbq3-card{display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:14px;');
+L.push('border:1px solid rgba(148,180,255,.16);background:rgba(148,180,255,.06);cursor:pointer;transition:transform .15s;}');
+L.push('.kbq3-card:active{transform:scale(.97);}');
+L.push('body:not(.kb-night) .kbq3-card{background:#fff;border-color:#e6ecf5;}');
+L.push('.kbq3-top{display:flex;align-items:center;gap:6px;}');
+L.push('.kbq3-logo{flex:none;width:22px;height:22px;}');
+L.push('.kbq3-logo img{width:100%;height:100%;object-fit:contain;}');
+L.push('.kbq3-name{flex:1;min-width:0;font-size:11px;font-weight:800;color:#ebf3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('body:not(.kb-night) .kbq3-name{color:#14213d;}');
+L.push('.kbq3-route{flex:none;width:26px;height:26px;border-radius:8px;border:1px solid rgba(148,180,255,.3);');
+L.push('background:rgba(91,157,255,.12);color:#9dc4ff;cursor:pointer;display:flex;align-items:center;justify-content:center;}');
+L.push('.kbq3-addr{font-size:9px;font-weight:600;color:#93a0b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kbq3-chips{display:flex;flex-wrap:wrap;gap:3px;}');
+L.push('.kbq3-meta{font-size:9.5px;font-weight:800;color:#7db4ff;}');
+L.push('.kbq3-time{font-size:15px;font-weight:900;color:#7db4ff;letter-spacing:-.3px;font-variant-numeric:tabular-nums;}');
+L.push('.kbq3-empty{text-align:center;font-size:10.5px;font-weight:700;color:#93a0b8;padding:14px 4px;}');
+L.push('.kbq3-foot{flex:none;display:flex;gap:8px;padding:10px 14px;border-top:1px solid rgba(148,180,255,.16);}');
+L.push('body:not(.kb-night) .kbq3-foot{border-color:#e6ecf5;}');
+L.push('.kbq3-foot button{flex:1;border:1px solid rgba(148,180,255,.3);background:rgba(91,157,255,.1);color:#9dc4ff;');
+L.push('border-radius:12px;padding:9px 10px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;');
+L.push('display:flex;align-items:center;justify-content:center;gap:6px;}');
+// голосование внутри панели: прячем битую иконку, ровняем строки
+L.push('.kbq3-mf .mf-drop{display:none !important;}');
+L.push('.kbq3-mf .mf-head{font-size:12px;}');
+L.push('.kbq3-mf .mf-sub{font-size:10px;}');
+L.push('.kbq3-mf .mf-row{margin-top:8px;}');
+L.push('body.kb-lite .kbq3-pop,.kbq3-back,.kbq3-btn,.kbq3-card{transition:none;}');
+L.push('@media (prefers-reduced-motion:reduce){.kbq3-pop,.kbq3-back,.kbq3-btn,.kbq3-card{transition:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+var menu = null, back = null, pop = null, openKind = 0;
+function adviceSafe() { try { return buildAdviceList() || []; } catch (e) { return []; } }
+function cityWins() {
+var ids = {}, list = [];
+try { cityStationList().forEach(function (s) { ids[s.id] = 1; }); } catch (e) { return []; }
+for (var i = 0; i < allPredictions.length; i++) {
+var p = allPredictions[i];
+if (p.result !== 'PENDING' || !ids[p.station_id]) continue;
+if (winSortKey(p) >= 1e8) continue;
+list.push(p);
+}
+list.sort(function (a, b) { return winSortKey(a) - winSortKey(b); });
+return list;
+}
+function summary() {
+var last = getLastObservations(), k = 0, a = 0, q = 0;
+try {
+cityStationList().forEach(function (st) {
+var o = last[st.id];
+if (!o) return;
+if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { k++; if (o.fuel_95_status) a++; }
+if (o.queue_level === 'high') q++;
+});
+} catch (e) {}
+return { k: k, a: a, q: q };
+}
+function mfCount() { try { return document.querySelectorAll('#maybeFuelPlate .mf-row').length; } catch (e) { return 0; } }
+function kmOf(st) {
+try {
+var u = loadUserLocation();
+if (!u || st.lat == null) return null;
+var dLa = 111 * (Number(st.lat) - u.lat), dLo = 111 * (Number(st.lon) - u.lon) * Math.cos(u.lat * Math.PI / 180);
+return Math.sqrt(dLa * dLa + dLo * dLo);
+} catch (e) { return null; }
+}
+function priceOf(st) {
+var p = allLastPrice[st.id];
+if (!p) return '';
+var col = p.price_95 != null ? 'price_95' : p.price_92 != null ? 'price_92' : p.price_diesel != null ? 'price_diesel' : null;
+return col ? Number(p[col]).toFixed(1) + ' ₽' : '';
+}
+function badges() {
+if (!menu) return;
+var now = adviceSafe().filter(function (x) { return x.kind === 'now'; }).length;
+var b1 = menu.querySelector('[data-kbq3="1"] .kbq3-badge');
+var b2 = menu.querySelector('[data-kbq3="2"] .kbq3-badge');
+var b3 = menu.querySelector('[data-kbq3="3"] .kbq3-badge');
+if (b1) b1.textContent = now;
+if (b2) b2.textContent = cityWins().length;
+if (b3) b3.textContent = mfCount();
+}
+function buildMenu() {
+menu = document.createElement('div');
+menu.id = 'kbQmMenu3';
+menu.innerHTML =
+'<button type="button" class="kbq3-btn g" data-kbq3="1" title="Где сейчас бензин?">' + ic('i-pump') +
+'<span class="kbq3-bt">Где бензин?</span><span class="kbq3-badge">0</span></button>' +
+'<button type="button" class="kbq3-btn b" data-kbq3="2" title="Топлива нет? Смотри когда появится!">' + ic('i-clock') +
+'<span class="kbq3-bt">Когда привезут?</span><span class="kbq3-badge">0</span></button>' +
+'<button type="button" class="kbq3-btn a" data-kbq3="3" title="Возможно есть топливо здесь — подтвердите или опровергните">' + ic('i-check') +
+'<span class="kbq3-bt">Возможно есть?</span><span class="kbq3-badge">0</span></button>';
+}
+function mount() {
+var panel = document.querySelectorAll('.panel')[1];
+if (!panel) return;
+var sc = panel.querySelector('.panel-scroll') || panel;
+if (!menu) buildMenu();
+if (menu.parentNode !== sc || sc.firstChild !== menu) sc.insertBefore(menu, sc.firstChild);
+badges();
+}
+mount(); setTimeout(mount, 1200); setInterval(mount, 4000);
+function ensurePop() {
+if (pop) return;
+back = document.createElement('div'); back.className = 'kbq3-back';
+pop = document.createElement('div'); pop.className = 'kbq3-pop';
+document.body.appendChild(back); document.body.appendChild(pop);
+back.addEventListener('click', closeMenu);
+back.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+}
+function stamp() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function winBadge(k) { return k === 0 ? 'сейчас' : k >= 1440 ? 'завтра' : k <= 180 ? 'скоро' : 'потом'; }
+function renderPop() {
+if (!pop || !openKind) return;
+var title = openKind === 1 ? 'Где сейчас бензин?' : openKind === 2 ? 'Топлива нет? Смотри когда появится!' : 'Возможно есть топливо здесь';
+var h = '<div class="kbq3-head"><b>' + title + '</b><span class="kbq3-stamp">обновлено ' + stamp() + '</span>' +
+'<button type="button" class="kbq3-x" data-kbq3-close="1" aria-label="Закрыть">✕</button></div>';
+if (openKind === 3) {
+var plate = document.getElementById('maybeFuelPlate');
+var inner = plate ? plate.innerHTML : '';
+var has = plate && plate.querySelectorAll('.mf-row').length;
+h += '<div class="kbq3-scroll kbq3-mf">' +
+(has ? inner : '<div class="kbq3-empty">Сейчас нечего подтверждать: источник за последние 2 часа не отмечал возвратов, по которым нужны голоса. Загляни позже — или отметь топливо прямо на карте.</div>') +
+'</div>';
+pop.innerHTML = h;
+return;
+}
+if (openKind === 1) {
+var list = adviceSafe();
+var body = list.map(function (it) {
+var st = it.st, o = it.o, km = kmOf(st), pr = priceOf(st);
+var chips = kbq3FuelChips(it);
+var meta = (km != null ? (km < 1 ? Math.round(km * 1000) + ' м' : km.toFixed(1) + ' км') : '') + (pr ? (km != null ? ' · ' : '') + pr : '');
+return '<div class="kbq3-card" data-kbq3-open="' + esc(st.id) + '">' +
+'<span class="kbq3-top"><span class="kbq3-logo">' + stationLogo(st) + '</span>' +
+'<span class="kbq3-name">' + esc(st.name || 'АЗС') + '</span>' +
+'<button type="button" class="kbq3-route" data-kbq3-route="' + esc(st.id) + '" aria-label="Маршрут">' + ic('i-nav') + '</button></span>' +
+'<span class="kbq3-addr">' + esc(st.address || '') + '</span>' +
+'<span class="kbq3-chips">' + chips + '</span>' +
+(meta ? '<span class="kbq3-meta">' + esc(meta) + '</span>' : '') + '</div>';
+}).join('');
+h += '<div class="kbq3-list">' + (body || '<div class="kbq3-empty">Сейчас подтверждённого топлива нет — загляни во вторую карточку: там окна привоза.</div>') + '</div>' +
+'<div class="kbq3-foot"><button type="button" data-kbq3-advice="1">' + ic('i-spark') + 'Полная подборка «Куда ехать»</button></div>';
+} else {
+var wins = cityWins(), sm = summary();
+h += '<div class="kbq3-sum"><i>АИ-95: ' + sm.a + '/' + sm.k + '</i><i>окон: ' + wins.length + '</i><i>очередей: ' + sm.q + '</i></div>';
+var rows = wins.slice(0, 6).map(function (p) {
+var st = stationById(p.station_id);
+if (!st) return '';
+return '<div class="kbq3-card" data-kbq3-open="' + esc(st.id) + '">' +
+'<span class="kbq3-time">' + time5(p.from_time) + '–' + time5(p.to_time) + '</span>' +
+'<span class="kbq3-name">' + esc(st.name || 'АЗС') + '</span>' +
+'<span class="kbq3-addr">' + esc(st.address || '') + '</span>' +
+'<span class="kbq3-meta">' + fuelLabel(p.fuel_type) + ' · ' + Math.round((p.confidence || 0) * 100) + '% · ' + winBadge(winSortKey(p)) + '</span></div>';
+}).join('');
+h += '<div class="kbq3-list">' + (rows || '<div class="kbq3-empty">Ближайших окон пока нет — прогнозы копятся по мере наблюдений.</div>') + '</div>' +
+'<div class="kbq3-foot"><button type="button" data-kbq3-sv="1">' + ic('i-chart') + 'Полная сводка по региону</button></div>';
+}
+pop.innerHTML = h;
+}
+function openMenu(kind) { openKind = kind; ensurePop(); renderPop(); back.classList.add('on'); pop.classList.add('on'); }
+function closeMenu() { openKind = 0; if (back) back.classList.remove('on'); if (pop) pop.classList.remove('on'); }
+document.addEventListener('click', function (e) {
+var t = e.target;
+if (!t || !t.closest) return;
+var el;
+if ((el = t.closest('[data-kbq3]'))) { openMenu(Number(el.getAttribute('data-kbq3'))); return; }
+if ((el = t.closest('[data-kbq3-close]'))) { closeMenu(); return; }
+// голосование остаётся в панели; открытие карточки из голосования — закрываем панель
+if (t.closest('.kbq3-pop [onclick*="openSheet"]')) { closeMenu(); return; }
+if ((el = t.closest('[data-kbq3-route]'))) { var rid = el.getAttribute('data-kbq3-route'); closeMenu(); try { showOnMap(rid); } catch (err) {} return; }
+if ((el = t.closest('[data-kbq3-open]'))) { var oid = el.getAttribute('data-kbq3-open'); closeMenu(); try { openSheet(oid); } catch (err) {} return; }
+if ((el = t.closest('[data-kbq3-advice]'))) { closeMenu(); try { openAdviceNow(); } catch (err) {} return; }
+if ((el = t.closest('[data-kbq3-sv]'))) {
+closeMenu();
+try { pagerGo(1); } catch (err) {}
+setTimeout(function () { var sv = document.getElementById('kbSvCard'); if (sv) sv.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 350);
+return;
+}
+}, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
+// после каждого пересчёта голосования обновляем счётчик и открытую панель
+var _mf = renderMaybeFuel;
+renderMaybeFuel = function () { var r = _mf(); badges(); if (openKind === 3) renderPop(); return r; };
+if (window.__kbPipe) {
+window.__kbPipe.now.push(function () { badges(); if (openKind) renderPop(); });
+window.__kbPipe.soft.push(function () { badges(); if (openKind) renderPop(); });
+}
+setInterval(function () { badges(); if (openKind && !document.hidden) renderPop(); }, 30000);
+setTimeout(badges, 1500);
+})();
+// ============================================================
+// KB QUICK MENU LABELS FIX v1 — полные надписи в мини-карточках.
+// Кнопка становится двухъярусной: иконка + счётчик сверху,
+// полная надпись снизу на всю ширину, с переносом, без «…».
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmLabelsFix) return;
+window.__kbQmLabelsFix = 1;
+(function css() {
+if (document.getElementById('kbQmLabelsFixCss')) return;
+var s = document.createElement('style');
+s.id = 'kbQmLabelsFixCss';
+var L = [];
+L.push('#kbQmMenu3 .kbq3-btn{display:grid !important;grid-template-columns:auto 1fr !important;');
+L.push('grid-template-areas:"ico badge" "txt txt" !important;align-items:center !important;');
+L.push('gap:7px 6px !important;padding:9px 9px 10px !important;height:auto !important;min-height:0 !important;}');
+L.push('#kbQmMenu3 .kbq3-btn > .ic{grid-area:ico;width:15px !important;height:15px !important;}');
+L.push('#kbQmMenu3 .kbq3-btn .kbq3-badge{grid-area:badge;justify-self:end !important;}');
+L.push('#kbQmMenu3 .kbq3-btn .kbq3-bt{grid-area:txt;min-width:0 !important;');
+L.push('white-space:normal !important;overflow:visible !important;text-overflow:clip !important;');
+L.push('font-size:10.5px !important;line-height:1.25 !important;text-align:left !important;');
+L.push('word-break:normal !important;overflow-wrap:break-word !important;}');
+L.push('@media (max-width:352px){#kbQmMenu3 .kbq3-btn .kbq3-bt{font-size:10px !important;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+})();
+// ============================================================
+// KB ENTRY + MENU POLISH v1
+// 1) Меню из трёх мини-карточек: компактная строка «иконка +
+//    подпись + счётчик», фирменные плашки, без пустых полей.
+// 2) Баг входа: ночная тема ставится ДО первой отрисовки (нет
+//    белой вспышки / белых полос); выбор светлой темы запоминается.
+// 3) Тепловая карта перерисовывается после усадки разметки и при
+//    ресайзе — плитки не вылезают за карточку, пустого бокса нет.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbEntryMenuPolish) return;
+window.__kbEntryMenuPolish = 1;
+function ic(n, c) { return typeof icon === 'function' ? icon(n, c || 'ic-s') : ''; }
+// ---------- 2) тема до первой отрисовки ----------
+var light = false;
+try { light = localStorage.getItem('kbThemeLight') === '1'; } catch (e) {}
+function applyTheme() {
+document.body.classList.toggle('kb-night', !light);
+document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+document.documentElement.style.background = light ? '' : '#0a1024';
+}
+applyTheme();
+new MutationObserver(function () {
+var isNight = document.body.classList.contains('kb-night');
+light = !isNight;
+try { localStorage.setItem('kbThemeLight', light ? '1' : '0'); } catch (e) {}
+document.documentElement.style.colorScheme = light ? 'light' : 'dark';
+document.documentElement.style.background = light ? '' : '#0a1024';
+}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+// ---------- палитра и геометрия ----------
+(function css() {
+if (document.getElementById('kbEntryMenuPolishCss')) return;
+var s = document.createElement('style');
+s.id = 'kbEntryMenuPolishCss';
+var L = [];
+L.push('html{background:#0a1024;}');
+L.push('body.kb-night{background:radial-gradient(900px 520px at 88% -8%,rgba(36,101,238,.22),transparent 62%),linear-gradient(180deg,#0d1526,#0a1024 60%,#080d1c);}');
+L.push('.ctm-card{overflow:hidden;}');
+L.push('.ctm-body{overflow:hidden;position:relative;}');
+L.push('#kbQmMenu3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px;margin:0 0 10px;');
+L.push('border-radius:16px;border:1px solid rgba(148,180,255,.16);');
+L.push('background:linear-gradient(165deg,#141d33,#101828);box-shadow:0 2px 10px rgba(0,0,0,.25);}');
+L.push('body:not(.kb-night) #kbQmMenu3{background:linear-gradient(165deg,#fdfeff,#f2f7ff);border-color:#dfe8f2;box-shadow:0 2px 10px rgba(20,33,61,.06);}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2{display:flex !important;align-items:center !important;gap:8px !important;');
+L.push('grid-template-columns:none !important;grid-template-areas:none !important;');
+L.push('min-height:56px !important;height:auto !important;padding:8px 9px !important;');
+L.push('border-radius:14px;border:1px solid rgba(148,180,255,.14);');
+L.push('background:linear-gradient(160deg,rgba(148,180,255,.08),rgba(148,180,255,.03));');
+L.push('cursor:pointer;font-family:inherit;transition:transform .15s,border-color .2s,background .2s;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbq3-btn.kbqm2{background:#fff;border-color:#e6ecf5;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2:active{transform:scale(.96);}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2:focus-visible{outline:2px solid #4b93ff;outline-offset:2px;}');
+L.push('.kbqm2-ico{flex:none;width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;}');
+L.push('.kbqm2-ico .ic{width:15px;height:15px;}');
+L.push('.kbqm2.g .kbqm2-ico{background:linear-gradient(140deg,#2fd39a,#12855c);box-shadow:0 3px 9px rgba(25,183,122,.35);}');
+L.push('.kbqm2.b .kbqm2-ico{background:linear-gradient(140deg,#4b93ff,#1746c8);box-shadow:0 3px 9px rgba(36,101,238,.35);}');
+L.push('.kbqm2.a .kbqm2-ico{background:linear-gradient(140deg,#f5a05a,#c26a2a);box-shadow:0 3px 9px rgba(245,160,90,.35);}');
+L.push('.kbqm2-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;text-align:left;}');
+L.push('.kbqm2-tx b{font-size:10.5px;font-weight:800;line-height:1.2;color:#ebf3ff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('.kbqm2-tx i{font-style:normal;font-size:8.5px;font-weight:700;line-height:1.2;color:#93a0b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}');
+L.push('body:not(.kb-night) .kbqm2-tx b{color:#14213d;}');
+L.push('body:not(.kb-night) .kbqm2-tx i{color:#7487a7;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{grid-area:auto !important;justify-self:auto !important;flex:none;');
+L.push('border-radius:99px;padding:3px 8px;font-size:10px;font-weight:900;font-variant-numeric:tabular-nums;}');
+L.push('.kbqm2.g .kbq3-badge{background:rgba(25,183,122,.16);color:#2fd39a;}');
+L.push('.kbqm2.b .kbq3-badge{background:rgba(91,157,255,.16);color:#9dc4ff;}');
+L.push('.kbqm2.a .kbq3-badge{background:rgba(245,160,90,.16);color:#f5a05a;}');
+L.push('body:not(.kb-night) .kbqm2.g .kbq3-badge{background:#e5f8ef;color:#12855c;}');
+L.push('body:not(.kb-night) .kbqm2.b .kbq3-badge{background:#eef4ff;color:#2465ee;}');
+L.push('body:not(.kb-night) .kbqm2.a .kbq3-badge{background:#fff6ec;color:#c26a2a;}');
+L.push('@media (max-width:352px){.kbqm2-tx i{display:none;}.kbqm2-ico{width:26px;height:26px;}}');
+L.push('body.kb-lite #kbQmMenu3 .kbq3-btn.kbqm2{transition:none;}');
+L.push('@media (prefers-reduced-motion:reduce){#kbQmMenu3 .kbq3-btn.kbqm2{transition:none;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+// ---------- 1) новая разметка меню (data-kbq3 и .kbq3-badge сохранены) ----------
+function menuHtml() {
+return '<button type="button" class="kbq3-btn kbqm2 g" data-kbq3="1" title="Где сейчас бензин?">' +
+'<span class="kbqm2-ico">' + ic('i-pump') + '</span>' +
+'<span class="kbqm2-tx"><b>Где бензин?</b><i>есть сейчас</i></span>' +
+'<span class="kbq3-badge">0</span></button>' +
+'<button type="button" class="kbq3-btn kbqm2 b" data-kbq3="2" title="Топлива нет? Смотри когда появится!">' +
+'<span class="kbqm2-ico">' + ic('i-clock') + '</span>' +
+'<span class="kbqm2-tx"><b>Когда привезут?</b><i>окна привоза</i></span>' +
+'<span class="kbq3-badge">0</span></button>' +
+'<button type="button" class="kbq3-btn kbqm2 a" data-kbq3="3" title="Возможно есть топливо здесь — подтвердите или опровергните">' +
+'<span class="kbqm2-ico">' + ic('i-check') + '</span>' +
+'<span class="kbqm2-tx"><b>Возможно есть?</b><i>нужны голоса</i></span>' +
+'<span class="kbq3-badge">0</span></button>';
+}
+function ensureMenu() {
+var m = document.getElementById('kbQmMenu3');
+if (!m) return;
+if (!m.querySelector('.kbqm2')) m.innerHTML = menuHtml();
+}
+ensureMenu();
+setTimeout(ensureMenu, 600);
+setInterval(ensureMenu, 2000);
+// ---------- 3) усадка разметки: перерисовка теплокарты ----------
+function repaint() { try { renderCityTreemap(); } catch (e) {} }
+var _rct = renderCityTreemap;
+renderCityTreemap = function () {
+var r = _rct();
+requestAnimationFrame(repaint);
+setTimeout(repaint, 260);
+setTimeout(repaint, 900);
+return r;
+};
+var roT = null;
+function attachRO() {
+var b = document.getElementById('ctmBody');
+if (!b || b.__kbRo || !('ResizeObserver' in window)) return;
+b.__kbRo = 1;
+new ResizeObserver(function () {
+clearTimeout(roT);
+roT = setTimeout(repaint, 180);
+}).observe(b);
+}
+attachRO();
+setInterval(attachRO, 1500);
+window.addEventListener('load', function () { setTimeout(repaint, 120); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { setTimeout(repaint, 60); });
+window.addEventListener('resize', function () { clearTimeout(roT); roT = setTimeout(repaint, 200); });
+})();
+// ============================================================
+// KB PERF RESCUE v1 — лечит лаги и «ничего не прогружается».
+// 1) Гасит главный источник фризов: переключение body.kb-pins-on
+//    каждые 300 мс дёргало MutationObserver'ы по всему body и
+//    запускало тяжёлый near-скан каждые 0.7 с. Теперь класс
+//    меняется только при реальном пересечении зума.
+// 2) Мемоизация тяжёлых народных функций (folk/очередь/с места/
+//    советник): были O(станции × отметки) на каждый вызов.
+// 3) Троттлинг softRefresh / теплокарты / линзы: полная
+//    перерисовка не чаще раза в 3.5 с, мозаика — в 2 с.
+// 4) Плашка «N окон» больше не пересоздаётся каждую секунду
+//    (из-за этого шапка-звезда пересканировала весь DOM).
+// 5) Полные надписи в мини-карточках меню (без «Где… / К…»).
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbPerfRescue) return;
+window.__kbPerfRescue = 1;
+function now() { return Date.now(); }
+// ---------- 1) убираем 300мс-дёрганье body ----------
+try { if (window.__kbPinsGate) { clearInterval(window.__kbPinsGate); window.__kbPinsGate = null; } } catch (e) {}
+try { if (window.__kbPinsWatch) { clearInterval(window.__kbPinsWatch); window.__kbPinsWatch = null; } } catch (e) {}
+var lastPins = null;
+setInterval(function () {
+try {
+if (typeof mapObj === 'undefined' || !mapObj || !mapObj.getZoom) return;
+var on = mapObj.getZoom() >= 13;
+if (on === lastPins) return;
+lastPins = on;
+document.body.classList.toggle('kb-pins-on', on);
+} catch (e) {}
+}, 1200);
+// ---------- 2) мемоизация народных функций ----------
+function memo(fn, ttl) {
+var cache = {}, at = 0, fbLen = -1;
+return function (a, b) {
+var t = now();
+var len = (typeof allFeedback !== 'undefined' && allFeedback) ? allFeedback.length : 0;
+if (t - at > ttl || len !== fbLen) { cache = {}; at = t; fbLen = len; }
+var k = a + '|' + (b === undefined ? '' : b);
+if (k in cache) return cache[k];
+var v = fn(a, b);
+cache[k] = v;
+return v;
+};
+}
+try { folkFuelSignal = memo(folkFuelSignal, 4000); } catch (e) {}
+try { folkConsensus24 = memo(folkConsensus24, 4000); } catch (e) {}
+try { liveQueueCount = memo(liveQueueCount, 4000); } catch (e) {}
+try { sceneMark = memo(sceneMark, 4000); } catch (e) {}
+try { maybeFuelCandidates = memo(maybeFuelCandidates, 4000); } catch (e) {}
+try {
+var _bal = buildAdviceList, balAt = 0, balVal = null, balFb = -1;
+buildAdviceList = function () {
+var t = now();
+var len = (typeof allFeedback !== 'undefined' && allFeedback) ? allFeedback.length : 0;
+if (balVal && t - balAt < 2500 && len === balFb) return balVal;
+balVal = _bal(); balAt = t; balFb = len;
+return balVal;
+};
+} catch (e) {}
+// ---------- 3) троттлинг полных перерисовок ----------
+function throttle(fn, ms) {
+var last = 0, timer = null;
+return function () {
+var t = now();
+if (t - last >= ms) { last = t; try { fn(); } catch (e) {} return; }
+if (timer) return;
+timer = setTimeout(function () {
+timer = null; last = now();
+try { fn(); } catch (e) {}
+}, ms - (t - last));
+};
+}
+try { softRefresh = throttle(softRefresh, 3500); } catch (e) {}
+try { renderCityTreemap = throttle(renderCityTreemap, 2000); } catch (e) {}
+try { lentiApply = throttle(lentiApply, 90); } catch (e) {}
+// ---------- 4) плашка «N окон» стабильна (шапка-звезда не пересканирует DOM) ----------
+try { updateSlimForecast = function () {}; } catch (e) {}
+// ---------- 5) полные надписи мини-карточек ----------
+(function css() {
+if (document.getElementById('kbPerfRescueCss')) return;
+var s = document.createElement('style');
+s.id = 'kbPerfRescueCss';
+var L = [];
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2{min-width:0 !important;gap:6px !important;padding:8px 7px !important;}');
+L.push('#kbQmMenu3 .kbqm2-ico{width:26px !important;height:26px !important;border-radius:9px !important;}');
+L.push('#kbQmMenu3 .kbqm2-ico .ic{width:13px !important;height:13px !important;}');
+L.push('#kbQmMenu3 .kbqm2-tx{min-width:0 !important;flex:1 !important;}');
+L.push('#kbQmMenu3 .kbqm2-tx b{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;');
+L.push('display:-webkit-box !important;-webkit-line-clamp:2 !important;-webkit-box-orient:vertical !important;');
+L.push('font-size:10.5px !important;line-height:1.2 !important;}');
+L.push('#kbQmMenu3 .kbq3-badge{padding:2px 6px !important;font-size:9px !important;}');
+L.push('@media (max-width:480px){#kbQmMenu3 .kbqm2-tx i{display:none !important;}}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+})();
+// ============================================================
+// KB TILE WAVE v1 — мягкая волна активности вместо ЭКГ-шипиков
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbTileWave) return;
+window.__kbTileWave = 1;
+var s = document.createElement('style');
+s.id = 'kbTileWaveCss';
+s.textContent =
+'.ctm-ecg{opacity:.95;}' +
+'.ctm-ecg .ctm-base{fill:none;stroke:rgba(255,255,255,.28);stroke-width:1;stroke-dasharray:1.5 2.5;}' +
+'.ctm-ecg .ctm-area{stroke:none;}' +
+'.ctm-ecg .ctm-crest{fill:none;stroke:#fff;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;opacity:.92;stroke-dasharray:100;stroke-dashoffset:0;animation:ctmWaveDraw .9s cubic-bezier(.3,.7,.3,1) both;}' +
+'.ctm-ecg.flat .ctm-area{opacity:0;}' +
+'.ctm-ecg.flat .ctm-crest{opacity:.32;animation:none;}' +
+'.ctm-ecg.flat .ctm-base{opacity:.5;}' +
+'.ctm-ecg-dot{width:5px;height:5px;box-shadow:0 0 0 1px rgba(10,18,38,.3),0 0 7px rgba(255,255,255,.8);}' +
+'body.kb-lite .ctm-ecg .ctm-crest{animation:none;}' +
+'@media (prefers-reduced-motion:reduce){.ctm-ecg .ctm-crest{animation:none;}}' +
+'@keyframes ctmWaveDraw{from{stroke-dashoffset:100;}to{stroke-dashoffset:0;}}';
+document.head.appendChild(s);
+})();
+// ============================================================
+// KB TILE WAVE v2 — точка на гребне последней волны, плавный ход
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbTileWave2) return;
+window.__kbTileWave2 = 1;
+var s = document.createElement('style');
+s.id = 'kbTileWave2Css';
+s.textContent =
+'.ctm-ecg-dot{transition:left .45s cubic-bezier(.2,.8,.2,1),top .45s cubic-bezier(.2,.8,.2,1);}' +
+'.ctm-ecg .ctm-crest{stroke-width:1.8;}' +
+'body.kb-lite .ctm-ecg-dot{transition:none;}' +
+'@media (prefers-reduced-motion:reduce){.ctm-ecg-dot{transition:none;}}';
+document.head.appendChild(s);
+})();
+// ============================================================
+// KB TILE CALM v1 — плитки без бесовки:
+// 1) линия больше НЕ анимируется прорисовкой (из-за этого она
+//    выглядела нарисованной наполовину и дёргалась каждую минуту);
+// 2) плавающая точка убрана совсем;
+// 3) волна прижата к своей линии и стала вдвое ниже и тише —
+//    плитка читается как цифра, а не как кардиограмма.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbTileCalm) return;
+window.__kbTileCalm = 1;
+var s = document.createElement('style');
+s.id = 'kbTileCalmCss';
+s.textContent =
+'.ctm-ecg-dot{display:none !important;}' +
+'.ctm-ecg .ctm-crest{stroke-dasharray:none !important;stroke-dashoffset:0 !important;animation:none !important;stroke-width:1.4;opacity:.8;}' +
+'.ctm-ecg .ctm-area{opacity:.85;}' +
+'.ctm-ecg{transform:scaleY(.7);transform-origin:50% 75%;}' +
+'.ctm-ecg.flat .ctm-crest{opacity:.28;}' +
+'body.kb-lite .ctm-ecg{transform:none;}' +
+'@media (prefers-reduced-motion:reduce){.ctm-ecg{transform:none;}}';
+document.head.appendChild(s);
+})();
+// ============================================================
+// KB NUMS FIT v2 — число без кружка: тихая цветная цифра справа.
+// Никакого фона, кольца и кляксы на иконке; ноль скрыт,
+// 3+ цифры сами чуть мельче. Вставить в САМЫЙ КОНЕЦ app.js.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbNumsFit2) return;
+window.__kbNumsFit2 = 1;
+var s = document.createElement('style');
+s.id = 'kbNumsFit2Css';
+var L = [];
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2{padding:9px 11px 9px 8px !important;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{position:static !important;left:auto !important;');
+L.push('top:auto !important;margin:0 0 0 auto !important;padding:0 !important;');
+L.push('background:transparent !important;box-shadow:none !important;border-radius:0 !important;');
+L.push('font-size:16px !important;font-weight:900 !important;line-height:1 !important;');
+L.push('letter-spacing:-.5px !important;font-variant-numeric:tabular-nums;opacity:.95;}');
+L.push('#kbQmMenu3 .kbqm2-tx{margin-right:8px;}');
+L.push('#kbQmMenu3 .kbqm2.g .kbq3-badge{color:#2fd39a !important;}');
+L.push('#kbQmMenu3 .kbqm2.b .kbq3-badge{color:#7db4ff !important;}');
+L.push('#kbQmMenu3 .kbqm2.a .kbq3-badge{color:#f5a05a !important;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.g .kbq3-badge{color:#12855c !important;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.b .kbq3-badge{color:#2465ee !important;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.a .kbq3-badge{color:#c26a2a !important;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.wide{font-size:13px !important;padding:0 !important;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.zero{display:none !important;}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+// ============================================================
+// KB NUMS BEAUTY v1
+// 1) Число — сверху карточки (в обведённой зоне): крупное,
+//    градиентное, в цвет своей кнопки (зелёный/синий/оранжевый).
+// 2) Открытая мини-карточка внутри оформлена в тот же цвет:
+//    рамки, подложки строк, кнопки, подписи, время.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbNumsBeauty) return;
+window.__kbNumsBeauty = 1;
+(function css() {
+if (document.getElementById('kbNumsBeautyCss')) return;
+var s = document.createElement('style');
+s.id = 'kbNumsBeautyCss';
+var L = [];
+// --- число сверху, витринным шрифтом ---
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2{display:grid !important;');
+L.push('grid-template-columns:auto 1fr !important;grid-template-areas:"num num" "ico tx" !important;');
+L.push('align-items:center !important;gap:5px 8px !important;padding:10px 11px 11px !important;');
+L.push('min-height:66px !important;}');
+L.push('#kbQmMenu3 .kbqm2.g{--kbq-a:#8ff2c8;--kbq-b:#19b77a;--kbq-g:rgba(25,183,122,.35);}');
+L.push('#kbQmMenu3 .kbqm2.b{--kbq-a:#bcd7ff;--kbq-b:#4b93ff;--kbq-g:rgba(75,147,255,.35);}');
+L.push('#kbQmMenu3 .kbqm2.a{--kbq-a:#ffd9ae;--kbq-b:#f5a05a;--kbq-g:rgba(245,160,90,.35);}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.g{--kbq-a:#19b77a;--kbq-b:#12855c;--kbq-g:rgba(25,183,122,.22);}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.b{--kbq-a:#4b93ff;--kbq-b:#1746c8;--kbq-g:rgba(36,101,238,.22);}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.a{--kbq-a:#f5a05a;--kbq-b:#c26a2a;--kbq-g:rgba(245,160,90,.22);}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{grid-area:num !important;position:static !important;');
+L.push('margin:0 !important;padding:0 !important;background:none !important;box-shadow:none !important;');
+L.push('border-radius:0 !important;font-size:24px !important;font-weight:900 !important;line-height:1 !important;');
+L.push('letter-spacing:-1.2px !important;font-variant-numeric:tabular-nums;');
+L.push('background-image:linear-gradient(135deg,var(--kbq-a),var(--kbq-b));');
+L.push('-webkit-background-clip:text;background-clip:text;color:transparent !important;');
+L.push('filter:drop-shadow(0 2px 10px var(--kbq-g));}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.wide{font-size:19px !important;letter-spacing:-1px !important;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.zero{display:none !important;}');
+L.push('#kbQmMenu3 .kbqm2-ico{grid-area:ico !important;width:26px !important;height:26px !important;}');
+L.push('#kbQmMenu3 .kbqm2-tx{grid-area:tx !important;margin:0 !important;}');
+// --- открытая мини-карточка в цвет своей кнопки ---
+L.push('.kbq3-pop.kbq3-k1{border-color:rgba(47,211,154,.42);}');
+L.push('.kbq3-pop.kbq3-k2{border-color:rgba(125,180,255,.42);}');
+L.push('.kbq3-pop.kbq3-k3{border-color:rgba(245,160,90,.42);}');
+L.push('.kbq3-pop.kbq3-k1 .kbq3-head{border-bottom-color:rgba(47,211,154,.25);}');
+L.push('.kbq3-pop.kbq3-k2 .kbq3-head{border-bottom-color:rgba(125,180,255,.25);}');
+L.push('.kbq3-pop.kbq3-k3 .kbq3-head{border-bottom-color:rgba(245,160,90,.25);}');
+L.push('.kbq3-pop.kbq3-k1 .kbq3-head b{color:#c9f7e4;}');
+L.push('.kbq3-pop.kbq3-k2 .kbq3-head b{color:#dbe9ff;}');
+L.push('.kbq3-pop.kbq3-k3 .kbq3-head b{color:#ffe4c4;}');
+L.push('body:not(.kb-night) .kbq3-pop.kbq3-k1 .kbq3-head b{color:#12855c;}');
+L.push('body:not(.kb-night) .kbq3-pop.kbq3-k2 .kbq3-head b{color:#1746c8;}');
+L.push('body:not(.kb-night) .kbq3-pop.kbq3-k3 .kbq3-head b{color:#c26a2a;}');
+L.push('.kbq3-pop.kbq3-k1 .kbq3-card{border-color:rgba(47,211,154,.35);background:linear-gradient(160deg,rgba(47,211,154,.16),rgba(47,211,154,.05));}');
+L.push('.kbq3-pop.kbq3-k2 .kbq3-card{border-color:rgba(125,180,255,.35);background:linear-gradient(160deg,rgba(91,157,255,.16),rgba(91,157,255,.05));}');
+L.push('.kbq3-pop.kbq3-k3 .kbq3-card{border-color:rgba(245,160,90,.35);background:linear-gradient(160deg,rgba(245,160,90,.16),rgba(245,160,90,.05));}');
+L.push('body:not(.kb-night) .kbq3-pop.kbq3-k1 .kbq3-card{background:linear-gradient(160deg,#e5f8ef,#f6fcf9);border-color:#bfe8d4;}');
+L.push('body:not(.kb-night) .kbq3-pop.kbq3-k2 .kbq3-card{background:linear-gradient(160deg,#eef4ff,#f8fbff);border-color:#cddffb;}');
+L.push('body:not(.kb-night) .kbq3-pop.kbq3-k3 .kbq3-card{background:linear-gradient(160deg,#fff6ec,#fffcf8);border-color:#f3d9b8;}');
+L.push('.kbq3-pop.kbq3-k1 .kbq3-meta,.kbq3-pop.kbq3-k1 .kbq3-time{color:#2fd39a;}');
+L.push('.kbq3-pop.kbq3-k3 .kbq3-meta,.kbq3-pop.kbq3-k3 .kbq3-time{color:#f5a05a;}');
+L.push('.kbq3-pop.kbq3-k1 .kbq3-route{border-color:rgba(47,211,154,.4);background:rgba(47,211,154,.14);color:#2fd39a;}');
+L.push('.kbq3-pop.kbq3-k1 .kbq3-foot button{border-color:rgba(47,211,154,.4);background:rgba(47,211,154,.12);color:#2fd39a;}');
+L.push('.kbq3-pop.kbq3-k3 .kbq3-foot button{border-color:rgba(245,160,90,.4);background:rgba(245,160,90,.12);color:#f5a05a;}');
+L.push('.kbq3-pop.kbq3-k3 .kbq3-mf .mf-row{border-color:rgba(245,160,90,.3);}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+// --- красим открытую панель в цвет её кнопки (по заголовку) ---
+var lastKind = '';
+setInterval(function () {
+try {
+var pop = document.querySelector('.kbq3-pop');
+if (!pop) return;
+var h = pop.querySelector('.kbq3-head b');
+var t = h ? h.textContent : '';
+var k = t.indexOf('Где') === 0 ? 'kbq3-k1' : t.indexOf('Топлива нет') === 0 ? 'kbq3-k2' : 'kbq3-k3';
+if (k !== lastKind) {
+pop.classList.remove('kbq3-k1', 'kbq3-k2', 'kbq3-k3');
+pop.classList.add(k);
+lastKind = k;
+}
+} catch (e) {}
+}, 350);
+})();
+// ============================================================
+// KB NUMS BEAUTY FIX v2 — числа снова видны.
+// Причина пропажи: старый пак держал фон бейджа как
+// background:transparent !important и градиент не применялся,
+// а текст был прозрачным. Теперь: сплошной цвет как гарантия +
+// градиент только при поддержке background-clip:text, с !important.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbNumsBeauty2) return;
+window.__kbNumsBeauty2 = 1;
+var s = document.createElement('style');
+s.id = 'kbNumsBeauty2Css';
+var L = [];
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{grid-area:num !important;');
+L.push('position:static !important;margin:0 !important;padding:0 !important;');
+L.push('box-shadow:none !important;border-radius:0 !important;');
+L.push('font-size:24px !important;font-weight:900 !important;line-height:1 !important;');
+L.push('letter-spacing:-1.2px !important;font-variant-numeric:tabular-nums;');
+L.push('background:none !important;background-image:none !important;');
+L.push('color:var(--kbq-b,#7db4ff) !important;}');
+L.push('@supports ((-webkit-background-clip:text) or (background-clip:text)){');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{');
+L.push('background-image:linear-gradient(135deg,var(--kbq-a,#bcd7ff),var(--kbq-b,#4b93ff)) !important;');
+L.push('-webkit-background-clip:text !important;background-clip:text !important;');
+L.push('color:transparent !important;}');
+L.push('}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.wide{font-size:19px !important;letter-spacing:-1px !important;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.zero{display:none !important;}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+// ============================================================
+// KB BOOT GUARD v1
+// 1) Ночная тема ставится ДО первой отрисовки и БОЛЬШЕ не
+//    записывается в localStorage: запись конфликтовала с
+//    инициализацией темы и оставляла светлую шапку/табы/фон
+//    поверх тёмных карточек (белые полосы на входах).
+// 2) Защита от зависшего загрузчика: если база не ответила за
+//    20 сек — вуаль «Ищем топливо рядом» снимается, показываем
+//    кэш и тост; на 45-й сек снимаем гарантированно.
+// 3) Если после снятия вуали данных нет — пробуем обновить.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbBootGuard) return;
+window.__kbBootGuard = 1;
+// --- 1) ночь до отрисовки, без предпочтений ---
+try { document.body.classList.add('kb-night'); } catch (e) {}
+try {
+document.documentElement.style.colorScheme = 'dark';
+document.documentElement.style.background = '#0a1024';
+} catch (e) {}
+try { localStorage.removeItem('kbThemeLight'); } catch (e) {}
+// --- 2) лимит загрузчику ---
+function bootNodes() {
+var out = [], ids = ['bootBack', 'boot', 'bootOverlay', 'kbBoot', 'bootScreen'], i;
+for (i = 0; i < ids.length; i++) { var n = document.getElementById(ids[i]); if (n) out.push(n); }
+if (!out.length) {
+var divs = document.querySelectorAll('div,section');
+for (i = 0; i < divs.length; i++) {
+var t = (divs[i].textContent || '');
+if (t.indexOf('Ищем топливо рядом') >= 0 && t.length < 200) out.push(divs[i]);
+}
+}
+return out;
+}
+function hideBoot(msg) {
+var ns = bootNodes();
+if (!ns.length) return false;
+for (var i = 0; i < ns.length; i++) ns[i].style.display = 'none';
+try { if (msg && typeof kbToast === 'function') kbToast(msg, 'warn'); } catch (e) {}
+return true;
+}
+setTimeout(function () { hideBoot('База отвечает медленно — показываю кэш'); }, 20000);
+setTimeout(function () { hideBoot(''); }, 45000);
+// --- 3) добор данных после снятия вуали ---
+setTimeout(function () {
+try {
+var empty = true;
+try { empty = (typeof allStations === 'undefined' || !allStations.length); } catch (e) {}
+if (empty && typeof softRefresh === 'function') softRefresh();
+} catch (e) {}
+}, 21000);
+})();
+// ============================================================
+// KB v0.6.0 COMPAT FIX v1
+// 1) Ночные переопределения для элементов, которые в v0.6.0
+//    остались светлыми: слим-бар, скролл-треки, фон пейджера.
+// 2) Вуаль загрузки снимается штатным классом .off на 12/30 сек,
+//    сразу после этого добор данных из кэша (softRefresh + мозаика).
+// 3) Ноль в мини-карточках = приглушённая цифра, не пустота.
+// 4) Таб-бар принудительно видим (защита от случайного скрытия).
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCompat60) return;
+window.__kbCompat60 = 1;
+(function css() {
+if (document.getElementById('kbCompat60Css')) return;
+var s = document.createElement('style');
+s.id = 'kbCompat60Css';
+var L = [];
+L.push('body.kb-night .slim-bar{background:rgba(13,18,32,.88) !important;');
+L.push('border-bottom:1px solid rgba(148,180,255,.14) !important;');
+L.push('backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);}');
+L.push('body.kb-night .slim-ver,body.kb-night .slim-ver .slim-name{color:var(--n-ink,#eef3fc) !important;}');
+L.push('body.kb-night .slim-bar .ic{color:var(--n-ink,#eef3fc);}');
+L.push('body.kb-night .slim-sup{color:var(--n-blue,#5b9dff) !important;}');
+L.push('html{scrollbar-color:#3f74d6 rgba(148,180,255,.10);}');
+L.push('*::-webkit-scrollbar-track{background:rgba(148,180,255,.10);}');
+L.push('*::-webkit-scrollbar-thumb{background:#3f74d6;border-radius:99px;}');
+L.push('body.kb-night .pager{background:transparent !important;}');
+L.push('#mnWrap{opacity:1 !important;visibility:visible !important;}');
+L.push('#mnWrap .mn-item{opacity:1 !important;visibility:visible !important;}');
+L.push('body.kb-night #mnWrap .mn-item{color:#8b98b3 !important;}');
+L.push('body.kb-night #mnWrap .mn-item.on{color:#fff !important;}');
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.zero{display:block !important;opacity:.35 !important;}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
+// --- вуаль: штатный .off + добор данных ---
+var t0 = Date.now();
+function bootOff() {
+var b = document.getElementById('bootBack');
+if (!b) return false;
+if (b.classList.contains('off')) return true;
+b.classList.add('off');
+b.style.pointerEvents = 'none';
+setTimeout(function () { try { b.style.display = 'none'; } catch (e) {} }, 600);
+return true;
+}
+function afterBoot() {
+setTimeout(function () { try { softRefresh(); } catch (e) {} }, 400);
+setTimeout(function () { try { renderCityTreemap(); } catch (e) {} }, 700);
+}
+setTimeout(function () { if (bootOff()) afterBoot(); }, 12000);
+setTimeout(function () { if (bootOff()) afterBoot(); }, 30000);
+setInterval(function () {
+var b = document.getElementById('bootBack');
+if (b && !b.classList.contains('off') && Date.now() - t0 > 12000) { bootOff(); afterBoot(); }
+}, 4000);
+})();
+// ============================================================
+// KB CHIPS TRUTH v1 — чипы топлива в мини-карточках считаются
+// тем же правилом, что и советник: источник + голоса водителей
+// (kbFuelView), а не голый несвежий снимок источника.
+// «нет данных» остаётся только когда нет НИКАКИХ отметок.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbChipsTruth) return;
+window.__kbChipsTruth = 1;
+window.kbq3FuelChips = function (it) {
+try {
+if (it.kind === 'forecast' && it.pred) return '<span class="kbq3-meta">окно ' + time5(it.pred.from_time) + '–' + time5(it.pred.to_time) + '</span>';
+var st = it.st, o = it.o, out = [];
+['95', '92', 'diesel'].forEach(function (f) {
+var fv = null;
+try { fv = kbFuelView(st.id, o, f); } catch (e) {}
+if (!fv) return;
+var folk = fv.src && String(fv.src).indexOf('водит') >= 0;
+if (fv.v === true) out.push('<i class="kbq3-fy">' + fuelLabel(f) + ' есть' + (folk ? ' · народ' : '') + '</i>');
+else if (fv.v === false) out.push('<i class="kbq3-fn">' + fuelLabel(f) + ' нет</i>');
+else if (fv.src === 'stale') out.push('<i class="kbq3-fa">' + fuelLabel(f) + ' не точно</i>');
+else if (fv.src === 'conflict') out.push('<i class="kbq3-fa">' + fuelLabel(f) + ' спорно</i>');
+});
+if (!out.length) out.push('<i class="kbq3-fu">источник молчит · ждём отметок</i>');
+return out.join('');
+} catch (e) { return ''; }
+};
+(function css() {
+if (document.getElementById('kbChipsTruthCss')) return;
+var s = document.createElement('style');
+s.id = 'kbChipsTruthCss';
+s.textContent =
+'.kbq3-chips i{font-style:normal;border-radius:7px;padding:2px 6px;font-size:8.5px;font-weight:800;}' +
+'.kbq3-fy{background:rgba(25,183,122,.16);color:#2fd39a;}' +
+'.kbq3-fn{background:rgba(239,83,80,.14);color:#ef7b76;}' +
+'.kbq3-fa{background:rgba(245,160,90,.16);color:#f5a05a;}' +
+'.kbq3-fu{background:rgba(148,180,255,.10);color:#93a0b8;}' +
+'body:not(.kb-night) .kbq3-fy{background:#e5f8ef;color:#12855c;}' +
+'body:not(.kb-night) .kbq3-fn{background:#fdecec;color:#c2403f;}' +
+'body:not(.kb-night) .kbq3-fa{background:#fff6ec;color:#c26a2a;}' +
+'body:not(.kb-night) .kbq3-fu{background:#f0f3f8;color:#7487a7;}';
+document.head.appendChild(s);
+})();
 })();

@@ -28,6 +28,19 @@ const HISTORY_DAYS = 30;
 const MIN_WINDOW_MIN = 15;
 // Рамка всего юга (дом + донор Кубань+Адыгея): прогнозы и очереди по всем станциям
 const OWN_BOX = { lat1: 43.20, lat2: 48.60, lon1: 37.20, lon2: 45.90 };
+// v1.17: регионы сбора — те же рамки, что DONOR_FRAMES коллектора и боксы сайта.
+// Окна строим по югу, Северо-Западу и Чувашии; ритм бренда — внутри своего региона.
+const REGION_BOXES = [
+{ key: 'south', lat1: 43.20, lat2: 48.60, lon1: 37.20, lon2: 45.90 },
+{ key: 'northwest', lat1: 58.50, lat2: 62.50, lon1: 28.00, lon2: 35.50 },
+{ key: 'chuvashia', lat1: 55.05, lat2: 56.95, lon1: 46.40, lon2: 48.95 }
+];
+function regionOf(s) {
+for (const b of REGION_BOXES) {
+if (s.lat >= b.lat1 && s.lat <= b.lat2 && s.lon >= b.lon1 && s.lon <= b.lon2) return b.key;
+}
+return null;
+}
 
 async function sbGet(path) {
   const r = await fetch(SUPABASE_URL + path, {
@@ -271,6 +284,40 @@ try {
   console.log('   Контекст региона: АИ-95 есть на ' + (cityAvailShare === null ? '—' : Math.round(cityAvailShare * 100) + '%') +
               ', режим ' + regime + ', возвратов/исчезновений за 6ч: ' + restores6h + '/' + disappears6h +
               ', глубоких дефицитов: ' + cityConfirmedLoss);
+// --- v1.17: контекст по регионам: СЗ и Чувашия считают свой режим, не южный ---
+const stRegion = {};
+for (const s of stations) stRegion[s.id] = regionOf(s);
+function buildRegionCtx(regionKey) {
+let known = 0, avail = 0, confirmedLoss = 0;
+const ids = new Set();
+for (const s of stations) {
+if (stRegion[s.id] !== regionKey) continue;
+ids.add(s.id);
+const o = lastObs[s.id];
+if (o && o.fuel_95_status !== null && o.fuel_95_status !== undefined) {
+known++;
+if (o.fuel_95_status) avail++;
+else if (o.fuel_state === 'CONFIRMED_LOSS') confirmedLoss++;
+}
+}
+const share = known ? avail / known : null;
+const r6 = restoredEvents.filter(e => ids.has(e.station_id) && new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+const d6 = disappearedEvents.filter(e => ids.has(e.station_id) && new Date(e.detected_at).getTime() >= sixHoursAgo).length;
+let rg = share === null ? 'UNKNOWN' : 'NORMAL';
+if (share !== null && share < 0.60) {
+rg = share < 0.30 ? 'CITY_SHORTAGE' : 'LOCAL_SHORTAGE';
+if (r6 >= 2 && r6 > d6) rg = 'RECOVERY';
+}
+if (confirmedLoss > known * 0.4) rg = 'DEEP_SHORTAGE';
+return { cityAvailShare: share, regime: rg, restores6h: r6, disappears6h: d6 };
+}
+const ctxByRegion = {
+south: { cityAvailShare: cityAvailShare, regime: regime, restores6h: restores6h, disappears6h: disappears6h },
+northwest: buildRegionCtx('northwest'),
+chuvashia: buildRegionCtx('chuvashia')
+};
+console.log('   Контекст СЗ: АИ-95 ' + Math.round((ctxByRegion.northwest.cityAvailShare || 0) * 100) + '%, режим ' + ctxByRegion.northwest.regime +
+'; Чувашия: АИ-95 ' + Math.round((ctxByRegion.chuvashia.cityAvailShare || 0) * 100) + '%, режим ' + ctxByRegion.chuvashia.regime);
 
   // Группируем события по (station_id, fuel)
   const restoredByPair = {};
@@ -409,7 +456,10 @@ try {
   const fuelCol = { '92': 'fuel_92_status', '95': 'fuel_95_status', 'diesel': 'diesel_status' };
 
   for (const st of stations) {
-    if (!isOwn(st)) continue;
+const reg = regionOf(st);
+if (!reg) continue;
+const ctx = ctxByRegion[reg];
+const cityAvailShare = ctx.cityAvailShare, regime = ctx.regime, restores6h = ctx.restores6h, disappears6h = ctx.disappears6h;
 
     const fm = lastObs[st.id] ? lastObs[st.id].data_freshness_minutes : null;
     const fmStale = (fm === null || fm === undefined)
@@ -437,7 +487,7 @@ try {
         const brandItems = [];
         const brandStations = new Set();
         for (const s of stations) {
-          if (s.brand === st.brand) {
+          if (s.brand === st.brand && regionOf(s) === reg) {
             const its = (restoredByPair[s.id + '|' + fuel] || []).map(toItem);
             if (its.length) { brandItems.push(...its); brandStations.add(s.id); }
           }
@@ -544,7 +594,7 @@ try {
    if (currentStatus === false) {
      const pairDurations = pairsByPair[pairKey] ||
        (source === 'brand' && st.brand
-         ? [].concat(...stations.filter(s => s.brand === st.brand)
+         ? [].concat(...stations.filter(s => s.brand === st.brand && regionOf(s) === reg)
              .map(s => pairsByPair[s.id + '|' + fuel] || []))
          : []);
      if (pairDurations.length >= MIN_EVENTS_PRELIM) {
