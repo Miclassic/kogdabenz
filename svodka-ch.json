@@ -1,63 +1,51 @@
 {
- "generated": "2026-11-20T05:00:00.000Z",
+ "generated": "2026-11-20T17:00:00.000Z",
  "region": "ch",
  "totals": {
   "total": 111,
-  "known": 25,
-  "a92": 2,
-  "a95": 2,
-  "adt": 2,
+  "known": 39,
+  "a92": 1,
+  "a95": 1,
+  "adt": 1,
   "q": 0,
-  "wins": 14,
+  "wins": 0,
   "cities": 9
  },
  "cities": [
   {
-   "key": "cheboksary",
-   "name": "Чебоксары",
-   "total": 50,
-   "known": 15,
-   "a92": 1,
-   "a95": 1,
-   "adt": 1,
-   "q": 0,
-   "wins": 7,
-   "level": "r"
-  },
-  {
    "key": "novocheboksarsk",
    "name": "Новочебоксарск",
    "total": 17,
-   "known": 4,
-   "a92": 0,
-   "a95": 0,
-   "adt": 0,
-   "q": 0,
-   "wins": 4,
-   "level": "n"
-  },
-  {
-   "key": "kanash",
-   "name": "Канаш",
-   "total": 11,
-   "known": 1,
+   "known": 8,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
    "wins": 0,
-   "level": "n"
+   "level": "r"
   },
   {
-   "key": "shumerlya",
-   "name": "Шумерля",
-   "total": 8,
-   "known": 1,
+   "key": "cheboksary",
+   "name": "Чебоксары",
+   "total": 50,
+   "known": 24,
+   "a92": 1,
+   "a95": 1,
+   "adt": 1,
+   "q": 0,
+   "wins": 0,
+   "level": "r"
+  },
+  {
+   "key": "kanash",
+   "name": "Канаш",
+   "total": 11,
+   "known": 4,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
+   "wins": 0,
    "level": "n"
   },
   {
@@ -76,12 +64,24 @@
    "key": "alatyr",
    "name": "Алатырь",
    "total": 5,
-   "known": 2,
-   "a92": 1,
-   "a95": 1,
-   "adt": 1,
+   "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
    "q": 0,
-   "wins": 1,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "shumerlya",
+   "name": "Шумерля",
+   "total": 8,
+   "known": 0,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
    "level": "n"
   },
   {
@@ -93,7 +93,7 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
+   "wins": 0,
    "level": "n"
   },
   {
