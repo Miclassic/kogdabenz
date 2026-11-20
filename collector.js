@@ -362,6 +362,25 @@ function hitsDur(sec) {
   if (m < 60) return m + ' мин';
   return Math.floor(m / 60) + ' ч ' + (m % 60) + ' мин';
 }
+function hitSourceRu(r) {
+  const utm = String(r.utm_source || '').toLowerCase();
+  if (utm) {
+    if (utm.includes('yandex') || utm === 'ya') return 'Яндекс (реклама)';
+    if (utm.includes('google')) return 'Google (реклама)';
+    return 'реклама: ' + r.utm_source;
+  }
+  const ref = String(r.referrer || '').toLowerCase();
+  if (!ref) return 'напрямую';
+  const host = ref.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  if (host.startsWith('direct.yandex')) return 'кабинет Директа';
+  if (host.startsWith('yandex') || host.startsWith('ya.ru')) return 'Яндекс (поиск)';
+  if (host.startsWith('google')) return 'Google (поиск)';
+  if (host.includes('vk.com') || host.includes('vk.ru')) return 'ВКонтакте';
+  if (host.includes('t.me') || host.includes('telegram')) return 'Телеграм';
+  if (host.includes('dzen')) return 'Дзен';
+  if (host.includes('mail.ru')) return 'Mail.ru';
+  return host.split('/')[0];
+}
 async function siteHitsDigest(nameById) {
   try {
     const now = Date.now();
@@ -369,7 +388,7 @@ async function siteHitsDigest(nameById) {
     const prev = wm.length ? wm[0].value : new Date(now - 15 * 60000).toISOString();
     const rows = await sbGet(
       '/rest/v1/site_hits?created_at=gt.' + encodeURIComponent(prev) +
-      '&event=neq.heartbeat&select=session_id,event,station_id,city_key,duration_sec' +
+      '&event=neq.heartbeat&select=session_id,event,station_id,city_key,duration_sec,referrer,utm_source,utm_medium' +
       '&order=created_at.asc&limit=3000'
     );
     await sbPost('bot_meta?on_conflict=key', [{
@@ -379,10 +398,13 @@ async function siteHitsDigest(nameById) {
     }], 'return=minimal,resolution=merge-duplicates');
     if (!rows.length) return '';
 
-    const sessions = new Set(), cnt = {}, stCount = {}, citySess = {}, durs = [];
+    const sessions = new Set(), cnt = {}, stCount = {}, citySess = {}, durs = [], sessSrc = {};
     let visits = 0;
     for (const r of rows) {
-      if (r.session_id) sessions.add(r.session_id);
+      if (r.session_id) {
+     sessions.add(r.session_id);
+     if (!sessSrc[r.session_id]) sessSrc[r.session_id] = hitSourceRu(r);
+   }
       cnt[r.event] = (cnt[r.event] || 0) + 1;
       if (r.event === 'pageview') visits++;
       if (r.city_key && r.session_id) {
@@ -433,7 +455,11 @@ async function siteHitsDigest(nameById) {
         String(nameById[id] || 'АЗС').split(' · ')[0] + ' — ' + stCount[id]).join(', '));
     }
 
-    return '🌐 <b>САЙТ</b> · водителей: ' + sessions.size + ' · заходов: ' + (visits || sessions.size) +
+    const srcCount = {};
+for (const s of Object.values(sessSrc)) srcCount[s] = (srcCount[s] || 0) + 1;
+const srcTop = Object.keys(srcCount).sort((a, b) => srcCount[b] - srcCount[a]).slice(0, 4);
+if (srcTop.length) lines.push('🧭 откуда: ' + srcTop.map(k => k + ' ' + srcCount[k]).join(' · '));
+return '🌐 <b>САЙТ</b> · водителей: ' + sessions.size + ' · заходов: ' + (visits || sessions.size) +
       (lines.length ? '\n' + lines.join('\n') : '');
   } catch (e) {
     console.log('   ! Сайт-дайджест: ' + e.message);
