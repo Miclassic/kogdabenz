@@ -17100,3 +17100,111 @@ window.__kbPipe.soft.push(function () { setTimeout(instant, 0); });
 setTimeout(instant, 250);
 setTimeout(instant, 1200);
 })();
+// ============================================================
+// KB NO SERVICE BORDER v1 — убираем синюю границу области обслуживания.
+// Она рисовалась на 2D-канвасе КАЖДЫЙ кадр движения карты (проекция кольца,
+// queryRenderedFeatures воды, зебра, evenodd-клипы) и убивала плавность.
+// Теперь канвас рисует ТОЛЬКО маршрут пользователя; без маршрута он пустой
+// и не выполняет никакой работы на панораме/зуме. Маршрут и его вуаль сохранены.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbNoServiceBorder) return;
+window.__kbNoServiceBorder = 1;
+try { serviceRing = null; } catch (e) {}
+try { applyServiceZoom = function () {}; } catch (e) {}
+drawRouteCanvasNow = function () {
+var cv = document.getElementById('routeCanvas');
+if (!cv || typeof mapObj === 'undefined' || !mapObj) return;
+if (!routeFeature || !routeFeature.geometry) {
+if (cv.width !== 0 || cv.height !== 0) { cv.width = 0; cv.height = 0; }
+return;
+}
+var box = mapObj.getContainer().getBoundingClientRect();
+var dpr = window.devicePixelRatio || 1;
+var W = Math.max(1, Math.round(box.width * dpr)), H = Math.max(1, Math.round(box.height * dpr));
+if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+var g = cv.getContext('2d');
+g.setTransform(dpr, 0, 0, dpr, 0, 0);
+g.clearRect(0, 0, box.width, box.height);
+var coords = routeFeature.geometry.coordinates;
+var step = Math.max(1, Math.floor(coords.length / 400));
+var pts = [];
+for (var i = 0; i < coords.length; i += step) pts.push(mapObj.project([coords[i][0], coords[i][1]]));
+var lc = coords[coords.length - 1];
+pts.push(mapObj.project([lc[0], lc[1]]));
+var trace = function () {
+g.beginPath();
+g.moveTo(pts[0].x, pts[0].y);
+for (var k = 1; k < pts.length - 1; k++) {
+var mx = (pts[k].x + pts[k + 1].x) / 2, my = (pts[k].y + pts[k + 1].y) / 2;
+g.quadraticCurveTo(pts[k].x, pts[k].y, mx, my);
+}
+var lp = pts[pts.length - 1];
+g.lineTo(lp.x, lp.y);
+};
+g.lineJoin = 'round'; g.lineCap = 'round';
+var veil = Math.max(0, Math.min(1, (15.2 - mapObj.getZoom()) / 1.2));
+if (veil > 0.02) {
+g.fillStyle = 'rgba(20,33,61,' + (0.22 * veil).toFixed(3) + ')';
+g.fillRect(0, 0, box.width, box.height);
+g.globalCompositeOperation = 'destination-out';
+trace(); g.strokeStyle = 'rgba(0,0,0,' + veil.toFixed(3) + ')'; g.lineWidth = 26; g.stroke();
+trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.6 * veil).toFixed(3) + ')'; g.lineWidth = 46; g.stroke();
+trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.3 * veil).toFixed(3) + ')'; g.lineWidth = 68; g.stroke();
+trace(); g.strokeStyle = 'rgba(0,0,0,' + (0.12 * veil).toFixed(3) + ')'; g.lineWidth = 120; g.stroke();
+g.globalCompositeOperation = 'source-over';
+}
+trace(); g.strokeStyle = 'rgba(23,70,200,.16)'; g.lineWidth = 12; g.stroke();
+trace(); g.strokeStyle = 'rgba(255,255,255,.95)'; g.lineWidth = 8.5; g.stroke();
+trace(); g.strokeStyle = '#2465ee'; g.lineWidth = 5; g.stroke();
+};
+})();
+// ============================================================
+// KB ZOOM CENTER v1 — кнопки зума по центру правой кромки карты, крупнее.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbZoomCenter) return;
+window.__kbZoomCenter = 1;
+var st = document.createElement('style');
+st.textContent =
+'.kb-zoomgrp{border-radius:20px!important;overflow:hidden;border:1px solid rgba(91,140,255,.35)!important;box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 0 4px rgba(91,140,255,.08)!important;background:rgba(13,20,38,.92)!important;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}' +
+'.kb-zoomgrp button{width:56px!important;height:56px!important;display:grid!important;place-items:center;transition:background .15s,transform .1s}' +
+'.kb-zoomgrp button+button{border-top:1px solid rgba(91,140,255,.25)!important}' +
+'.kb-zoomgrp .maplibregl-ctrl-icon{width:26px!important;height:26px!important;background-size:26px 26px!important}' +
+'.kb-zoomgrp button:hover{background:rgba(91,140,255,.18)!important}' +
+'.kb-zoomgrp button:active{transform:scale(.92);background:rgba(91,140,255,.3)!important}' +
+'.kb-zoomgrp button:focus-visible{outline:2px solid #5b8cff;outline-offset:-2px}';
+document.head.appendChild(st);
+function fix() {
+var zin = document.querySelector('.maplibregl-ctrl-zoom-in');
+if (!zin) return;
+var grp = zin.closest('.maplibregl-ctrl-group');
+if (!grp) return;
+grp.classList.add('kb-zoomgrp');
+var corner = grp.parentElement;
+if (corner) {
+corner.style.top = '50%';
+corner.style.bottom = 'auto';
+corner.style.left = 'auto';
+corner.style.right = '12px';
+corner.style.transform = 'translateY(-50%)';
+corner.style.margin = '0';
+}
+}
+fix();
+if (typeof mapObj !== 'undefined' && mapObj && mapObj.on) mapObj.on('load', fix);
+var mo = new MutationObserver(function (muts) {
+for (var i = 0; i < muts.length; i++) {
+var ad = muts[i].addedNodes;
+for (var j = 0; j < ad.length; j++) {
+var n = ad[j];
+if (n.nodeType === 1 && n.querySelector && (n.classList.contains('maplibregl-ctrl-zoom-in') || n.querySelector('.maplibregl-ctrl-zoom-in'))) { fix(); return; }
+}
+}
+});
+mo.observe(document.body, { childList: true, subtree: true });
+})();
