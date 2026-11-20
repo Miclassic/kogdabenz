@@ -9,24 +9,16 @@
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
---bg0:#0b0d12;--bg1:#12161f;--card:#151a24;--card2:#1b2130;
---line:rgba(255,255,255,.06);--line2:rgba(255,255,255,.10);
---ink:#eef2f8;--muted:#8b93a7;--muted2:#b4bccf;
---accent:#f5a524;--accent2:#ffc857;--cyan:#3ddea8;--blue:#5b8cff;
---pink:#ff6b9d;--red:#ff5c5c;--green:#3ddea8;--orange:#f5a524;--purple:#8b7cf7;
---r:20px;--shadow:0 12px 40px rgba(0,0,0,.35);
---p1:rgba(91,140,255,.12);--p2:rgba(245,165,36,.12);--p3:rgba(61,222,168,.10);--p4:rgba(139,124,247,.12);
-}
+:root{--bg0:#0b0d12;--card:#151a24;--card2:#1b2130;--line:rgba(255,255,255,.06);--line2:rgba(255,255,255,.1);--ink:#eef2f8;--muted:#8b93a7;--muted2:#b4bccf;--accent:#f5a524;--accent2:#ffc857;--cyan:#3ddea8;--blue:#5b8cff;--red:#ff5c5c;--purple:#8b7cf7;--r:20px;--shadow:0 12px 40px rgba(0,0,0,.35)}
 html,body{height:100%}
-body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg0);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch}
+body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg0);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;background:radial-gradient(900px 500px at 10% -10%,rgba(245,165,36,.14),transparent 55%),radial-gradient(700px 420px at 100% 0%,rgba(91,140,255,.12),transparent 50%),radial-gradient(600px 400px at 50% 100%,rgba(61,222,168,.08),transparent 45%)}
 ::-webkit-scrollbar{width:9px;height:9px}
 ::-webkit-scrollbar-track{background:rgba(255,255,255,.04);border-radius:9px}
 ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#f5a524,#c77f0a);border-radius:9px;border:2px solid var(--bg0)}
 ::-webkit-scrollbar-thumb:hover{background:#ffc857}
 *{scrollbar-width:thin;scrollbar-color:#c77f0a rgba(255,255,255,.04)}
-.val,.tbl td,.bar-val,.tf-num,.score-val,.utility-score b,.emo-cnt,.f-step-val b{font-variant-numeric:tabular-nums}
+.val,.tbl td,.bar-val,.tf-num,.score-val,.emo-cnt{font-variant-numeric:tabular-nums}
 .app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;position:relative;z-index:1;padding-bottom:calc(110px + env(safe-area-inset-bottom,0px))}
 .topbar{flex:none;display:flex;align-items:center;gap:10px;padding:12px 14px 10px;flex-wrap:wrap;position:sticky;top:0;z-index:20;background:rgba(11,13,18,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
 .logo{width:42px;height:42px;border-radius:14px;background:linear-gradient(135deg,#f5a524,#ff7a3d);color:#1a1205;display:grid;place-items:center;font-size:20px;flex-shrink:0;box-shadow:0 8px 22px rgba(245,165,36,.35)}
@@ -34,7 +26,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .t-title span{color:var(--muted);font-weight:700}
 .t-sub{font-size:11px;color:var(--muted);font-weight:600}
 .spacer{flex:1}
-.report-btn{border:0;border-radius:14px;padding:10px 14px;background:linear-gradient(135deg,#f5a524,#ffc857);color:#1a1205;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 20px rgba(245,165,36,.28);white-space:nowrap;transition:transform .15s}
+.report-btn{border:0;border-radius:14px;padding:10px 14px;background:linear-gradient(135deg,#f5a524,#ffc857);color:#1a1205;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 8px 20px rgba(245,165,36,.28);white-space:nowrap}
 .report-btn:active{transform:scale(.97)}
 .badge-upd{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line2);border-radius:999px;padding:8px 12px;font-size:10px;font-weight:700;color:var(--muted2);white-space:nowrap}
 .badge-upd::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 3px rgba(61,222,168,.18);animation:pulse 2s infinite}
@@ -50,26 +42,21 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .scr-emo{margin-left:auto;font-size:28px;opacity:.9}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;justify-content:center;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));pointer-events:none;background:linear-gradient(to top,rgba(11,13,18,.96) 55%,rgba(11,13,18,0))}
 .tabbar-in{pointer-events:auto;display:flex;width:100%;max-width:560px;background:#0f131b;border:1px solid var(--line2);border-radius:22px;padding:5px;box-shadow:0 16px 40px rgba(0,0,0,.45);overflow-x:auto}
-.tab{flex:1 0 auto;min-width:52px;border:0;background:transparent;color:#7f879a;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:16px;cursor:pointer;font-family:inherit;font-weight:800;font-size:9px;white-space:nowrap;transition:color .2s,background .2s}
+.tab{flex:1 0 auto;min-width:52px;border:0;background:transparent;color:#7f879a;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 6px;border-radius:16px;cursor:pointer;font-family:inherit;font-weight:800;font-size:9px;white-space:nowrap}
 .tab .ti{font-size:16px;line-height:1}
 .tab.active{background:linear-gradient(180deg,rgba(245,165,36,.18),rgba(245,165,36,.08));color:var(--accent2);box-shadow:inset 0 0 0 1px rgba(245,165,36,.25)}
-.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;min-width:0;max-width:100%;overflow:hidden}
+.card{background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:14px;min-width:0;max-width:100%;overflow:hidden;margin-bottom:12px}
 .card h3{margin:0 0 12px;font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;color:var(--ink)}
 .hicon{width:28px;height:28px;border-radius:10px;background:rgba(245,165,36,.12);color:var(--accent);display:grid;place-items:center;font-size:14px;flex:none}
 .hchip{margin-left:auto;font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.3px}
 .grid{display:grid;gap:12px;align-content:start}
-.col{display:flex;flex-direction:column;gap:12px;min-width:0}
-.g-summary{grid-template-columns:1fr;grid-template-areas:"verdict" "kpi" "marks" "traffic"}
-.g-summary #verdict-container{grid-area:verdict}
-.g-summary .kpi-grid{grid-area:kpi;display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.g-summary .traffic-card{grid-area:traffic}
-.g-summary .marks-strip{grid-area:marks}
-.g-adv,.g-react,.g-traf,.g-aud,.g-ver,.qgrid{grid-template-columns:1fr}
+.g-summary{grid-template-columns:1fr}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .kpi,.tile{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0}
-.tile.p1,.kpi.p1{background:var(--p1);border-color:rgba(91,140,255,.18)}
-.tile.p2,.kpi.p2{background:var(--p2);border-color:rgba(245,165,36,.18)}
-.tile.p3,.kpi.p3{background:var(--p3);border-color:rgba(61,222,168,.16)}
-.tile.p4,.kpi.p4{background:var(--p4);border-color:rgba(139,124,247,.18)}
+.tile.p1,.kpi.p1{background:rgba(91,140,255,.12);border-color:rgba(91,140,255,.18)}
+.tile.p2,.kpi.p2{background:rgba(245,165,36,.12);border-color:rgba(245,165,36,.18)}
+.tile.p3,.kpi.p3{background:rgba(61,222,168,.1);border-color:rgba(61,222,168,.16)}
+.tile.p4,.kpi.p4{background:rgba(139,124,247,.12);border-color:rgba(139,124,247,.18)}
 .t-ico{font-size:16px;line-height:1}
 .lbl{font-size:10px;font-weight:800;letter-spacing:.35px;text-transform:uppercase;color:var(--muted)}
 .val{font-size:22px;font-weight:800;letter-spacing:-.6px;line-height:1.1;color:var(--ink)}
@@ -83,7 +70,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .verdict-card{position:relative;overflow:hidden}
 .verdict-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--accent),var(--cyan))}
 .verdict-card.good::before{background:var(--cyan)}
-.verdict-card.warn::before{background:var(--accent)}
 .verdict-card.bad::before{background:var(--red)}
 .verdict-panel{display:grid;grid-template-columns:1fr;gap:14px;justify-items:center;text-align:center}
 .score-ring{width:100px;height:100px;border-radius:50%;background:conic-gradient(var(--accent) var(--score-deg,70%),rgba(255,255,255,.08) 0);display:grid;place-items:center;position:relative;margin:0 auto}
@@ -151,7 +137,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .f-step-num{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:rgba(245,165,36,.12);color:var(--accent);font-size:12px;font-weight:800}
 .f-step-name{font-size:12px;font-weight:800}
 .f-step-bar{height:6px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden}
-.f-step-bar span,.f-step-bar>div{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#5b8cff,#8b7cf7)}
+.f-step-bar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#5b8cff,#8b7cf7)}
 .f-step-val{font-size:12px;font-weight:800;text-align:right;min-width:52px;line-height:1.25}
 .f-step-val b{display:block;color:var(--ink)}
 .f-step-val small{display:block;color:var(--muted);font-size:10px;font-weight:700}
@@ -183,7 +169,6 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .heat-cell{width:14px;height:14px;border-radius:4px;display:block;background:rgba(255,255,255,.04)}
 .q-title{font-size:12.5px;font-weight:800;margin-bottom:10px;color:var(--ink)}
 .note{margin-top:10px;padding:10px 12px;background:rgba(91,140,255,.08);border-left:3px solid var(--blue);border-radius:0 12px 12px 0;font-size:11px;color:var(--muted2);font-weight:650;line-height:1.45}
-.fav-card .note{background:rgba(61,222,168,.08);border-left-color:var(--cyan)}
 .err{padding:14px;background:rgba(255,92,92,.1);border:1px solid rgba(255,92,92,.25);border-radius:14px;color:#ff9b9b;font-weight:800;font-size:12px}
 .loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);font-size:13px;font-weight:700}
 .spinner{width:22px;height:22px;border:3px solid rgba(255,255,255,.08);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:10px}
@@ -191,9 +176,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 .empty{text-align:center;padding:24px;color:var(--muted);font-size:12px;font-weight:700}
 @media(min-width:720px){
 .screen-area{padding:14px 16px 24px;max-width:840px}
-.g-summary{grid-template-columns:1.1fr .9fr;grid-template-areas:"verdict kpi" "marks marks" "traffic traffic"}
 .verdict-panel{grid-template-columns:118px 1fr;text-align:left;justify-items:stretch}
-.g-adv,.g-react{grid-template-columns:1fr 1fr}
 .tiles.t4{grid-template-columns:repeat(4,1fr)}
 .ub-grid{grid-template-columns:1fr 1fr}
 .u-ring-wrap{flex-direction:row;align-items:center}
@@ -215,17 +198,15 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 <main class="screen-area" id="screenArea">
 <section class="screen active" id="scr-summary"><div class="screen-inner">
 <div class="scr-head"><div class="scr-title">⭐ Сводка проекта</div><div class="scr-sub">главные цифры за сегодня и 30 дней</div><div class="scr-emo">⛽</div></div>
-<div class="grid g-summary">
-<div class="card verdict-card" id="verdict-container"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>
+<div class="card verdict-card" id="verdictBox"><div class="loading"><div class="spinner"></div><span>Анализ данных...</span></div></div>
 <div class="kpi-grid" id="kpiGrid"></div>
-<div class="card marks-strip" id="marksStrip" style="display:none"></div>
-<div class="card traffic-card">
+<div class="card" id="marksStrip" style="display:none"></div>
+<div class="card">
 <div class="tf-headrow"><h3><span class="hicon">📈</span>Пользователи по периодам</h3>
 <div class="tf-tabs"><button class="tf-tab active" data-range="24h" onclick="loadTraffic('24h')">24ч</button><button class="tf-tab" data-range="7d" onclick="loadTraffic('7d')">1Н</button><button class="tf-tab" data-range="30d" onclick="loadTraffic('30d')">1М</button></div></div>
 <div class="tf-head" id="trafficHead"></div>
 <div class="chart-wrap" id="trafficChart"><div class="loading"><div class="spinner"></div></div></div>
 <div class="note"><b>session_id</b> — анонимный ID устройства (уникальный пользователь).</div>
-</div>
 </div>
 </div></section>
 <section class="screen" id="scr-advisor"><div class="screen-inner" id="inner-advisor"><div class="loading"><div class="spinner"></div><span>Загрузка данных...</span></div></div></section>
@@ -248,58 +229,60 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;bac
 </div></nav>
 </div>
 <script>
-const SUPABASE_URL='https://api.kogdabenz.ru';
-const SUPABASE_KEY='eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
-const DASH_SECRET='kb-dash-2026-x9f3k';
-let REPORT={},ADVANCED_REPORT={},ADVISOR_DETAILED={},BEHAVIOR_REPORT=null;
-let trafficCache={},trafficRange='24h',marksCache={},marksRange='24h',MARKS_30D=null;
-let srcWinCache={},srcWinHours=24,srcLogCache={};
-const MARK_TYPE_RU={available:['⛽','Топливо есть'],unavailable:['🔴','Топлива нет'],delivery:['🚛','Привоз заметили'],queue:['🚗','Очередь со стороны'],in_queue:['🚗','Стоит в очереди'],low:['🟢','Свободно'],free:['🟢','Свободно']};
-const MARK_FUEL_RU={'92':'АИ-92','95':'АИ-95','diesel':'Дизель','all':'Все топлива','none':'Без типа топлива'};
-const POLL_Q={arrive_truth:'Подъехали к заправке — информация совпала?',usability:'Сайтом удобно пользоваться?',map_clear:'Карта понятна?',forecast_true:'Прогнозы сбываются?',marks_why:'Почему оставляете отметки?',stars:'Оценка сайта',advice_outcome:'Результат совета «Куда ехать»'};
-const POLL_A={match:'Всё совпало',almost:'Почти совпало',wrong:'Не совпало',notyet:'Ещё не проверял',great:'Очень удобно',ok:'В целом удобно',confuse:'Иногда путаюсь',bad:'Неудобно',glance:'Да, с первого взгляда',legend:'Подсматриваю в легенду',no:'Не понимаю',always:'Почти всегда',half:'Примерно через раз',rare:'Редко',help:'Хочу помочь городу',sometimes:'Иногда',whynot:'Не понимаю зачем',hard:'Неудобно',fuel:'Доехал и заправился',miss:'Не как ожидал',notwent:'Ещё не доехал',noadv:'Не воспользовался'};
-const OUTCOME_LABELS={fuel:['⛽','Доехал и заправился','fuel'],miss:['😕','Не как ожидал','miss'],notwent:['🕐','Ещё не доехал','notwent'],noadv:['🚫','Не воспользовался советом','noadv']};
-const DISLIKE_LABELS={no_fuel:'Топлива нет',queue:'Очередь',price:'Цена завышена',other:'Другое'};
-const DOUBT_LABELS={old_data:'Данные старые',not_true:'Не похоже на правду',other:'Другое'};
-const EVENT_RU={pageview:['👀','Открыли сайт'],panel_view:['📖','Листали панели'],open_station_card:['⛽','Открывали карточку АЗС'],click_where_to_go:['🧭','Жали «Куда ехать»'],feedback_submit:['🙏','Оставляли отметку'],advice_reaction:['🎯','Реакция на совет'],advice_folk_vote:['🗳️','Народный голос в совете'],route_built:['🛣️','Построили маршрут'],go_intent:['🚗','Поеду сюда (намерение)'],price_click:['💰','Смотрели цену']};
-const CITY_RU={novorossiysk:'Новороссийск',gelendzhik:'Геленджик',anapa:'Анапа',krymsk:'Крымск',krasnodar:'Краснодар',sochi:'Сочи',tuapse:'Туапсе',armavir:'Армавир',maykop:'Майкоп',rostov:'Ростов-на-Дону',taganrog:'Таганрог',stavropol:'Ставрополь',volgograd:'Волгоград',moscow:'Москва',spb:'Санкт-Петербург'};
+'use strict';
+var SUPABASE_URL='https://api.kogdabenz.ru';
+var SUPABASE_KEY='eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJyb2xlIjogImFub24iLCAiaXNzIjogImtvZ2RhYmVueiIsICJpYXQiOiAxNzkzMTgwMDg2LCAiZXhwIjogMjEwODU0MDA4Nn0.XgC7MHgl-gwkbPeOUP8rtCR4wt5Ddcw4TDfy5elrzTQ';
+var DASH_SECRET='kb-dash-2026-x9f3k';
+var REPORT={},ADV={},ADVDET={},BEH=null,MARKS30=null;
+var trafficCache={},trafficRange='24h',marksCache={},marksRange='24h';
+var srcWinCache={},srcWinHours=24,srcLogCache={};
+var MARK_TYPE_RU={available:['⛽','Топливо есть'],unavailable:['🔴','Топлива нет'],delivery:['🚛','Привоз заметили'],queue:['🚗','Очередь со стороны'],in_queue:['🚗','Стоит в очереди'],low:['🟢','Свободно'],free:['🟢','Свободно']};
+var MARK_FUEL_RU={'92':'АИ-92','95':'АИ-95','diesel':'Дизель','all':'Все топлива','none':'Без типа топлива'};
+var POLL_Q={arrive_truth:'Подъехали к заправке — информация совпала?',usability:'Сайтом удобно пользоваться?',map_clear:'Карта понятна?',forecast_true:'Прогнозы сбываются?',marks_why:'Почему оставляете отметки?',stars:'Оценка сайта',advice_outcome:'Результат совета «Куда ехать»'};
+var POLL_A={match:'Всё совпало',almost:'Почти совпало',wrong:'Не совпало',notyet:'Ещё не проверял',great:'Очень удобно',ok:'В целом удобно',confuse:'Иногда путаюсь',bad:'Неудобно',glance:'Да, с первого взгляда',legend:'Подсматриваю в легенду',no:'Не понимаю',always:'Почти всегда',half:'Примерно через раз',rare:'Редко',help:'Хочу помочь городу',sometimes:'Иногда',whynot:'Не понимаю зачем',hard:'Неудобно',fuel:'Доехал и заправился',miss:'Не как ожидал',notwent:'Ещё не доехал',noadv:'Не воспользовался'};
+var OUTCOME_LABELS={fuel:['⛽','Доехал и заправился','fuel'],miss:['😕','Не как ожидал','miss'],notwent:['🕐','Ещё не доехал','notwent'],noadv:['🚫','Не воспользовался советом','noadv']};
+var DISLIKE_LABELS={no_fuel:'Топлива нет',queue:'Очередь',price:'Цена завышена',other:'Другое'};
+var DOUBT_LABELS={old_data:'Данные старые',not_true:'Не похоже на правду',other:'Другое'};
+var EVENT_RU={pageview:['👀','Открыли сайт'],panel_view:['📖','Листали панели'],open_station_card:['⛽','Открывали карточку АЗС'],click_where_to_go:['🧭','Жали «Куда ехать»'],feedback_submit:['🙏','Оставляли отметку'],advice_reaction:['🎯','Реакция на совет'],advice_folk_vote:['🗳️','Народный голос в совете'],route_built:['🛣️','Построили маршрут'],go_intent:['🚗','Поеду сюда (намерение)'],price_click:['💰','Смотрели цену']};
+var CITY_RU={novorossiysk:'Новороссийск',gelendzhik:'Геленджик',anapa:'Анапа',krymsk:'Крымск',krasnodar:'Краснодар',sochi:'Сочи',tuapse:'Туапсе',armavir:'Армавир',maykop:'Майкоп',rostov:'Ростов-на-Дону',taganrog:'Таганрог',stavropol:'Ставрополь',volgograd:'Волгоград',moscow:'Москва',spb:'Санкт-Петербург',cheboksary:'Чебоксары'};
 function cityRu(c){if(CITY_RU[c])return CITY_RU[c];if(c==='unknown'||!c)return 'Не определён';return c.charAt(0).toUpperCase()+c.slice(1);}
-function sourceRu(s){if(!s)return 'Неизвестно';const l=s.toLowerCase();if(l==='direct'||l==='напрямую')return 'Прямые заходы';if(l.startsWith('utm: ')){if(l.includes('yandex')||l.includes('ya'))return 'Яндекс (Реклама)';if(l.includes('google'))return 'Google (Реклама)';return 'Реклама: '+s.slice(5).split(' / ')[0];}if(l.startsWith('ref: ')){let h=l.slice(5).replace(/^(https?:\/\/)?(www\.)?/,'');if(h.startsWith('yandex')||h.startsWith('ya.ru'))return 'Яндекс (Поиск)';if(h.startsWith('google'))return 'Google (Поиск)';if(h.includes('vk.com')||h.includes('vk.ru'))return 'ВКонтакте';if(h.includes('t.me')||h.includes('telegram'))return 'Телеграм';if(h.includes('dzen.ru'))return 'Дзен';if(h.includes('mail.ru'))return 'Mail.ru';return h.split('/')[0];}return s;}
+function sourceRu(s){if(!s)return 'Неизвестно';var l=String(s).toLowerCase();if(l==='direct'||l==='напрямую')return 'Прямые заходы';if(l.indexOf('utm: ')===0){if(l.indexOf('yandex')>=0||l.indexOf('ya')>=0)return 'Яндекс (Реклама)';if(l.indexOf('google')>=0)return 'Google (Реклама)';return 'Реклама: '+s.slice(5).split(' / ')[0];}if(l.indexOf('ref: ')===0){var h=l.slice(5).replace(/^(https?:\/\/)?(www\.)?/,'');if(h.indexOf('yandex')===0||h.indexOf('ya.ru')===0)return 'Яндекс (Поиск)';if(h.indexOf('google')===0)return 'Google (Поиск)';if(h.indexOf('vk.com')>=0||h.indexOf('vk.ru')>=0)return 'ВКонтакте';if(h.indexOf('t.me')>=0||h.indexOf('telegram')>=0)return 'Телеграм';if(h.indexOf('dzen')>=0)return 'Дзен';if(h.indexOf('mail.ru')>=0)return 'Mail.ru';return h.split('/')[0];}return s;}
 function num(v){return (v===null||v===undefined)?0:v;}
-function formatNumber(n){if(n>=1000000)return (n/1000000).toFixed(1)+'M';if(n>=1000)return (n/1000).toFixed(1)+'K';return String(n);}
-function fmtDur(s){if(s===null||s===undefined)return '—';s=Math.round(s);if(s<60)return s+' с';const m=Math.floor(s/60),r=s%60;if(m<60)return m+' м '+r+' с';return Math.floor(m/60)+' ч '+(m%60)+' м';}
+function formatNumber(n){n=Number(n)||0;if(n>=1000000)return (n/1000000).toFixed(1)+'M';if(n>=1000)return (n/1000).toFixed(1)+'K';return String(n);}
+function fmtDur(s){if(s===null||s===undefined)return '—';s=Math.round(s);if(s<60)return s+' с';var m=Math.floor(s/60),r=s%60;if(m<60)return m+' м '+r+' с';return Math.floor(m/60)+' ч '+(m%60)+' м';}
 function p2(n){return String(n).padStart(2,'0');}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function scrHead(e,t,s){return '<div class="scr-head"><div class="scr-title">'+t+'</div><div class="scr-sub">'+s+'</div><div class="scr-emo">'+e+'</div></div>';}
-function layoutHeights(){const a=document.getElementById('screenArea');if(a)a.style.height='';}
-function fitScreen(){layoutHeights();}
-function switchTab(id){document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.id==='scr-'+id));document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===id));if(id==='summary'&&trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);if(id==='marks'&&marksCache[marksRange])drawMarksCharts();fitScreen();try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
-function rpc(name,body){return fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(body||{secret:DASH_SECRET})});}
-async function load(){
-try{
-const [statsRes,pollRes,advisorRes,hooksRes,engRes,srcfRes,advDetRes,updRes,marksRes]=await Promise.all([
-rpc('dash_stats'),rpc('dash_poll_stats'),rpc('dash_advisor_stats'),rpc('dash_hooks_stats'),rpc('dash_engagement_stats'),rpc('dash_source_funnel'),rpc('dash_advisor_detailed'),rpc('dash_update_stats'),rpc('dash_marks_stats',{secret:DASH_SECRET,p_range:'30d'})]);
-if(!statsRes.ok||!pollRes.ok||!advisorRes.ok||!hooksRes.ok||!engRes.ok||!srcfRes.ok)throw new Error('HTTP error');
-const [stats,poll,advisor,hooks,eng,srcf,advDet,upd,marks30]=await Promise.all([statsRes.json(),pollRes.json(),advisorRes.json(),hooksRes.json(),engRes.json(),srcfRes.json(),advDetRes.ok?advDetRes.json():Promise.resolve({}),updRes.ok?updRes.json():Promise.resolve({}),marksRes.ok?marksRes.json():Promise.resolve({})]);
-MARKS_30D=(marks30&&!marks30.error)?marks30:null;if(MARKS_30D)marksCache['30d']=MARKS_30D;
-if(stats.error)throw new Error('Invalid token');
-ADVISOR_DETAILED=advDet.error?{}:advDet;
-render(stats,poll,advisor,hooks,eng,srcf,upd);
-}catch(e){document.getElementById('verdict-container').innerHTML='<div class="err">Ошибка загрузки: '+e.message+'</div>';}
+function switchTab(id){var ss=document.querySelectorAll('.screen');for(var i=0;i<ss.length;i++)ss[i].classList.toggle('active',ss[i].id==='scr-'+id);var tt=document.querySelectorAll('.tab');for(var j=0;j<tt.length;j++)tt[j].classList.toggle('active',tt[j].getAttribute('data-tab')===id);if(id==='summary'&&trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);if(id==='marks'&&marksCache[marksRange])drawMarksCharts();try{window.scrollTo({top:0,behavior:'smooth'});}catch(e){window.scrollTo(0,0);}}
+function rpc(name,body){var ctrl=new AbortController();var tm=setTimeout(function(){ctrl.abort();},30000);return fetch(SUPABASE_URL+'/rest/v1/rpc/'+name,{method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify(body||{secret:DASH_SECRET}),signal:ctrl.signal}).finally(function(){clearTimeout(tm);});}
+function rpcSafe(name,body){return rpc(name,body).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(d&&d.error)throw new Error(d.error);return d;}).catch(function(){return null;});}
+function load(){
+Promise.all([
+rpcSafe('dash_stats'),rpcSafe('dash_poll_stats'),rpcSafe('dash_advisor_stats'),rpcSafe('dash_hooks_stats'),
+rpcSafe('dash_engagement_stats'),rpcSafe('dash_source_funnel'),rpcSafe('dash_advisor_detailed'),
+rpcSafe('dash_update_stats'),rpcSafe('dash_marks_stats',{secret:DASH_SECRET,p_range:'30d'})
+]).then(function(res){
+var stats=res[0];
+if(!stats){document.getElementById('verdictBox').innerHTML='<div class="err">Не удалось загрузить данные. Проверь связь и обнови страницу.</div>';return;}
+MARKS30=res[8];if(MARKS30)marksCache['30d']=MARKS30;
+ADVDET=res[6]||{};
+render(stats,res[1],res[2],res[3],res[4],res[5],res[7]);
+});
 }
 function render(stats,poll,advisor,hooks,eng,srcf,upd){
-REPORT={stats,poll,advisor,hooks,eng,srcf,upd};
-const ub=document.getElementById('updBadge');
-if(ub){const t=new Date(Date.now()+3*3600*1000);ub.textContent='Обновлено в '+p2(t.getUTCHours())+':'+p2(t.getUTCMinutes())+' МСК';}
-const ret=stats.retention||{};
-const nowMSK=new Date(Date.now()+3*3600*1000);
-const hoursElapsed=Math.max(1,nowMSK.getUTCHours()+nowMSK.getUTCMinutes()/60);
-const dayAlmostDone=nowMSK.getUTCHours()>=20;
-let dauBadge;
-if(stats.dau_yesterday<=0)dauBadge='<div class="chip neu">нет данных за вчера</div>';
+REPORT={stats:stats,poll:poll,advisor:advisor,hooks:hooks,eng:eng,srcf:srcf,upd:upd};
+var t=new Date(Date.now()+3*3600*1000);
+document.getElementById('updBadge').textContent='Обновлено в '+p2(t.getUTCHours())+':'+p2(t.getUTCMinutes())+' МСК';
+var ret=stats.retention||{};
+var nowMSK=new Date(Date.now()+3*3600*1000);
+var hoursElapsed=Math.max(1,nowMSK.getUTCHours()+nowMSK.getUTCMinutes()/60);
+var dayAlmostDone=nowMSK.getUTCHours()>=20;
+var dauBadge;
+if(num(stats.dau_yesterday)<=0)dauBadge='<div class="chip neu">нет данных за вчера</div>';
 else if(hoursElapsed<6)dauBadge='<div class="chip neu">данные набираются с полуночи</div>';
-else if(dayAlmostDone){const d=(stats.dau_today-stats.dau_yesterday)/stats.dau_yesterday*100;dauBadge='<div class="chip '+(d>0?'pos':d<0?'neg':'neu')+'">'+(d>0?'↑':d<0?'↓':'±')+' '+Math.abs(d).toFixed(1)+'% vs вчера</div>';}
-else{const pace=(stats.dau_today/hoursElapsed)/(stats.dau_yesterday/24)*100-100;dauBadge='<div class="chip '+(pace>0?'pos':pace<0?'neg':'neu')+'">'+(pace>0?'↑':pace<0?'↓':'±')+' '+Math.abs(pace).toFixed(0)+'% темп к вчера</div>';}
-let kpi='';
+else if(dayAlmostDone){var d=(num(stats.dau_today)-num(stats.dau_yesterday))/num(stats.dau_yesterday)*100;dauBadge='<div class="chip '+(d>0?'pos':d<0?'neg':'neu')+'">'+(d>0?'↑':d<0?'↓':'±')+' '+Math.abs(d).toFixed(1)+'% vs вчера</div>';}
+else{var pace=(num(stats.dau_today)/hoursElapsed)/(num(stats.dau_yesterday)/24)*100-100;dauBadge='<div class="chip '+(pace>0?'pos':pace<0?'neg':'neu')+'">'+(pace>0?'↑':pace<0?'↓':'±')+' '+Math.abs(pace).toFixed(0)+'% темп к вчера</div>';}
+var kpi='';
 kpi+='<div class="kpi p1"><div class="t-ico">👥</div><div class="lbl">Пользователи за 30 дней</div><div class="val">'+formatNumber(num(stats.mau_30d))+'</div><div class="sub">Уникальных ID</div></div>';
 kpi+='<div class="kpi p2"><div class="t-ico">📅</div><div class="lbl">Пользователей сегодня</div><div class="val">'+num(stats.dau_today)+'</div>'+dauBadge+'<div class="sub">вчера целиком: '+num(stats.dau_yesterday)+'</div></div>';
 kpi+='<div class="kpi p3"><div class="t-ico">✨</div><div class="lbl">Новые (за 7 дней)</div><div class="val">'+formatNumber(num(ret.new_7d))+'</div><div class="sub">Вернувшихся: '+formatNumber(num(ret.returning_7d))+'</div></div>';
@@ -313,80 +296,82 @@ document.getElementById('inner-aud').innerHTML=buildAudience();
 document.getElementById('inner-poll').innerHTML=buildPolls();
 document.getElementById('inner-ver').innerHTML=buildUpdates(upd);
 loadMarks(marksRange);loadTraffic(trafficRange);loadSourcesWindow(srcWinHours);
-requestAnimationFrame(()=>{
-const fill=document.querySelector('.utility-ring .fill');
-if(fill&&ADVISOR_DETAILED.utility){fill.style.strokeDashoffset=377-(377*ADVISOR_DETAILED.utility.score/100);}
-document.querySelectorAll('.ub-bar span').forEach(el=>{const w=el.dataset.w;if(w)requestAnimationFrame(()=>el.style.width=w+'%');});
-document.querySelectorAll('.f-step-bar span').forEach(el=>{const w=el.dataset.w;if(w)requestAnimationFrame(()=>el.style.width=w+'%');});
-fitScreen();});
+requestAnimationFrame(function(){
+var fill=document.querySelector('.utility-ring .fill');
+if(fill&&ADVDET.utility)fill.style.strokeDashoffset=377-(377*ADVDET.utility.score/100);
+var ub=document.querySelectorAll('.ub-bar span');for(var i=0;i<ub.length;i++){(function(el){var w=el.getAttribute('data-w');if(w)requestAnimationFrame(function(){el.style.width=w+'%';});})(ub[i]);}
+var fb=document.querySelectorAll('.f-step-bar span');for(var j=0;j<fb.length;j++){(function(el){var w=el.getAttribute('data-w');if(w)requestAnimationFrame(function(){el.style.width=w+'%';});})(fb[j]);}
+});
 renderVerdict();loadAdvancedStats();
 }
 function buildAdvisor(){
-const d=ADVISOR_DETAILED;
-if(!d||!d.totals)return scrHead('🧭','Советник «Куда ехать»','коэффициент полезности и воронка')+'<div class="grid g-adv"><div class="card"><h3><span class="hicon">🧭</span>Советник</h3><div class="err">Детали советника не загрузились: функция dash_advisor_detailed не отвечает.</div></div></div>';
-const u0=d.utility||{};const funnel=d.funnel||[];const reactionsArr=d.reactions||[];
-const totalReact=reactionsArr.reduce((s,r)=>s+(r.cnt||0),0);
-const u=Object.assign({},u0);
-if(totalReact===0&&typeof u.engagement==='number'){const eng=u.engagement||0,conv=u.conversion||0,loy=u.loyalty||0;u.satisfaction=null;u.score=Math.round((eng*30+conv*25+loy*25)/80*10)/10;u._noReact=true;}
-let word,desc,wordColor;
+var d=ADVDET;
+if(!d||!d.totals)return scrHead('🧭','Советник «Куда ехать»','коэффициент полезности и воронка')+'<div class="card"><div class="err">Детали советника не загрузились: функция dash_advisor_detailed не отвечает.</div></div>';
+var u0=d.utility||{},funnel=d.funnel||[],reactionsArr=d.reactions||[];
+var totalReact=reactionsArr.reduce(function(s,r){return s+(r.cnt||0);},0);
+var u={};for(var kk in u0)u[kk]=u0[kk];
+if(totalReact===0&&typeof u.engagement==='number'){var eng=u.engagement||0,conv=u.conversion||0,loy=u.loyalty||0;u.satisfaction=null;u.score=Math.round((eng*30+conv*25+loy*25)/80*10)/10;u._noReact=true;}
+var word,desc,wordColor;
 if(u.score===undefined||u.score===null){word='Нет данных';desc='Коэффициент полезности ещё не посчитан.';wordColor='#eef2f8';}
-else if((u.engagement||0)<8){word='Мало открывают совет';desc='Главная дыра — вход: до советника доходит мало людей. Сначала усильте вход.';wordColor='#ffd27a';}
+else if((u.engagement||0)<8){word='Мало открывают совет';desc='Главная дыра — вход: до советника доходит мало людей.';wordColor='#ffd27a';}
 else if(u.score>=75){word='Отличный советник';desc='Водители доверяют совету и возвращаются к избранным АЗС.';wordColor='#7dffc8';}
 else if(u.score>=55){word='Хороший советник';desc='Больше половины метрик в норме, есть точки роста.';wordColor='#9db7ff';}
 else if(u.score>=35){word='Средний советник';desc='Водители пользуются, но часто сомневаются.';wordColor='#ffd27a';}
 else{word='Слабый советник';desc='Нужно пересмотреть алгоритм подбора.';wordColor='#ffb0b0';}
 if((d.totals.shown||0)<30&&u.score!==undefined){word='Копим данные';desc='Пока '+d.totals.shown+' показов — для точной метрики нужно минимум 30.';wordColor='#c5cbe0';}
-const components=[{key:'engagement',label:'Вовлечённость',sub:'кликнули совет',w:30},{key:'conversion',label:'Конверсия',sub:'построили маршрут',w:25},{key:'satisfaction',label:'Удовлетворённость',sub:'👍 среди реакций',w:20},{key:'loyalty',label:'Лояльность',sub:'добавили в избранное',w:25}];
-let html=scrHead('🧭','Советник «Куда ехать»','коэффициент полезности и воронка');
-html+='<div class="grid g-adv"><div class="card utility-card"><div class="u-head">🧭 Коэффициент полезности <span class="u-badge">30 дней</span></div>';
+var components=[{key:'engagement',label:'Вовлечённость',sub:'кликнули совет',w:30},{key:'conversion',label:'Конверсия',sub:'построили маршрут',w:25},{key:'satisfaction',label:'Удовлетворённость',sub:'👍 среди реакций',w:20},{key:'loyalty',label:'Лояльность',sub:'добавили в избранное',w:25}];
+var html=scrHead('🧭','Советник «Куда ехать»','коэффициент полезности и воронка');
+html+='<div class="card utility-card"><div class="u-head">🧭 Коэффициент полезности <span class="u-badge">30 дней</span></div>';
 html+='<div class="u-ring-wrap"><div class="utility-ring"><svg viewBox="0 0 140 140"><circle class="track" cx="70" cy="70" r="60"/><circle class="fill" cx="70" cy="70" r="60" style="stroke-dashoffset:377"/></svg><div class="utility-score"><b>'+(u.score!==undefined?u.score.toFixed(1).replace('.',','):'—')+'</b><small>из 100</small></div></div>';
 html+='<div><div class="utility-word" style="color:'+wordColor+'">'+word+'</div><div class="utility-desc">'+desc+'</div></div></div>';
 html+='<div class="ub-grid">';
-components.forEach(c=>{const raw=u[c.key];const has=typeof raw==='number';const val=has?raw:0;const wl=(c.key==='satisfaction'&&u._noReact)?'нет данных':('×'+c.w+'%');
+components.forEach(function(c){var raw=u[c.key];var has=typeof raw==='number';var val=has?raw:0;var wl=(c.key==='satisfaction'&&u._noReact)?'нет данных':('×'+c.w+'%');
 html+='<div class="ub-item"><div class="ub-val"><span>'+c.label+'</span><small>'+wl+'</small></div><div class="ub-bar"><span data-w="'+(has?val:0)+'" style="width:0%"></span></div><div class="ub-val"><b>'+(has?val.toFixed(1):'—')+'</b><small>'+c.sub+'</small></div></div>';});
-html+='</div></div><div class="col"><div class="card"><h3><span class="hicon">🎯</span>Воронка: от захода до маршрута</h3><div class="fsteps">';
-funnel.forEach((s,i)=>{const pct=s.pct||0;html+='<div class="f-step"><div class="f-step-num">'+(i+1)+'</div><div><div class="f-step-name">'+s.step+'</div><div class="f-step-bar"><span data-w="'+pct+'" style="width:0%"></span></div></div><div class="f-step-val"><b>'+formatNumber(s.sessions)+'</b><small>'+(Math.round(pct*10)/10)+'%</small></div></div>';});
+html+='</div></div><div class="card"><h3><span class="hicon">🎯</span>Воронка: от захода до маршрута</h3><div class="fsteps">';
+funnel.forEach(function(s,i){var pct=s.pct||0;html+='<div class="f-step"><div class="f-step-num">'+(i+1)+'</div><div><div class="f-step-name">'+esc(s.step)+'</div><div class="f-step-bar"><span data-w="'+pct+'" style="width:0%"></span></div></div><div class="f-step-val"><b>'+formatNumber(s.sessions)+'</b><small>'+(Math.round(pct*10)/10)+'%</small></div></div>';});
 html+='</div><div class="note">Воронка показывает, на каком шаге советник теряет водителей.</div></div>';
-const adv=REPORT.advisor||{};
-if(adv&&!adv.error&&adv.total_advice>0){html+='<div class="tiles t3"><div class="tile p1"><div class="t-ico">🎯</div><div class="lbl">Принятие советов</div><div class="val">'+(adv.acceptance_rate||0).toFixed(1)+'%</div></div><div class="tile p2"><div class="t-ico">🧭</div><div class="lbl">Всего советов</div><div class="val">'+formatNumber(adv.total_advice)+'</div></div><div class="tile p3"><div class="t-ico">🛣️</div><div class="lbl">Маршрутов</div><div class="val">'+formatNumber(adv.route_built_count)+'</div></div></div>';}
-if(d.fav_from_advice>0){const t=d.totals||{};const favRate=t.clicks>0?Math.round(d.fav_from_advice/t.clicks*100):0;
-html+='<div class="card fav-card"><h3><span class="hicon">❤️</span>Советник → избранное</h3><div class="tiles t2"><div class="tile p3"><div class="lbl">Добавили из совета</div><div class="val" style="color:#7dffc8">'+d.fav_from_advice+'</div></div><div class="tile p3"><div class="lbl">Конверсия</div><div class="val" style="color:#7dffc8">'+favRate+'%</div></div></div><div class="note">Золотой показатель: водитель хочет получать уведомления по этой АЗС. Цель — выше 8%.</div></div>';}
-html+='</div></div>';return html;
+var adv=REPORT.advisor||{};
+if(adv&&adv.total_advice>0){html+='<div class="card"><div class="tiles t3"><div class="tile p1"><div class="t-ico">🎯</div><div class="lbl">Принятие советов</div><div class="val">'+(adv.acceptance_rate||0).toFixed(1)+'%</div></div><div class="tile p2"><div class="t-ico">🧭</div><div class="lbl">Всего советов</div><div class="val">'+formatNumber(adv.total_advice)+'</div></div><div class="tile p3"><div class="t-ico">🛣️</div><div class="lbl">Маршрутов</div><div class="val">'+formatNumber(adv.route_built_count)+'</div></div></div></div>';}
+if(d.fav_from_advice>0){var tt=d.totals||{};var favRate=tt.clicks>0?Math.round(d.fav_from_advice/tt.clicks*100):0;
+html+='<div class="card"><h3><span class="hicon">❤️</span>Советник → избранное</h3><div class="tiles"><div class="tile p3"><div class="lbl">Добавили из совета</div><div class="val" style="color:#7dffc8">'+d.fav_from_advice+'</div></div><div class="tile p3"><div class="lbl">Конверсия</div><div class="val" style="color:#7dffc8">'+favRate+'%</div></div></div><div class="note">Золотой показатель: водитель хочет получать уведомления по этой АЗС. Цель — выше 8%.</div></div>';}
+return html;
 }
 function buildReactions(){
-const d=ADVISOR_DETAILED;const reactions=(d&&d.reactions)||[];const dislikeReasons=(d&&d.dislike_reasons)||[];const doubtReasons=(d&&d.doubt_reasons)||[];const outcomes=(d&&d.outcomes)||[];const folkVotes=(d&&d.folk_votes)||[];const topStations=(d&&d.top_stations)||[];
-const totalReactions=reactions.reduce((s,r)=>s+r.cnt,0);const totalOutcomes=outcomes.reduce((s,o)=>s+o.cnt,0);const totalFolk=folkVotes.reduce((s,f)=>s+f.cnt,0);
-if(!totalReactions&&!totalOutcomes&&!totalFolk&&!topStations.length)return scrHead('🎯','Реакции и исходы','что водители думают о советах')+'<div class="grid g-react"><div class="card"><div class="empty">Пока нет реакций и исходов поездок.</div></div></div>';
-let html=scrHead('🎯','Реакции и исходы','что водители думают о советах');html+='<div class="grid g-react">';
+var d=ADVDET;var reactions=(d&&d.reactions)||[],dislikeReasons=(d&&d.dislike_reasons)||[],doubtReasons=(d&&d.doubt_reasons)||[],outcomes=(d&&d.outcomes)||[],folkVotes=(d&&d.folk_votes)||[],topStations=(d&&d.top_stations)||[];
+var totalReactions=reactions.reduce(function(s,r){return s+r.cnt;},0);
+var totalOutcomes=outcomes.reduce(function(s,o){return s+o.cnt;},0);
+var totalFolk=folkVotes.reduce(function(s,f){return s+f.cnt;},0);
+if(!totalReactions&&!totalOutcomes&&!totalFolk&&!topStations.length)return scrHead('🎯','Реакции и исходы','что водители думают о советах')+'<div class="card"><div class="empty">Пока нет реакций и исходов поездок.</div></div>';
+var html=scrHead('🎯','Реакции и исходы','что водители думают о советах');
 if(totalReactions>0){html+='<div class="card"><h3><span class="hicon">🎯</span>Реакции водителей<span class="hchip">ВСЕГО: '+totalReactions+'</span></h3><div class="tiles t3">';
-reactions.forEach(r=>{const pct=Math.round(r.cnt/totalReactions*100);html+='<div class="emo-tile '+r.type+'"><div class="emo-big">'+(r.type==='like'?'👍':r.type==='dislike'?'👎':'🤔')+'</div><div class="emo-cnt">'+r.cnt+'</div><div class="emo-lbl">'+(r.type==='like'?'Класс':r.type==='dislike'?'Плохо':'Сомнение')+'</div><div class="emo-pct">'+pct+'%</div></div>';});
+reactions.forEach(function(r){var pct=Math.round(r.cnt/totalReactions*100);html+='<div class="emo-tile '+r.type+'"><div class="emo-big">'+(r.type==='like'?'👍':r.type==='dislike'?'👎':'🤔')+'</div><div class="emo-cnt">'+r.cnt+'</div><div class="emo-lbl">'+(r.type==='like'?'Класс':r.type==='dislike'?'Плохо':'Сомнение')+'</div><div class="emo-pct">'+pct+'%</div></div>';});
 html+='</div>';
-if(dislikeReasons.length){html+='<div class="subhead red">👎 Почему «Плохо»:</div><div>';dislikeReasons.forEach(r=>{html+='<span class="pill red"><span class="cnt">'+r.cnt+'</span>'+(DISLIKE_LABELS[r.reason]||r.reason)+'</span>';});html+='</div>';}
-if(doubtReasons.length){html+='<div class="subhead amber">🤔 Почему сомневаются:</div><div>';doubtReasons.forEach(r=>{html+='<span class="pill amber"><span class="cnt">'+r.cnt+'</span>'+(DOUBT_LABELS[r.reason]||r.reason)+'</span>';});html+='</div>';}
+if(dislikeReasons.length){html+='<div class="subhead red">👎 Почему «Плохо»:</div><div>';dislikeReasons.forEach(function(r){html+='<span class="pill red"><span class="cnt">'+r.cnt+'</span>'+esc(DISLIKE_LABELS[r.reason]||r.reason)+'</span>';});html+='</div>';}
+if(doubtReasons.length){html+='<div class="subhead amber">🤔 Почему сомневаются:</div><div>';doubtReasons.forEach(function(r){html+='<span class="pill amber"><span class="cnt">'+r.cnt+'</span>'+esc(DOUBT_LABELS[r.reason]||r.reason)+'</span>';});html+='</div>';}
 html+='<div class="note">Реакции калибруют алгоритм: много «Топлива нет» — устаревшие данные; много «Данные старые» — источник редко обновляет станцию.</div></div>';}
 if(totalOutcomes>0){html+='<div class="card"><h3><span class="hicon">🛣️</span>Исходы поездок<span class="hchip">'+totalOutcomes+' ОТВЕТОВ</span></h3><div class="tiles t4">';
-outcomes.forEach(o=>{const info=OUTCOME_LABELS[o.answer_key]||['•',o.answer_key,'notwent'];const pct=Math.round(o.cnt/totalOutcomes*100);html+='<div class="emo-tile '+info[2]+'"><div class="emo-big">'+info[0]+'</div><div class="emo-cnt">'+o.cnt+'</div><div class="emo-lbl">'+info[1]+'</div><div class="emo-pct">'+pct+'%</div></div>';});
-html+='</div>';const fuelCnt=outcomes.find(o=>o.answer_key==='fuel');const hitRate=fuelCnt?Math.round(fuelCnt.cnt/totalOutcomes*100):0;
+outcomes.forEach(function(o){var info=OUTCOME_LABELS[o.answer_key]||['•',o.answer_key,'notwent'];var pct=Math.round(o.cnt/totalOutcomes*100);html+='<div class="emo-tile '+info[2]+'"><div class="emo-big">'+info[0]+'</div><div class="emo-cnt">'+o.cnt+'</div><div class="emo-lbl">'+info[1]+'</div><div class="emo-pct">'+pct+'%</div></div>';});
+html+='</div>';var fuelCnt=null;outcomes.forEach(function(o){if(o.answer_key==='fuel')fuelCnt=o;});var hitRate=fuelCnt?Math.round(fuelCnt.cnt/totalOutcomes*100):0;
 html+='<div class="note"><b>Коэффициент попадания: '+hitRate+'%</b> — столько водителей реально заправились по совету.</div></div>';}
 html+='<div class="card"><h3><span class="hicon">🗳️</span>Народные голоса в совете</h3>';
-if(totalFolk>0){const yesCnt=(folkVotes.find(f=>f.type==='yes')||{}).cnt||0;const noCnt=(folkVotes.find(f=>f.type==='no')||{}).cnt||0;const maxF=Math.max(yesCnt,noCnt,1);
+if(totalFolk>0){var yesCnt=0,noCnt=0;folkVotes.forEach(function(f){if(f.type==='yes')yesCnt=f.cnt;if(f.type==='no')noCnt=f.cnt;});var maxF=Math.max(yesCnt,noCnt,1);
 html+='<div class="bars"><div class="bar-row"><div class="bar-lbl">✅ Подтверждают</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(yesCnt/maxF*100)+'%"></div></div><div class="bar-val">'+yesCnt+'</div></div><div class="bar-row"><div class="bar-lbl">❌ Опровергают</div><div class="bar-track"><div class="bar-fill f-danger" style="width:'+(noCnt/maxF*100)+'%"></div></div><div class="bar-val">'+noCnt+'</div></div></div><div class="note">Доля подтверждений: <b>'+Math.round(yesCnt/totalFolk*100)+'%</b>.</div>';}
 else html+='<div class="empty">Пока нет голосов</div>';
 html+='</div><div class="card"><h3><span class="hicon">⛽</span>Топ АЗС по кликам</h3>';
-if(topStations.length){const mx=Math.max(...topStations.map(s=>s.clicks));html+='<div class="bars">';topStations.slice(0,6).forEach(s=>{html+='<div class="bar-row"><div class="bar-lbl">'+(s.name||'Без названия')+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(s.clicks/mx*100)+'%"></div></div><div class="bar-val">'+s.clicks+'</div></div>';});html+='</div>';}
+if(topStations.length){var mx=Math.max.apply(null,topStations.map(function(s){return s.clicks;}));html+='<div class="bars">';topStations.slice(0,6).forEach(function(s){html+='<div class="bar-row"><div class="bar-lbl">'+esc(s.name||'Без названия')+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(s.clicks/mx*100)+'%"></div></div><div class="bar-val">'+s.clicks+'</div></div>';});html+='</div>';}
 else html+='<div class="empty">Пока нет данных</div>';
-html+='</div></div>';return html;
+html+='</div>';return html;
 }
 function buildTrafficLists(){
-const stats=REPORT.stats||{};let html=scrHead('🚗','Трафик и пути','действия, источники, города');html+='<div class="grid g-traf">';
-const funnel=stats.funnel||[];
+var stats=REPORT.stats||{};var html=scrHead('🚗','Трафик и пути','действия, источники, города');
+var funnel=stats.funnel||[];
 html+='<div class="card"><h3><span class="hicon">🎯</span>Действия пользователей</h3>';
-if(funnel.length){const mx=Math.max(...funnel.map(f=>f.sessions));html+='<div class="bars">';funnel.forEach(f=>{const e=EVENT_RU[f.event]||['•',f.event];html+='<div class="bar-row"><div class="bar-lbl">'+e[0]+' '+e[1]+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(f.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(f.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+if(funnel.length){var mx=Math.max.apply(null,funnel.map(function(f){return f.sessions;}));html+='<div class="bars">';funnel.forEach(function(f){var e=EVENT_RU[f.event]||['•',f.event];html+='<div class="bar-row"><div class="bar-lbl">'+e[0]+' '+e[1]+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(f.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(f.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
 html+='</div>';
-const rawSources=stats.sources||[];const gm={};rawSources.forEach(i=>{const n=sourceRu(i.source);gm[n]=(gm[n]||0)+i.sessions;});
-const sources=Object.keys(gm).map(k=>({source:k,sessions:gm[k]})).sort((a,b)=>b.sessions-a.sessions);
+var rawSources=stats.sources||[];var gm={};rawSources.forEach(function(i){var n=sourceRu(i.source);gm[n]=(gm[n]||0)+i.sessions;});
+var sources=Object.keys(gm).map(function(k){return {source:k,sessions:gm[k]};}).sort(function(a,b){return b.sessions-a.sessions;});
 html+='<div class="card"><h3><span class="hicon">🔗</span>Источники трафика · всё время</h3>';
-if(sources.length){const mx=Math.max(...sources.map(s=>s.sessions));html+='<div class="bars">';sources.slice(0,10).forEach(s=>{html+='<div class="bar-row"><div class="bar-lbl">'+s.source+'</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(s.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(s.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+if(sources.length){var mx2=Math.max.apply(null,sources.map(function(s){return s.sessions;}));html+='<div class="bars">';sources.slice(0,10).forEach(function(s){html+='<div class="bar-row"><div class="bar-lbl">'+esc(s.source)+'</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(s.sessions/mx2*100)+'%"></div></div><div class="bar-val">'+formatNumber(s.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
 html+='</div>';
 html+='<div class="card"><div class="tf-headrow"><h3><span class="hicon">🧭</span>Источники трафика · период</h3>'+
 '<div class="tf-tabs"><button class="tf-tab active" data-swin="24" onclick="loadSourcesWindow(24)">24ч</button><button class="tf-tab" data-swin="168" onclick="loadSourcesWindow(168)">7д</button><button class="tf-tab" data-swin="720" onclick="loadSourcesWindow(720)">30д</button></div></div>'+
@@ -394,263 +379,261 @@ html+='<div class="card"><div class="tf-headrow"><h3><span class="hicon">🧭</s
 '<div class="note">Срез за выбранный период: откуда пришли водители и что делали. Блок «всё время» выше — накопительный итог.</div>'+
 '<div class="subhead" style="margin-top:14px">🕐 Журнал заходов · время МСК</div>'+
 '<div id="srcLogBox"><div class="loading" style="padding:20px"><div class="spinner"></div></div></div></div>';
-const cities=stats.cities||[];
+var cities=stats.cities||[];
 html+='<div class="card"><h3><span class="hicon">🏙️</span>География пользователей</h3>';
-if(cities.length){const mx=Math.max(...cities.map(c=>c.sessions));html+='<div class="bars">';cities.forEach(c=>{html+='<div class="bar-row"><div class="bar-lbl">'+cityRu(c.city)+'</div><div class="bar-track"><div class="bar-fill f-warning" style="width:'+(c.sessions/mx*100)+'%"></div></div><div class="bar-val">'+formatNumber(c.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+if(cities.length){var mx3=Math.max.apply(null,cities.map(function(c){return c.sessions;}));html+='<div class="bars">';cities.forEach(function(c){html+='<div class="bar-row"><div class="bar-lbl">'+esc(cityRu(c.city))+'</div><div class="bar-track"><div class="bar-fill f-warning" style="width:'+(c.sessions/mx3*100)+'%"></div></div><div class="bar-val">'+formatNumber(c.sessions)+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
 html+='</div>';
-const list=REPORT.srcf||[];
+var list=REPORT.srcf||[];
 html+='<div class="card"><h3><span class="hicon">🧭</span>Воронка по источникам<span class="hchip">7 ДНЕЙ</span></h3>';
-if(list.length){const cell=(n,r)=>r.visits?n+' <small style="color:var(--muted)">('+Math.round(100*n/r.visits)+'%)</small>':String(n);
+if(list.length){var cell=function(n,r){return r.visits?n+' <small style="color:var(--muted)">('+Math.round(100*n/r.visits)+'%)</small>':String(n);};
 html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Источник</th><th>Открыли</th><th>Листали</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
-list.forEach(r=>{html+='<tr><td><b>'+r.source+'</b></td><td>'+r.visits+'</td><td>'+cell(r.panels,r)+'</td><td>'+cell(r.cards,r)+'</td><td>'+cell(r.advice,r)+'</td><td>'+cell(r.marks,r)+'</td><td>'+cell(r.installs,r)+'</td></tr>';});
+list.forEach(function(r){html+='<tr><td><b>'+esc(sourceRu(r.source))+'</b></td><td>'+r.visits+'</td><td>'+cell(r.panels,r)+'</td><td>'+cell(r.cards,r)+'</td><td>'+cell(r.advice,r)+'</td><td>'+cell(r.marks,r)+'</td><td>'+cell(r.installs,r)+'</td></tr>';});
 html+='</table></div>';}else html+='<div class="empty">Пока нет данных</div>';
-html+='</div></div>';return html;
+html+='</div>';return html;
 }
-async function loadSourcesWindow(hours){
+function loadSourcesWindow(hours){
 srcWinHours=hours;
+var tabs=document.querySelectorAll('.tf-tab[data-swin]');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',Number(tabs[i].getAttribute('data-swin'))===hours);
 loadVisitsLog(hours);
-document.querySelectorAll('.tf-tab[data-swin]').forEach(t=>t.classList.toggle('active',Number(t.dataset.swin)===hours));
-const box=document.getElementById('srcWinBox');
-if(!box)return;
+var box=document.getElementById('srcWinBox');if(!box)return;
 if(srcWinCache[hours]){drawSourcesWindow(srcWinCache[hours]);return;}
 box.innerHTML='<div class="loading" style="padding:30px"><div class="spinner"></div></div>';
-try{
-const r=await rpc('dash_sources_window',{secret:DASH_SECRET,p_hours:hours});
-if(!r.ok)throw new Error('HTTP '+r.status);
-const d=await r.json();
-if(d&&d.error)throw new Error(d.error);
-srcWinCache[hours]=Array.isArray(d)?d:[];
-drawSourcesWindow(srcWinCache[hours]);
-}catch(e){box.innerHTML='<div class="note">Срез источников недоступен: '+e.message+'. Создай функцию dash_sources_window в psql и перезапусти postgrest.</div>';}
+rpcSafe('dash_sources_window',{secret:DASH_SECRET,p_hours:hours}).then(function(d){
+if(!d){box.innerHTML='<div class="note">Срез источников недоступен. Создай функцию dash_sources_window в psql и перезапусти postgrest.</div>';return;}
+srcWinCache[hours]=Array.isArray(d)?d:[];drawSourcesWindow(srcWinCache[hours]);
+});
 }
 function drawSourcesWindow(list){
-const box=document.getElementById('srcWinBox');
-if(!box)return;
+var box=document.getElementById('srcWinBox');if(!box)return;
 if(!list.length){box.innerHTML='<div class="note">За выбранный период заходов не было.</div>';return;}
-const gm={};
-list.forEach(r=>{const n=sourceRu(r.source);const g=gm[n]=gm[n]||{source:n,sessions:0,visits:0,cards:0,advice:0,marks:0,installs:0};g.sessions+=Number(r.sessions||0);g.visits+=Number(r.visits||0);g.cards+=Number(r.cards||0);g.advice+=Number(r.advice||0);g.marks+=Number(r.marks||0);g.installs+=Number(r.installs||0);});
-const rows=Object.values(gm).sort((a,b)=>b.sessions-a.sessions);
-const total=rows.reduce((s,r)=>s+r.sessions,0);
-const max=Math.max(...rows.map(r=>r.sessions),1);
-let out='<div class="bars">';
-rows.forEach(r=>{out+='<div class="bar-row"><div class="bar-lbl">'+r.source+'</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(r.sessions/max*100)+'%"></div></div><div class="bar-val">'+formatNumber(r.sessions)+'</div></div>';});
+var gm={};
+list.forEach(function(r){var n=sourceRu(r.source);var g=gm[n];if(!g)g=gm[n]={source:n,sessions:0,visits:0,cards:0,advice:0,marks:0,installs:0};g.sessions+=Number(r.sessions||0);g.visits+=Number(r.visits||0);g.cards+=Number(r.cards||0);g.advice+=Number(r.advice||0);g.marks+=Number(r.marks||0);g.installs+=Number(r.installs||0);});
+var rows=Object.keys(gm).map(function(k){return gm[k];}).sort(function(a,b){return b.sessions-a.sessions;});
+var total=rows.reduce(function(s,r){return s+r.sessions;},0);
+var max=Math.max.apply(null,rows.map(function(r){return r.sessions;}).concat([1]));
+var out='<div class="bars">';
+rows.forEach(function(r){out+='<div class="bar-row"><div class="bar-lbl">'+esc(r.source)+'</div><div class="bar-track"><div class="bar-fill f-success" style="width:'+(r.sessions/max*100)+'%"></div></div><div class="bar-val">'+formatNumber(r.sessions)+'</div></div>';});
 out+='</div>';
 out+='<div class="tbl-wrap" style="margin-top:12px"><table class="tbl"><tr><th>Источник</th><th>Водители</th><th>Заходы</th><th>Карточка</th><th>Куда ехать</th><th>Отметка</th><th>PWA</th></tr>';
-rows.forEach(r=>{out+='<tr><td><b>'+r.source+'</b></td><td>'+r.sessions+'</td><td>'+r.visits+'</td><td>'+r.cards+'</td><td>'+r.advice+'</td><td>'+r.marks+'</td><td>'+r.installs+'</td></tr>';});
+rows.forEach(function(r){out+='<tr><td><b>'+esc(r.source)+'</b></td><td>'+r.sessions+'</td><td>'+r.visits+'</td><td>'+r.cards+'</td><td>'+r.advice+'</td><td>'+r.marks+'</td><td>'+r.installs+'</td></tr>';});
 out+='</table></div>';
 out+='<div class="note">Всего водителей за период: <b>'+total+'</b>. Много «напрямую» — это закладки и твои проверки; поиск и реклама видны отдельными строками.</div>';
 box.innerHTML=out;
 }
-async function loadVisitsLog(hours){
-const box=document.getElementById('srcLogBox');if(!box)return;
+function loadVisitsLog(hours){
+var box=document.getElementById('srcLogBox');if(!box)return;
 if(srcLogCache[hours]){drawVisitsLog(srcLogCache[hours],hours);return;}
 box.innerHTML='<div class="loading" style="padding:20px"><div class="spinner"></div></div>';
-try{const r=await rpc('dash_visits_log',{secret:DASH_SECRET,p_hours:hours});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d&&d.error)throw new Error(d.error);srcLogCache[hours]=Array.isArray(d)?d:[];drawVisitsLog(srcLogCache[hours],hours);}catch(e){box.innerHTML='<div class="note">Журнал заходов недоступен: '+e.message+'. Создай функцию dash_visits_log в psql и перезапусти postgrest.</div>';}
+rpcSafe('dash_visits_log',{secret:DASH_SECRET,p_hours:hours}).then(function(d){
+if(!d){box.innerHTML='<div class="note">Журнал заходов недоступен. Создай функцию dash_visits_log в psql и перезапусти postgrest.</div>';return;}
+srcLogCache[hours]=Array.isArray(d)?d:[];drawVisitsLog(srcLogCache[hours],hours);
+});
 }
 function drawVisitsLog(list,hours){
-const box=document.getElementById('srcLogBox');if(!box)return;
+var box=document.getElementById('srcLogBox');if(!box)return;
 if(!list.length){box.innerHTML='<div class="note">За выбранный период заходов не было.</div>';return;}
-const fmt=t=>{const d=new Date(new Date(t).getTime()+3*3600*1000);const hm=p2(d.getUTCHours())+':'+p2(d.getUTCMinutes());return hours<=24?hm:p2(d.getUTCDate())+'.'+p2(d.getUTCMonth()+1)+' '+hm;};
-let out='<div class="tbl-wrap"><table class="tbl"><tr><th>Время</th><th>Источник</th><th>Город</th><th>Заходы</th><th>Карточка</th><th>Водитель</th></tr>';
-list.forEach(r=>{const fs=r.first_seen?fmt(r.first_seen):'—';out+='<tr><td><b>'+fmt(r.t)+'</b></td><td>'+sourceRu(r.source)+'</td><td>'+cityRu(r.city)+'</td><td>'+r.visits+'</td><td>'+r.cards+'</td><td>'+(r.is_new?'<span style="color:#7dffc8;font-weight:800">новый</span>':'<span style="color:var(--muted2);font-weight:700">вернулся · '+fs+'</span>')+'</td></tr>';});
+var fmt=function(t){var d=new Date(new Date(t).getTime()+3*3600*1000);var hm=p2(d.getUTCHours())+':'+p2(d.getUTCMinutes());return hours<=24?hm:p2(d.getUTCDate())+'.'+p2(d.getUTCMonth()+1)+' '+hm;};
+var out='<div class="tbl-wrap"><table class="tbl"><tr><th>Время</th><th>Источник</th><th>Город</th><th>Заходы</th><th>Карточка</th><th>Водитель</th></tr>';
+list.forEach(function(r){var fs=r.first_seen?fmt(r.first_seen):'—';out+='<tr><td><b>'+fmt(r.t)+'</b></td><td>'+esc(sourceRu(r.source))+'</td><td>'+esc(cityRu(r.city))+'</td><td>'+r.visits+'</td><td>'+r.cards+'</td><td>'+(r.is_new?'<span style="color:#7dffc8;font-weight:800">новый</span>':'<span style="color:var(--muted2);font-weight:700">вернулся · '+fs+'</span>')+'</td></tr>';});
 out+='</table></div><div class="note">«Реклама» = в адресе страницы есть utm-метки (сохранённая ссылка/закладка), а не активное объявление. «Вернулся» = устройство впервые замечено раньше этого окна; рядом дата первого появления.</div>';
 box.innerHTML=out;
 }
 function buildAudience(){
-function buildAudience(){
-const hooks=REPORT.hooks||{};const eng=REPORT.eng||{};const adv=ADVANCED_REPORT||{};const beh=(BEHAVIOR_REPORT&&!BEHAVIOR_REPORT.error)?BEHAVIOR_REPORT:null;const bt=beh?(beh.totals||{}):{};
-let html=scrHead('👥','Аудитория','привычки, удержание и активность');html+='<div class="grid g-aud">';
-const H={};(hooks.hooks||[]).forEach(r=>H[r.event]=r);
-const hc=(i,p,l,s,r)=>'<div class="tile '+p+'"><div class="t-ico">'+i+'</div><div class="lbl">'+l+'</div><div class="val">'+(r?r.sessions:0)+'</div><div class="sub">'+s+(r?r.hits:0)+'</div></div>';
-html+='<div class="card"><h3><span class="hicon">🪝</span>Крючки привычки</h3><div class="tiles t2">'+hc('📲','p1','PWA установок','событий: ',H.pwa_install)+hc('✈️','p2','Кнопка «Телеграм»','нажатий: ',H.tg_connect)+hc('✅','p3','Связка подтверждена','включений: ',H.tg_linked)+hc('❤️','p4','«В избранное»','событий: ',H.fav_add)+'</div></div>';
-const d=eng.dur||{};const medTotal=bt.median_total_sec!=null?bt.median_total_sec:d.p50;const medVisible=bt.median_visible_sec;
+var hooks=REPORT.hooks||{},eng=REPORT.eng||{},adv=ADV||{};
+var beh=(BEH&&!BEH.error)?BEH:null;var bt=beh?(beh.totals||{}):{};
+var html=scrHead('👥','Аудитория','привычки, удержание и активность');
+var H={};(hooks.hooks||[]).forEach(function(r){H[r.event]=r;});
+var hc=function(i,p,l,s,r){return '<div class="tile '+p+'"><div class="t-ico">'+i+'</div><div class="lbl">'+l+'</div><div class="val">'+(r?r.sessions:0)+'</div><div class="sub">'+s+(r?r.hits:0)+'</div></div>';};
+html+='<div class="card"><h3><span class="hicon">🪝</span>Крючки привычки</h3><div class="tiles">'+hc('📲','p1','PWA установок','событий: ',H.pwa_install)+hc('✈️','p2','Кнопка «Телеграм»','нажатий: ',H.tg_connect)+hc('✅','p3','Связка подтверждена','включений: ',H.tg_linked)+hc('❤️','p4','«В избранное»','событий: ',H.fav_add)+'</div></div>';
+var d=eng.dur||{};var medTotal=bt.median_total_sec!=null?bt.median_total_sec:d.p50;var medVisible=bt.median_visible_sec;
 html+='<div class="card"><h3><span class="hicon">⏱️</span>Время сеанса</h3><div class="tiles t3"><div class="tile p1"><div class="t-ico">🕐</div><div class="lbl">Медиана сеанса</div><div class="val">'+fmtDur(medTotal)+'</div></div><div class="tile p2"><div class="t-ico">👁</div><div class="lbl">Активное время</div><div class="val">'+(medVisible!=null?fmtDur(medVisible):'—')+'</div></div><div class="tile p3"><div class="t-ico">📱</div><div class="lbl">Время в фоне</div><div class="val">'+(medTotal!=null&&medVisible!=null?fmtDur(Math.max(0,medTotal-medVisible)):'—')+'</div></div></div>';
 if(!beh)html+='<div class="note">Активное время появится после SQL dash_session_behavior.</div>';
 html+='</div>';
-const favg=(eng.freq_avg==null)?'—':Number(eng.freq_avg).toFixed(2).replace('.',',');
+var favg=(eng.freq_avg==null)?'—':Number(eng.freq_avg).toFixed(2).replace('.',',');
 html+='<div class="card"><h3><span class="hicon">🔁</span>Привычка: частота и время</h3><div class="tiles t3"><div class="tile p1"><div class="lbl">Заходов в день</div><div class="val">'+favg+'</div></div><div class="tile p2"><div class="lbl">Медиана времени</div><div class="val">'+fmtDur(d.p50)+'</div></div><div class="tile p3"><div class="lbl">Сессии &gt;2 мин</div><div class="val">'+(d.share_long!==undefined?d.share_long+'%':'—')+'</div></div></div></div>';
-if(beh){const sessions=num(bt.sessions);const withTop3=num(bt.with_top3);const top3Only=num(bt.top3_only);const withAction=num(bt.with_action);const shortSuccess=num(bt.short_success);const pct=n=>sessions>0?Math.round(100*n/sessions):0;
+if(beh){var sessions=num(bt.sessions),withTop3=num(bt.with_top3),top3Only=num(bt.top3_only),withAction=num(bt.with_action);
+var pct=function(n){return sessions>0?Math.round(100*n/sessions):0;};
 html+='<div class="card"><h3><span class="hicon">⚡</span>Поведение сеансов<span class="hchip">30 ДНЕЙ</span></h3><div class="tiles t4" style="margin-bottom:12px"><div class="tile p1"><div class="lbl">Всего сеансов</div><div class="val">'+formatNumber(sessions)+'</div></div><div class="tile p2"><div class="lbl">Увидели топ-3</div><div class="val">'+formatNumber(withTop3)+'</div><div class="sub">'+pct(withTop3)+'%</div></div><div class="tile p3"><div class="lbl">Топ-3 и ушли</div><div class="val" style="color:#7dffc8">'+formatNumber(top3Only)+'</div><div class="sub">'+pct(top3Only)+'% · часто успех</div></div><div class="tile p4"><div class="lbl">Были действия</div><div class="val">'+formatNumber(withAction)+'</div><div class="sub">'+pct(withAction)+'%</div></div></div>';
-const buckets=beh.duration_buckets||[];
-if(buckets.length){const mx=Math.max(...buckets.map(x=>x.cnt),1);html+='<div class="subhead">Длина сеанса</div><div class="bars">';buckets.forEach(x=>{const cls=(String(x.label).indexOf('≤10')>=0||String(x.label).indexOf('≤20')>=0)?'f-success':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+x.label+'</div><div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div><div class="note">Зелёные короткие корзины — успешный быстрый поиск топлива.</div>';}
+var buckets=beh.duration_buckets||[];
+if(buckets.length){var mxb=Math.max.apply(null,buckets.map(function(x){return x.cnt;}).concat([1]));html+='<div class="subhead">Длина сеанса</div><div class="bars">';buckets.forEach(function(x){var cls=(String(x.label).indexOf('≤10')>=0||String(x.label).indexOf('≤20')>=0)?'f-success':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+esc(x.label)+'</div><div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+(x.cnt/mxb*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div><div class="note">Зелёные короткие корзины — успешный быстрый поиск топлива.</div>';}
 html+='</div>';}
-const b=adv.bounce;
+var b=adv.bounce;
 html+='<div class="card"><h3><span class="hicon">🚪</span>Уходы и глубина</h3>';
-if(b&&!b.error&&b.total_sessions>0){const mx=Math.max(...(b.buckets||[]).map(x=>x.cnt),1);html+='<div class="tiles t2" style="margin-bottom:12px"><div class="tile p2"><div class="lbl">Показатель отказов</div><div class="val" style="color:#ff9b9b">'+b.bounce_rate+'%</div></div><div class="tile p1"><div class="lbl">Всего сессий</div><div class="val">'+b.total_sessions+'</div></div></div><div class="bars">';(b.buckets||[]).forEach(x=>{const cls=x.label.includes('уход')?'f-danger':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+x.label+'</div><div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
+if(b&&b.total_sessions>0){var mxB=Math.max.apply(null,(b.buckets||[]).map(function(x){return x.cnt;}).concat([1]));html+='<div class="tiles" style="margin-bottom:12px"><div class="tile p2"><div class="lbl">Показатель отказов</div><div class="val" style="color:#ff9b9b">'+b.bounce_rate+'%</div></div><div class="tile p1"><div class="lbl">Всего сессий</div><div class="val">'+b.total_sessions+'</div></div></div><div class="bars">';(b.buckets||[]).forEach(function(x){var cls=String(x.label).indexOf('уход')>=0?'f-danger':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+esc(x.label)+'</div><div class="bar-track"><div class="bar-fill '+cls+'" style="width:'+(x.cnt/mxB*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
 html+='</div>';
-const cohort=adv.cohort;
+var cohort=adv.cohort;
 html+='<div class="card"><h3><span class="hicon">🔄</span>Возвращаемость (когорты)</h3>';
-if(cohort&&!cohort.error&&cohort.length){html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Дата</th><th>Пришло</th><th>На сл. день</th><th>Через 7 дн</th></tr>';cohort.forEach(c=>{const d1=Math.round(100*c.day1/c.total_users);const d7=Math.round(100*c.day7/c.total_users);const col=d1>=15?'var(--green)':'var(--red)';const ds=new Date(c.cohort_date).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'});html+='<tr><td><b>'+ds+'</b></td><td>'+c.total_users+'</td><td><span style="color:'+col+';font-weight:800">'+c.day1+' ('+d1+'%)</span></td><td><span style="color:var(--blue);font-weight:800">'+c.day7+' ('+d7+'%)</span></td></tr>';});html+='</table></div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
+if(cohort&&cohort.length){html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Дата</th><th>Пришло</th><th>На сл. день</th><th>Через 7 дн</th></tr>';cohort.forEach(function(c){var d1=Math.round(100*c.day1/c.total_users);var d7=Math.round(100*c.day7/c.total_users);var col=d1>=15?'var(--cyan)':'var(--red)';var ds=new Date(c.cohort_date).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'});html+='<tr><td><b>'+ds+'</b></td><td>'+c.total_users+'</td><td><span style="color:'+col+';font-weight:800">'+c.day1+' ('+d1+'%)</span></td><td><span style="color:var(--blue);font-weight:800">'+c.day7+' ('+d7+'%)</span></td></tr>';});html+='</table></div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
 html+='</div>';
-const heat=adv.heatmap;
+var heat=adv.heatmap;
 html+='<div class="card"><h3><span class="hicon">🔥</span>Активность по дням и часам</h3>';
-if(heat&&!heat.error&&heat.length){let mx=1;heat.forEach(h=>{if(h.users>mx)mx=h.users;});const dn=['','Пн','Вт','Ср','Чт','Пт','Сб','Вс'];let m=Array(8).fill(0).map(()=>Array(24).fill(0));heat.forEach(h=>{m[h.day_num][h.hour_num]=h.users;});
-html+='<div class="heatmap-wrap"><table class="heatmap"><tr><th></th>';for(let h=0;h<24;h++)html+='<th>'+h+'</th>';html+='</tr>';for(let dd=1;dd<=7;dd++){html+='<tr><td class="day-label">'+dn[dd]+'</td>';for(let h=0;h<24;h++){const v=m[dd][h];const o=Math.max(.05,v/mx);html+='<td><div class="heat-cell" style="background:rgba(245,165,36,'+o+')" title="'+v+' польз."></div></td>';}html+='</tr>';}html+='</table></div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
-html+='</div></div>';return html;
+if(heat&&heat.length){var mxh=1;heat.forEach(function(h){if(h.users>mxh)mxh=h.users;});var dn=['','Пн','Вт','Ср','Чт','Пт','Сб','Вс'];var m=[];for(var a=0;a<8;a++){m.push(new Array(24).fill(0));}heat.forEach(function(h){m[h.day_num][h.hour_num]=h.users;});
+html+='<div class="heatmap-wrap"><table class="heatmap"><tr><th></th>';for(var h=0;h<24;h++)html+='<th>'+h+'</th>';html+='</tr>';for(var dd=1;dd<=7;dd++){html+='<tr><td class="day-label">'+dn[dd]+'</td>';for(var hh=0;hh<24;hh++){var v=m[dd][hh];var o=Math.max(.05,v/mxh);html+='<td><div class="heat-cell" style="background:rgba(245,165,36,'+o+')" title="'+v+' польз."></div></td>';}html+='</tr>';}html+='</table></div>';}else html+='<div class="empty">Данные ещё не загрузились</div>';
+html+='</div>';return html;
 }
 function buildPolls(){
-const poll=REPORT.poll;
-if(!poll||poll.error||!poll.total_answers)return scrHead('💬','Опросы водителей','прямые ответы пользователей')+'<div class="grid"><div class="card"><div class="empty">Пока нет ответов на опросы.</div></div></div>';
-let html=scrHead('💬','Опросы водителей','прямые ответы пользователей');html+='<div class="grid"><div class="tiles t3"><div class="kpi p1"><div class="lbl">Всего ответов</div><div class="val">'+formatNumber(poll.total_answers)+'</div></div><div class="kpi p2"><div class="lbl">Респондентов</div><div class="val">'+formatNumber(poll.unique_respondents)+'</div></div>'+(poll.avg_stars!=null?'<div class="kpi p4"><div class="lbl">Средняя оценка</div><div class="val">'+poll.avg_stars.toFixed(1)+' ★</div></div>':'')+'</div><div class="qgrid">';
-(poll.answers_by_question||[]).forEach(q=>{if(q.question_key==='advice_outcome')return;const qt=POLL_Q[q.question_key]||q.question_key;const total=q.answers.reduce((s,a)=>s+a.cnt,0);const mx=Math.max(...q.answers.map(a=>a.cnt));
-html+='<div class="card"><div class="q-title">'+qt+'</div><div class="bars">';q.answers.forEach(a=>{const at=q.question_key==='stars'?a.answer_key.replace('star','').split('_')[0]+' ★':(POLL_A[a.answer_key]||a.answer_key);const pct=total>0?Math.round(a.cnt/total*100):0;const bc=pct>=50?'f-success':pct>=25?'f-warning':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+at+'</div><div class="bar-track"><div class="bar-fill '+bc+'" style="width:'+(a.cnt/mx*100)+'%"></div></div><div class="bar-val">'+a.cnt+' <small>('+pct+'%)</small></div></div>';});html+='</div></div>';});
-html+='</div></div>';return html;
+var poll=REPORT.poll;
+if(!poll||!poll.total_answers)return scrHead('💬','Опросы водителей','прямые ответы пользователей')+'<div class="card"><div class="empty">Пока нет ответов на опросы.</div></div>';
+var html=scrHead('💬','Опросы водителей','прямые ответы пользователей');
+html+='<div class="card"><div class="tiles t3"><div class="kpi p1"><div class="lbl">Всего ответов</div><div class="val">'+formatNumber(poll.total_answers)+'</div></div><div class="kpi p2"><div class="lbl">Респондентов</div><div class="val">'+formatNumber(poll.unique_respondents)+'</div></div>'+(poll.avg_stars!=null?'<div class="kpi p4"><div class="lbl">Средняя оценка</div><div class="val">'+poll.avg_stars.toFixed(1)+' ★</div></div>':'')+'</div></div>';
+(poll.answers_by_question||[]).forEach(function(q){if(q.question_key==='advice_outcome')return;var qt=POLL_Q[q.question_key]||q.question_key;var total=q.answers.reduce(function(s,a){return s+a.cnt;},0);var mx=Math.max.apply(null,q.answers.map(function(a){return a.cnt;}));
+html+='<div class="card"><div class="q-title">'+esc(qt)+'</div><div class="bars">';q.answers.forEach(function(a){var at=q.question_key==='stars'?a.answer_key.replace('star','').split('_')[0]+' ★':(POLL_A[a.answer_key]||a.answer_key);var pct=total>0?Math.round(a.cnt/total*100):0;var bc=pct>=50?'f-success':pct>=25?'f-warning':'f-primary';html+='<div class="bar-row"><div class="bar-lbl">'+esc(at)+'</div><div class="bar-track"><div class="bar-fill '+bc+'" style="width:'+(a.cnt/mx*100)+'%"></div></div><div class="bar-val">'+a.cnt+' <small>('+pct+'%)</small></div></div>';});html+='</div></div>';});
+return html;
 }
 function buildUpdates(upd){
-if(!upd||upd.error)return scrHead('📦','Версии сайта','кто и когда обновился')+'<div class="grid g-ver"><div class="card"><div class="err">Метрика обновлений не отвечает: функция dash_update_stats не создана.</div></div></div>';
-const tile=(i,p,l,v,s)=>'<div class="tile '+p+'"><div class="t-ico">'+i+'</div><div class="lbl">'+l+'</div><div class="val">'+v+'</div>'+(s?'<div class="sub">'+s+'</div>':'')+'</div>';
-let html=scrHead('📦','Версии сайта','кто и когда обновился');html+='<div class="grid g-ver"><div class="tiles t4">'+tile('📅','p1','Обновилось · 7 дн',num(upd.devices_7d))+tile('🗓️','p2','Обновилось · 30 дн',num(upd.devices_30d))+tile('🤖','p3','Автообновлений',num(upd.total_sw))+tile('🖱️','p4','Кликов «Обновить»',num(upd.total_clicks))+'</div>';
-const tr=upd.by_transition||[];
-html+='<div class="card"><h3><span class="hicon">🔀</span>Переходы между версиями'+(upd.current_latest?'<span class="hchip">ПОСЛЕДНЯЯ: '+upd.current_latest+'</span>':'')+'</h3>';
-if(tr.length){const mx=Math.max(...tr.map(x=>x.cnt),1);html+='<div class="bars">';tr.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl" style="color:var(--ink)">'+(x.old_v||'?')+' → '+x.new_v+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.devices+' <small>устр.</small></div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет переходов</div>';
+if(!upd)return scrHead('📦','Версии сайта','кто и когда обновился')+'<div class="card"><div class="err">Метрика обновлений не отвечает: функция dash_update_stats не создана.</div></div>';
+var tile=function(i,p,l,v,s){return '<div class="tile '+p+'"><div class="t-ico">'+i+'</div><div class="lbl">'+l+'</div><div class="val">'+v+'</div>'+(s?'<div class="sub">'+s+'</div>':'')+'</div>';};
+var html=scrHead('📦','Версии сайта','кто и когда обновился');
+html+='<div class="card"><div class="tiles t4">'+tile('📅','p1','Обновилось · 7 дн',num(upd.devices_7d))+tile('🗓️','p2','Обновилось · 30 дн',num(upd.devices_30d))+tile('🤖','p3','Автообновлений',num(upd.total_sw))+tile('🖱️','p4','Кликов «Обновить»',num(upd.total_clicks))+'</div></div>';
+var tr=upd.by_transition||[];
+html+='<div class="card"><h3><span class="hicon">🔀</span>Переходы между версиями'+(upd.current_latest?'<span class="hchip">ПОСЛЕДНЯЯ: '+esc(upd.current_latest)+'</span>':'')+'</h3>';
+if(tr.length){var mx=Math.max.apply(null,tr.map(function(x){return x.cnt;}).concat([1]));html+='<div class="bars">';tr.forEach(function(x){html+='<div class="bar-row"><div class="bar-lbl" style="color:var(--ink)">'+esc(x.old_v||'?')+' → '+esc(x.new_v)+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.devices+' <small>устр.</small></div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет переходов</div>';
 html+='</div>';
-const days=upd.by_day||[];
+var days=upd.by_day||[];
 html+='<div class="card"><h3><span class="hicon">📅</span>По дням (14 дней)</h3>';
-if(days.length){const mx=Math.max(...days.map(x=>x.devices),1);html+='<div class="bars">';days.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl">'+x.d.slice(8,10)+'.'+x.d.slice(5,7)+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(x.devices/mx*100)+'%"></div></div><div class="bar-val">'+x.devices+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
+if(days.length){var mxd=Math.max.apply(null,days.map(function(x){return x.devices;}).concat([1]));html+='<div class="bars">';days.forEach(function(x){html+='<div class="bar-row"><div class="bar-lbl">'+x.d.slice(8,10)+'.'+x.d.slice(5,7)+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(x.devices/mxd*100)+'%"></div></div><div class="bar-val">'+x.devices+'</div></div>';});html+='</div>';}else html+='<div class="empty">Пока нет данных</div>';
 html+='</div>';
-const rec=upd.recent||[];
+var rec=upd.recent||[];
 html+='<div class="card"><h3><span class="hicon">🕐</span>Последние обновления</h3>';
-if(rec.length){html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Когда</th><th>Переход</th></tr>';rec.forEach(x=>{const t=x.t||x.created_at||null;const ov=x.old_v||x.old_version||null;const nv=x.new_v||x.new_version||null;if(!ov&&!nv)return;const d=t?new Date(new Date(t).getTime()+3*3600*1000):null;const s=d?p2(d.getUTCDate())+'.'+p2(d.getUTCMonth()+1)+' '+p2(d.getUTCHours())+':'+p2(d.getUTCMinutes()):'—';html+='<tr><td>'+s+'</td><td><b>'+(ov||'?')+' → '+(nv||'?')+'</b></td></tr>';});html+='</table></div>';}else html+='<div class="empty">Пока ни одно устройство не зафиксировано на новой версии.</div>';
-html+='<div class="note">Автообновление фиксируется при первом заходе на новую версию; «Обновить сейчас» — явный клик.</div></div></div>';return html;
+if(rec.length){html+='<div class="tbl-wrap"><table class="tbl"><tr><th>Когда</th><th>Переход</th></tr>';rec.forEach(function(x){var t=x.t||x.created_at||null;var ov=x.old_v||x.old_version||null;var nv=x.new_v||x.new_version||null;if(!ov&&!nv)return;var d=t?new Date(new Date(t).getTime()+3*3600*1000):null;var s=d?p2(d.getUTCDate())+'.'+p2(d.getUTCMonth()+1)+' '+p2(d.getUTCHours())+':'+p2(d.getUTCMinutes()):'—';html+='<tr><td>'+s+'</td><td><b>'+esc(ov||'?')+' → '+esc(nv||'?')+'</b></td></tr>';});html+='</table></div>';}else html+='<div class="empty">Пока ни одно устройство не зафиксировано на новой версии.</div>';
+html+='<div class="note">Автообновление фиксируется при первом заходе на новую версию; «Обновить сейчас» — явный клик.</div></div>';return html;
 }
 function renderMarksStrip(){
-const el=document.getElementById('marksStrip');if(!el)return;
-if(!MARKS_30D||!MARKS_30D.totals){el.style.display='none';return;}
-const t=MARKS_30D.totals;const marks=num(t.marks),devices=num(t.devices),onSite=num(t.on_site);const cities=MARKS_30D.by_city||[];const pct=marks>0?Math.round(100*onSite/marks):0;
+var el=document.getElementById('marksStrip');if(!el)return;
+if(!MARKS30||!MARKS30.totals){el.style.display='none';return;}
+var t=MARKS30.totals;var marks=num(t.marks),devices=num(t.devices),onSite=num(t.on_site);var cities=MARKS30.by_city||[];var pct=marks>0?Math.round(100*onSite/marks):0;
 el.style.display='';
 el.innerHTML='<h3><span class="hicon">🙏</span>Народные отметки · 30 дней</h3><div class="tiles t4"><div class="tile p1"><div class="lbl">Всего отметок</div><div class="val">'+marks+'</div></div><div class="tile p2"><div class="lbl">Водителей</div><div class="val">'+devices+'</div></div><div class="tile p3"><div class="lbl">С места с GPS</div><div class="val">'+pct+'%</div></div><div class="tile p4"><div class="lbl">Городов</div><div class="val">'+cities.length+'</div></div></div>';
 }
 function renderVerdict(){
-const c=document.getElementById('verdict-container');if(!c||!REPORT.stats)return;
-const s=REPORT.stats,adv=ADVANCED_REPORT,advDet=ADVISOR_DETAILED,f=s.funnel||[],src=s.sources||[];
-let score=5,pros=[],cons=[],statusClass='warn';
-if(adv.bounce&&adv.bounce.total_sessions){const br=adv.bounce.bounce_rate;if(br<=18){score+=1.2;pros.push('Хорошее удержание (отказы '+br+'%).');}else if(br<=35){score+=.3;pros.push('Приемлемые отказы ('+br+'%).');}else if(br<=50){score-=.4;cons.push('Повышенные отказы ('+br+'%).');}else{score-=1.2;cons.push('Очень высокие отказы ('+br+'%).');}}
-const pv=(f.find(x=>x.event==='pageview')||{}).sessions||0;const cardEv=(f.find(x=>x.event==='open_station_card')||{}).sessions||0;
-if(pv>0){const cc=Math.round(cardEv/pv*100);if(cc>=8){score+=.5;pros.push('Конверсия в карточку '+cc+'%.');}else{score-=.5;cons.push('Только '+cc+'% смотрят карточки.');}}
-if(adv.cohort&&adv.cohort.length>1){const mc=adv.cohort[1];if(mc&&mc.total_users>10){const rr=Math.round(100*mc.day1/mc.total_users);if(rr>=10){score+=1;pros.push('Возвращаемость '+rr+'%.');}else if(rr>=5){score+=.3;}else{score-=.8;cons.push('Мало возвратов: '+rr+'%.');}}}
-const ya=(src.find(x=>x.source.toLowerCase().includes('utm')&&x.source.toLowerCase().includes('yandex'))||{}).sessions||0;
+var c=document.getElementById('verdictBox');if(!c||!REPORT.stats)return;
+var s=REPORT.stats,adv=ADV,advDet=ADVDET,f=s.funnel||[],src=s.sources||[];
+var score=5,pros=[],cons=[],statusClass='warn';
+if(adv.bounce&&adv.bounce.total_sessions){var br=adv.bounce.bounce_rate;if(br<=18){score+=1.2;pros.push('Хорошее удержание (отказы '+br+'%).');}else if(br<=35){score+=.3;pros.push('Приемлемые отказы ('+br+'%).');}else if(br<=50){score-=.4;cons.push('Повышенные отказы ('+br+'%).');}else{score-=1.2;cons.push('Очень высокие отказы ('+br+'%).');}}
+var pv=0,cardEv=0;f.forEach(function(x){if(x.event==='pageview')pv=x.sessions;if(x.event==='open_station_card')cardEv=x.sessions;});
+if(pv>0){var cc=Math.round(cardEv/pv*100);if(cc>=8){score+=.5;pros.push('Конверсия в карточку '+cc+'%.');}else{score-=.5;cons.push('Только '+cc+'% смотрят карточки.');}}
+if(adv.cohort&&adv.cohort.length>1){var mc=adv.cohort[1];if(mc&&mc.total_users>10){var rr=Math.round(100*mc.day1/mc.total_users);if(rr>=10){score+=1;pros.push('Возвращаемость '+rr+'%.');}else if(rr>=5){score+=.3;}else{score-=.8;cons.push('Мало возвратов: '+rr+'%.');}}}
+var ya=0;src.forEach(function(x){var l=String(x.source).toLowerCase();if(l.indexOf('utm')>=0&&l.indexOf('yandex')>=0)ya=x.sessions;});
 if(ya>0){score+=.3;pros.push('Реклама приводит трафик ('+ya+').');}
-if(advDet.utility&&advDet.totals&&advDet.totals.shown>30){const util=advDet.utility.score;if(util>=65){score+=1.5;pros.push('Советник отличный ('+util.toFixed(0)+'/100).');}else if(util>=45){score+=.5;}else if(util>0){score-=.5;cons.push('Советник слабый ('+util.toFixed(0)+'/100).');}}
-if(MARKS_30D&&MARKS_30D.totals){const mt=MARKS_30D.totals,mks=num(mt.marks),dev=num(mt.devices),ons=num(mt.on_site);const op=mks>0?Math.round(100*ons/mks):0;
+if(advDet.utility&&advDet.totals&&advDet.totals.shown>30){var util=advDet.utility.score;if(util>=65){score+=1.5;pros.push('Советник отличный ('+util.toFixed(0)+'/100).');}else if(util>=45){score+=.5;}else if(util>0){score-=.5;cons.push('Советник слабый ('+util.toFixed(0)+'/100).');}}
+if(MARKS30&&MARKS30.totals){var mt=MARKS30.totals,mks=num(mt.marks),dev=num(mt.devices),ons=num(mt.on_site);var op=mks>0?Math.round(100*ons/mks):0;
 if(mks>=100){score+=.5;pros.push('Толпа живая: '+mks+' отметок.');}else if(mks>=30){score+=.2;}else if(mks>0){score-=.3;cons.push('Толпа молчит: '+mks+' отметок.');}else{score-=.5;cons.push('Народных отметок нет.');}
 if(dev>=20){score+=.3;}else if(mks>0&&dev<=3){score-=.3;cons.push('Отметки ставят всего '+dev+' водителя.');}
 if(mks>0){if(op>=25){score+=.4;pros.push(op+'% отметок с GPS.');}else if(op<10){score-=.3;cons.push('Мало отметок с GPS ('+op+'%).');}}}
 score=Math.max(1,Math.min(10,score));
 if(score>=7.5)statusClass='good';else if(score>=4.5)statusClass='warn';else statusClass='bad';
-const fs=score.toFixed(1).replace('.',',');const deg=(score/10)*100;
-const sw=statusClass==='good'?'Отличный старт':statusClass==='warn'?'Есть над чем работать':'Критическая ситуация';
+var fs=score.toFixed(1).replace('.',',');var deg=(score/10)*100;
+var sw=statusClass==='good'?'Отличный старт':statusClass==='warn'?'Есть над чем работать':'Критическая ситуация';
 c.className='card verdict-card '+statusClass;
-c.innerHTML='<div class="verdict-panel"><div><div class="score-ring" style="--score-deg:'+deg+'%"><div class="score-val">'+fs+'<small>/10</small></div></div><div class="score-label">'+sw+'</div></div><div class="verdict-lists"><div class="v-list-col v-good"><div class="v-list-title">Что работает отлично</div><ul>'+(pros.length?pros.map(p=>'<li>'+p+'</li>').join(''):'<li>Копим данные.</li>')+'</ul></div><div class="v-list-col v-bad"><div class="v-list-title">На что обратить внимание</div><ul>'+(cons.length?cons.map(x=>'<li>'+x+'</li>').join(''):'<li>Все показатели в норме.</li>')+'</ul></div></div></div>';
-fitScreen();
+c.innerHTML='<div class="verdict-panel"><div><div class="score-ring" style="--score-deg:'+deg+'%"><div class="score-val">'+fs+'<small>/10</small></div></div><div class="score-label">'+sw+'</div></div><div class="verdict-lists"><div class="v-list-col v-good"><div class="v-list-title">Что работает отлично</div><ul>'+(pros.length?pros.map(function(p){return '<li>'+esc(p)+'</li>';}).join(''):'<li>Копим данные.</li>')+'</ul></div><div class="v-list-col v-bad"><div class="v-list-title">На что обратить внимание</div><ul>'+(cons.length?cons.map(function(x){return '<li>'+esc(x)+'</li>';}).join(''):'<li>Все показатели в норме.</li>')+'</ul></div></div></div>';
 }
-async function loadAdvancedStats(){
-try{
-const [bR,cR,hR,behR]=await Promise.all([rpc('dash_bounce_stats'),rpc('dash_retention_cohorts'),rpc('dash_time_heatmap'),rpc('dash_session_behavior')]);
-const bounce=await bR.json(),cohort=await cR.json(),heat=await hR.json();const beh=behR.ok?await behR.json():{error:'HTTP '+behR.status};
-ADVANCED_REPORT={bounce,cohort,heatmap:heat};BEHAVIOR_REPORT=beh;
-document.getElementById('inner-aud').innerHTML=buildAudience();renderVerdict();fitScreen();
-}catch(e){document.getElementById('inner-aud').innerHTML='<div class="card"><div class="err">Не удалось загрузить доп. статистику: '+e.message+'</div></div>';}
+function loadAdvancedStats(){
+Promise.all([rpcSafe('dash_bounce_stats'),rpcSafe('dash_retention_cohorts'),rpcSafe('dash_time_heatmap'),rpcSafe('dash_session_behavior')]).then(function(r){
+ADV={bounce:r[0],cohort:r[1],heatmap:r[2]};BEH=r[3];
+document.getElementById('inner-aud').innerHTML=buildAudience();renderVerdict();
+});
 }
 function downloadReport(){
-const R=REPORT;if(!R.stats){alert('Данные ещё не загрузились.');return;}
-const L=[];const now=new Date(Date.now()+3*3600*1000);
-const stamp=now.getUTCFullYear()+'-'+p2(now.getUTCMonth()+1)+'-'+p2(now.getUTCDate())+'_'+p2(now.getUTCHours())+p2(now.getUTCMinutes());
+var R=REPORT;if(!R.stats){alert('Данные ещё не загрузились.');return;}
+var L=[];var now=new Date(Date.now()+3*3600*1000);
+var stamp=now.getUTCFullYear()+'-'+p2(now.getUTCMonth()+1)+'-'+p2(now.getUTCDate())+'_'+p2(now.getUTCHours())+p2(now.getUTCMinutes());
 L.push('КОГДАБЕНЗ — ОТЧЁТ ВЛАДЕЛЬЦА');
 L.push('Сформирован: '+p2(now.getUTCDate())+'.'+p2(now.getUTCMonth()+1)+'.'+now.getUTCFullYear()+' '+p2(now.getUTCHours())+':'+p2(now.getUTCMinutes())+' МСК');L.push('');
-const ve=document.querySelector('.verdict-panel');
-if(ve){L.push('== ОБЩИЙ ВЕРДИКТ ==');L.push('Оценка: '+ve.querySelector('.score-val').textContent.replace('/10','')+'/10');ve.querySelectorAll('.v-good li').forEach(li=>L.push('  + '+li.textContent));ve.querySelectorAll('.v-bad li').forEach(li=>L.push('  - '+li.textContent));L.push('');}
-if(ADVISOR_DETAILED.utility&&ADVISOR_DETAILED.totals){const u=ADVISOR_DETAILED.utility,t=ADVISOR_DETAILED.totals;
+var ve=document.querySelector('.verdict-panel');
+if(ve){L.push('== ОБЩИЙ ВЕРДИКТ ==');L.push('Оценка: '+ve.querySelector('.score-val').textContent.replace('/10','')+'/10');var g=ve.querySelectorAll('.v-good li');for(var i=0;i<g.length;i++)L.push('  + '+g[i].textContent);var b=ve.querySelectorAll('.v-bad li');for(var j=0;j<b.length;j++)L.push('  - '+b[j].textContent);L.push('');}
+if(ADVDET.utility&&ADVDET.totals){var u=ADVDET.utility,t=ADVDET.totals;
 L.push('== СОВЕТНИК ==');L.push('Полезность: '+u.score+'/100');L.push('  Вовлечённость: '+u.engagement+'%');L.push('  Конверсия: '+u.conversion+'%');L.push('  Удовлетворённость: '+u.satisfaction+'%');L.push('  Лояльность: '+u.loyalty+'%');L.push('Показов: '+t.shown+', кликов: '+t.clicks+', карточек: '+t.cards+', маршрутов: '+t.routes);L.push('');}
-const s=R.stats,ret=s.retention||{};
+var s=R.stats,ret=s.retention||{};
 L.push('== ПОКАЗАТЕЛИ ==');L.push('30 дней: '+num(s.mau_30d));L.push('Сегодня: '+num(s.dau_today)+' (вчера '+num(s.dau_yesterday)+')');L.push('Новых 7д: '+num(ret.new_7d)+', вернувшихся: '+num(ret.returning_7d));L.push('Визитов: '+num(s.total_sessions)+', действий: '+num(s.total_hits));L.push('');
-const f=s.funnel||[];
-if(f.length){L.push('== ВОРОНКА ==');const base=f[0].sessions||0;f.forEach(x=>{const e=EVENT_RU[x.event]?EVENT_RU[x.event][1]:x.event;L.push(e+': '+x.sessions+(base?' ('+Math.round(100*x.sessions/base)+'%)':''));});L.push('');}
-const p=R.poll;
-if(p&&!p.error&&p.total_answers){L.push('== ОПРОСЫ ==');L.push('Ответов: '+p.total_answers);(p.answers_by_question||[]).forEach(q=>{const total=q.answers.reduce((sm,x)=>sm+x.cnt,0);L.push('  '+(POLL_Q[q.question_key]||q.question_key));q.answers.forEach(an=>{const txt=q.question_key==='stars'?an.answer_key:(POLL_A[an.answer_key]||an.answer_key);L.push('    '+txt+': '+an.cnt+' ('+(total?Math.round(100*an.cnt/total):0)+'%)');});});}
-const blob=new Blob(['\ufeff'+L.join('\r\n')],{type:'text/plain;charset=utf-8'});
-const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='kogdabenz_otchet_'+stamp+'.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+var f=s.funnel||[];
+if(f.length){L.push('== ВОРОНКА ==');var base=f[0].sessions||0;f.forEach(function(x){var e=EVENT_RU[x.event]?EVENT_RU[x.event][1]:x.event;L.push(e+': '+x.sessions+(base?' ('+Math.round(100*x.sessions/base)+'%)':''));});L.push('');}
+var p=R.poll;
+if(p&&p.total_answers){L.push('== ОПРОСЫ ==');L.push('Ответов: '+p.total_answers);(p.answers_by_question||[]).forEach(function(q){var total=q.answers.reduce(function(sm,x){return sm+x.cnt;},0);L.push('  '+(POLL_Q[q.question_key]||q.question_key));q.answers.forEach(function(an){var txt=q.question_key==='stars'?an.answer_key:(POLL_A[an.answer_key]||an.answer_key);L.push('    '+txt+': '+an.cnt+' ('+(total?Math.round(100*an.cnt/total):0)+'%)');});});}
+var blob=new Blob(['\ufeff'+L.join('\r\n')],{type:'text/plain;charset=utf-8'});
+var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='kogdabenz_otchet_'+stamp+'.txt';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},4000);
 }
-async function loadMarks(range){
-marksRange=range;const box=document.getElementById('inner-marks');if(!box)return;
+function loadMarks(range){
+marksRange=range;var box=document.getElementById('inner-marks');if(!box)return;
 if(!marksCache[range]){box.innerHTML='<div class="card"><div class="loading"><div class="spinner"></div><span>Загрузка отметок...</span></div></div>';
-try{const r=await rpc('dash_marks_stats',{secret:DASH_SECRET,p_range:range});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.error)throw new Error(d.error);marksCache[range]=d;}
-catch(e){box.innerHTML='<div class="card"><div class="err">Отметки не загрузились: '+e.message+'</div></div>';return;}}
-box.innerHTML=buildMarks();drawMarksCharts();fitScreen();
+rpcSafe('dash_marks_stats',{secret:DASH_SECRET,p_range:range}).then(function(d){
+if(!d){box.innerHTML='<div class="card"><div class="err">Отметки не загрузились.</div></div>';return;}
+marksCache[range]=d;box.innerHTML=buildMarks();drawMarksCharts();
+});return;}
+box.innerHTML=buildMarks();drawMarksCharts();
 }
 function buildMarks(){
-const d=marksCache[marksRange]||{};const t=d.totals||{};const RL={'2h':'2 часа','24h':'24 часа','7d':'1 неделя','30d':'1 месяц'};
-let html=scrHead('🙏','Народные отметки','кто, сколько, когда и где отмечал · '+RL[marksRange]);
-html+='<div class="card"><div class="tf-headrow"><h3><span class="hicon">🙏</span>Активность отметок</h3><div class="tf-tabs">'+['2h','24h','7d','30d'].map(r=>'<button class="tf-tab'+(r===marksRange?' active':'')+'" onclick="loadMarks(\''+r+'\')">'+RL[r]+'</button>').join('')+'</div></div>';
+var d=marksCache[marksRange]||{};var t=d.totals||{};var RL={'2h':'2 часа','24h':'24 часа','7d':'1 неделя','30d':'1 месяц'};
+var html=scrHead('🙏','Народные отметки','кто, сколько, когда и где отмечал · '+RL[marksRange]);
+html+='<div class="card"><div class="tf-headrow"><h3><span class="hicon">🙏</span>Активность отметок</h3><div class="tf-tabs">'+['2h','24h','7d','30d'].map(function(r){return '<button class="tf-tab'+(r===marksRange?' active':'')+'" onclick="loadMarks(\''+r+'\')">'+RL[r]+'</button>';}).join('')+'</div></div>';
 html+='<div class="tiles t4" style="margin:12px 0 14px"><div class="tile p1"><div class="lbl">Всего отметок</div><div class="val">'+num(t.marks)+'</div></div><div class="tile p2"><div class="lbl">Водителей</div><div class="val">'+num(t.devices)+'</div></div><div class="tile p3"><div class="lbl">Уникальных АЗС</div><div class="val">'+num(t.stations)+'</div></div><div class="tile p4"><div class="lbl">С места с GPS</div><div class="val">'+num(t.on_site)+'</div></div></div>';
 html+='<div class="q-title">График активности (лог-шкала)</div><div id="marksChart" style="height:180px"></div><div class="q-title" style="margin-top:14px">В какое время отмечают (МСК)</div><div id="marksHour" style="height:140px"></div><div class="note">Лог-шкала: каждая линия сетки в 10 раз выше. Водители и станции анонимны.</div></div>';
-html+='<div class="grid g-react" style="margin-top:12px"><div class="card"><h3><span class="hicon">🎯</span>На что ставили отметки</h3>';
-const bt=d.by_type||[];
-if(bt.length){const tot=bt.reduce((s,x)=>s+x.cnt,0);html+='<div class="tiles t2">';bt.forEach(x=>{const i=MARK_TYPE_RU[x.kind]||['❓',x.kind];html+='<div class="tile p1"><div class="t-ico">'+i[0]+'</div><div class="lbl">'+i[1]+'</div><div class="val">'+x.cnt+'</div><div class="sub">'+Math.round(100*x.cnt/tot)+'%</div></div>';});html+='</div>';
-const bf=d.by_fuel||[];if(bf.length){html+='<div class="subhead">По топливу</div><div class="tiles t2">';bf.forEach(x=>{html+='<div class="tile p3"><div class="lbl">'+(MARK_FUEL_RU[x.fuel]||x.fuel)+'</div><div class="val">'+x.cnt+'</div></div>';});html+='</div>';}}
+html+='<div class="card"><h3><span class="hicon">🎯</span>На что ставили отметки</h3>';
+var bt=d.by_type||[];
+if(bt.length){var tot=bt.reduce(function(s,x){return s+x.cnt;},0);html+='<div class="tiles">';bt.forEach(function(x){var i=MARK_TYPE_RU[x.kind]||['❓',x.kind];html+='<div class="tile p1"><div class="t-ico">'+i[0]+'</div><div class="lbl">'+i[1]+'</div><div class="val">'+x.cnt+'</div><div class="sub">'+Math.round(100*x.cnt/tot)+'%</div></div>';});html+='</div>';
+var bf=d.by_fuel||[];if(bf.length){html+='<div class="subhead">По топливу</div><div class="tiles">';bf.forEach(function(x){html+='<div class="tile p3"><div class="lbl">'+(MARK_FUEL_RU[x.fuel]||x.fuel)+'</div><div class="val">'+x.cnt+'</div></div>';});html+='</div>';}}
 else html+='<div class="empty">Нет отметок за период</div>';
 html+='</div><div class="card"><h3><span class="hicon">🏙️</span>В каких городах отмечали</h3>';
-const bc=d.by_city||[];
-if(bc.length){const mx=Math.max(...bc.map(x=>x.cnt));html+='<div class="bars">';bc.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl">'+x.city+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Нет отметок за период</div>';
+var bc=d.by_city||[];
+if(bc.length){var mx=Math.max.apply(null,bc.map(function(x){return x.cnt;}));html+='<div class="bars">';bc.forEach(function(x){html+='<div class="bar-row"><div class="bar-lbl">'+esc(x.city)+'</div><div class="bar-track"><div class="bar-fill f-purple" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Нет отметок за период</div>';
 html+='</div><div class="card"><h3><span class="hicon">⛽</span>Топ отмечаемых АЗС</h3>';
-const ts=d.top_stations||[];
-if(ts.length){const mx=Math.max(...ts.map(x=>x.cnt));html+='<div class="bars">';ts.forEach(x=>{html+='<div class="bar-row"><div class="bar-lbl">'+x.name+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(x.cnt/mx*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Нет отметок за период</div>';
-html+='</div></div>';return html;
+var ts=d.top_stations||[];
+if(ts.length){var mxt=Math.max.apply(null,ts.map(function(x){return x.cnt;}));html+='<div class="bars">';ts.forEach(function(x){html+='<div class="bar-row"><div class="bar-lbl">'+esc(x.name)+'</div><div class="bar-track"><div class="bar-fill f-primary" style="width:'+(x.cnt/mxt*100)+'%"></div></div><div class="bar-val">'+x.cnt+'</div></div>';});html+='</div>';}else html+='<div class="empty">Нет отметок за период</div>';
+html+='</div>';return html;
 }
 function drawMarksCharts(){
-const d=marksCache[marksRange];if(!d)return;
-const box=document.getElementById('marksChart');
-if(box){const series=d.series||[];const W=Math.max(300,box.clientWidth||700),H=Math.max(120,box.clientHeight||180),PL=6,PR=34,PT=10,PB=20;const iw=W-PL-PR,ih=H-PT-PB;const maxV=Math.max(1,...series.map(p=>p.cnt));const maxL=Math.log10(maxV+1);
-const y=v=>PT+ih-(Math.log10(v+1)/maxL)*ih;const x=i=>PL+(series.length===1?iw/2:i*iw/(series.length-1));
-let line='';series.forEach((p,i)=>{line+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cnt).toFixed(1);});
-const area=series.length?line+'L'+x(series.length-1).toFixed(1)+' '+(PT+ih)+'L'+x(0).toFixed(1)+' '+(PT+ih)+'Z':'';
-let grid='';[1,10,100,1000].forEach(v=>{if(v>maxV*3)return;const gy=y(v).toFixed(1);grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(W-PR)+'" y2="'+gy+'" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="'+(W-PR+5)+'" y="'+(Number(gy)+4)+'" font-size="9" font-weight="700" fill="#8b93a7">'+v+'</text>';});
-let xl='';const step=Math.max(1,Math.round(series.length/4));
-for(let i=0;i<series.length;i+=step){const dt=new Date(new Date(series[i].t).getTime()+3*3600*1000);const s=(marksRange==='7d'||marksRange==='30d')?p2(dt.getUTCDate())+'.'+p2(dt.getUTCMonth()+1):p2(dt.getUTCHours())+':'+p2(dt.getUTCMinutes());xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-4)+'" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">'+s+'</text>';}
-box.innerHTML=series.length?'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%"><defs><linearGradient id="mkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".2"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#mkGrad)"/><path d="'+line+'" fill="none" stroke="#f5a524" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>':'<div class="empty">Нет отметок за период</div>';}
-const hbox=document.getElementById('marksHour');
-if(hbox){const bh=d.by_hour||[];const arr=Array(24).fill(0);bh.forEach(x=>{arr[x.hour]=x.cnt;});const W=Math.max(300,hbox.clientWidth||700),H=Math.max(100,hbox.clientHeight||140),PL=4,PR=4,PT=8,PB=18;const iw=W-PL-PR,ih=H-PT-PB;const maxV=Math.max(1,...arr);const bw=iw/24;
-let cols='';arr.forEach((v,hh)=>{const hg=(v/maxV)*ih;const isMax=v===maxV&&v>0;cols+='<rect x="'+(PL+hh*bw+1).toFixed(1)+'" y="'+(PT+ih-hg).toFixed(1)+'" width="'+Math.max(2,bw-2).toFixed(1)+'" height="'+Math.max(v>0?2:0,hg).toFixed(1)+'" rx="3" fill="'+(isMax?'#f5a524':'rgba(245,165,36,.35)')+'"/>';});
-let xl='';for(let hh=0;hh<24;hh+=3)xl+='<text x="'+(PL+hh*bw+bw/2).toFixed(1)+'" y="'+(H-4)+'" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">'+p2(hh)+'</text>';
-const peak=arr.indexOf(Math.max(...arr));
-hbox.innerHTML='<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%">'+cols+xl+'</svg><div class="sub" style="margin-top:6px">Пик активности: '+p2(peak)+':00–'+p2((peak+1)%24)+':00 МСК</div>';}
+var d=marksCache[marksRange];if(!d)return;
+var box=document.getElementById('marksChart');
+if(box){var series=d.series||[];var W=Math.max(300,box.clientWidth||700),H=Math.max(120,box.clientHeight||180),PL=6,PR=34,PT=10,PB=20;var iw=W-PL-PR,ih=H-PT-PB;var maxV=Math.max.apply(null,[1].concat(series.map(function(p){return p.cnt;})));var maxL=Math.log10(maxV+1);
+var y=function(v){return PT+ih-(Math.log10(v+1)/maxL)*ih;};var x=function(i){return PL+(series.length===1?iw/2:i*iw/(series.length-1));};
+var line='';series.forEach(function(p,i){line+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cnt).toFixed(1);});
+var area=series.length?line+'L'+x(series.length-1).toFixed(1)+' '+(PT+ih)+'L'+x(0).toFixed(1)+' '+(PT+ih)+'Z':'';
+var grid='';[1,10,100,1000].forEach(function(v){if(v>maxV*3)return;var gy=y(v).toFixed(1);grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(W-PR)+'" y2="'+gy+'" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="'+(W-PR+5)+'" y="'+(Number(gy)+4)+'" font-size="9" font-weight="700" fill="#8b93a7">'+v+'</text>';});
+var xl='';var step=Math.max(1,Math.round(series.length/4));
+for(var i=0;i<series.length;i+=step){var dt=new Date(new Date(series[i].t).getTime()+3*3600*1000);var s=(marksRange==='7d'||marksRange==='30d')?p2(dt.getUTCDate())+'.'+p2(dt.getUTCMonth()+1):p2(dt.getUTCHours())+':'+p2(dt.getUTCMinutes());xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-4)+'" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">'+s+'</text>';}
+box.innerHTML=series.length?'<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="display:block;width:100%"><defs><linearGradient id="mkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".2"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#mkGrad)"/><path d="'+line+'" fill="none" stroke="#f5a524" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'+xl+'</svg>':'<div class="empty">Нет отметок за период</div>';}
+var hbox=document.getElementById('marksHour');
+if(hbox){var bh=d.by_hour||[];var arr=new Array(24).fill(0);bh.forEach(function(x){arr[x.hour]=x.cnt;});var W2=Math.max(300,hbox.clientWidth||700),H2=Math.max(100,hbox.clientHeight||140),PL2=4,PR2=4,PT2=8,PB2=18;var iw2=W2-PL2-PR2,ih2=H2-PT2-PB2;var maxV2=Math.max.apply(null,[1].concat(arr));var bw=iw2/24;
+var cols='';arr.forEach(function(v,hh){var hg=(v/maxV2)*ih2;var isMax=v===maxV2&&v>0;cols+='<rect x="'+(PL2+hh*bw+1).toFixed(1)+'" y="'+(PT2+ih2-hg).toFixed(1)+'" width="'+Math.max(2,bw-2).toFixed(1)+'" height="'+Math.max(v>0?2:0,hg).toFixed(1)+'" rx="3" fill="'+(isMax?'#f5a524':'rgba(245,165,36,.35)')+'"/>';});
+var xl2='';for(var hh2=0;hh2<24;hh2+=3)xl2+='<text x="'+(PL2+hh2*bw+bw/2).toFixed(1)+'" y="'+(H2-4)+'" font-size="9" font-weight="700" fill="#8b93a7" text-anchor="middle">'+p2(hh2)+'</text>';
+var peak=arr.indexOf(Math.max.apply(null,arr));
+hbox.innerHTML='<svg width="'+W2+'" height="'+H2+'" viewBox="0 0 '+W2+' '+H2+'" style="display:block;width:100%">'+cols+xl2+'</svg><div class="sub" style="margin-top:6px">Пик активности: '+p2(peak)+':00–'+p2((peak+1)%24)+':00 МСК</div>';}
 }
-async function loadTraffic(range){
-trafficRange=range;document.querySelectorAll('.tf-tab[data-range]').forEach(t=>t.classList.toggle('active',t.dataset.range===range));
+function loadTraffic(range){
+trafficRange=range;var tabs=document.querySelectorAll('.tf-tab[data-range]');for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('active',tabs[i].getAttribute('data-range')===range);
 if(trafficCache[range]){drawTraffic(trafficCache[range]);return;}
-const box=document.getElementById('trafficChart');if(!box)return;
+var box=document.getElementById('trafficChart');if(!box)return;
 box.innerHTML='<div class="loading"><div class="spinner"></div></div>';
-try{const r=await rpc('dash_traffic_series',{secret:DASH_SECRET,p_range:range});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.error)throw new Error(d.error);trafficCache[range]=d;drawTraffic(d);}
-catch(e){box.innerHTML='<div class="note">График трафика недоступен: '+e.message+'</div>';}
+rpcSafe('dash_traffic_series',{secret:DASH_SECRET,p_range:range}).then(function(d){
+if(!d){box.innerHTML='<div class="note">График трафика недоступен.</div>';return;}
+trafficCache[range]=d;drawTraffic(d);
+});
 }
 function trafficAxis(range){
-const out=[];const now=new Date();
-if(range==='24h'){const st=new Date(now);st.setUTCMinutes(0,0,0);st.setUTCHours(st.getUTCHours()-23);for(let i=0;i<24;i++)out.push({t:new Date(st.getTime()+i*3600000),users:0,hits:0});}
-else{const days=range==='7d'?7:30;const st=new Date(now);st.setUTCHours(0,0,0,0);st.setUTCDate(st.getUTCDate()-(days-1));for(let i=0;i<days;i++)out.push({t:new Date(st.getTime()+i*86400000),users:0,hits:0});}
+var out=[];var now=new Date();
+if(range==='24h'){var st=new Date(now);st.setUTCMinutes(0,0,0);st.setUTCHours(st.getUTCHours()-23);for(var i=0;i<24;i++)out.push({t:new Date(st.getTime()+i*3600000),users:0,hits:0});}
+else{var days=range==='7d'?7:30;var st2=new Date(now);st2.setUTCHours(0,0,0,0);st2.setUTCDate(st2.getUTCDate()-(days-1));for(var j=0;j<days;j++)out.push({t:new Date(st2.getTime()+j*86400000),users:0,hits:0});}
 return out;
 }
-function bucketKey(d,range){const dd=p2(d.getUTCDate()),mm=p2(d.getUTCMonth()+1);return range==='24h'?d.getUTCFullYear()+'-'+mm+'-'+dd+'T'+p2(d.getUTCHours())+':00:00Z':d.getUTCFullYear()+'-'+mm+'-'+dd+'T00:00:00Z';}
+function bucketKey(d,range){var dd=p2(d.getUTCDate()),mm=p2(d.getUTCMonth()+1);return range==='24h'?d.getUTCFullYear()+'-'+mm+'-'+dd+'T'+p2(d.getUTCHours())+':00:00Z':d.getUTCFullYear()+'-'+mm+'-'+dd+'T00:00:00Z';}
 function drawTraffic(d){
-const range=d.range||trafficRange;const axis=trafficAxis(range);const byKey={};(d.buckets||[]).forEach(b=>byKey[b.t]=b);
-axis.forEach(p=>{const b=byKey[bucketKey(p.t,range)];if(b){p.users=Number(b.users)||0;p.hits=Number(b.hits)||0;}});
-const head=document.getElementById('trafficHead');
-if(head){const cur=num(d.cur_users),prev=num(d.prev_users);const pr=range==='24h'?'24 часа':range==='7d'?'неделю':'месяц';const delta=prev>0?Math.round((cur-prev)/prev*100):null;
+var range=d.range||trafficRange;var axis=trafficAxis(range);var byKey={};(d.buckets||[]).forEach(function(b){byKey[b.t]=b;});
+axis.forEach(function(p){var b=byKey[bucketKey(p.t,range)];if(b){p.users=Number(b.users)||0;p.hits=Number(b.hits)||0;}});
+var head=document.getElementById('trafficHead');
+if(head){var cur=num(d.cur_users),prev=num(d.prev_users);var pr=range==='24h'?'24 часа':range==='7d'?'неделю':'месяц';var delta=prev>0?Math.round((cur-prev)/prev*100):null;
 head.innerHTML='<div class="tf-num">'+cur+'<small>пользователей за '+pr+'</small></div>'+(delta===null?'<span class="tf-badge neutral">нет данных за прошлый период</span>':'<span class="tf-badge '+(delta>0?'up':delta<0?'down':'neutral')+'">'+(delta>0?'+':delta<0?'−':'±')+Math.abs(delta)+'% к прошлому</span>');}
-const box=document.getElementById('trafficChart');if(!box)return;
-const W=Math.max(320,box.clientWidth||800),H=Math.max(140,box.clientHeight||220),PL=8,PR=36,PT=14,PB=22;const iw=W-PL-PR,ih=H-PT-PB;const maxV=Math.max(1,...axis.map(p=>p.users));
-const x=i=>PL+(axis.length===1?iw/2:i*iw/(axis.length-1));const y=v=>PT+ih-(v/maxV)*ih;
-let line='';axis.forEach((p,i)=>{line+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.users).toFixed(1);});
-const area=line+'L'+x(axis.length-1).toFixed(1)+' '+(PT+ih)+'L'+x(0).toFixed(1)+' '+(PT+ih)+'Z';
-let grid='';[maxV,Math.ceil(maxV/2),0].forEach(v=>{const gy=y(v).toFixed(1);grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(W-PR)+'" y2="'+gy+'" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="'+(W-PR+6)+'" y="'+(Number(gy)+4)+'" font-size="10" font-weight="700" fill="#8b93a7">'+v+'</text>';});
-let xl='';const step=Math.max(1,Math.round(axis.length/4));
-for(let i=0;i<axis.length;i+=step){const dt=new Date(axis[i].t.getTime()+3*3600000);const s=range==='24h'?p2(dt.getUTCHours())+':00':p2(dt.getUTCDate())+'.'+p2(dt.getUTCMonth()+1);xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-6)+'" font-size="10" font-weight="700" fill="#8b93a7" text-anchor="middle">'+s+'</text>';}
-const li=axis.length-1;
+var box=document.getElementById('trafficChart');if(!box)return;
+var W=Math.max(320,box.clientWidth||800),H=Math.max(140,box.clientHeight||220),PL=8,PR=36,PT=14,PB=22;var iw=W-PL-PR,ih=H-PT-PB;var maxV=Math.max.apply(null,[1].concat(axis.map(function(p){return p.users;})));
+var x=function(i){return PL+(axis.length===1?iw/2:i*iw/(axis.length-1));};var y=function(v){return PT+ih-(v/maxV)*ih;};
+var line='';axis.forEach(function(p,i){line+=(i?'L':'M')+x(i).toFixed(1)+' '+y(p.users).toFixed(1);});
+var area=line+'L'+x(axis.length-1).toFixed(1)+' '+(PT+ih)+'L'+x(0).toFixed(1)+' '+(PT+ih)+'Z';
+var grid='';[maxV,Math.ceil(maxV/2),0].forEach(function(v){var gy=y(v).toFixed(1);grid+='<line x1="'+PL+'" y1="'+gy+'" x2="'+(W-PR)+'" y2="'+gy+'" stroke="rgba(255,255,255,.06)" stroke-width="1.5"/><text x="'+(W-PR+6)+'" y="'+(Number(gy)+4)+'" font-size="10" font-weight="700" fill="#8b93a7">'+v+'</text>';});
+var xl='';var step=Math.max(1,Math.round(axis.length/4));
+for(var i=0;i<axis.length;i+=step){var dt=new Date(axis[i].t.getTime()+3*3600000);var s=range==='24h'?p2(dt.getUTCHours())+':00':p2(dt.getUTCDate())+'.'+p2(dt.getUTCMonth()+1);xl+='<text x="'+x(i).toFixed(1)+'" y="'+(H-6)+'" font-size="10" font-weight="700" fill="#8b93a7" text-anchor="middle">'+s+'</text>';}
+var li=axis.length-1;
 box.innerHTML='<svg class="tf-svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'"><defs><linearGradient id="tfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f5a524" stop-opacity=".18"/><stop offset="100%" stop-color="#f5a524" stop-opacity="0"/></linearGradient></defs>'+grid+'<path d="'+area+'" fill="url(#tfGrad)"/><path d="'+line+'" fill="none" stroke="#f5a524" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+x(li).toFixed(1)+'" cy="'+y(axis[li].users).toFixed(1)+'" r="5" fill="#f5a524" stroke="#fff" stroke-width="2.5"/>'+xl+'</svg>';
-fitScreen();
 }
-window.addEventListener('resize',()=>{layoutHeights();if(trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);if(marksCache[marksRange]&&document.getElementById('scr-marks').classList.contains('active'))drawMarksCharts();fitScreen();});
-window.addEventListener('orientationchange',()=>setTimeout(()=>{layoutHeights();fitScreen();},150));
-if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>fitScreen());
-layoutHeights();
+window.addEventListener('resize',function(){if(trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);if(marksCache[marksRange]&&document.getElementById('scr-marks').classList.contains('active'))drawMarksCharts();});
+window.addEventListener('orientationchange',function(){setTimeout(function(){if(trafficCache[trafficRange])drawTraffic(trafficCache[trafficRange]);},150);});
 load();
 </script>
 </body>
