@@ -11,17 +11,20 @@
    "ret:0"
   ],
   "deficit": [
-   "deficit:1",
-   "deficit:3",
-   "deficit:7",
-   "deficit:6",
-   "deficit:0",
    "deficit:5",
    "deficit:7",
-   "deficit:4"
+   "deficit:4",
+   "deficit:2",
+   "deficit:1",
+   "deficit:3",
+   "deficit:4",
+   "deficit:6"
   ],
   "acc": [
    "acc:5"
+  ],
+  "queue": [
+   "queue:5"
   ]
  },
  "volna-uhod-south-20261120": "2026-11-19T23:51:22.491Z",
@@ -42,5 +45,11 @@
  "tochnost-20261120": "2026-11-19T23:51:22.491Z",
  "deficit-stavropol-20261120": "2026-11-20T08:15:07.520Z",
  "deficit-petrozavodsk-20261120": "2026-11-20T08:15:07.520Z",
- "deficit-cheboksary-20261120": "2026-11-20T08:15:07.520Z"
+ "deficit-cheboksary-20261120": "2026-11-20T08:15:07.520Z",
+ "deficit-krymsk-20261120": "2026-11-20T17:40:02.595Z",
+ "deficit-maykop-20261120": "2026-11-20T17:40:02.595Z",
+ "ocheredi-stavropol-20261120": "2026-11-20T17:40:02.595Z",
+ "deficit-armavir-20261120": "2026-11-20T17:40:02.595Z",
+ "deficit-vsevolozhsk-20261120": "2026-11-20T17:40:02.595Z",
+ "deficit-novocheboksarsk-20261120": "2026-11-20T17:40:02.595Z"
 }
