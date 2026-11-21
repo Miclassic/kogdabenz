@@ -19097,3 +19097,446 @@ setTimeout(warmUp, 1800);
 setTimeout(warmUp, 5000);
 setInterval(function () { if (!document.hidden) warmUp(); }, 20000);
 })();
+// ============================================================
+// KB TRUE LOCATION v1 — «по месту нахождения», по-настоящему.
+// Было: loadUserLocation подменён на центр города → км и подбор
+// считались не от водителя; город не менялся по GPS; если рядом
+// нет свежих отметок — советник молча не открывался.
+// Стало: реальная позиция (watchPosition + тёплый фикс), авто-
+// город по координатам, подбор и сортировка от вас, честные
+// состояния отказа и ближайшие АЗС вместо пустого окна.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbTrueLocation) return;
+window.__kbTrueLocation = 1;
+
+function HAS(n) { try { return typeof window[n] === 'function'; } catch (e) { return false; } }
+function hook(n, make) { if (!HAS(n)) return null; var b = window[n]; try { window[n] = make(b); return b; } catch (e) { return null; } }
+function esc(v) { return HAS('escapeHtml') ? escapeHtml(v) : String(v == null ? '' : v); }
+function stations() { try { return typeof allStations !== 'undefined' ? allStations : []; } catch (e) { return []; } }
+function cityKey() { try { return typeof userCityKey !== 'undefined' ? userCityKey : ''; } catch (e) { return ''; } }
+
+function distM(a, b, c, d) {
+  var R = 6371000, p = Math.PI / 180;
+  var dLat = (c - a) * p, dLon = (d - b) * p;
+  var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a * p) * Math.cos(c * p) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+function kmTo(st) {
+  if (!W.fix || !st) return null;
+  var la = Number(st.lat), lo = Number(st.lon);
+  if (!isFinite(la) || !isFinite(lo)) return null;
+  return distM(W.fix.lat, W.fix.lon, la, lo) / 1000;
+}
+function fmtKm(d) {
+  if (d == null || !isFinite(d)) return '—';
+  if (d < 1) return Math.round(d * 1000) + ' м';
+  if (d < 10) return d.toFixed(1).replace('.', ',') + ' км';
+  return Math.round(d) + ' км';
+}
+function agoMin(t) { return Math.max(0, Math.round((Date.now() - t) / 60000)); }
+
+// ------------------------------------------------------------
+// 1. ПОЗИЦИЯ
+// ------------------------------------------------------------
+var W = { fix: null, state: 'idle', err: '', watch: 0, auto: true, near: false, moved: false, panned: false, lastCityAt: 0 };
+try { W.auto = localStorage.getItem('kbWhereAuto') !== '0'; } catch (e) {}
+try { W.near = localStorage.getItem('kbWhereNear') === '1'; } catch (e) {}
+try {
+  var saved = JSON.parse(localStorage.getItem('kbWhereFix') || 'null');
+  if (saved && isFinite(saved.lat) && isFinite(saved.lon) && Date.now() - saved.t < 6 * 3600000) { W.fix = saved; W.state = 'ok'; }
+} catch (e) {}
+
+function saveFix() { try { localStorage.setItem('kbWhereFix', JSON.stringify(W.fix)); } catch (e) {} }
+
+function onPos(p) {
+  if (!p || !p.coords) return;
+  var f = { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy || 0), t: Date.now() };
+  var first = !W.fix;
+  var moved = first ? 1e9 : distM(W.fix.lat, W.fix.lon, f.lat, f.lon);
+  W.fix = f; W.state = 'ok'; W.err = '';
+  saveFix(); paint(); placeMe();
+  if (first) { autoCity(true); centerMe(); refreshSoon(); }
+  else if (moved > 350) { autoCity(false); refreshSoon(); }
+}
+function onErr(e) {
+  var c = e && e.code;
+  if (c === 1) { W.state = 'denied'; W.err = ''; }
+  else if (c === 2) { W.state = 'unavailable'; W.err = ''; }
+  else if (c === 3) { W.state = W.fix ? 'ok' : 'timeout'; W.err = ''; }
+  else { W.state = W.fix ? 'ok' : 'error'; W.err = (e && e.message) || ''; }
+  paint();
+}
+function start() {
+  if (W.watch) return;
+  if (!('geolocation' in navigator)) { W.state = 'unavailable'; paint(); return; }
+  if (window.isSecureContext === false) { W.state = 'insecure'; paint(); return; }
+  if (!W.fix) W.state = 'asking';
+  paint();
+  try {
+    W.watch = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, timeout: 15000, maximumAge: 20000 });
+  } catch (e) { W.state = 'error'; W.err = e.message || ''; paint(); return; }
+  setTimeout(function () {
+    if (W.fix) return;
+    try { navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }); } catch (e) {}
+  }, 16000);
+}
+function stop() { try { if (W.watch) navigator.geolocation.clearWatch(W.watch); } catch (e) {} W.watch = 0; }
+function reFix() {
+  if (window.isSecureContext === false) { W.state = 'insecure'; paint(); return; }
+  if (!('geolocation' in navigator)) { W.state = 'unavailable'; paint(); return; }
+  W.state = 'asking'; paint();
+  try {
+    navigator.geolocation.getCurrentPosition(function (p) { onPos(p); start(); }, onErr, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  } catch (e) { W.state = 'error'; paint(); }
+}
+function armGesture() {
+  var once = function () { document.removeEventListener('pointerdown', once, true); start(); };
+  document.addEventListener('pointerdown', once, true);
+}
+if (W.fix) start();
+if (navigator.permissions && navigator.permissions.query) {
+  navigator.permissions.query({ name: 'geolocation' }).then(function (p) {
+    if (p.state === 'granted') start();
+    else if (p.state === 'prompt') armGesture();
+    else { W.state = 'denied'; paint(); }
+    p.onchange = function () {
+      if (p.state === 'granted') { stop(); start(); }
+      else if (p.state === 'denied') { W.state = 'denied'; paint(); }
+    };
+  }).catch(armGesture);
+} else armGesture();
+window.addEventListener('pagehide', stop);
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) return;
+  if (W.fix && Date.now() - W.fix.t > 180000) reFix(); else paint();
+});
+
+// ------------------------------------------------------------
+// 2. ГЛАВНОЕ: расстояние считаем ОТ ВАС
+// ------------------------------------------------------------
+hook('loadUserLocation', function (base) {
+  return function () {
+    if (W.fix) return { lat: W.fix.lat, lon: W.fix.lon, lng: W.fix.lon, acc: W.fix.acc, t: W.fix.t, real: true };
+    return base ? base() : null;
+  };
+});
+hook('realLoc', function (base) {
+  return function () {
+    var r = base ? base() : null;
+    if (r) return r;
+    return W.fix ? { lat: W.fix.lat, lon: W.fix.lon, lng: W.fix.lon, accuracy: W.fix.acc, t: W.fix.t } : null;
+  };
+});
+
+// ------------------------------------------------------------
+// 3. ГОРОД ПО КООРДИНАТАМ
+// ------------------------------------------------------------
+function boxes() {
+  try { if (typeof ALL_BOXES !== 'undefined' && ALL_BOXES && ALL_BOXES.length) return ALL_BOXES; } catch (e) {}
+  try { if (typeof NW_BOXES !== 'undefined' && NW_BOXES && NW_BOXES.length) return NW_BOXES; } catch (e) {}
+  return null;
+}
+function bounds(b) {
+  var a1 = Number(b.lat1), a2 = Number(b.lat2);
+  var o1 = Number(b.lon1 != null ? b.lon1 : b.lng1), o2 = Number(b.lon2 != null ? b.lon2 : b.lng2);
+  if (!isFinite(a1) || !isFinite(a2) || !isFinite(o1) || !isFinite(o2)) return null;
+  return { la1: Math.min(a1, a2), la2: Math.max(a1, a2), lo1: Math.min(o1, o2), lo2: Math.max(o1, o2) };
+}
+function pickCity() {
+  var bs = boxes(); if (!bs || !W.fix) return null;
+  var inside = null, best = null;
+  for (var i = 0; i < bs.length; i++) {
+    var b = bs[i], r = bounds(b); if (!r || !b.key) continue;
+    var d = distM(W.fix.lat, W.fix.lon, (r.la1 + r.la2) / 2, (r.lo1 + r.lo2) / 2);
+    if (W.fix.lat >= r.la1 && W.fix.lat <= r.la2 && W.fix.lon >= r.lo1 && W.fix.lon <= r.lo2) {
+      if (!inside || d < inside.d) inside = { key: b.key, name: b.name || b.key, d: d };
+    }
+    if (!best || d < best.d) best = { key: b.key, name: b.name || b.key, d: d };
+  }
+  return inside || best;
+}
+function autoCity(force) {
+  if (!W.auto || !W.fix) return;
+  if (!force && Date.now() - W.lastCityAt < 60000) return;
+  var c = pickCity(); if (!c) return;
+  if (!force && c.d > 60000) return;
+  if (c.key === cityKey()) return;
+  W.lastCityAt = Date.now();
+  try { userCityKey = c.key; } catch (e) { return; }
+  try { if (typeof hourlyCityKey !== 'undefined') hourlyCityKey = ''; } catch (e) {}
+  refreshSoon();
+  try { if (HAS('kbToast')) kbToast('Вы рядом: ' + c.name); } catch (e) {}
+}
+window.addEventListener('click', function (e) {
+  var t = e.target; if (!t || !t.closest) return;
+  if (t.closest('[data-kbregion]')) { W.auto = false; try { localStorage.setItem('kbWhereAuto', '0'); } catch (er) {} paint(); }
+  else if (t.closest('#kbRegionAuto')) { W.auto = true; try { localStorage.setItem('kbWhereAuto', '1'); } catch (er) {} autoCity(true); paint(); }
+}, true);
+
+var refT = 0;
+function refreshSoon() {
+  if (refT) return;
+  refT = setTimeout(function () {
+    refT = 0;
+    try { if (HAS('renderStations') && HAS('cityStationList')) renderStations(cityStationList()); } catch (e) {}
+    try { if (HAS('renderNow')) renderNow(); } catch (e) {}
+    try { if (HAS('renderHeat')) renderHeat(); } catch (e) {}
+    try { if (HAS('renderCityTreemap')) renderCityTreemap(); } catch (e) {}
+    try { if (HAS('updateMapPlate')) updateMapPlate(); } catch (e) {}
+    try { if (HAS('updateSlimBar')) updateSlimBar(); } catch (e) {}
+    try { if (HAS('loadPulse')) loadPulse(); } catch (e) {}
+    try { if (HAS('renderMap') && typeof mapObj !== 'undefined' && mapObj) renderMap(); } catch (e) {}
+    try { if (HAS('renderAdviceIfOpen')) renderAdviceIfOpen(); } catch (e) {}
+    paint();
+  }, 500);
+}
+
+// ------------------------------------------------------------
+// 4. СОВЕТНИК: ближайшие сверху + не молчим, если свежих нет
+// ------------------------------------------------------------
+function tier(it) { return it.kind === 'now' ? 0 : it.kind === 'forecast' ? 1 : 2; }
+function nearest(n) {
+  var st = stations(); if (!W.fix || !st.length || !HAS('getLastObservations')) return [];
+  var last = getLastObservations(), arr = [];
+  for (var i = 0; i < st.length; i++) {
+    var s = st[i], d = kmTo(s);
+    if (d == null || d > 60) continue;
+    var o = last[s.id]; if (!o) continue;
+    arr.push({ s: s, o: o, d: d });
+  }
+  arr.sort(function (a, b) { return a.d - b.d; });
+  var out = [];
+  for (var j = 0; j < arr.length && out.length < n; j++) {
+    var it = arr[j], f = null;
+    try { f = HAS('stalePinKey') ? stalePinKey(it.o) : null; } catch (e) {}
+    out.push({
+      kind: 'stale', st: it.s, o: it.o, km: it.d, f: f || 'yes', unverified: true, nearFallback: true,
+      pred: HAS('pickPrediction') ? pickPrediction(it.s.id, it.o) : null, score: 100 - it.d
+    });
+  }
+  if (out.length) out[0].ourChoice = true;
+  return out;
+}
+hook('buildAdviceList', function (base) {
+  return function () {
+    var list = [];
+    try { list = base() || []; } catch (e) { list = []; }
+    if (!W.fix) return list;
+    if (!list.length) return nearest(3);
+    for (var i = 0; i < list.length; i++) { var d = kmTo(list[i].st); if (d != null) list[i].km = d; }
+    list = list.slice().sort(function (a, b) {
+      var ta = tier(a), tb = tier(b);
+      if (ta !== tb) return ta - tb;
+      var da = a.km == null ? 1e9 : a.km, db = b.km == null ? 1e9 : b.km;
+      if (Math.abs(da - db) > 0.35) return da - db;
+      return (b._fs || 0) - (a._fs || 0);
+    });
+    var had = list.some(function (x) { return x.ourChoice; });
+    if (had) { list.forEach(function (x) { x.ourChoice = false; }); list[0].ourChoice = true; }
+    return list;
+  };
+});
+hook('adviceCoreScore', function (base) {
+  return function (st, o, km, pred) {
+    var s = 0;
+    try { s = base(st, o, km, pred) || 0; } catch (e) {}
+    var d = kmTo(st);
+    if (d == null) return s;
+    var pen = d <= 2 ? d * 1.5 : 3 + (d - 2) * 4.5;
+    return s - Math.min(70, pen);
+  };
+});
+
+// ------------------------------------------------------------
+// 5. СОРТИРОВКА СПИСКА «БЛИЖЕ»
+// ------------------------------------------------------------
+hook('renderStations', function (base) {
+  return function (list, keepOrder) {
+    if (W.near && W.fix && list && list.length > 1) {
+      list = list.slice().sort(function (a, b) {
+        var da = kmTo(a), db = kmTo(b);
+        return (da == null ? 1e9 : da) - (db == null ? 1e9 : db);
+      });
+      keepOrder = true;
+    }
+    return base(list, keepOrder);
+  };
+});
+
+// ------------------------------------------------------------
+// 6. КАРТА: точка «вы здесь» и центрирование
+// ------------------------------------------------------------
+var meMarker = null;
+function placeMe() {
+  try {
+    if (typeof mapObj === 'undefined' || !mapObj || !W.fix) return;
+    if (document.querySelector('.user-dot,.me-pin,.mypos,.kb-me-pin')) return;
+    if (!window.maplibregl || !maplibregl.Marker) return;
+    if (!meMarker) {
+      var el = document.createElement('div');
+      el.className = 'kbw-me';
+      el.innerHTML = '<i></i><b></b>';
+      meMarker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([W.fix.lon, W.fix.lat]).addTo(mapObj);
+      mapObj.on('dragstart', function () { W.panned = true; });
+      mapObj.on('wheel', function () { W.panned = true; });
+    } else meMarker.setLngLat([W.fix.lon, W.fix.lat]);
+  } catch (e) {}
+}
+function centerMe() {
+  try {
+    if (typeof mapObj === 'undefined' || !mapObj || !W.fix || W.panned) return;
+    mapObj.easeTo({ center: [W.fix.lon, W.fix.lat], zoom: Math.max(mapObj.getZoom(), 13), duration: 900 });
+  } catch (e) {}
+}
+setInterval(function () { try { placeMe(); } catch (e) {} }, 2500);
+
+// ------------------------------------------------------------
+// 7. ПАНЕЛЬ «ГДЕ ВЫ»
+// ------------------------------------------------------------
+(function css() {
+  if (document.getElementById('kbTrueLocCss')) return;
+  var s = document.createElement('style'); s.id = 'kbTrueLocCss';
+  s.textContent = [
+    '.kbw-bar{display:flex;align-items:center;gap:9px;margin:0 0 10px;padding:9px 11px;border-radius:15px;',
+    'background:linear-gradient(135deg,#eef4ff,#e4edff);border:1px solid #cddfff;box-shadow:0 2px 10px rgba(36,101,238,.08);}',
+    '.kbw-dot{flex:none;width:10px;height:10px;border-radius:50%;background:#9fb2cf;box-shadow:0 0 0 4px rgba(159,178,207,.18);}',
+    '.kbw-dot.ok{background:#19b77a;box-shadow:0 0 0 4px rgba(25,183,122,.18);animation:kbwPulse 2.4s ease-in-out infinite;}',
+    '.kbw-dot.ask{background:#f5b82e;box-shadow:0 0 0 4px rgba(245,184,46,.2);animation:kbwPulse 1s ease-in-out infinite;}',
+    '.kbw-dot.bad{background:#ef5350;box-shadow:0 0 0 4px rgba(239,83,80,.18);}',
+    '@keyframes kbwPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}',
+    '.kbw-txt{flex:1;min-width:0;line-height:1.3;}',
+    '.kbw-txt b{display:block;font-size:12.5px;font-weight:800;color:#16305c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+    '.kbw-txt i{display:block;font-style:normal;font-size:11px;font-weight:600;color:#61738f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+    '.kbw-acts{display:flex;flex:none;gap:5px;}',
+    '.kbw-btn{border:1px solid #bcd4ff;background:#fff;color:#2465ee;font:inherit;font-size:11px;font-weight:800;',
+    'padding:6px 9px;border-radius:10px;cursor:pointer;transition:transform .12s ease,background .15s ease;}',
+    '.kbw-btn:active{transform:scale(.94);}',
+    '.kbw-btn.on{background:#2465ee;border-color:#2465ee;color:#fff;box-shadow:0 2px 8px rgba(36,101,238,.3);}',
+    '.kbw-btn[disabled]{opacity:.55;cursor:default;}',
+    '.kbw-hint{margin:-4px 0 10px;padding:9px 11px;border-radius:13px;background:#fff5f4;border:1px solid #ffd9d6;',
+    'color:#a3352f;font-size:11.5px;font-weight:600;line-height:1.45;}',
+    '.kbw-hint b{color:#7d221d;}',
+    '.kbw-adv{display:flex;align-items:center;gap:7px;margin:6px 0 10px;padding:8px 11px;border-radius:12px;',
+    'background:#eefaf4;border:1px solid #c9eedd;color:#127a54;font-size:11.5px;font-weight:700;}',
+    '.kbw-adv.warn{background:#fff8ec;border-color:#ffe2b8;color:#8a5a12;}',
+    '.kbw-adv button{margin-left:auto;border:1px solid currentColor;background:transparent;color:inherit;font:inherit;',
+    'font-size:11px;font-weight:800;padding:4px 9px;border-radius:9px;cursor:pointer;}',
+    '.kbw-me{position:relative;width:18px;height:18px;pointer-events:none;}',
+    '.kbw-me b{position:absolute;inset:3px;border-radius:50%;background:#2465ee;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);}',
+    '.kbw-me i{position:absolute;inset:-6px;border-radius:50%;background:rgba(36,101,238,.22);animation:kbwRing 2.2s ease-out infinite;}',
+    '@keyframes kbwRing{0%{transform:scale(.5);opacity:.9}100%{transform:scale(1.5);opacity:0}}',
+    'body.kb-night .kbw-bar{background:linear-gradient(135deg,rgba(57,124,255,.14),rgba(23,70,200,.2));border-color:rgba(148,180,255,.3);}',
+    'body.kb-night .kbw-txt b{color:#dbe7ff;}body.kb-night .kbw-txt i{color:#93a0b8;}',
+    'body.kb-night .kbw-btn{background:#121a2e;border-color:rgba(148,180,255,.3);color:#9dc4ff;}',
+    'body.kb-night .kbw-btn.on{background:#2465ee;color:#fff;}',
+    'body.kb-night .kbw-hint{background:rgba(239,83,80,.1);border-color:rgba(239,83,80,.3);color:#ffb4b0;}',
+    'body.kb-night .kbw-hint b{color:#ffd7d4;}',
+    'body.kb-night .kbw-adv{background:rgba(25,183,122,.12);border-color:rgba(25,183,122,.3);color:#7fe0b6;}',
+    'body.kb-night .kbw-adv.warn{background:rgba(245,184,46,.12);border-color:rgba(245,184,46,.3);color:#ffd79a;}',
+    'body.kb-lite .kbw-dot,body.kb-lite .kbw-me i{animation:none;}',
+    '@media (prefers-reduced-motion:reduce){.kbw-dot,.kbw-me i{animation:none;}}'
+  ].join('');
+  document.head.appendChild(s);
+})();
+
+var nearCache = { t: 0, v: null };
+function nearestAny() {
+  if (!W.fix) return null;
+  if (Date.now() - nearCache.t < 5000) return nearCache.v;
+  var st = stations(), best = null;
+  for (var i = 0; i < st.length; i++) {
+    var d = kmTo(st[i]);
+    if (d == null) continue;
+    if (!best || d < best.d) best = { d: d, name: st[i].name || 'АЗС' };
+  }
+  nearCache = { t: Date.now(), v: best };
+  return best;
+}
+function barHtml() {
+  var dot = 'idle', head = 'Где вы?', sub = 'Нажмите — покажу АЗС рядом', hint = '';
+  var fresh = W.fix && Date.now() - W.fix.t < 20 * 60000;
+  if (W.state === 'asking') { dot = 'ask'; head = 'Определяю, где вы…'; sub = 'Разрешите доступ к геолокации'; }
+  else if (W.state === 'ok' && W.fix) {
+    dot = fresh ? 'ok' : 'ask';
+    var n = nearestAny();
+    head = 'Вы здесь' + (W.fix.acc ? ' · ±' + W.fix.acc + ' м' : '');
+    sub = (n ? 'Ближайшая: ' + n.name + ' · ' + fmtKm(n.d) : 'Ищу ближайшие АЗС') +
+      (fresh ? '' : ' · позиция ' + agoMin(W.fix.t) + ' мин назад');
+  } else if (W.state === 'denied') {
+    dot = 'bad'; head = 'Геолокация запрещена'; sub = 'Показываю от центра города';
+    hint = '<b>Как включить:</b> значок замка слева от адреса → Геолокация → Разрешить. Затем нажмите «Обновить».';
+  } else if (W.state === 'insecure') {
+    dot = 'bad'; head = 'Нужен HTTPS'; sub = 'По HTTP браузер не отдаёт координаты';
+    hint = 'Откройте сайт по адресу <b>https://</b> — иначе геолокация заблокирована браузером.';
+  } else if (W.state === 'unavailable' || W.state === 'timeout' || W.state === 'error') {
+    dot = 'bad'; head = 'Позиция не получена'; sub = 'Выберите город вручную или повторите';
+  }
+  var fixLabel = (W.state === 'asking') ? 'Ищу…' : (W.fix ? 'Обновить' : 'Найти');
+  return '<div class="kbw-bar" id="kbwBar">' +
+    '<span class="kbw-dot ' + dot + '"></span>' +
+    '<span class="kbw-txt"><b>' + esc(head) + '</b><i>' + esc(sub) + '</i></span>' +
+    '<span class="kbw-acts">' +
+    '<button class="kbw-btn" id="kbwFix"' + (W.state === 'asking' ? ' disabled' : '') + '>' + fixLabel + '</button>' +
+    '<button class="kbw-btn' + (W.near ? ' on' : '') + '" id="kbwNear">Ближе</button>' +
+    '<button class="kbw-btn' + (W.auto ? ' on' : '') + '" id="kbwAuto">Авто</button>' +
+    '</span></div>' + (hint ? '<div class="kbw-hint">' + hint + '</div>' : '');
+}
+var paintT = 0;
+function paint() {
+  if (paintT) return;
+  paintT = setTimeout(function () {
+    paintT = 0;
+    var app = document.getElementById('app');
+    if (!app || !app.parentElement) return;
+    var host = document.getElementById('kbwHost');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'kbwHost';
+      app.parentElement.insertBefore(host, app);
+      host.addEventListener('click', function (e) {
+        var t = e.target; if (!t || !t.closest) return;
+        if (t.closest('#kbwFix')) { reFix(); centerMe(); }
+        else if (t.closest('#kbwNear')) {
+          W.near = !W.near;
+          try { localStorage.setItem('kbWhereNear', W.near ? '1' : '0'); } catch (er) {}
+          if (W.near && !W.fix) reFix();
+          try { renderStations(cityStationList()); } catch (er) {}
+          paint();
+        } else if (t.closest('#kbwAuto')) {
+          W.auto = !W.auto;
+          try { localStorage.setItem('kbWhereAuto', W.auto ? '1' : '0'); } catch (er) {}
+          if (W.auto) autoCity(true);
+          paint();
+        }
+      });
+    }
+    var html = barHtml();
+    if (host.__html !== html) { host.__html = html; host.innerHTML = html; }
+  }, 250);
+}
+if (window.__kbPipe && window.__kbPipe.advice) {
+  window.__kbPipe.advice.push(function (ctx) {
+    if (!ctx.ok) return;
+    var pop = document.getElementById('advicePop'); if (!pop) return;
+    var old = pop.querySelector('.kbw-adv'); if (old && old.parentNode) old.parentNode.removeChild(old);
+    var title = pop.querySelector('.hello-title'); if (!title) return;
+    var el = document.createElement('div');
+    if (W.fix) {
+      el.className = 'kbw-adv';
+      el.innerHTML = '<span>📍 Считаю от вас' + (W.fix.acc ? ' · ±' + W.fix.acc + ' м' : '') + ' — ближайшие сверху</span>';
+    } else {
+      el.className = 'kbw-adv warn';
+      el.innerHTML = '<span>📍 Позиция не определена — расстояния от центра города</span><button type="button" id="kbwAdvFix">Найти меня</button>';
+      el.addEventListener('click', function (e) { if (e.target && e.target.id === 'kbwAdvFix') reFix(); });
+    }
+    title.insertAdjacentElement('afterend', el);
+  });
+}
+if (window.__kbPipe && window.__kbPipe.now) window.__kbPipe.now.push(function () { paint(); });
+setTimeout(paint, 300);
+setTimeout(function () { autoCity(true); placeMe(); }, 2600);
+setInterval(function () { if (!document.hidden) paint(); }, 30000);
+})();
