@@ -28,6 +28,7 @@ northwest: { label: 'Северо-Запад', where: 'на Северо-Зап�
 chuvashia: { label: 'Чувашия', where: 'в Чувашии', prep: 'в Чувашии', file: 'svodka-ch.html' }
 };
 const FILE_REG = { 'svodka.json': 'south', 'svodka-sz.json': 'northwest', 'svodka-ch.json': 'chuvashia' };
+const RK_FIX = { south: 'south', nw: 'northwest', ch: 'chuvashia' };
 const MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -157,7 +158,7 @@ c => ({ title: c.city + ' на топлидном голодании: ' + c.a95 
 lead: 'Цифра дня по городу ' + c.city + ': ' + c.a95 + ' ' + plural(c.a95, ['АЗС', 'АЗС', 'АЗС']) + ' с подтверждённым АИ-95 из ' + c.known + '. Всё, что сверх этого, — догадки, а мы их не публикуем.',
 what: [availPhrase(c) + '.', 'Для сравнения: АИ-92 держат ' + c.a92 + ' ' + plural(c.a92, ['АЗС', 'АЗС', 'АЗС']) + ', дизель — ' + c.adt + '.'] }),
 c => ({ title: 'Стоит ли ехать наугад в городе ' + c.city + '? Цифры говорят нет',
-lead: 'В городе ' + c.city + ' ' + availPhrase(c) + '. Езда наугад при такой картине — это лотерея с очередями в придачу.',
+lead: 'В городе ' + c.city + ' ' + availPhrase(c) + '. Езда наугад при такой картине — это лотерея' + (c.q ? ' с очередями в придачу' : '') + '.',
 what: [availPhrase(c) + ' на ' + c.stamp + '.', 'Окон привоза по городу: ' + c.wins + ' — это вероятное время оживления колонок.'] }),
 c => ({ title: c.known + ' ' + plural(c.known, ['заправка', 'заправки', 'заправок']) + ', ' + c.a95 + ' с топливом: честный срез города ' + c.city,
 lead: 'Без прикрас: в городе ' + c.city + ' из ' + c.known + ' станций с данными АИ-95 подтверждён на ' + c.a95 + '. Остальные — «нет» или тишина источника.',
@@ -166,7 +167,7 @@ c => ({ title: 'Что с бензином в городе ' + c.city + ' к ' +
 lead: 'К ' + c.hhmm + ' в городе ' + c.city + ' ' + availPhrase(c) + '. Ниже — что это значит для поездки и когда ждать изменений.',
 what: [availPhrase(c) + '.', 'АИ-92: ' + c.a92 + ' из ' + c.known + ', дизель: ' + c.adt + ' из ' + c.known + '.'] }),
 c => ({ title: 'Город ' + c.city + ' живёт на ' + c.a95 + ' ' + plural(c.a95, ['адресе', 'адресах', 'адресах']) + ': как это выглядит изнутри',
-lead: 'Когда с топливом остаётся ' + c.a95 + ' ' + plural(c.a95, ['заправка', 'заправки', 'заправок']) + ' из ' + c.known + ', город перестраивается: спрос, очереди и маршруты стягиваются к этим адресам.',
+lead: 'Когда с топливом остаётся ' + c.a95 + ' ' + plural(c.a95, ['заправка', 'заправки', 'заправок']) + ' из ' + c.known + ', город перестраивается: спрос и маршруты стягиваются к этим адресам' + (c.q ? ', а вместе с ними и очереди' : '') + '.',
 what: [availPhrase(c) + '.', 'Очереди отмечены на ' + c.q + ' ' + plural(c.q, ['АЗС', 'АЗС', 'АЗС']) + ' — именно там спрос и сконцентрирован.'] }),
 c => ({ title: 'Почему в городе ' + c.city + ' снова «нет»? Разбор снимка на ' + c.hhmm,
 lead: 'Снимок на ' + c.hhmm + ' такой: ' + availPhrase(c) + '. Разбираем, что за этим стоит и когда картина может перевернуться.',
@@ -333,19 +334,22 @@ if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { e.known++; if
 const brandList = r => Object.keys(brands[r] || {}).map(k => ({ name: k, known: brands[r][k].known, a95: brands[r][k].a95 }))
 .filter(b => b.known >= 3).sort((a, b) => b.known - a.known).slice(0, 4);
 const names = (map, n) => Object.keys(map || {}).slice(0, n).map(id => stById[id]).filter(Boolean).map(s => '«' + (s.name || 'АЗС') + '»' + (s.address ? ', ' + s.address : ''));
+const winsByReg = {};
+for (const sv of svodkas) { const rk0 = RK_FIX[sv.region] || sv.region || FILE_REG[sv.file]; winsByReg[rk0] = (sv.totals && sv.totals.wins) || 0; }
 const d = msk(t), day = '' + d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate());
 for (const r of Object.keys(REG)) {
 const E = regEvs[r] || { lost: 0, ret: 0, lostSt: {}, retSt: {}, lostY: 0, retY: 0, lostW: 0, retW: 0 };
 const cmp = { ly: E.lostY, ry: E.retY, lw: E.lostW, rw: E.retW };
 const thL = r === 'south' ? TH.lossSouth : TH.lossOther, thR = r === 'south' ? TH.retSouth : TH.retOther;
 const base = { where: REG[r].where, wherePrep: REG[r].prep, label: REG[r].label, rk: r, cmp, brands: brandList(r), stamp: stamp(t), hhmm: stamp(t).split(', ')[1] };
-if (E.lost >= thL) out.push(Object.assign({ family: 'loss', slug: 'volna-uhod-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.lostSt, 4), wins: 0 }, base));
-if (E.ret >= thR) out.push(Object.assign({ family: 'ret', slug: 'volna-vozvrat-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.retSt, 4), wins: 0 }, base));
+if (E.lost >= thL) out.push(Object.assign({ family: 'loss', slug: 'volna-uhod-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.lostSt, 4), wins: winsByReg[r] || 0 }, base));
+if (E.ret >= thR) out.push(Object.assign({ family: 'ret', slug: 'volna-vozvrat-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.retSt, 4), wins: winsByReg[r] || 0 }, base));
 }
 for (const sv of svodkas) {
-const rk = sv.region || FILE_REG[sv.file];
+const rk = RK_FIX[sv.region] || sv.region || FILE_REG[sv.file];
 const base = { where: REG[rk] ? REG[rk].where : 'в регионе', wherePrep: REG[rk] ? REG[rk].prep : 'в регионе', label: REG[rk] ? REG[rk].label : 'Регион', rk: rk, cmp: (regEvs[rk] || {}), brands: brandList(rk), stamp: stamp(t), hhmm: stamp(t).split(', ')[1] };
 base.cmp = { ly: (regEvs[rk] || {}).lostY || 0, ry: (regEvs[rk] || {}).retY || 0, lw: (regEvs[rk] || {}).lostW || 0, rw: (regEvs[rk] || {}).retW || 0 };
+base.lost = (regEvs[rk] || {}).lost || 0; base.ret = (regEvs[rk] || {}).ret || 0;
 for (const c of sv.cities) {
 if (!c.known || c.known < 8) continue;
 const cc = Object.assign({ city: c.name, a95: c.a95, a92: c.a92, adt: c.adt, known: c.known, q: c.q, wins: c.wins }, base);
@@ -359,7 +363,7 @@ const hit = verified.filter(v => v.result === 'SUCCESS').length;
 out.push({ family: 'acc', slug: 'tochnost-' + day, og: 'og-south.png', verified: verified.length, hit, rate: Math.round(100 * hit / verified.length),
 where: REG.south.where, wherePrep: REG.south.prep, label: REG.south.label, rk: 'south',
 cmp: { ly: (regEvs.south || {}).lostY || 0, ry: (regEvs.south || {}).retY || 0, lw: (regEvs.south || {}).lostW || 0, rw: (regEvs.south || {}).retW || 0 },
-brands: brandList('south'), stamp: stamp(t), hhmm: stamp(t).split(', ')[1], wins: 0 });
+brands: brandList('south'), stamp: stamp(t), hhmm: stamp(t).split(', ')[1], wins: winsByReg.south || 0, lost: (regEvs.south || {}).lost || 0, ret: (regEvs.south || {}).ret || 0 });
 }
 return out;
 }
@@ -380,14 +384,28 @@ return ['Проверено прогнозов за 30 дней: ' + c.verified,
 }
 function cmpText(c) {
 const m = c.cmp || {};
-const L = c.family === 'ret' ? c.ret : c.lost;
-const ly = c.family === 'ret' ? (m.ry || 0) : (m.ly || 0);
-const lw = c.family === 'ret' ? (m.rw || 0) : (m.lw || 0);
-let s = 'За текущие сутки ' + (c.where) + ' отмечено ' + L + ' ' + plural(L, ['событие', 'события', 'событий']) + ' этого типа. ';
-s += 'Сутки назад за такое же окно было ' + ly + ', а в тот же день недели неделей ранее — ' + lw + '. ';
-if (ly && L > ly * 1.25) s += w(['Динамика растущая: волна набирает силу.', 'То есть картина ухудшается быстрее, чем вчера.', 'Разрыв с вчерашним днём — признак ускорения волны.']);
-else if (ly && L < ly * 0.75) s += w(['Динамика спадающая: пик, похоже, позади.', 'Вчерашний день был тяжелее — есть повод для осторожного оптимизма.', 'Снижение к вчерашнему дню обычно означает, что привозы догоняют спрос.']);
-else s += w(['Показатели держатся примерно на уровне вчерашнего дня: это плато, а не скачок.', 'Разница с сутками и неделей назад невелика: ситуация стабильно напряжённая, без резких движений.', 'Цифры близки к вчерашним и к прошлой неделе: рынок стоит в том же состоянии.']);
+const isWave = c.family === 'loss' || c.family === 'ret';
+const L = isWave ? (c.family === 'ret' ? c.ret : c.lost) : (c.lost || 0);
+const R = isWave ? (c.family === 'ret' ? c.lost : c.ret) : (c.ret || 0);
+const ly = m.ly || 0, ry = m.ry || 0, lw = m.lw || 0, rw = m.rw || 0;
+let s;
+if (isWave) {
+s = 'За текущие сутки ' + c.where + ' отмечено ' + L + ' ' + plural(L, ['событие', 'события', 'событий']) + ' этого типа. ';
+s += 'Сутки назад за такое же окно было ' + (c.family === 'ret' ? ry : ly) + ', а в тот же день недели неделей ранее — ' + (c.family === 'ret' ? rw : lw) + '. ';
+} else {
+s = 'Для контекста: за текущие сутки ' + c.where + ' топливо пропало с ' + L + ' ' + plural(L, ['АЗС', 'АЗС', 'АЗС']) + ' и вернулось на ' + R + '. ';
+s += 'Сутки назад было ' + ly + ' ' + plural(ly, ['исчезновение', 'исчезновения', 'исчезновений']) + ' и ' + ry + ' ' + plural(ry, ['возврат', 'возврата', 'возвратов']) + ', неделей ранее — ' + lw + ' и ' + rw + '. ';
+}
+const yBase = isWave ? (c.family === 'ret' ? ry : ly) : ly;
+const wBase = isWave ? (c.family === 'ret' ? rw : lw) : lw;
+const day = yBase ? (L > yBase * 1.25 ? 'up' : L < yBase * 0.75 ? 'down' : 'flat') : 'nodata';
+const week = wBase ? (L > wBase * 1.25 ? 'up' : L < wBase * 0.75 ? 'down' : 'flat') : 'nodata';
+if (day === 'up' && week !== 'down') s += w(['Динамика растущая: волна набирает силу.', 'То есть картина ухудшается быстрее, чем вчера.']);
+else if (day === 'down' && week !== 'up') s += w(['Динамика спадающая: пик, похоже, позади.', 'Вчерашний день был тяжелее — есть повод для осторожного оптимизма.']);
+else if (day === 'flat' && week === 'down') s += 'К вчерашнему дню картина ровная, но неделей ранее событий было заметно больше: относительно прошлой недели ситуация спокойнее.';
+else if (day === 'flat' && week === 'up') s += 'К вчерашнему дню картина ровная, но неделей ранее событий было меньше: относительно прошлой недели напряжение выросло.';
+else if (day === 'nodata' && week === 'nodata') s += 'Истории для сравнения пока мало: цифры появятся, когда накопятся события за прошлые сутки и неделю.';
+else s += w(['Показатели держатся примерно на уровне вчерашнего дня: это плато, а не скачок.', 'Разница с сутками и неделей назад невелика: ситуация стабильно напряжённая, без резких движений.']);
 return s;
 }
 function brandNote(c) { return 'Срез по сетям на ' + c.stamp + ' по данным КогдаБенз: сколько станций каждого бренда держат подтверждённый АИ-95.'; }
@@ -522,7 +540,7 @@ const fc = factcard(a);
 let body = '';
 body += '<h2 class="sec">' + w(H2.what) + '</h2>';
 const whatParas = a.what.filter(Boolean);
-whatParas.forEach((p, i) => { body += '<p>' + esc(i === 0 ? attrOnce(a) + p : p) + '</p>'; });
+whatParas.forEach((p, i) => { const at = i === 0 ? attrOnce(a) : ''; body += '<p>' + esc(at ? at + p.charAt(0).toLowerCase() + p.slice(1) : p) + '</p>'; });
 body += '<h2 class="sec">' + w(H2.num) + '</h2>';
 body += '<div class="factcard"><b>' + esc(fc.big) + '</b><span>' + esc(fc.lab) + '<i>' + esc(fc.sub) + '</i></span></div>';
 body += '<div class="facts"><ul>' + a.facts.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>';
@@ -684,7 +702,7 @@ function cardHtml(slug, art, iso, when) {
       facts: factsList(f)
     });
     if (f.family === 'loss' || f.family === 'ret') a.links = [[SITE + '/', 'Живая карта'], [SITE + '/' + REG[f.rk].file, 'Сводка региона']];
-    else if (f.family === 'deficit' || f.family === 'queue') a.links = [[SITE + '/svodka-' + f.slug.replace(/^(deficit|ocheredi)-/, '').replace(/-\d{8}$/, '') + '.html', 'Сводка по городу'], [SITE + '/', 'Живая карта']];
+    else if (f.family === 'deficit' || f.family === 'queue') a.links = [[SITE + '/' + (REG[f.rk] ? REG[f.rk].file : 'svodka.html') + '#c-' + f.slug.replace(/^(deficit|ocheredi)-/, '').replace(/-\d{8}$/, ''), 'Сводка по городу'], [SITE + '/', 'Живая карта']];
     else a.links = [[SITE + '/', 'Живая карта и окна привоза'], [SITE + '/svodka.html', 'Сводка по югу']];
     // «Читайте также»: два свежих прошлых выпуска — внутренние ссылки для SEO
     const rel = [];
@@ -767,7 +785,8 @@ ${olderBlock}
     '<guid isPermaLink="true">' + SITE + '/news/' + s + '.html</guid>' +
     '<pubDate>' + new Date(manifest[s]).toUTCString() + '</pubDate>' +
     '<description>' + esc(arts[s].lead) + '</description></item>').join('\n');
-  fs.writeFileSync(path.join(newsDir, 'rss.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n' +
+  fs.writeFileSync(path.join(newsDir, 'rss.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel>\n' +
+' <atom:link href="' + SITE + '/news/rss.xml" rel="self" type="application/rss+xml"/>\n' +
     '<title>КогдаБенз — новости топлива</title><link>' + SITE + '/news/</link>\n' +
     '<description>Волны дефицита, возвраты топлива, очереди и точность прогнозов привоза по данным живой карты.</description>\n' +
     '<language>ru</language><lastBuildDate>' + new Date(t).toUTCString() + '</lastBuildDate>\n' + rssItems + '\n</channel></rss>');
@@ -801,7 +820,16 @@ ${olderBlock}
       }
     } catch (e) { console.log('! Ссылка на новости: ' + e.message); }
   })();
-  fs.writeFileSync(path.join(newsDir, 'manifest.json'), JSON.stringify(manifest, null, 1));
+  try {
+const rp = path.join(dir, 'robots.txt');
+let rb = fs.existsSync(rp) ? fs.readFileSync(rp, 'utf8') : 'User-agent: *\nAllow: /\n';
+for (const u of [SITE + '/sitemap.xml', SITE + '/sitemap-news.xml', SITE + '/news/rss.xml']) {
+const line = 'Sitemap: ' + u;
+if (rb.indexOf(line) < 0) rb = rb.replace(/\s+$/, '') + '\n' + line + '\n';
+}
+fs.writeFileSync(rp, rb);
+} catch (e) {}
+fs.writeFileSync(path.join(newsDir, 'manifest.json'), JSON.stringify(manifest, null, 1));
   console.log('newsroom: статей добавлено ' + items.length + ', всего в индексе ' + all.length + ', герой: ' + (hero || '—') + ', метрик собрано ' + D.met.length);
   if (NO_GIT) { console.log('Публикация пропущена (--no-git).'); return; }
   if (!fs.existsSync(path.join(dir, '.git'))) { console.log('! нет .git — закоммить вручную.'); return; }
@@ -813,124 +841,4 @@ ${olderBlock}
     gr('git push');
     console.log('Опубликовано.');
   } catch (e) { console.log('! git push: ' + String(e.message).split('\n')[0]); }
-})().catch(e => { console.log('! newsroom: ' + e.message); process.exit(1); });
-(async function run() {
-if (!SUP || !KEY) { console.log('! newsroom: нет SUPABASE_URL/SUPABASE_KEY'); process.exit(1); }
-const cands = [process.env.KB_SITE_DIR, process.env.SVODKA_DIR, process.cwd(), __dirname].filter(Boolean);
-let dir = null;
-for (const d of cands) { try { if (fs.existsSync(path.join(d, 'index.html'))) { dir = d; break; } } catch (e) {} }
-if (!dir) { console.log('! newsroom: папка сайта не найдена'); process.exit(1); }
-const newsDir = path.join(dir, 'news');
-fs.mkdirSync(newsDir, { recursive: true });
-let manifest = {};
-try { manifest = JSON.parse(fs.readFileSync(path.join(newsDir, 'manifest.json'), 'utf8')); } catch (e) {}
-const t = Date.now();
-const D = await load();
-const svodkas = readSvodkas(dir);
-if (!svodkas.length) { console.log('! newsroom: нет svodka*.json — сначала собери сводки'); process.exit(1); }
-const stats = aggStats(D.met);
-const found = detect(D, svodkas, t);
-const fresh = found.filter(a => !manifest[a.slug]);
-const items = [];
-for (const f of fresh) {
-const vi = chooseVariant(f.family, stats, manifest);
-const made = FORMULAS[f.family][vi](f);
-const a = Object.assign({}, f, {
-t, variant: f.family + ':' + vi,
-title: made.title, lead: made.lead, what: made.what || [],
-kicker: f.family === 'acc' ? 'Проверка прогнозов' : f.family === 'queue' ? (f.city || '') + ' · очереди' : f.family === 'deficit' ? (f.city || '') + ' · наличие' : f.label + ' · динамика',
-facts: factsList(f)
-});
-if (f.family === 'loss' || f.family === 'ret') a.links = [[SITE + '/', 'Живая карта'], [SITE + '/' + REG[f.rk].file, 'Сводка региона']];
-else if (f.family === 'deficit' || f.family === 'queue') a.links = [[SITE + '/svodka-' + f.slug.replace(/^(deficit|ocheredi)-/, '').replace(/-\d{8}$/, '') + '.html', 'Сводка по городу'], [SITE + '/', 'Живая карта']];
-else a.links = [[SITE + '/', 'Живая карта и окна привоза'], [SITE + '/svodka.html', 'Сводка по югу']];
-fs.writeFileSync(path.join(newsDir, a.slug + '.html'), page(a));
-manifest[a.slug] = new Date(a.t).toISOString();
-items.push(a);
-console.log('✓ /news/' + a.slug + '.html [' + a.variant + '] — ' + a.title);
-}
-if (!items.length) console.log('newsroom: новых поводов нет (проверено: ' + found.length + ')');
-// ФИКС v3: в список выпусков попадают только строковые ключи-даты (без служебного used)
-const all = Object.keys(manifest).filter(k => typeof manifest[k] === 'string').sort().reverse().slice(0, 60);
-const idxItems = all.map(slug => {
-let title = slug, when = manifest[slug];
-try {
-const h = fs.readFileSync(path.join(newsDir, slug + '.html'), 'utf8');
-const m = h.match(/<h1>([\s\S]*?)<\/h1>/);
-if (m) title = m[1].replace(/<[^>]+>/g, '').trim();
-} catch (e) {}
-return '<div class="item"><a href="/news/' + slug + '.html">' + esc(title) + '</a><time>' + stamp(new Date(when).getTime()) + ' МСК</time></div>';
-}).join('');
-fs.writeFileSync(path.join(newsDir, 'index.html'), `<!doctype html><html lang="ru"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Новости топлива юга, Северо-Запада и Чувашии — КогдаБенз</title>
-<meta name="description" content="Короткие выпуски по данным о наличии топлива: волны дефицита, возвраты, очереди и точность прогнозов привоза.">
-<link rel="canonical" href="${SITE}/news/">
-<meta name="robots" content="index,follow">
-<link rel="alternate" type="application/rss+xml" title="КогдаБенз — новости топлива" href="${SITE}/news/rss.xml">
-<style>${CSS}</style></head><body><div class="wrap">
-<header class="top"><span class="tile">${DROP}</span><span><b>КогдаБенз</b><small>данные о топливе</small></span>
-<nav><a href="${SITE}/">Карта</a><a href="/news/rss.xml">RSS</a></nav></header>
-<h1>Новости топлива</h1>
-<p class="meta">Выпуски собираются автоматически из данных карты: волны дефицита, возвраты, очереди, точность прогнозов.</p>
-<div class="list">${idxItems || '<div class="item">Выпусков пока нет — первые появятся, когда в данных будет новостной повод.</div>'}</div>
-</div></body></html>`);
-const rssItems = items.concat(all.slice(items.length).map(slug => ({ slug, t: new Date(manifest[slug]).getTime() })))
-.sort((a, b) => b.t - a.t).slice(0, 50).map(a => {
-let title = a.title || a.slug, lead = a.lead || '';
-try {
-const h = fs.readFileSync(path.join(newsDir, a.slug + '.html'), 'utf8');
-const m1 = h.match(/<h1>([\s\S]*?)<\/h1>/), m2 = h.match(/class="lead">([\s\S]*?)<\/p>/);
-if (m1) title = m1[1].replace(/<[^>]+>/g, '').trim();
-if (m2) lead = m2[1].replace(/<[^>]+>/g, '').trim();
-} catch (e) {}
-return '<item><title>' + esc(title) + '</title><link>' + SITE + '/news/' + a.slug + '.html</link>' +
-'<guid isPermaLink="true">' + SITE + '/news/' + a.slug + '.html</guid>' +
-'<pubDate>' + new Date(a.t).toUTCString() + '</pubDate>' +
-'<description>' + esc(lead) + '</description></item>';
-}).join('\n');
-fs.writeFileSync(path.join(newsDir, 'rss.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n' +
-'<title>КогдаБенз — новости топлива</title><link>' + SITE + '/news/</link>\n' +
-'<description>Волны дефицита, возвраты топлива, очереди и точность прогнозов привоза по данным живой карты.</description>\n' +
-'<language>ru</language><lastBuildDate>' + new Date().toUTCString() + '</lastBuildDate>\n' + rssItems + '\n</channel></rss>');
-const nowT = Date.now();
-const newsUrls = all.filter(s => nowT - new Date(manifest[s]).getTime() < 48 * H).map(s =>
-'<url><loc>' + SITE + '/news/' + s + '.html</loc><news:news><news:publication><news:name>КогдаБенз</news:name><news:language>ru</news:language></news:publication><news:publication_date>' + manifest[s] + '</news:publication_date><news:title>КогдаБенз: выпуск данных</news:title></news:news></url>').join('\n');
-fs.writeFileSync(path.join(dir, 'sitemap-news.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/news-sitemap">\n' + newsUrls + '\n</urlset>');
-const sp = path.join(dir, 'sitemap.xml');
-let sm = fs.existsSync(sp) ? fs.readFileSync(sp, 'utf8') : '';
-if (sm.indexOf('<urlset') < 0) sm = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>';
-if (sm.indexOf(SITE + '/news/') < 0) {
-const add = ['  <url><loc>' + SITE + '/news/</loc><changefreq>hourly</changefreq><priority>0.7</priority></url>']
-.concat(all.map(s => '  <url><loc>' + SITE + '/news/' + s + '.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>')).join('\n');
-sm = sm.replace(/<\/urlset>/i, add + '\n</urlset>');
-fs.writeFileSync(sp, sm);
-}
-(function injectNewsLinks() {
-try {
-const total = all.length;
-if (!total) return;
-for (const f of ['index.html', 'svodka.html', 'svodka-sz.html', 'svodka-ch.html']) {
-const p = path.join(dir, f);
-if (!fs.existsSync(p)) continue;
-let h = fs.readFileSync(p, 'utf8');
-h = h.replace(/<!--kb-newsline-->[\s\S]*?<!--\/kb-newsline-->\s*/g, '');
-const strip = '<!--kb-newsline--><a href="/news/" style="display:flex;gap:10px;align-items:center;margin:18px auto 0;max-width:1120px;padding:13px 16px;border:1px solid rgba(148,180,255,.2);border-radius:14px;background:rgba(148,180,255,.06);color:#e8eefb;text-decoration:none;font:700 13px/1.4 -apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif"><span style="flex:none;width:9px;height:9px;border-radius:50%;background:#2fd39a"></span><span style="flex:1">Новости топлива: волны дефицита, очереди и точность прогнозов — ' + total + ' ' + plural(total, ['выпуск', 'выпуска', 'выпусков']) + '</span><span style="color:#7db4ff">читать →</span></a><!--/kb-newsline-->';
-if (/<\/body>/i.test(h)) h = h.replace(/<\/body>/i, strip + '\n</body>'); else h += strip;
-fs.writeFileSync(p, h);
-}
-} catch (e) { console.log(' ! Ссылка на новости: ' + e.message); }
-})();
-fs.writeFileSync(path.join(newsDir, 'manifest.json'), JSON.stringify(manifest, null, 1));
-console.log('newsroom: статей добавлено ' + items.length + ', всего в индексе ' + all.length + ', метрик собрано ' + D.met.length);
-if (NO_GIT) { console.log('Публикация пропущена (--no-git).'); return; }
-if (!fs.existsSync(path.join(dir, '.git'))) { console.log('! нет .git — закоммить вручную.'); return; }
-try {
-const cp = require('child_process');
-const gr = c => cp.execSync(c, { cwd: dir, stdio: 'pipe', timeout: 120000 });
-gr('git add -A');
-try { gr('git -c user.name="kogdabenz-bot" -c user.email="bot@kogdabenz.ru" commit -m "newsroom v3: live editor"'); } catch (e) {}
-gr('git push');
-console.log('Опубликовано.');
-} catch (e) { console.log('! git push: ' + String(e.message).split('\n')[0]); }
 })().catch(e => { console.log('! newsroom: ' + e.message); process.exit(1); });
