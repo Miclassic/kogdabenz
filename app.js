@@ -18157,3 +18157,40 @@ setTimeout(schedule, 1300);
 setTimeout(schedule, 2600);
 setInterval(schedule, 700);
 })();
+// ============================================================
+// KB QM LIGHT FIX v1 — три мини-карточки в светлой теме как в тёмной.
+// Причина косяка: светлое правило KB FIX TRIO красило карточку в
+// бледный градиент до белого, а подписи и цифры оставались белыми
+// (из KB QM ART) — текст исчезал на белом. Теперь светлая тема
+// получает ту же насыщенную градиентную карточку, что и тёмная:
+// белый текст и белые цифры читаются на своём цвете.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmLightFix) return;
+window.__kbQmLightFix = 1;
+var s = document.createElement('style');
+s.id = 'kbQmLightFixCss';
+var L = [];
+// контейнер меню: как в тёмной теме — без белой подложки
+L.push('body:not(.kb-night) #kbQmMenu3{background:transparent !important;border:0 !important;box-shadow:none !important;}');
+// свои насыщенные цвета карточек (страховка, если переменные не доехали)
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.g{--qa1:#2fd39a;--qa2:#0e8f66;--qa3:#0a5c44;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.b{--qa1:#5b9dff;--qa2:#2465ee;--qa3:#123a9e;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.a{--qa1:#ffb46a;--qa2:#e07a2a;--qa3:#8f4a12;}');
+// та же градиентная карточка, что в тёмной теме
+L.push('body:not(.kb-night) #kbQmMenu3 .kbq3-btn.kbqm2{');
+L.push('border-color:rgba(255,255,255,.5) !important;');
+L.push('background:radial-gradient(120% 90% at 18% 0%,rgba(255,255,255,.26),rgba(255,255,255,0) 55%),');
+L.push('linear-gradient(165deg,var(--qa1),var(--qa2) 55%,var(--qa3)) !important;');
+L.push('box-shadow:0 8px 20px rgba(20,33,61,.20),inset 0 1px 0 rgba(255,255,255,.35) !important;}');
+// подписи и цифры — белые, как в тёмной теме
+L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2-tx b{color:#fff !important;text-shadow:0 1px 3px rgba(0,0,0,.35) !important;}');
+L.push('body:not(.kb-night) #kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{');
+L.push('color:#fff !important;background:none !important;background-image:none !important;');
+L.push('-webkit-background-clip:border-box !important;background-clip:border-box !important;');
+L.push('filter:none !important;text-shadow:0 2px 8px rgba(0,0,0,.35) !important;}');
+s.textContent = L.join('');
+document.head.appendChild(s);
+})();
