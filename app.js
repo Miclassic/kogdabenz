@@ -18194,3 +18194,568 @@ L.push('filter:none !important;text-shadow:0 2px 8px rgba(0,0,0,.35) !important;
 s.textContent = L.join('');
 document.head.appendChild(s);
 })();
+// ============================================================
+// KB REGION SPEED v1 — переключение региона без фризов.
+// Причина лагов: на каждую станцию заново фильтровались ВСЕ
+// прогнозы/отметки/наблюдения, stationById искал по массиву
+// внутри циклов (O(N²)), список рисовался целиком одним куском,
+// а теплокарта перерисовывала сама себя по кругу.
+// Здесь: индексы по station_id, порционный список, одна
+// отложенная перерисовка на переключение, кэш пульса по городу.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbRegionSpeed) return;
+window.__kbRegionSpeed = 1;
+
+var SW = { on: false, timer: 0 };   // идёт переключение региона
+
+/* ---------- индексы: строятся один раз на версию данных ---------- */
+var IX = {
+  sRef: null, sLen: -1, sMap: new Map(),
+  pRef: null, pLen: -1, pend: {}, ver: {},
+  hRef: null, hLen: -1, hMap: {},
+  oRef: null, oLen: -1, oMap: {},
+  fRef: null, fKey: '', fMap: {}
+};
+function ixSt() {
+  if (IX.sRef === allStations && IX.sLen === allStations.length) return IX.sMap;
+  var m = new Map();
+  for (var i = 0; i < allStations.length; i++) m.set(String(allStations[i].id), allStations[i]);
+  IX.sRef = allStations; IX.sLen = allStations.length; IX.sMap = m;
+  return m;
+}
+function ixPr() {
+  if (IX.pRef === allPredictions && IX.pLen === allPredictions.length) return;
+  var pend = {}, ver = {};
+  for (var i = 0; i < allPredictions.length; i++) {
+    var p = allPredictions[i], k = String(p.station_id);
+    if (p.result === 'PENDING') (pend[k] || (pend[k] = [])).push(p);
+    if (p.is_verified) {
+      var v = ver[k] || (ver[k] = { n: 0, ok: 0 });
+      v.n++; if (p.result === 'SUCCESS') v.ok++;
+    }
+  }
+  IX.pRef = allPredictions; IX.pLen = allPredictions.length; IX.pend = pend; IX.ver = ver;
+}
+function ixHour() {
+  if (IX.hRef === allHourly && IX.hLen === allHourly.length) return IX.hMap;
+  var m = {}, i, k;
+  for (i = 0; i < allHourly.length; i++) {
+    var r = allHourly[i]; k = String(r.station_id);
+    r.__t = Date.parse(r.hour);
+    (m[k] || (m[k] = [])).push(r);
+  }
+  for (k in m) m[k].sort(function (a, b) { return a.__t - b.__t; });
+  IX.hRef = allHourly; IX.hLen = allHourly.length; IX.hMap = m;
+  return m;
+}
+function ixObs() {
+  if (IX.oRef === allObservations && IX.oLen === allObservations.length) return IX.oMap;
+  var tmp = {}, i, k;
+  for (i = 0; i < allObservations.length; i++) {
+    var o = allObservations[i], t = o.timestamp ? Date.parse(o.timestamp) : NaN;
+    if (!isFinite(t)) continue;
+    k = String(o.station_id);
+    var hk = Math.floor(t / 3600000);
+    var st = tmp[k] || (tmp[k] = {});
+    var b = st[hk] || (st[hk] = { hour: hk * 3600000, total: 0, available_95: 0 });
+    b.total++; if (o.fuel_95_status === true) b.available_95++;
+  }
+  var m = {};
+  for (k in tmp) {
+    var arr = [];
+    for (var h in tmp[k]) arr.push(tmp[k][h]);
+    arr.sort(function (a, b) { return a.hour - b.hour; });
+    m[k] = arr.slice(-24);
+  }
+  IX.oRef = allObservations; IX.oLen = allObservations.length; IX.oMap = m;
+  return m;
+}
+function ixFeed() {
+  var key = allFeedback.length + ':' + (allFeedback[0] ? (allFeedback[0].created_at || '') : '');
+  if (IX.fRef === allFeedback && IX.fKey === key) return IX.fMap;
+  var m = {};
+  for (var i = 0; i < allFeedback.length; i++) {
+    var f = allFeedback[i], k = String(f.station_id);
+    f.__t = Date.parse(f.created_at);
+    (m[k] || (m[k] = [])).push(f);
+  }
+  IX.fRef = allFeedback; IX.fKey = key; IX.fMap = m;
+  return m;
+}
+function fbOf(id) { return ixFeed()[String(id)] || null; }
+
+/* ---------- точечные замены на индексные (логика та же) ---------- */
+stationById = function (id) { return ixSt().get(String(id)) || null; };
+
+getLastObservations = function () {
+  for (var k in allLastObs) return allLastObs;
+  var r = {};
+  for (var i = 0; i < allObservations.length; i++) {
+    var o = allObservations[i];
+    if (!r[o.station_id]) r[o.station_id] = o;
+  }
+  return r;
+};
+
+var cslKey = '', cslVal = null, cslBase = cityStationList;
+cityStationList = function () {
+  var key = userCityKey + '|' + allStations.length + '|' + (allStations[0] ? allStations[0].id : '');
+  if (cslVal && key === cslKey) return cslVal;
+  cslKey = key; cslVal = cslBase();
+  return cslVal;
+};
+
+pickPrediction = function (stationId, obs) {
+  ixPr();
+  var preds = IX.pend[String(stationId)];
+  if (!preds || !preds.length) return null;
+  var missing = [];
+  if (obs && obs.fuel_92_status === false) missing.push('92');
+  if (obs && obs.fuel_95_status === false) missing.push('95');
+  if (obs && obs.diesel_status === false) missing.push('diesel');
+  for (var i = 0; i < missing.length; i++)
+    for (var j = 0; j < preds.length; j++)
+      if (preds[j].fuel_type === missing[i]) return preds[j];
+  for (var k = 0; k < preds.length; k++) if (preds[k].fuel_type === '95') return preds[k];
+  return preds[0];
+};
+
+accuracyLabel = function (id) {
+  ixPr();
+  var v = IX.ver[String(id)];
+  if (!v || v.n < 10) return 'мало данных';
+  return Math.round(v.ok / v.n * 100) + '%';
+};
+
+sparkline = function (stationId) {
+  var rows = (ixHour()[String(stationId)] || []).slice(-24);
+  if (rows.length < 2) rows = ixObs()[String(stationId)] || [];
+  if (rows.length < 2) return '';
+  var vals = rows.map(function (r) { return r.total ? r.available_95 / r.total : 0; });
+  var W = 64, H = 22;
+  var d = vals.map(function (v, i) {
+    return (i ? 'L' : 'M') + (i / (vals.length - 1) * W).toFixed(1) + ',' + (H - 2 - v * (H - 4)).toFixed(1);
+  }).join('');
+  var last = vals[vals.length - 1];
+  return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '"><path d="' + d + '" fill="none" stroke="' +
+    (last >= .5 ? '#19b77a' : last > 0 ? '#f5b82e' : '#ef5350') + '" stroke-width="1.6" stroke-linecap="round"/></svg>';
+};
+
+liveQueueCount = function (stationId) {
+  var arr = fbOf(stationId); if (!arr) return 0;
+  var since = Date.now() - LIVE_QUEUE_MIN * 60000, seen = {}, n = 0;
+  for (var i = 0; i < arr.length; i++) {
+    var f = arr[i];
+    if (f.feedback_type !== 'in_queue' || f.__t < since) continue;
+    var d = f.device_id || '?';
+    if (!seen[d]) { seen[d] = 1; n++; }
+  }
+  return n;
+};
+
+sceneMark = function (stationId, fuel) {
+  var arr = fbOf(stationId); if (!arr) return null;
+  var since = Date.now() - 2 * 3600000, best = null;
+  for (var i = 0; i < arr.length; i++) {
+    var f = arr[i];
+    if (f.feedback_type !== 'available' || f.fuel_type !== fuel || !f.verified_on_site) continue;
+    if (f.__t < since) continue;
+    if (!best || f.__t > best.t) best = { t: f.__t };
+  }
+  return best;
+};
+
+folkConsensus24 = function (stationId, fuel) {
+  var since = Math.max(Date.now() - 2 * 3600000, pairLastChange(stationId, fuel));
+  var arr = fbOf(stationId) || [], yes = {}, no = {}, ny = 0, nn = 0;
+  for (var i = 0; i < arr.length; i++) {
+    var f = arr[i];
+    if (f.fuel_type !== fuel || f.__t < since) continue;
+    var d = f.device_id || '?';
+    if (f.feedback_type === 'available') { if (!yes[d]) { yes[d] = 1; ny++; } }
+    else if (f.feedback_type === 'unavailable') { if (!no[d]) { no[d] = 1; nn++; } }
+  }
+  if (ny >= 2 && ny > nn) return { verdict: 'yes', votes: ny };
+  if (nn >= 2 && nn > ny) return { verdict: 'no', votes: nn };
+  if (ny >= 1 && nn >= 1) return { verdict: 'conflict', votes: ny + nn };
+  return null;
+};
+
+folkFuelSignal = function (stationId, fuel) {
+  var strict = folkConsensus24(stationId, fuel);
+  if (strict) return strict;
+  var since = Math.max(Date.now() - 24 * 3600000, pairLastChange(stationId, fuel) || 0);
+  var arr = fbOf(stationId) || [], yes = 0, no = 0;
+  for (var i = 0; i < arr.length; i++) {
+    var f = arr[i];
+    if (f.fuel_type !== fuel || f.__t < since) continue;
+    if (f.feedback_type === 'available') yes++;
+    else if (f.feedback_type === 'unavailable') no++;
+  }
+  if (yes >= 2 && yes > no) return { verdict: 'yes', votes: yes, soft: true };
+  if (no >= 2 && no > yes) return { verdict: 'no', votes: no, soft: true };
+  if (yes >= 1 && no >= 1) return { verdict: 'conflict', votes: yes + no, soft: true };
+  return null;
+};
+
+lastQueueMark = function (stationId) {
+  var arr = fbOf(stationId); if (!arr) return null;
+  var since = Date.now() - 24 * 3600000, best = null;
+  for (var i = 0; i < arr.length; i++) {
+    var f = arr[i];
+    if (f.feedback_type !== 'queue' || f.__t < since) continue;
+    if (!best || f.__t > best.t) best = { t: f.__t, size: f.queue_size };
+  }
+  return best;
+};
+
+onSiteCount24 = function (stationId) {
+  var arr = fbOf(stationId); if (!arr) return 0;
+  var since = Date.now() - 24 * 3600000, n = 0;
+  for (var i = 0; i < arr.length; i++) if (arr[i].verified_on_site && arr[i].__t >= since) n++;
+  return n;
+};
+
+/* ---------- localStorage: не парсим JSON на каждой станции ---------- */
+function lsMemo(fn, key) {
+  var raw = null, val = null, has = false;
+  return function () {
+    var s = null;
+    try { s = localStorage.getItem(key); } catch (e) {}
+    if (has && s === raw) return val;
+    raw = s; val = fn(); has = true;
+    return val;
+  };
+}
+getFavorites = lsMemo(getFavorites, 'favorites');
+getDriverTrips = lsMemo(getDriverTrips, KB_TRIPS_KEY);
+getDriverPrefs = lsMemo(getDriverPrefs, KB_PREFS_KEY);
+
+/* ---------- советник: кандидаты по индексам, а не по всему массиву ---------- */
+function fastV(stId, o, fl) {
+  if (sceneMark(stId, fl)) return true;
+  var col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
+  var raw = o ? o[col] : null;
+  var trust = o ? availTrustworthy(o) : false;
+  if (trust && raw === true) return true;
+  if (trust && raw === false) return false;
+  var fc = folkFuelSignal(stId, fl);
+  if (fc && fc.verdict === 'yes') return true;
+  if (fc && fc.verdict === 'no') return false;
+  if (raw === false) return false;
+  return null;
+}
+var balAt = 0, balVal = null, balCity = '', balP = null, balF = -1;
+buildAdviceList = function () {
+  var t = Date.now();
+  if (balVal && t - balAt < 2500 && balCity === userCityKey &&
+      balP === allPredictions && balF === allFeedback.length) return balVal;
+  var uLoc = loadUserLocation(), city = cityStationList(), last = getLastObservations();
+  var nows = [], fcs = [], stales = [];
+  for (var i = 0; i < city.length; i++) {
+    var st = city[i];
+    if (!Number.isFinite(Number(st.lat)) || !Number.isFinite(Number(st.lon))) continue;
+    var o = last[st.id], pred = pickPrediction(st.id, o), km = null;
+    if (uLoc) {
+      var dLat = 111 * (Number(st.lat) - uLoc.lat);
+      var dLon = 111 * (Number(st.lon) - uLoc.lon) * Math.cos(uLoc.lat * Math.PI / 180);
+      km = Math.sqrt(dLat * dLat + dLon * dLon);
+    }
+    var f = fastV(st.id, o, '95') === true ? 'yes'
+          : fastV(st.id, o, '92') === true ? 'part'
+          : fastV(st.id, o, 'diesel') === true ? 'diesel' : null;
+    if (f) { nows.push({ kind: 'now', st: st, o: o, pred: pred, km: km, f: f, score: 1000 + adviceCoreScore(st, o, km, pred) }); continue; }
+    var spk = stalePinKey(o);
+    if (spk) { stales.push({ kind: 'stale', st: st, o: o, pred: pred, km: km, f: spk, unverified: true, score: 500 + adviceCoreScore(st, o, km, pred) }); continue; }
+    if (pred) {
+      var g = getPrediction(pred);
+      if (g.confidence >= 35) {
+        var sc = g.confidence;
+        if (km != null) sc -= Math.min(15, km);
+        var dm = demandOf(st.id);
+        sc -= dm >= 50 ? 20 : dm >= 30 ? 10 : 0;
+        sc -= liveQueueCount(st.id) * 2;
+        fcs.push({ kind: 'forecast', st: st, o: o, pred: pred, km: km, f: null, score: sc });
+      }
+    }
+  }
+  var byScore = function (a, b) { return b.score - a.score; };
+  nows.sort(byScore); fcs.sort(byScore); stales.sort(byScore);
+  var pool = nows.concat(fcs).concat(stales), out = [];
+  for (var j = 0; j < pool.length && out.length < 3; j++) {
+    if (!isRejected(pool[j].st.id, adviceFocusFuel(pool[j]))) out.push(pool[j]);
+  }
+  balVal = rankByFinalMetrics(out);
+  balAt = t; balCity = userCityKey; balP = allPredictions; balF = allFeedback.length;
+  return balVal;
+};
+
+/* ---------- список АЗС: первый экран сразу, остальное по скроллу ---------- */
+var rsGen = 0, rsIO = null, rsSig = '';
+renderStations = function (stations, keepOrder) {
+  lastRendered = stations;
+  lastKeepOrder = !!keepOrder;
+  var app = document.getElementById('app');
+  if (!app) return;
+  if (!stations || !stations.length) {
+    rsSig = '';
+    app.innerHTML = '<div class="empty-search">' + icon('i-search', 'ic-l') +
+      '<br><br>Ничего не нашли.<br><small>Попробуйте другое название АЗС или адрес.</small></div>';
+    return;
+  }
+  var lastObs = getLastObservations();
+  var favList = getFavorites(), favs = {};
+  for (var i = 0; i < favList.length; i++) favs[String(favList[i])] = 1;
+  var scored = stations.map(function (station) {
+    var obs = lastObs[station.id], pred = pickPrediction(station.id, obs);
+    var freshMin = getFreshnessMin(obs);
+    var trusted = freshMin !== null && freshMin <= 360;
+    var f95 = (trusted && obs) ? obs.fuel_95_status : null;
+    var score = 1;
+    if (pred && f95 === false) score = 4; else if (pred) score = 3; else if (f95 === true) score = 2;
+    return { station: station, obs: obs, pred: pred, score: score, freshMin: freshMin };
+  }).sort(function (a, b) {
+    if (keepOrder) return 0;
+    return ((favs[String(b.station.id)] ? 1 : 0) - (favs[String(a.station.id)] ? 1 : 0)) ||
+      (b.score - a.score) ||
+      ((a.freshMin == null ? 1e9 : a.freshMin) - (b.freshMin == null ? 1e9 : b.freshMin));
+  });
+  var shown = scored;
+  if (onlyPred) shown = shown.filter(function (it) { return it.pred; });
+  if (onlyFav) shown = shown.filter(function (it) { return favs[String(it.station.id)]; });
+  if (sortWin) shown = shown.slice().sort(function (a, b) {
+    return (winSortKey(a.pred) - winSortKey(b.pred)) ||
+      ((b.pred ? b.pred.confidence : 0) - (a.pred ? a.pred.confidence : 0));
+  });
+  var lc = document.getElementById('listCount');
+  if (lc) lc.textContent = shown.length === stations.length ? stations.length + ' станций' : shown.length + ' из ' + stations.length;
+
+  var sig = stations.length + '|' + (stations[0] ? stations[0].id : '') + '|' +
+    (stations[stations.length - 1] ? stations[stations.length - 1].id : '') + '|' +
+    shown.length + '|' + onlyPred + sortWin + onlyFav + '|' + keepOrder + '|' +
+    allPredictions.length + '|' + allFeedback.length + '|' + allObservations.length + '|' + allHourly.length;
+  if (sig === rsSig && app.childElementCount) { renderNow(); return; }
+  rsSig = sig;
+
+  var gen = ++rsGen;
+  if (rsIO) { try { rsIO.disconnect(); } catch (e) {} rsIO = null; }
+  app.innerHTML = '';
+  if (!shown.length) {
+    app.innerHTML = '<div class="empty-search">' + icon('i-search', 'ic-l') + '<br><br>' +
+      (onlyFav ? 'Избранного пока нет.' : 'Сейчас нет станций с прогнозом.') + '<br><small>' +
+      (onlyFav ? 'Открой карточку АЗС и нажми сердечко.' : 'Сними фильтр «Только с прогнозом» или дождись новых данных.') + '</small></div>';
+    renderNow();
+    return;
+  }
+  var pos = 0, CH = 40;
+  function paint() {
+    if (gen !== rsGen) return;
+    var old = app.querySelector('.kb-list-more');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    var html = '', end = Math.min(pos + CH, shown.length);
+    for (; pos < end; pos++) html += stationRow(shown[pos].station, shown[pos].obs, shown[pos].pred);
+    app.insertAdjacentHTML('beforeend', html);
+    if (pos < shown.length) {
+      app.insertAdjacentHTML('beforeend', '<div class="kb-list-more" style="height:1px"></div>');
+      watch();
+    }
+  }
+  function watch() {
+    var s = app.querySelector('.kb-list-more');
+    if (!s) return;
+    if (!('IntersectionObserver' in window)) { setTimeout(paint, 30); return; }
+    rsIO = new IntersectionObserver(function (es) {
+      if (!es[0].isIntersecting) return;
+      try { rsIO.disconnect(); } catch (e) {}
+      rsIO = null;
+      paint();
+    }, { root: app.parentElement || null, rootMargin: '700px' });
+    rsIO.observe(s);
+  }
+  paint();
+  renderNow();
+};
+
+/* ---------- одна перерисовка вместо десяти за тик ---------- */
+var rnBase = renderNow, rnT = 0;
+renderNow = function () {
+  if (rnT) return;
+  rnT = setTimeout(function () { rnT = 0; try { rnBase(); } catch (e) {} }, 80);
+};
+
+var raBase = renderAccuracy, raKey = '', raDone = false;
+renderAccuracy = function () {
+  var key = allPredictions.length + '|' + (allPredictions[0] ? allPredictions[0].id : '');
+  if (raDone && key === raKey) return;
+  raKey = key; raDone = true;
+  try { raBase(); } catch (e) {}
+};
+
+var lrBase = lentiRender, lrAt = 0, lrT = 0;
+lentiRender = function () {
+  var t = Date.now();
+  if (t - lrAt < 1500) {
+    if (!lrT) lrT = setTimeout(function () { lrT = 0; lrAt = Date.now(); try { lrBase(); } catch (e) {} }, 1500 - (t - lrAt));
+    return;
+  }
+  lrAt = t;
+  try { lrBase(); } catch (e) {}
+};
+
+// линза крутится только на своей панели: иначе она жгла кадры на карте
+var laBase = lentiApply;
+lentiApply = function () {
+  if (currentPanel !== 1 || document.hidden) return;
+  try { laBase(); } catch (e) {}
+};
+
+/* ---------- теплокарта: рисуем только при реальном изменении ---------- */
+var ctmBase = renderCityTreemap, ctmSig = '';
+renderCityTreemap = function () {
+  if (SW.on) return;
+  var body = document.getElementById('ctmBody');
+  var sig = userCityKey + '|' + (body ? body.clientWidth + 'x' + body.clientHeight : '0') + '|' +
+    allStations.length + '|' + allEvents7.length + '|' + allFeedback.length;
+  if (sig === ctmSig) return;
+  ctmSig = sig;
+  try { return ctmBase(); } catch (e) {}
+};
+var ctmStopBase = ctmStopPlay;
+ctmStopPlay = function () { ctmSig = ''; return ctmStopBase(); };
+
+/* ---------- снимок в localStorage: не в момент переключения ---------- */
+var scBase = saveCache, scAt = 0, scT = 0;
+saveCache = function () {
+  if (SW.on) return;
+  var t = Date.now();
+  if (t - scAt < 45000) {
+    if (!scT) scT = setTimeout(function () { scT = 0; saveCache(); }, 45000 - (t - scAt));
+    return;
+  }
+  scAt = t;
+  var run = function () { try { scBase(); } catch (e) {} };
+  if (window.requestIdleCallback) requestIdleCallback(run, { timeout: 4000 });
+  else setTimeout(run, 300);
+};
+
+/* ---------- пульс города: кэш по городу + окно 7 дней вместо 30 ---------- */
+var lpCache = {}, lpBusy = {};
+function applyPulse(c, city) {
+  if (userCityKey !== city) return;
+  pulseRaw = c.raw || [];
+  pulseEv = c.ev || [];
+  fuelHourly = (c.fuel && c.fuel.length) ? c.fuel : [];
+  try { renderHeat(); } catch (e) {}
+  try { lastWaveStats = allWaveEvents.length ? cityWaveStats() : null; renderWave(); } catch (e) {}
+  try { updateMapPlate(); renderHero(); renderPulse(); setTagline(currentPanel); } catch (e) {}
+  try { saveCache(); } catch (e) {}
+  setTimeout(function () { try { renderNow(); } catch (e) {} }, 200);
+}
+loadPulse = async function () {
+  var city = userCityKey, now = Date.now();
+  if (SW.on) return;
+  var c = lpCache[city];
+  if (c && now - c.t < 300000) { applyPulse(c, city); return; }
+  if (lpBusy[city]) return;
+  lpBusy[city] = true;
+  var since = new Date(now - 7 * 24 * 3600000).toISOString();
+  var since72 = new Date(now - 72 * 3600000).toISOString();
+  var out = { t: now, raw: [], ev: [], fuel: [] };
+  try {
+    var r = await Promise.all([
+      dbQuery('/rest/v1/region_hourly?select=city,hour,marks,queue_marks,avail95,known95,selling&city=eq.' + city + '&hour=gte.' + since + '&order=hour.asc&limit=200'),
+      dbQuery('/rest/v1/region_events?select=city,event_type,detected_at&city=eq.' + city + '&detected_at=gte.' + since + '&event_type=in.(fuel_disappeared,fuel_restored)&order=detected_at.desc&limit=400'),
+      dbQuery('/rest/v1/region_fuel_hourly?select=city,hour,a92,k92,a95,k95,adt,kdt,q,marks,selling,knownany&city=eq.' + city + '&hour=gte.' + since72 + '&order=hour.asc&limit=96')
+    ]);
+    out.raw = (r[0] || []).map(function (h) {
+      return { t: new Date(h.hour), marks: h.marks, queuePct: h.selling ? Math.round(100 * h.queue_marks / h.selling) : 0, availPct: h.known95 ? Math.round(100 * h.avail95 / h.known95) : null };
+    });
+    out.ev = (r[1] || []).map(function (e) { return { t: new Date(e.detected_at), type: e.event_type }; });
+    out.fuel = r[2] || [];
+    lpCache[city] = out;
+  } catch (e) { try { console.log('pulse: ' + e.message); } catch (e2) {} }
+  lpBusy[city] = false;
+  applyPulse(out, city);
+};
+
+/* ---------- почасовка города: пачками по 120 id, а не одной гирляндой ---------- */
+reloadCityHourly = async function () {
+  if (!allStations.length) return;
+  var city = userCityKey;
+  hourlyCityKey = city;
+  var list = cityStationList();
+  if (!list.length) { allHourly = []; return; }
+  var cap = list.slice(0, 240);   // остальным хватает фолбэка из наблюдений
+  var sinceH = new Date(Date.now() - 24 * 3600000).toISOString();
+  var acc = [];
+  for (var i = 0; i < cap.length; i += 120) {
+    if (userCityKey !== city) return;
+    var ids = cap.slice(i, i + 120).map(function (s) { return '"' + s.id + '"'; }).join(',');
+    try {
+      var rows = await dbQuery('/rest/v1/station_hourly?select=station_id,hour,total,available_95&hour=gte.' + sinceH + '&station_id=in.(' + ids + ')');
+      acc = acc.concat(rows || []);
+    } catch (e) {}
+    await new Promise(function (r) { setTimeout(r, 120); });
+  }
+  if (userCityKey !== city) return;
+  allHourly = acc;
+  try { renderStations(lastRendered, true); } catch (e) {}
+};
+
+/* ---------- переключение региона: тяжёлое — одним заходом после ---------- */
+var rmBase = renderMap;
+renderMap = function () { if (SW.on) return; return rmBase.apply(null, arguments); };
+var rmmBase = renderMiniMap;
+renderMiniMap = function () { if (SW.on) return; return rmmBase.apply(null, arguments); };
+
+function settle() {
+  SW.on = false;
+  try { renderHeat(); } catch (e) {}
+  try { if (mapObj && zoneReady) renderMap(); } catch (e) {}
+  try { ctmSig = ''; renderCityTreemap(); } catch (e) {}
+  try { renderNow(); } catch (e) {}
+  try { loadPulse(); } catch (e) {}
+  try { saveCache(); } catch (e) {}
+}
+// window в capture-фазе срабатывает РАНЬШЕ обработчика тумблера в паке регионов
+window.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  if (!t.closest('[data-kbregion]') && !t.closest('#kbRegionAuto')) return;
+  SW.on = true;
+  clearTimeout(SW.timer);
+  SW.timer = setTimeout(settle, 420);
+}, true);
+
+/* ---------- тепловое поле карты: только то, что в кадре ---------- */
+function cullHeat() {
+  try {
+    if (typeof mapObj === 'undefined' || !mapObj || !mapObj.getSource) return false;
+    var fh = mapObj.getSource('fuelheat');
+    if (!fh || fh.__kbCull) return !!fh;
+    fh.__kbCull = 1;
+    var od = fh.setData.bind(fh);
+    fh.setData = function (d) {
+      try {
+        if (d && d.features && mapObj.getBounds) {
+          var b = mapObj.getBounds(), pad = 0.25;
+          var s = b.getSouth() - pad, n = b.getNorth() + pad, w = b.getWest() - pad, e = b.getEast() + pad;
+          if (w < e && (e - w) < 40) {
+            var f = d.features.filter(function (x) {
+              var c = x.geometry && x.geometry.coordinates;
+              return c && c[1] >= s && c[1] <= n && c[0] >= w && c[0] <= e;
+            });
+            return od({ type: 'FeatureCollection', features: f });
+          }
+        }
+      } catch (e2) {}
+      return od(d);
+    };
+    return true;
+  } catch (e) { return false; }
+}
+var cullT = setInterval(function () { if (cullHeat()) clearInterval(cullT); }, 1200);
+})();
