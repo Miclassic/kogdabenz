@@ -8402,22 +8402,8 @@ if (pagerEl) pagerEl.addEventListener('scroll', () => {
     if (Math.abs(pagerEl.scrollLeft - i * w) > 8) pagerEl.scrollTo({ left: i * w, behavior: 'smooth' });
   }, 140);
 }, { passive: true });
-let hintCancelled = false;
-(function pagerHint() {
-  const pager = document.getElementById('pager');
-  if (!pager) return;
-  pager.addEventListener('pointerdown', () => { hintCancelled = true; pager.style.scrollSnapType = ''; }, { once: true });
-  setTimeout(() => {
-    if (hintCancelled) return;
-    pager.style.scrollSnapType = 'none';
-    pager.scrollTo({ left: Math.round(pager.clientWidth * 1.25), behavior: 'smooth' });
-    setTimeout(() => {
-      if (hintCancelled) return;
-      pager.scrollTo({ left: pager.clientWidth, behavior: 'smooth' });
-      setTimeout(() => { pager.style.scrollSnapType = ''; }, 700);
-    }, 600);
-  }, 900);
-})();
+// Подсказочный свайп-«заглядывание» на следующую панель при входе убран:
+// навигация есть в тулбаре сверху, пейджер сразу стоит на главной панели.
 // // === мини-навигация: плавающий стеклянный док СВЕРХУ, под slim-баром ===
 // Активная вкладка — пилюля с подписью, остальные — компактные иконки.
 // Док fixed поверх контента, z-index ниже модалок (sheet 91+), но выше карточек.
