@@ -28,11 +28,9 @@ northwest: { label: 'Северо-Запад', where: 'на Северо-Зап�
 chuvashia: { label: 'Чувашия', where: 'в Чувашии', prep: 'в Чувашии', file: 'svodka-ch.html' }
 };
 const FILE_REG = { 'svodka.json': 'south', 'svodka-sz.json': 'northwest', 'svodka-ch.json': 'chuvashia' };
-const RK_FIX = { south: 'south', nw: 'northwest', ch: 'chuvashia' };
 const MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 
 function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function unesc(s) { return String(s == null ? '' : s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }
 function p2(n) { return String(n).padStart(2, '0'); }
 function msk(t) { return new Date(t + 3 * H); }
 function stamp(t) { const d = msk(t); return p2(d.getUTCDate()) + '.' + p2(d.getUTCMonth() + 1) + '.' + d.getUTCFullYear() + ', ' + p2(d.getUTCHours()) + ':' + p2(d.getUTCMinutes()); }
@@ -159,7 +157,7 @@ c => ({ title: c.city + ' на топлидном голодании: ' + c.a95 
 lead: 'Цифра дня по городу ' + c.city + ': ' + c.a95 + ' ' + plural(c.a95, ['АЗС', 'АЗС', 'АЗС']) + ' с подтверждённым АИ-95 из ' + c.known + '. Всё, что сверх этого, — догадки, а мы их не публикуем.',
 what: [availPhrase(c) + '.', 'Для сравнения: АИ-92 держат ' + c.a92 + ' ' + plural(c.a92, ['АЗС', 'АЗС', 'АЗС']) + ', дизель — ' + c.adt + '.'] }),
 c => ({ title: 'Стоит ли ехать наугад в городе ' + c.city + '? Цифры говорят нет',
-lead: 'В городе ' + c.city + ' ' + availPhrase(c) + '. Езда наугад при такой картине — это лотерея' + (c.q ? ' с очередями в придачу' : '') + '.',
+lead: 'В городе ' + c.city + ' ' + availPhrase(c) + '. Езда наугад при такой картине — это лотерея с очередями в придачу.',
 what: [availPhrase(c) + ' на ' + c.stamp + '.', 'Окон привоза по городу: ' + c.wins + ' — это вероятное время оживления колонок.'] }),
 c => ({ title: c.known + ' ' + plural(c.known, ['заправка', 'заправки', 'заправок']) + ', ' + c.a95 + ' с топливом: честный срез города ' + c.city,
 lead: 'Без прикрас: в городе ' + c.city + ' из ' + c.known + ' станций с данными АИ-95 подтверждён на ' + c.a95 + '. Остальные — «нет» или тишина источника.',
@@ -168,7 +166,7 @@ c => ({ title: 'Что с бензином в городе ' + c.city + ' к ' +
 lead: 'К ' + c.hhmm + ' в городе ' + c.city + ' ' + availPhrase(c) + '. Ниже — что это значит для поездки и когда ждать изменений.',
 what: [availPhrase(c) + '.', 'АИ-92: ' + c.a92 + ' из ' + c.known + ', дизель: ' + c.adt + ' из ' + c.known + '.'] }),
 c => ({ title: 'Город ' + c.city + ' живёт на ' + c.a95 + ' ' + plural(c.a95, ['адресе', 'адресах', 'адресах']) + ': как это выглядит изнутри',
-lead: 'Когда с топливом остаётся ' + c.a95 + ' ' + plural(c.a95, ['заправка', 'заправки', 'заправок']) + ' из ' + c.known + ', город перестраивается: спрос и маршруты стягиваются к этим адресам' + (c.q ? ', а вместе с ними и очереди' : '') + '.',
+lead: 'Когда с топливом остаётся ' + c.a95 + ' ' + plural(c.a95, ['заправка', 'заправки', 'заправок']) + ' из ' + c.known + ', город перестраивается: спрос, очереди и маршруты стягиваются к этим адресам.',
 what: [availPhrase(c) + '.', 'Очереди отмечены на ' + c.q + ' ' + plural(c.q, ['АЗС', 'АЗС', 'АЗС']) + ' — именно там спрос и сконцентрирован.'] }),
 c => ({ title: 'Почему в городе ' + c.city + ' снова «нет»? Разбор снимка на ' + c.hhmm,
 lead: 'Снимок на ' + c.hhmm + ' такой: ' + availPhrase(c) + '. Разбираем, что за этим стоит и когда картина может перевернуться.',
@@ -335,22 +333,19 @@ if (o.fuel_95_status !== null && o.fuel_95_status !== undefined) { e.known++; if
 const brandList = r => Object.keys(brands[r] || {}).map(k => ({ name: k, known: brands[r][k].known, a95: brands[r][k].a95 }))
 .filter(b => b.known >= 3).sort((a, b) => b.known - a.known).slice(0, 4);
 const names = (map, n) => Object.keys(map || {}).slice(0, n).map(id => stById[id]).filter(Boolean).map(s => '«' + (s.name || 'АЗС') + '»' + (s.address ? ', ' + s.address : ''));
-const winsByReg = {};
-for (const sv of svodkas) { const rk0 = RK_FIX[sv.region] || sv.region || FILE_REG[sv.file]; winsByReg[rk0] = (sv.totals && sv.totals.wins) || 0; }
 const d = msk(t), day = '' + d.getUTCFullYear() + p2(d.getUTCMonth() + 1) + p2(d.getUTCDate());
 for (const r of Object.keys(REG)) {
 const E = regEvs[r] || { lost: 0, ret: 0, lostSt: {}, retSt: {}, lostY: 0, retY: 0, lostW: 0, retW: 0 };
 const cmp = { ly: E.lostY, ry: E.retY, lw: E.lostW, rw: E.retW };
 const thL = r === 'south' ? TH.lossSouth : TH.lossOther, thR = r === 'south' ? TH.retSouth : TH.retOther;
 const base = { where: REG[r].where, wherePrep: REG[r].prep, label: REG[r].label, rk: r, cmp, brands: brandList(r), stamp: stamp(t), hhmm: stamp(t).split(', ')[1] };
-if (E.lost >= thL) out.push(Object.assign({ family: 'loss', slug: 'volna-uhod-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.lostSt, 4), wins: winsByReg[r] || 0 }, base));
-if (E.ret >= thR) out.push(Object.assign({ family: 'ret', slug: 'volna-vozvrat-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.retSt, 4), wins: winsByReg[r] || 0 }, base));
+if (E.lost >= thL) out.push(Object.assign({ family: 'loss', slug: 'volna-uhod-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.lostSt, 4), wins: 0 }, base));
+if (E.ret >= thR) out.push(Object.assign({ family: 'ret', slug: 'volna-vozvrat-' + r + '-' + day, og: 'og-' + r + '.png', lost: E.lost, ret: E.ret, names: names(E.retSt, 4), wins: 0 }, base));
 }
 for (const sv of svodkas) {
-const rk = RK_FIX[sv.region] || sv.region || FILE_REG[sv.file];
+const rk = sv.region || FILE_REG[sv.file];
 const base = { where: REG[rk] ? REG[rk].where : 'в регионе', wherePrep: REG[rk] ? REG[rk].prep : 'в регионе', label: REG[rk] ? REG[rk].label : 'Регион', rk: rk, cmp: (regEvs[rk] || {}), brands: brandList(rk), stamp: stamp(t), hhmm: stamp(t).split(', ')[1] };
 base.cmp = { ly: (regEvs[rk] || {}).lostY || 0, ry: (regEvs[rk] || {}).retY || 0, lw: (regEvs[rk] || {}).lostW || 0, rw: (regEvs[rk] || {}).retW || 0 };
-base.lost = (regEvs[rk] || {}).lost || 0; base.ret = (regEvs[rk] || {}).ret || 0;
 for (const c of sv.cities) {
 if (!c.known || c.known < 8) continue;
 const cc = Object.assign({ city: c.name, a95: c.a95, a92: c.a92, adt: c.adt, known: c.known, q: c.q, wins: c.wins }, base);
@@ -364,7 +359,7 @@ const hit = verified.filter(v => v.result === 'SUCCESS').length;
 out.push({ family: 'acc', slug: 'tochnost-' + day, og: 'og-south.png', verified: verified.length, hit, rate: Math.round(100 * hit / verified.length),
 where: REG.south.where, wherePrep: REG.south.prep, label: REG.south.label, rk: 'south',
 cmp: { ly: (regEvs.south || {}).lostY || 0, ry: (regEvs.south || {}).retY || 0, lw: (regEvs.south || {}).lostW || 0, rw: (regEvs.south || {}).retW || 0 },
-brands: brandList('south'), stamp: stamp(t), hhmm: stamp(t).split(', ')[1], wins: winsByReg.south || 0, lost: (regEvs.south || {}).lost || 0, ret: (regEvs.south || {}).ret || 0 });
+brands: brandList('south'), stamp: stamp(t), hhmm: stamp(t).split(', ')[1], wins: 0 });
 }
 return out;
 }
@@ -385,28 +380,14 @@ return ['Проверено прогнозов за 30 дней: ' + c.verified,
 }
 function cmpText(c) {
 const m = c.cmp || {};
-const isWave = c.family === 'loss' || c.family === 'ret';
-const L = isWave ? (c.family === 'ret' ? c.ret : c.lost) : (c.lost || 0);
-const R = isWave ? (c.family === 'ret' ? c.lost : c.ret) : (c.ret || 0);
-const ly = m.ly || 0, ry = m.ry || 0, lw = m.lw || 0, rw = m.rw || 0;
-let s;
-if (isWave) {
-s = 'За текущие сутки ' + c.where + ' отмечено ' + L + ' ' + plural(L, ['событие', 'события', 'событий']) + ' этого типа. ';
-s += 'Сутки назад за такое же окно было ' + (c.family === 'ret' ? ry : ly) + ', а в тот же день недели неделей ранее — ' + (c.family === 'ret' ? rw : lw) + '. ';
-} else {
-s = 'Для контекста: за текущие сутки ' + c.where + ' топливо пропало с ' + L + ' ' + plural(L, ['АЗС', 'АЗС', 'АЗС']) + ' и вернулось на ' + R + '. ';
-s += 'Сутки назад было ' + ly + ' ' + plural(ly, ['исчезновение', 'исчезновения', 'исчезновений']) + ' и ' + ry + ' ' + plural(ry, ['возврат', 'возврата', 'возвратов']) + ', неделей ранее — ' + lw + ' и ' + rw + '. ';
-}
-const yBase = isWave ? (c.family === 'ret' ? ry : ly) : ly;
-const wBase = isWave ? (c.family === 'ret' ? rw : lw) : lw;
-const day = yBase ? (L > yBase * 1.25 ? 'up' : L < yBase * 0.75 ? 'down' : 'flat') : 'nodata';
-const week = wBase ? (L > wBase * 1.25 ? 'up' : L < wBase * 0.75 ? 'down' : 'flat') : 'nodata';
-if (day === 'up' && week !== 'down') s += w(['Динамика растущая: волна набирает силу.', 'То есть картина ухудшается быстрее, чем вчера.']);
-else if (day === 'down' && week !== 'up') s += w(['Динамика спадающая: пик, похоже, позади.', 'Вчерашний день был тяжелее — есть повод для осторожного оптимизма.']);
-else if (day === 'flat' && week === 'down') s += 'К вчерашнему дню картина ровная, но неделей ранее событий было заметно больше: относительно прошлой недели ситуация спокойнее.';
-else if (day === 'flat' && week === 'up') s += 'К вчерашнему дню картина ровная, но неделей ранее событий было меньше: относительно прошлой недели напряжение выросло.';
-else if (day === 'nodata' && week === 'nodata') s += 'Истории для сравнения пока мало: цифры появятся, когда накопятся события за прошлые сутки и неделю.';
-else s += w(['Показатели держатся примерно на уровне вчерашнего дня: это плато, а не скачок.', 'Разница с сутками и неделей назад невелика: ситуация стабильно напряжённая, без резких движений.']);
+const L = c.family === 'ret' ? c.ret : c.lost;
+const ly = c.family === 'ret' ? (m.ry || 0) : (m.ly || 0);
+const lw = c.family === 'ret' ? (m.rw || 0) : (m.lw || 0);
+let s = 'За текущие сутки ' + (c.where) + ' отмечено ' + L + ' ' + plural(L, ['событие', 'события', 'событий']) + ' этого типа. ';
+s += 'Сутки назад за такое же окно было ' + ly + ', а в тот же день недели неделей ранее — ' + lw + '. ';
+if (ly && L > ly * 1.25) s += w(['Динамика растущая: волна набирает силу.', 'То есть картина ухудшается быстрее, чем вчера.', 'Разрыв с вчерашним днём — признак ускорения волны.']);
+else if (ly && L < ly * 0.75) s += w(['Динамика спадающая: пик, похоже, позади.', 'Вчерашний день был тяжелее — есть повод для осторожного оптимизма.', 'Снижение к вчерашнему дню обычно означает, что привозы догоняют спрос.']);
+else s += w(['Показатели держатся примерно на уровне вчерашнего дня: это плато, а не скачок.', 'Разница с сутками и неделей назад невелика: ситуация стабильно напряжённая, без резких движений.', 'Цифры близки к вчерашним и к прошлой неделе: рынок стоит в том же состоянии.']);
 return s;
 }
 function brandNote(c) { return 'Срез по сетям на ' + c.stamp + ' по данным КогдаБенз: сколько станций каждого бренда держат подтверждённый АИ-95.'; }
@@ -469,7 +450,45 @@ font-size:18px;font-weight:800;line-height:1.5;color:#e6e0ff;position:relative}
 .item time{display:block;margin-top:6px;font-size:11.5px;color:#6b7a96}
 @media (max-width:560px){.brow{grid-template-columns:88px 1fr auto}.factcard b{font-size:34px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-`;
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(148,180,255,.06)}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#3f74d6,#2465ee);border-radius:99px;border:2px solid #0a1024}
+::-webkit-scrollbar-thumb:hover{background:#4b93ff}
+.hero{position:relative;display:block;overflow:hidden;margin:8px 0 26px;padding:24px 22px 20px;border-radius:22px;text-decoration:none;color:#e8eefb;border:1px solid rgba(148,180,255,.28);background:linear-gradient(140deg,rgba(36,101,238,.30),rgba(13,21,38,.65) 55%),radial-gradient(120% 140% at 85% 10%,rgba(47,211,154,.20),transparent 55%);box-shadow:0 18px 50px rgba(3,8,24,.5);transition:border-color .2s}
+.hero:hover{border-color:rgba(125,180,255,.55)}
+.hero::after{content:'';position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(75,147,255,.25),transparent 70%);pointer-events:none}
+.hero.f-loss{background:linear-gradient(140deg,rgba(239,83,80,.26),rgba(13,21,38,.65) 55%),radial-gradient(120% 140% at 85% 10%,rgba(245,160,90,.20),transparent 55%)}
+.hero.f-ret{background:linear-gradient(140deg,rgba(47,211,154,.22),rgba(13,21,38,.65) 55%),radial-gradient(120% 140% at 85% 10%,rgba(125,180,255,.18),transparent 55%)}
+.hero.f-def{background:linear-gradient(140deg,rgba(245,160,90,.24),rgba(13,21,38,.65) 55%),radial-gradient(120% 140% at 85% 10%,rgba(239,83,80,.18),transparent 55%)}
+.hero.f-q{background:linear-gradient(140deg,rgba(245,184,46,.22),rgba(13,21,38,.65) 55%),radial-gradient(120% 140% at 85% 10%,rgba(245,160,90,.18),transparent 55%)}
+.hero.f-acc{background:linear-gradient(140deg,rgba(124,109,255,.26),rgba(13,21,38,.65) 55%),radial-gradient(120% 140% at 85% 10%,rgba(75,147,255,.20),transparent 55%)}
+.hero-kicker{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;font-size:10px;font-weight:900;letter-spacing:.16em;text-transform:uppercase;color:#2fd39a;margin-bottom:12px}
+.hero-kicker i{width:7px;height:7px;border-radius:50%;background:#2fd39a;box-shadow:0 0 0 4px rgba(47,211,154,.15);animation:hpulse 2s ease-in-out infinite}
+@keyframes hpulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hero-title{position:relative;z-index:1;display:block;font-size:clamp(22px,4.6vw,32px);font-weight:900;line-height:1.18;letter-spacing:-.6px;color:#fff;margin-bottom:10px;max-width:88%}
+.hero-lead{position:relative;z-index:1;display:block;font-size:14.5px;line-height:1.6;color:#c3cfe4;max-width:560px;margin-bottom:16px}
+.hero-foot{position:relative;z-index:1;display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:12px;color:#93a0b8}
+.hero-cta{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;background:linear-gradient(135deg,#4b93ff,#2465ee);color:#fff;font-weight:800;font-size:13px;box-shadow:0 8px 22px rgba(36,101,238,.4)}
+.hero-big{position:absolute;right:14px;top:6px;font-size:clamp(64px,14vw,120px);font-weight:900;letter-spacing:-4px;line-height:1;color:rgba(125,180,255,.13);font-variant-numeric:tabular-nums;pointer-events:none;user-select:none}
+.item{transition:border-color .2s,transform .2s}
+.item:hover{border-color:rgba(125,180,255,.45);transform:translateY(-2px)}
+.item>a::after{content:' →';color:#7db4ff;font-weight:900}
+.item-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.item-top time{display:inline;margin-top:0;font-size:11px;color:#6b7a96;font-weight:700;white-space:nowrap}
+.item-lead{margin:8px 0 0;font-size:13px;line-height:1.55;color:#93a0b8}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:9.5px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.badge::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+.item.f-loss{border-left:3px solid rgba(239,83,80,.55)}
+.item.f-ret{border-left:3px solid rgba(47,211,154,.55)}
+.item.f-def{border-left:3px solid rgba(245,160,90,.55)}
+.item.f-q{border-left:3px solid rgba(245,184,46,.55)}
+.item.f-acc{border-left:3px solid rgba(124,109,255,.55)}
+.item.f-loss .badge{color:#ff9d9a;background:rgba(239,83,80,.12);border:1px solid rgba(239,83,80,.35)}
+.item.f-ret .badge{color:#9fe8cd;background:rgba(47,211,154,.10);border:1px solid rgba(47,211,154,.32)}
+.item.f-def .badge{color:#ffd9ae;background:rgba(245,160,90,.12);border:1px solid rgba(245,160,90,.35)}
+.item.f-q .badge{color:#ffe3b8;background:rgba(245,184,46,.12);border:1px solid rgba(245,184,46,.35)}
+.item.f-acc .badge{color:#c9c0ff;background:rgba(124,109,255,.12);border:1px solid rgba(124,109,255,.35)}
+@media (max-width:560px){.hero{padding:20px 16px 16px}.hero-title{max-width:100%}.hero-big{font-size:56px;top:auto;bottom:4px;right:10px;letter-spacing:-2px}.hero-cta{margin-left:0}}`;
 const DROP = '<svg viewBox="0 0 24 24"><path d="M12 2.6C12 2.6 5 10.6 5 14.6a7 7 0 0 0 14 0C19 10.6 12 2.6 12 2.6Z"/></svg>';
 const METHOD = 'КогдаБенз каждые 10 минут собирает отметки о наличии топлива из открытого источника и от водителей на местах, а окна привоза строит по собственной истории возвратов топлива на каждой АЗС. Прогноз — вероятность по прошлым возвратам, а не гарантия привоза. Данные обновляются каждые 4 часа: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 МСК.';
 function metricsScript(a) {
@@ -487,19 +506,23 @@ return '<script>(function(){try{' +
 function page(a) {
 const url = SITE + '/news/' + a.slug + '.html';
 const iso = new Date(a.t).toISOString();
-const ld = {
-'@context': 'https://schema.org', '@type': 'NewsArticle',
-headline: a.title, description: a.lead,
-datePublished: iso, dateModified: iso,
+const ld = [
+{ '@context': 'https://schema.org', '@type': 'NewsArticle',
+headline: a.title, description: a.lead, image: [SITE + '/' + a.og],
+datePublished: iso, dateModified: iso, inLanguage: 'ru',
 author: { '@type': 'Organization', name: 'КогдаБенз', url: SITE },
-publisher: { '@type': 'Organization', name: 'КогдаБенз', url: SITE },
-mainEntityOfPage: url, articleSection: 'Топливо и цены'
-};
+publisher: { '@type': 'Organization', name: 'КогдаБенз', url: SITE, logo: { '@type': 'ImageObject', url: SITE + '/icon-512.png' } },
+mainEntityOfPage: url, articleSection: 'Топливо и цены' },
+{ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+{ '@type': 'ListItem', position: 1, name: 'КогдаБенз', item: SITE + '/' },
+{ '@type': 'ListItem', position: 2, name: 'Новости топлива', item: SITE + '/news/' },
+{ '@type': 'ListItem', position: 3, name: a.title, item: url } ] }
+];
 const fc = factcard(a);
 let body = '';
 body += '<h2 class="sec">' + w(H2.what) + '</h2>';
 const whatParas = a.what.filter(Boolean);
-whatParas.forEach((p, i) => { const at = i === 0 ? attrOnce(a) : ''; body += '<p>' + esc(at ? at + p.charAt(0).toLowerCase() + p.slice(1) : p) + '</p>'; });
+whatParas.forEach((p, i) => { body += '<p>' + esc(i === 0 ? attrOnce(a) + p : p) + '</p>'; });
 body += '<h2 class="sec">' + w(H2.num) + '</h2>';
 body += '<div class="factcard"><b>' + esc(fc.big) + '</b><span>' + esc(fc.lab) + '<i>' + esc(fc.sub) + '</i></span></div>';
 body += '<div class="facts"><ul>' + a.facts.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul></div>';
@@ -553,6 +576,244 @@ ${body}
 }
 
 // ---------- выпуск ----------
+// === Хелперы индекса: чтение статей, метрики по slug, рейтинг героя ===
+function unesc(x) { return String(x).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&'); }
+function trunc(s, n) { s = String(s || ''); if (s.length <= n) return s; const cut = s.slice(0, n); const sp = cut.lastIndexOf(' '); return (sp > 40 ? cut.slice(0, sp) : cut) + '…'; }
+function dayKeyMsk(t) { const d = msk(t); return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()); }
+function famOf(slug) {
+  if (slug.indexOf('volna-uhod') === 0) return 'loss';
+  if (slug.indexOf('volna-vozvrat') === 0) return 'ret';
+  if (slug.indexOf('deficit') === 0) return 'deficit';
+  if (slug.indexOf('ocheredi') === 0) return 'queue';
+  if (slug.indexOf('tochnost') === 0) return 'acc';
+  return 'loss';
+}
+const FAM = {
+  loss: { tag: 'Волна дефицита', cls: 'f-loss' },
+  ret: { tag: 'Возврат топлива', cls: 'f-ret' },
+  deficit: { tag: 'Наличие в городе', cls: 'f-def' },
+  queue: { tag: 'Очереди', cls: 'f-q' },
+  acc: { tag: 'Проверка прогнозов', cls: 'f-acc' }
+};
+function readArticle(newsDir, slug) {
+  const out = { title: slug, lead: '', big: '' };
+  try {
+    const h = fs.readFileSync(path.join(newsDir, slug + '.html'), 'utf8');
+    const strip = x => unesc(x.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim());
+    const m1 = h.match(/<h1\s*>([\s\S]*?)<\/h1>/i);
+    const m2 = h.match(/class=\s*"lead\s*"\s*>([\s\S]*?)<\/p>/i);
+    const m3 = h.match(/class=\s*"factcard\s*"\s*>\s*<b\s*>([\s\S]*?)<\/b>/i);
+    if (m1) out.title = strip(m1[1]);
+    if (m2) out.lead = strip(m2[1]);
+    if (m3) out.big = strip(m3[1]);
+  } catch (e) {}
+  return out;
+}
+function aggBySlug(met) {
+  const m = {};
+  for (const r of met) {
+    if (!r || !r.slug) continue;
+    const s = m[r.slug] || (m[r.slug] = { n: 0, dwell: 0, scroll: 0, fin: 0 });
+    s.n++; s.dwell += r.dwell_ms || 0; s.scroll += r.scroll_pct || 0; s.fin += r.finished ? 1 : 0;
+  }
+  for (const k in m) { m[k].dwell /= m[k].n; m[k].scroll /= m[k].n; m[k].fin /= m[k].n; }
+  return m;
+}
+// Кликбейт-рейтинг героя: свежесть (сегодня — решающий бонус) + драматизм
+// повода + крупные цифры и вопрос в заголовке + реальные дочитывания.
+function heroScore(slug, art, t, m) {
+  let s = 0;
+  const ageH = Math.max(0, (Date.now() - t) / H);
+  s += Math.max(0, 60 - ageH * 2.5);
+  if (dayKeyMsk(t) === dayKeyMsk(Date.now())) s += 100;
+  s += { loss: 34, deficit: 30, queue: 26, ret: 22, acc: 12 }[famOf(slug)] || 10;
+  const nums = (art.title.match(/\d+/g) || []).map(Number);
+  if (nums.length) s += Math.min(22, Math.max.apply(null, nums) / 8);
+  if (/\?/.test(art.title)) s += 9;
+  if (/куда|почему|зачем|стоит ли|что с|где /i.test(art.title)) s += 7;
+  if (/волна|дефицит|пусто|нет топлива|очеред/i.test(art.title)) s += 6;
+  if (m && m.n) s += Math.min(28, m.fin * 16 + (m.scroll / 100) * 12 + Math.min(m.dwell, 120000) / 120000 * 10);
+  return s;
+}
+function heroHtml(slug, art, iso, when) {
+  const F = FAM[famOf(slug)];
+  return '<a class="hero ' + F.cls + '" href="/news/' + slug + '.html">' +
+    (art.big ? '<span class="hero-big" aria-hidden="true">' + esc(art.big) + '</span>' : '') +
+    '<span class="hero-kicker"><i></i>Главное сейчас · ' + esc(F.tag) + '</span>' +
+    '<span class="hero-title">' + esc(art.title) + '</span>' +
+    (art.lead ? '<span class="hero-lead">' + esc(trunc(art.lead, 190)) + '</span>' : '') +
+    '<span class="hero-foot"><time datetime="' + iso + '">' + when + ' МСК</time><span class="hero-cta">Читать выпуск →</span></span></a>';
+}
+function cardHtml(slug, art, iso, when) {
+  const F = FAM[famOf(slug)];
+  return '<article class="item ' + F.cls + '">' +
+    '<div class="item-top"><span class="badge">' + esc(F.tag) + '</span><time datetime="' + iso + '">' + when + ' МСК</time></div>' +
+    '<a href="/news/' + slug + '.html">' + esc(art.title) + '</a>' +
+    (art.lead ? '<p class="item-lead">' + esc(trunc(art.lead, 150)) + '</p>' : '') + '</article>';
+}
+
+(async function run() {
+  if (!SUP || !KEY) { console.log('! newsroom: нет SUPABASE_URL/SUPABASE_KEY'); process.exit(1); }
+  const cands = [process.env.KB_SITE_DIR, process.env.SVODKA_DIR, process.cwd(), __dirname].filter(Boolean);
+  let dir = null;
+  for (const d of cands) { try { if (fs.existsSync(path.join(d, 'index.html'))) { dir = d; break; } } catch (e) {} }
+  if (!dir) { console.log('! newsroom: папка сайта не найдена'); process.exit(1); }
+  const newsDir = path.join(dir, 'news');
+  fs.mkdirSync(newsDir, { recursive: true });
+  let manifest = {};
+  try { manifest = JSON.parse(fs.readFileSync(path.join(newsDir, 'manifest.json'), 'utf8')); } catch (e) {}
+  const t = Date.now();
+  const D = await load();
+  const svodkas = readSvodkas(dir);
+  if (!svodkas.length) { console.log('! newsroom: нет svodka*.json — сначала собери сводки'); process.exit(1); }
+  const stats = aggStats(D.met);
+  const bySlug = aggBySlug(D.met);
+  const found = detect(D, svodkas, t);
+  const fresh = found.filter(a => !manifest[a.slug]);
+  // ФИКС сортировки: строго по времени публикации, новые сверху
+  const byTime = (a, b) => new Date(manifest[b]).getTime() - new Date(manifest[a]).getTime();
+  const prevAll = Object.keys(manifest).filter(k => typeof manifest[k] === 'string').sort(byTime);
+  const items = [];
+  for (const f of fresh) {
+    const vi = chooseVariant(f.family, stats, manifest);
+    const made = FORMULAS[f.family][vi](f);
+    const a = Object.assign({}, f, {
+      t, variant: f.family + ':' + vi,
+      title: made.title, lead: made.lead, what: made.what || [],
+      kicker: f.family === 'acc' ? 'Проверка прогнозов' : f.family === 'queue' ? (f.city || '') + ' · очереди' : f.family === 'deficit' ? (f.city || '') + ' · наличие' : f.label + ' · динамика',
+      facts: factsList(f)
+    });
+    if (f.family === 'loss' || f.family === 'ret') a.links = [[SITE + '/', 'Живая карта'], [SITE + '/' + REG[f.rk].file, 'Сводка региона']];
+    else if (f.family === 'deficit' || f.family === 'queue') a.links = [[SITE + '/svodka-' + f.slug.replace(/^(deficit|ocheredi)-/, '').replace(/-\d{8}$/, '') + '.html', 'Сводка по городу'], [SITE + '/', 'Живая карта']];
+    else a.links = [[SITE + '/', 'Живая карта и окна привоза'], [SITE + '/svodka.html', 'Сводка по югу']];
+    // «Читайте также»: два свежих прошлых выпуска — внутренние ссылки для SEO
+    const rel = [];
+    for (const s of prevAll) {
+      if (rel.length >= 2) break;
+      if (s === a.slug) continue;
+      const ra = readArticle(newsDir, s);
+      rel.push([SITE + '/news/' + s + '.html', trunc(ra.title, 64)]);
+    }
+    a.links = a.links.concat([[SITE + '/news/', 'Все новости топлива']], rel);
+    fs.writeFileSync(path.join(newsDir, a.slug + '.html'), page(a));
+    manifest[a.slug] = new Date(a.t).toISOString();
+    items.push(a);
+    console.log('✓ /news/' + a.slug + '.html [' + a.variant + '] — ' + a.title);
+  }
+  if (!items.length) console.log('newsroom: новых поводов нет (проверено: ' + found.length + ')');
+  const all = Object.keys(manifest).filter(k => typeof manifest[k] === 'string').sort(byTime).slice(0, 60);
+  const arts = {};
+  for (const s of all) arts[s] = readArticle(newsDir, s);
+  // герой: самая «кликбейтная» по рейтингу алгоритма
+  let hero = null, heroS = -1;
+  for (const s of all) {
+    const sc = heroScore(s, arts[s], new Date(manifest[s]).getTime(), bySlug[s]);
+    if (sc > heroS) { heroS = sc; hero = s; }
+  }
+  const todayK = dayKeyMsk(t);
+  const isToday = s => dayKeyMsk(new Date(manifest[s]).getTime()) === todayK;
+  const today = all.filter(s => s !== hero && isToday(s));
+  const older = all.filter(s => s !== hero && !isToday(s));
+  const d = msk(t);
+  const dayRu = d.getUTCDate() + ' ' + MON[d.getUTCMonth()];
+  const idxTitle = 'Новости топлива сегодня, ' + dayRu + ' — дефицит, очереди, привозы | КогдаБенз';
+  const idxDesc = 'Свежие выпуски живой карты КогдаБенз на ' + dayRu + ': волны дефицита бензина, возвраты топлива, очереди на АЗС юга России, Северо-Запада и Чувашии, честная точность прогнозов привоза. Данные обновляются каждые 4 часа.';
+  const todayN = today.length + (hero && isToday(hero) ? 1 : 0);
+  const ldIndex = [
+    { '@context': 'https://schema.org', '@type': 'CollectionPage', name: idxTitle, description: idxDesc, url: SITE + '/news/', inLanguage: 'ru', dateModified: new Date(t).toISOString(), isPartOf: { '@type': 'WebSite', name: 'КогдаБенз', url: SITE + '/' } },
+    { '@context': 'https://schema.org', '@type': 'ItemList', itemListElement: all.slice(0, 20).map((s, i) => ({ '@type': 'ListItem', position: i + 1, url: SITE + '/news/' + s + '.html', name: arts[s].title })) },
+    { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'КогдаБенз', item: SITE + '/' },
+      { '@type': 'ListItem', position: 2, name: 'Новости топлива', item: SITE + '/news/' } ] }
+  ];
+  const heroBlock = hero ? heroHtml(hero, arts[hero], manifest[hero], stamp(new Date(manifest[hero]).getTime())) : '<div class="item">Выпусков пока нет — первые появятся, когда в данных будет новостной повод.</div>';
+  const todayBlock = today.length ? '<h2 class="sec">Ещё читают сегодня</h2><div class="list">' + today.map(s => cardHtml(s, arts[s], manifest[s], stamp(new Date(manifest[s]).getTime()))).join('') + '</div>' : '';
+  const olderBlock = older.length ? '<h2 class="sec">Ранее</h2><div class="list">' + older.map(s => cardHtml(s, arts[s], manifest[s], stamp(new Date(manifest[s]).getTime()))).join('') + '</div>' : '';
+  fs.writeFileSync(path.join(newsDir, 'index.html'), `<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(idxTitle)}</title>
+<meta name="description" content="${esc(idxDesc)}">
+<meta name="keywords" content="новости топлива, дефицит бензина, очереди на АЗС, когда привезут бензин, наличие топлива на заправках, юг России, КогдаБенз">
+<link rel="canonical" href="${SITE}/news/">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<meta name="theme-color" content="#0a1024">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="КогдаБенз">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:url" content="${SITE}/news/">
+<meta property="og:title" content="${esc(idxTitle)}">
+<meta property="og:description" content="${esc(idxDesc)}">
+<meta property="og:image" content="${SITE}/og-south.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${esc(idxTitle)}">
+<meta name="twitter:description" content="${esc(idxDesc)}">
+<meta name="twitter:image" content="${SITE}/og-south.png">
+<link rel="alternate" type="application/rss+xml" title="КогдаБенз — новости топлива" href="${SITE}/news/rss.xml">
+<script type="application/ld+json">${JSON.stringify(ldIndex).replace(/</g, '\\u003c')}</script>
+<style>${CSS}</style></head><body><div class="wrap">
+<header class="top"><span class="tile">${DROP}</span><span><b>КогдаБенз</b><small>данные о топливе</small></span>
+<nav><a href="${SITE}/">Карта</a><a href="${SITE}/svodka.html">Сводки</a><a href="/news/rss.xml">RSS</a></nav></header>
+<p class="kicker"><i></i>Обновлено ${stamp(t)} МСК · сегодня выпусков: ${todayN}</p>
+<h1>Новости топлива сегодня — ${dayRu}</h1>
+<p class="meta">Выпуски собираются автоматически из данных живой карты: волны дефицита, возвраты топлива, очереди на АЗС и точность прогнозов привоза. Главная статья — по рейтингу интереса: свежесть, масштаб события и дочитывания водителей.</p>
+${heroBlock}
+${todayBlock}
+${olderBlock}
+<div class="method">${METHOD}</div>
+</div></body></html>`);
+  // RSS: реальные заголовки и лиды, строго по времени
+  const rssItems = all.slice(0, 50).map(s =>
+    '<item><title>' + esc(arts[s].title) + '</title><link>' + SITE + '/news/' + s + '.html</link>' +
+    '<guid isPermaLink="true">' + SITE + '/news/' + s + '.html</guid>' +
+    '<pubDate>' + new Date(manifest[s]).toUTCString() + '</pubDate>' +
+    '<description>' + esc(arts[s].lead) + '</description></item>').join('\n');
+  fs.writeFileSync(path.join(newsDir, 'rss.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n' +
+    '<title>КогдаБенз — новости топлива</title><link>' + SITE + '/news/</link>\n' +
+    '<description>Волны дефицита, возвраты топлива, очереди и точность прогнозов привоза по данным живой карты.</description>\n' +
+    '<language>ru</language><lastBuildDate>' + new Date(t).toUTCString() + '</lastBuildDate>\n' + rssItems + '\n</channel></rss>');
+  // Google News sitemap: реальные заголовки вместо служебной строки
+  const nowT = Date.now();
+  const newsUrls = all.filter(s => nowT - new Date(manifest[s]).getTime() < 48 * H).map(s =>
+    '<url><loc>' + SITE + '/news/' + s + '.html</loc><news:news><news:publication><news:name>КогдаБенз</news:name><news:language>ru</news:language></news:publication><news:publication_date>' + manifest[s] + '</news:publication_date><news:title>' + esc(arts[s].title) + '</news:title></news:news></url>').join('\n');
+  fs.writeFileSync(path.join(dir, 'sitemap-news.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/news-sitemap">\n' + newsUrls + '\n</urlset>');
+  // общий sitemap: дописываем недостающие выпуски каждый прогон
+  const sp = path.join(dir, 'sitemap.xml');
+  let sm = fs.existsSync(sp) ? fs.readFileSync(sp, 'utf8') : '';
+  if (!/<urlset/i.test(sm)) sm = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n</urlset>';
+  const have = {};
+  (sm.match(/<loc>([^<]+)<\/loc>/g) || []).forEach(x => { have[x.replace(/<\/?loc>/g, '').trim()] = 1; });
+  const add = [];
+  if (!have[SITE + '/news/']) add.push('<url><loc>' + SITE + '/news/</loc><changefreq>hourly</changefreq><priority>0.8</priority></url>');
+  for (const s of all) { const u = SITE + '/news/' + s + '.html'; if (!have[u]) add.push('<url><loc>' + u + '</loc><changefreq>daily</changefreq><priority>0.6</priority></url>'); }
+  if (add.length) { sm = sm.replace(/<\/urlset\s*>/i, add.join('\n') + '\n</urlset>'); fs.writeFileSync(sp, sm); }
+  (function injectNewsLinks() {
+    try {
+      const total = all.length;
+      if (!total) return;
+      for (const f of ['index.html', 'svodka.html', 'svodka-sz.html', 'svodka-ch.html']) {
+        const p = path.join(dir, f);
+        if (!fs.existsSync(p)) continue;
+        let h = fs.readFileSync(p, 'utf8');
+        h = h.replace(/<!--kb-newsline-->[\s\S]*?<!--\/kb-newsline-->\s*/g, '');
+        const strip = '<!--kb-newsline--><a href="/news/" style="display:flex;gap:10px;align-items:center;margin:18px auto 0;max-width:1120px;padding:13px 16px;border:1px solid rgba(148,180,255,.2);border-radius:14px;background:rgba(148,180,255,.06);color:#e8eefb;text-decoration:none;font:700 13px/1.4 -apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Arial,sans-serif"><span style="flex:none;width:9px;height:9px;border-radius:50%;background:#2fd39a"></span><span style="flex:1">Новости топлива: волны дефицита, очереди и точность прогнозов — ' + total + ' ' + plural(total, ['выпуск', 'выпуска', 'выпусков']) + '</span><span style="color:#7db4ff">читать →</span></a><!--/kb-newsline-->';
+        if (/<\/body>/i.test(h)) h = h.replace(/<\/body>/i, strip + '\n</body>'); else h += strip;
+        fs.writeFileSync(p, h);
+      }
+    } catch (e) { console.log('! Ссылка на новости: ' + e.message); }
+  })();
+  fs.writeFileSync(path.join(newsDir, 'manifest.json'), JSON.stringify(manifest, null, 1));
+  console.log('newsroom: статей добавлено ' + items.length + ', всего в индексе ' + all.length + ', герой: ' + (hero || '—') + ', метрик собрано ' + D.met.length);
+  if (NO_GIT) { console.log('Публикация пропущена (--no-git).'); return; }
+  if (!fs.existsSync(path.join(dir, '.git'))) { console.log('! нет .git — закоммить вручную.'); return; }
+  try {
+    const cp = require('child_process');
+    const gr = c => cp.execSync(c, { cwd: dir, stdio: 'pipe', timeout: 120000 });
+    gr('git add -A');
+    try { gr('git -c user.name="kogdabenz-bot" -c user.email="bot@kogdabenz.ru" commit -m "newsroom v4: hero + time sort + seo"'); } catch (e) {}
+    gr('git push');
+    console.log('Опубликовано.');
+  } catch (e) { console.log('! git push: ' + String(e.message).split('\n')[0]); }
+})().catch(e => { console.log('! newsroom: ' + e.message); process.exit(1); });
 (async function run() {
 if (!SUP || !KEY) { console.log('! newsroom: нет SUPABASE_URL/SUPABASE_KEY'); process.exit(1); }
 const cands = [process.env.KB_SITE_DIR, process.env.SVODKA_DIR, process.cwd(), __dirname].filter(Boolean);
@@ -581,7 +842,7 @@ kicker: f.family === 'acc' ? 'Проверка прогнозов' : f.family ==
 facts: factsList(f)
 });
 if (f.family === 'loss' || f.family === 'ret') a.links = [[SITE + '/', 'Живая карта'], [SITE + '/' + REG[f.rk].file, 'Сводка региона']];
-else if (f.family === 'deficit' || f.family === 'queue') a.links = [[SITE + '/' + (REG[f.rk] ? REG[f.rk].file : 'svodka.html') + '#c-' + f.slug.replace(/^(deficit|ocheredi)-/, '').replace(/-\d{8}$/, ''), 'Сводка по городу'], [SITE + '/', 'Живая карта']];
+else if (f.family === 'deficit' || f.family === 'queue') a.links = [[SITE + '/svodka-' + f.slug.replace(/^(deficit|ocheredi)-/, '').replace(/-\d{8}$/, '') + '.html', 'Сводка по городу'], [SITE + '/', 'Живая карта']];
 else a.links = [[SITE + '/', 'Живая карта и окна привоза'], [SITE + '/svodka.html', 'Сводка по югу']];
 fs.writeFileSync(path.join(newsDir, a.slug + '.html'), page(a));
 manifest[a.slug] = new Date(a.t).toISOString();
@@ -596,7 +857,7 @@ let title = slug, when = manifest[slug];
 try {
 const h = fs.readFileSync(path.join(newsDir, slug + '.html'), 'utf8');
 const m = h.match(/<h1>([\s\S]*?)<\/h1>/);
-if (m) title = unesc(m[1].replace(/<[^>]+>/g, '').trim());
+if (m) title = m[1].replace(/<[^>]+>/g, '').trim();
 } catch (e) {}
 return '<div class="item"><a href="/news/' + slug + '.html">' + esc(title) + '</a><time>' + stamp(new Date(when).getTime()) + ' МСК</time></div>';
 }).join('');
@@ -614,33 +875,27 @@ fs.writeFileSync(path.join(newsDir, 'index.html'), `<!doctype html><html lang="r
 <p class="meta">Выпуски собираются автоматически из данных карты: волны дефицита, возвраты, очереди, точность прогнозов.</p>
 <div class="list">${idxItems || '<div class="item">Выпусков пока нет — первые появятся, когда в данных будет новостной повод.</div>'}</div>
 </div></body></html>`);
-const rssItems = all.map(slug => ({ slug, t: new Date(manifest[slug]).getTime() }))
+const rssItems = items.concat(all.slice(items.length).map(slug => ({ slug, t: new Date(manifest[slug]).getTime() })))
 .sort((a, b) => b.t - a.t).slice(0, 50).map(a => {
-let title = a.slug, lead = '';
+let title = a.title || a.slug, lead = a.lead || '';
 try {
 const h = fs.readFileSync(path.join(newsDir, a.slug + '.html'), 'utf8');
 const m1 = h.match(/<h1>([\s\S]*?)<\/h1>/), m2 = h.match(/class="lead">([\s\S]*?)<\/p>/);
-if (m1) title = unesc(m1[1].replace(/<[^>]+>/g, '').trim());
-if (m2) lead = unesc(m2[1].replace(/<[^>]+>/g, '').trim());
+if (m1) title = m1[1].replace(/<[^>]+>/g, '').trim();
+if (m2) lead = m2[1].replace(/<[^>]+>/g, '').trim();
 } catch (e) {}
 return '<item><title>' + esc(title) + '</title><link>' + SITE + '/news/' + a.slug + '.html</link>' +
 '<guid isPermaLink="true">' + SITE + '/news/' + a.slug + '.html</guid>' +
 '<pubDate>' + new Date(a.t).toUTCString() + '</pubDate>' +
 '<description>' + esc(lead) + '</description></item>';
 }).join('\n');
-fs.writeFileSync(path.join(newsDir, 'rss.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n<channel>\n' +
+fs.writeFileSync(path.join(newsDir, 'rss.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<rss version="2.0"><channel>\n' +
 '<title>КогдаБенз — новости топлива</title><link>' + SITE + '/news/</link>\n' +
-'<atom:link href="' + SITE + '/news/rss.xml" rel="self" type="application/rss+xml"/>\n' +
 '<description>Волны дефицита, возвраты топлива, очереди и точность прогнозов привоза по данным живой карты.</description>\n' +
-'<language>ru</language><category>Топливо и цены</category><ttl>60</ttl>\n' +
-'<image><url>' + SITE + '/icon-512.png</url><title>КогдаБенз — новости топлива</title><link>' + SITE + '/news/</link></image>\n' +
-'<lastBuildDate>' + new Date().toUTCString() + '</lastBuildDate>\n' + rssItems + '\n</channel></rss>');
+'<language>ru</language><lastBuildDate>' + new Date().toUTCString() + '</lastBuildDate>\n' + rssItems + '\n</channel></rss>');
 const nowT = Date.now();
-const newsUrls = all.filter(s => nowT - new Date(manifest[s]).getTime() < 48 * H).map(s => {
-let nt = 'КогдаБенз: выпуск данных';
-try { const h = fs.readFileSync(path.join(newsDir, s + '.html'), 'utf8'); const m = h.match(/<h1>([\s\S]*?)<\/h1>/); if (m) nt = unesc(m[1].replace(/<[^>]+>/g, '').trim()); } catch (e) {}
-return '<url><loc>' + SITE + '/news/' + s + '.html</loc><news:news><news:publication><news:name>КогдаБенз</news:name><news:language>ru</news:language></news:publication><news:publication_date>' + manifest[s] + '</news:publication_date><news:title>' + esc(nt) + '</news:title></news:news></url>';
-}).join('\n');
+const newsUrls = all.filter(s => nowT - new Date(manifest[s]).getTime() < 48 * H).map(s =>
+'<url><loc>' + SITE + '/news/' + s + '.html</loc><news:news><news:publication><news:name>КогдаБенз</news:name><news:language>ru</news:language></news:publication><news:publication_date>' + manifest[s] + '</news:publication_date><news:title>КогдаБенз: выпуск данных</news:title></news:news></url>').join('\n');
 fs.writeFileSync(path.join(dir, 'sitemap-news.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/news-sitemap">\n' + newsUrls + '\n</urlset>');
 const sp = path.join(dir, 'sitemap.xml');
 let sm = fs.existsSync(sp) ? fs.readFileSync(sp, 'utf8') : '';
@@ -666,15 +921,6 @@ fs.writeFileSync(p, h);
 }
 } catch (e) { console.log(' ! Ссылка на новости: ' + e.message); }
 })();
-try {
-const rp = path.join(dir, 'robots.txt');
-let rb = fs.existsSync(rp) ? fs.readFileSync(rp, 'utf8') : 'User-agent: *\nAllow: /\n';
-for (const u of [SITE + '/sitemap.xml', SITE + '/sitemap-news.xml', SITE + '/news/rss.xml']) {
-const line = 'Sitemap: ' + u;
-if (rb.indexOf(line) < 0) rb = rb.replace(/\s+$/, '') + '\n' + line + '\n';
-}
-fs.writeFileSync(rp, rb);
-} catch (e) {}
 fs.writeFileSync(path.join(newsDir, 'manifest.json'), JSON.stringify(manifest, null, 1));
 console.log('newsroom: статей добавлено ' + items.length + ', всего в индексе ' + all.length + ', метрик собрано ' + D.met.length);
 if (NO_GIT) { console.log('Публикация пропущена (--no-git).'); return; }
