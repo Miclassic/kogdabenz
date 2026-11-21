@@ -17208,3 +17208,952 @@ if (n.nodeType === 1 && n.querySelector && (n.classList.contains('maplibregl-ctr
 });
 mo.observe(document.body, { childList: true, subtree: true });
 })();
+// ============================================================
+// KB FONT OSWALD v1 — ТОЛЬКО шрифт.
+// Гарнитура из макетов GTA VI (узкий жирный Oswald, кириллица)
+// ставится на весь сайт: шапка, вкладки, линза, мини-меню, плитки
+// теплокарты, сводка, советник, карточка АЗС, попапы, карта, тосты.
+// Цвета, рамки, свечения, тумблеры и оформление НЕ трогаются.
+// Не доехал шрифт — работает запасной стек, вид как раньше.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbFontOswald) return;
+window.__kbFontOswald = 1;
+
+var STACK = "'Oswald','Roboto Condensed','PT Sans Narrow','Arial Narrow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif";
+
+function repaint() { try { renderCityTreemap(); } catch (e) {} }
+
+// ---------- подключение гарнитуры ----------
+try {
+  if (!document.getElementById('kbFontPre1')) {
+    var p1 = document.createElement('link');
+    p1.id = 'kbFontPre1'; p1.rel = 'preconnect'; p1.href = 'https://fonts.googleapis.com';
+    document.head.appendChild(p1);
+  }
+  if (!document.getElementById('kbFontPre2')) {
+    var p2 = document.createElement('link');
+    p2.id = 'kbFontPre2'; p2.rel = 'preconnect'; p2.href = 'https://fonts.gstatic.com';
+    p2.crossOrigin = 'anonymous';
+    document.head.appendChild(p2);
+  }
+  if (!document.getElementById('kbFontOswaldLink')) {
+    var l = document.createElement('link');
+    l.id = 'kbFontOswaldLink'; l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap';
+    l.addEventListener('load', function () { setTimeout(repaint, 80); setTimeout(repaint, 700); });
+    document.head.appendChild(l);
+  }
+} catch (e) {}
+
+// ---------- одна гарнитура на весь сайт ----------
+(function css() {
+  if (document.getElementById('kbFontOswaldCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbFontOswaldCss';
+  var L = [];
+  L.push('html,body,body *{font-family:' + STACK + ' !important;}');
+  L.push('input,textarea,select,button,optgroup,option{font-family:' + STACK + ' !important;}');
+  L.push('body *::placeholder{font-family:' + STACK + ' !important;}');
+  // цифры: прежний трекинг был рассчитан на широкий системный шрифт,
+  // у узкого Oswald цифры слипались — возвращаем почти нулевой
+  L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{letter-spacing:-.3px !important;}');
+  L.push('.ctm-p{letter-spacing:-.2px !important;}');
+  L.push('.kbs-k b{letter-spacing:-.2px !important;}');
+  L.push('.kb-pred-time{letter-spacing:-.2px !important;}');
+  L.push('.kbr-hero-num{letter-spacing:-.3px !important;}');
+  L.push('.kbq3-time{letter-spacing:-.2px !important;}');
+  // служебные моно-строки и микро-подписи получают немного воздуха
+  L.push('.kbv-tag,.kb-code{letter-spacing:.4px !important;}');
+  L.push('.ctm-a,.kbq3-addr,.kbs-stt span,.kbs-wt span,.folk-ago{letter-spacing:.1px !important;}');
+  // длинный текст на узкой гарнитуре читается спокойнее с чуть большим
+  // межстрочьем (блоки свободной высоты, ничего не обрезается)
+  L.push('.help-a,.help-lead,.wn-lead,.recent,.kb-ip-body,.kbr-lead{line-height:1.5 !important;}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+// ---------- после приезда шрифта пересчитать плитки теплокарты ----------
+try {
+  if (document.fonts) {
+    if (document.fonts.ready) document.fonts.ready.then(function () { setTimeout(repaint, 60); });
+    if (document.fonts.addEventListener) {
+      document.fonts.addEventListener('loadingdone', function () { setTimeout(repaint, 60); });
+    }
+  }
+} catch (e) {}
+setTimeout(repaint, 1200);
+setTimeout(repaint, 3200);
+})();
+// ============================================================
+// KB FONT SIZE UP v1 — шрифт крупнее по всему сайту.
+// Гарнитура Oswald остаётся (она узкая), но все размеры текста
+// поднимаются на 1.5–3 px: шапка, регионы, линза, вкладки,
+// мини-меню, заголовки, теплокарта, сводка, советник, карточка
+// АЗС, мастер отметок, список АЗС, попапы, помощь, карта, тосты.
+// Межстрочье чуть свободнее, узкие места (плитки, кнопки, чипы)
+// получают запас по высоте/отступам, чтобы текст не резался.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbFontSizeUp) return;
+window.__kbFontSizeUp = 1;
+var s = document.createElement('style');
+s.id = 'kbFontSizeUpCss';
+var L = [];
+function R(sel, px, lh) {
+  L.push(sel + '{font-size:' + px + 'px!important;' + (lh ? 'line-height:' + lh + '!important;' : '') + '}');
+}
+// база
+L.push('body{font-size:14px!important;line-height:1.45!important;}');
+// ---------- шапка / регионы / вкладки ----------
+R('.slim-name', 15); R('.slim-sup', 9); R('.slim-vh,.slim-vt', 10);
+R('#kbRateFab .kbf-info', 13);
+R('.kb-region-seg button', 12.5); L.push('.kb-region-seg button{padding:7px 14px!important;}');
+R('.mn-label', 14); L.push('#mnWrap .mn-item{height:44px!important;}#mnWrap .mn-ico{width:22px!important;height:22px!important;}#mnWrap .mn-item.on .mn-label{max-width:130px!important;}');
+// ---------- линза ----------
+L.push('#lentiBox{height:104px!important;}#lentiCard{height:104px!important;}');
+R('#lentiNewV,#lentiAdvV,#lentiLifeV,#lentiTgV', 17, 1.25);
+R('#lentiNewS,#lentiAdvS,#lentiLifeS,#lentiTgS', 11.5, 1.3);
+R('#lentiHint', 10.5);
+R('#lentiCard small,#lentiCard .lenti-cap,#lentiCard .lenti-k', 11);
+// ---------- мини-меню ----------
+R('#kbQmMenu3 .kbqm2-tx b', 12.5, 1.25);
+R('#kbQmMenu3 .kbqm2-tx i', 10);
+R('#kbQmMenu3 .kbq3-badge', 26);
+L.push('#kbQmMenu3 .kbq3-btn.kbqm2{min-height:74px!important;}#kbQmMenu3 .kbqm2-ico{width:30px!important;height:30px!important;}');
+// ---------- заголовки главной ----------
+R('#nowTitle,#nowTitle .pl-city', 19, 1.25);
+R('#nowSub,#nowSub .why-span', 12.5, 1.4);
+R('#p1Time', 13);
+// ---------- теплокарта города ----------
+R('.ctm-title', 16); R('.ctm-sub', 11.5); R('.ctm-why', 11);
+R('.ctm-a', 10); R('.ctm-tile.ctm-fs .ctm-a', 8.5); R('.ctm-tile.ctm-fl .ctm-a', 11);
+R('.ctm-row', 10.5); R('.ctm-tile.ctm-fs .ctm-row', 9); R('.ctm-tile.ctm-fl .ctm-row', 12);
+R('.ctm-p', 17); R('.ctm-p.small', 12); R('.ctm-tile.ctm-fl .ctm-p', 20);
+L.push('.ctm-rows{padding-right:40px!important;}.ctm-tile.ctm-fs .ctm-rows{padding-right:30px!important;}.ctm-tile.ctm-fl .ctm-rows{padding-right:48px!important;}');
+// ---------- сводка ----------
+R('.kbs-ht b', 16); R('.kbs-ht span', 11.5); R('.kbs-next', 11); R('.kbs-new', 10);
+R('.kbs-seg button', 11.5); R('.kbs-sel', 11.5);
+R('.kbs-k small', 10); R('.kbs-k b', 22); R('.kbs-k i', 10.5);
+R('.kbs-sec', 11); R('.kbs-sec em', 10.5);
+R('.kbs-wt b', 13); R('.kbs-wt span', 11); R('.kbs-wr b', 13); R('.kbs-wr i', 10.5);
+R('.kbs-cn', 13); R('.kbs-cn em', 10); R('.kbs-num', 12.5); R('.kbs-cw', 11);
+R('.kbs-stt b', 12); R('.kbs-stt span', 10.5); R('.kbs-fc i', 10); R('.kbs-stw', 10.5);
+R('.kbs-ch', 12); R('.kbs-ch em', 11); R('.kbs-d', 11); R('.kbs-dt', 11);
+R('.kbs-btn', 12.5); R('.kbs-note', 11); R('.kbs-empty', 12);
+// ---------- советник ----------
+R('.kb-adv-title-txt', 20, 1.25); R('.kb-adv-city', 13.5);
+R('.adv-name', 16); R('.adv-addr', 12); R('.adv-rank', 13);
+R('.adv-badge', 11); R('.adv-our', 11);
+R('.adv-fc.kbm b', 11.5); R('.adv-fc.kbm i', 13); R('.adv-fc.kbm em', 10, 1.3);
+R('.kb-why-our-t', 10.5); R('.kb-why-our li', 12, 1.4);
+R('.adv-meta', 12); R('.adv-price-v', 13); R('.adv-price-d', 11);
+R('.adv-reaction-t', 12); R('.adv-reaction .cnt', 11);
+R('.kb-rt', 12); R('.kb-rt-txt i', 11);
+R('.adv-actions .cta-btn', 14); R('.kb-go-btn', 15); R('.kb-adv-extra button', 13);
+R('.adv-stale-warn', 11.5, 1.4); R('.adv-people', 11.5); R('.adv-reject-warn', 11);
+// ---------- карточка АЗС ----------
+R('.station-name', 19, 1.2); R('.station-address', 12.5);
+R('.kb-pred-head', 10.5); R('.kb-pred-time', 24); R('.kb-pred-conf', 11.5);
+R('.kb-pred-src', 11); R('.kb-pred-note', 11.5, 1.45);
+L.push('.kb-card-v2 .kb-pred-note{-webkit-line-clamp:3!important;}');
+R('.verdict-t', 15, 1.25); R('.kb-v-chip', 11.5);
+R('.f-tile b', 13); R('.f-st', 13.5); R('.kb-f-src', 10); R('.f-pill', 10.5);
+L.push('.kbc-status .f-tile{min-height:120px!important;}');
+R('.cf small', 10); R('.pr-row b', 16); R('.pr-ico', 10);
+L.push('.kb-card-v2 .pr-ico{width:24px!important;height:20px!important;}');
+R('.card-btns .cta-btn', 15); R('.card-btns .cta-btn.ghost', 14);
+R('.kb-closebar-w', 16);
+R('.kb-more-t b', 15); R('.kb-more-sub', 11.5);
+R('.ev-head b', 13); R('.ev-head small', 10.5); R('.ev-node b', 12); R('.ev-node span', 10, 1.3);
+R('.mf-head', 13.5); R('.mf-head small', 10); R('.mf-sub', 11);
+R('.mf-name', 13); R('.mf-addr', 10.5); R('.mf-fuel', 11);
+R('.folk-head', 13); R('.folk-head small', 10); R('.folk-quiet', 11);
+R('.folk-ago', 10.5); R('.fk', 10.5); R('.folk-comment', 10.5);
+R('.sc-rl-txt b', 13.5); R('.sc-rl-txt small', 11);
+R('.kb-card-extra button', 13);
+R('.cmr-txt b', 13); R('.cmr-txt small', 10.5);
+// ---------- мастер отметок ----------
+R('.kb2-head-t b', 16); R('.kb2-head-t span', 12);
+R('.kb2-ack', 12.5, 1.4); R('.kb2-sec-t b', 14); R('.kb2-sec-t em', 11);
+R('.kb2-fuel-l b', 13.5); R('.kb2-drop', 11);
+R('.kb2-seg-b', 13.5); L.push('.kb2-seg-b{height:46px!important;}');
+R('.kb2-q b', 15); R('.kb2-q span', 10.5); L.push('.kb2-q{height:64px!important;}');
+R('.kb2-extra', 14); R('.kb2-count', 12); R('.kb2-send', 15);
+R('.kb2-thanks b', 18); R('.kb2-thanks span', 13, 1.45);
+// ---------- список АЗС (инлайн-размеры строк) ----------
+L.push('.srow-wrap [style*="font-size:16px"]{font-size:18px!important;}');
+L.push('.srow-wrap [style*="font-size:12px"]{font-size:13.5px!important;}');
+L.push('.srow-wrap [style*="font-size:9px"]{font-size:11px!important;}');
+L.push('.srow-wrap [style*="font-size:13px"]{font-size:15px!important;}');
+L.push('.srow-wrap [style*="font-size:10px"]{font-size:12px!important;}');
+R('.sbadge', 11);
+L.push('.mf-plate [style*="font-size:13px"]{font-size:15px!important;}');
+L.push('.mf-plate [style*="font-size:9.5px"]{font-size:11.5px!important;}');
+// ---------- попапы мини-меню ----------
+R('.kbq3-head b', 15); R('.kbq3-stamp', 10.5);
+R('.kbq3-name', 12.5); R('.kbq3-addr', 10.5); R('.kbq3-meta', 11);
+R('.kbq3-time', 18); R('.kbq3-sum i', 11); R('.kbq3-foot button', 12.5);
+R('.kbq3-chips i', 10); R('.kbq3-empty', 12);
+L.push('.kbq3-x{width:32px!important;height:32px!important;font-size:16px!important;}');
+// ---------- помощь / обновления / опрос / письмо / уведомления ----------
+R('.help-h', 17); R('.help-lead', 13.5, 1.5); R('.help-q', 14); R('.help-a', 13, 1.5);
+R('.wn-title', 17); R('.wn-lead', 13, 1.5); R('.wn-why', 12, 1.45);
+R('.install-step', 12.5, 1.45); R('.recent', 11.5, 1.45);
+R('.hello-title', 19, 1.25);
+R('.poll-title', 15); R('.poll-sub', 12); R('.poll-q', 14); R('.poll-opt', 13);
+R('.feedback-option', 13); R('.fb-gl', 11); R('.fb-text', 13); R('.fb-send', 14);
+R('.mail-reason', 12.5); R('.mail-text', 13.5); R('.mail-count', 11);
+R('.slim-notif-t', 14); R('.slim-notif-empty', 12);
+R('.sn-txt b', 13); R('.sn-txt span', 11); R('.sn-time', 11);
+R('.kbn-head', 14); R('.kbn-sub', 12); R('.kbn-pill-top', 12); R('.kbn-pill-addr', 10.5);
+R('.kbn-addr', 12); R('.kbn-reason', 12); R('.kbn-actions button', 13);
+R('.kb-note', 12, 1.45); R('.kb-ip-body', 12.5, 1.5); R('.kb-ip-head', 14);
+// ---------- карта ----------
+R('.mlabel', 12); R('.mlabel.city', 13);
+R('.fchip', 10.5); R('.mpin-name b', 12); R('.mpin-name span', 10.5);
+R('.mcluster span', 14); R('#routePlate', 13);
+R('.mg-tab', 12.5); R('#mapTitle', 15);
+// ---------- тосты ----------
+R('.kb-toast', 14); R('.kb-go-toast', 14); R('.kbs-toast', 13.5);
+R('.kb-reg-toast', 13); R('#mfSnack', 13); R('#kbrToast', 13); R('#kbLrToast', 13);
+s.textContent = L.join('');
+document.head.appendChild(s);
+// держим правило последним: поздние паки не уменьшают шрифт обратно
+setInterval(function () {
+  if (s.parentNode !== document.head || document.head.lastElementChild !== s) document.head.appendChild(s);
+}, 1500);
+// после смены размеров — пересчитать плитки теплокарты (полосы волны
+// меряют свободное место между адресом и строками фактов)
+function repaint() { try { renderCityTreemap(); } catch (e) {} }
+setTimeout(repaint, 120);
+setTimeout(repaint, 700);
+try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { setTimeout(repaint, 60); }); } catch (e) {}
+})();
+// ============================================================
+// KB FIX TRIO v1 — три точечные правки:
+// 1) Зум карты (+/−) ПОВЕРХ всего: отдельный высокий слой,
+//    плотная подложка с защитным ореолом — пины, таблички и
+//    чипы больше не перекрывают кнопки и не крадут нажатия;
+//    пины, попавшие под блок зума, мягко гаснут, чтобы не
+//    торчать из-под него.
+// 2) Строка выбора региона больше не уезжает под шапку:
+//    липкая позиция сразу под slim-баром (высота шапки меряется
+//    живьём, в т.ч. после смены шрифта) + scroll-padding, чтобы
+//    автопрокрутки не прятали её.
+// 3) Три мини-карточки («Где бензин / Когда привезут / Возможно
+//    есть») окрашены только на половину: цветная волна сверху
+//    плавно сходит на нет к ~72% высоты, без резкой границы.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbFixTrio) return;
+window.__kbFixTrio = 1;
+
+// ---------- живая высота шапки ----------
+function slimH() {
+  var b = document.querySelector('.slim-bar');
+  var h = b ? Math.round(b.getBoundingClientRect().height) : 64;
+  if (!h || h < 40) h = 64;
+  document.documentElement.style.setProperty('--kbSlimH', h + 'px');
+}
+slimH();
+window.addEventListener('resize', slimH);
+try { if (document.fonts && document.fonts.ready) document.fonts.ready.then(slimH); } catch (e) {}
+setInterval(slimH, 2000);
+
+// ---------- стили ----------
+(function css() {
+  if (document.getElementById('kbFixTrioCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbFixTrioCss';
+  var L = [];
+  // 1) зум поверх всех слоёв карты
+  L.push('#mapBox .maplibregl-control-container{z-index:60 !important;}');
+  L.push('#mapBox .maplibregl-ctrl-bottom-left{z-index:60 !important;pointer-events:none !important;}');
+  L.push('#mapBox .maplibregl-ctrl-bottom-left .maplibregl-ctrl-group{pointer-events:auto !important;}');
+  L.push('.kb-zoomgrp{position:relative;z-index:61 !important;');
+  L.push('background:linear-gradient(180deg,#15203a,#0e1626) !important;');
+  L.push('border:1px solid rgba(91,140,255,.5) !important;');
+  L.push('box-shadow:0 14px 34px rgba(0,0,0,.6),0 0 0 6px rgba(8,12,24,.82) !important;');
+  L.push('backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}');
+  L.push('body:not(.kb-night) .kb-zoomgrp{background:linear-gradient(180deg,#ffffff,#eef2f8) !important;');
+  L.push('border-color:rgba(36,101,238,.4) !important;box-shadow:0 14px 30px rgba(20,33,61,.28),0 0 0 6px rgba(248,250,253,.85) !important;}');
+  L.push('.kb-zoomgrp button{position:relative;z-index:1 !important;}');
+  // 2) регион липко под шапкой
+  L.push('#kbRegionRow{position:sticky !important;top:calc(var(--kbSlimH,64px) + 8px) !important;z-index:7 !important;');
+  L.push('margin:0 0 8px !important;padding:6px !important;border-radius:18px;');
+  L.push('background:linear-gradient(180deg,rgba(10,16,32,.94),rgba(10,16,32,.84)) !important;');
+  L.push('backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);');
+  L.push('box-shadow:0 6px 18px rgba(0,0,0,.35);}');
+  L.push('body:not(.kb-night) #kbRegionRow{background:linear-gradient(180deg,rgba(248,250,253,.96),rgba(248,250,253,.86)) !important;');
+  L.push('box-shadow:0 6px 18px rgba(20,33,61,.12);}');
+  L.push('.panel-scroll{scroll-padding-top:calc(var(--kbSlimH,64px) + 66px);}');
+  // 3) половина карточки в цвет, плавный сход
+  L.push('#kbQmMenu3 .kbqm2.g{--kbq-t1:rgba(25,183,122,.40);--kbq-t2:rgba(25,183,122,.24);--kbq-t3:rgba(25,183,122,.09);--kbq-tb:rgba(25,183,122,.34);}');
+  L.push('#kbQmMenu3 .kbqm2.b{--kbq-t1:rgba(75,147,255,.40);--kbq-t2:rgba(75,147,255,.24);--kbq-t3:rgba(75,147,255,.09);--kbq-tb:rgba(75,147,255,.34);}');
+  L.push('#kbQmMenu3 .kbqm2.a{--kbq-t1:rgba(245,160,90,.40);--kbq-t2:rgba(245,160,90,.24);--kbq-t3:rgba(245,160,90,.09);--kbq-tb:rgba(245,160,90,.34);}');
+  L.push('#kbQmMenu3 .kbq3-btn.kbqm2{border-color:var(--kbq-tb) !important;');
+  L.push('background:linear-gradient(168deg,var(--kbq-t1) 0%,var(--kbq-t2) 30%,var(--kbq-t3) 52%,rgba(0,0,0,0) 72%),');
+  L.push('linear-gradient(160deg,rgba(148,180,255,.08),rgba(148,180,255,.03)) !important;}');
+  L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.g{--kbq-t1:rgba(25,183,122,.26);--kbq-t2:rgba(25,183,122,.15);--kbq-t3:rgba(25,183,122,.06);--kbq-tb:rgba(18,133,92,.30);}');
+  L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.b{--kbq-t1:rgba(36,101,238,.24);--kbq-t2:rgba(36,101,238,.14);--kbq-t3:rgba(36,101,238,.06);--kbq-tb:rgba(36,101,238,.28);}');
+  L.push('body:not(.kb-night) #kbQmMenu3 .kbqm2.a{--kbq-t1:rgba(245,160,90,.28);--kbq-t2:rgba(245,160,90,.16);--kbq-t3:rgba(245,160,90,.06);--kbq-tb:rgba(194,106,42,.30);}');
+  L.push('body:not(.kb-night) #kbQmMenu3 .kbq3-btn.kbqm2{');
+  L.push('background:linear-gradient(168deg,var(--kbq-t1) 0%,var(--kbq-t2) 30%,var(--kbq-t3) 52%,rgba(0,0,0,0) 72%),#ffffff !important;}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+// ---------- пины под блоком зума мягко гаснут ----------
+function zoomGuard() {
+  try {
+    if (typeof mapObj === 'undefined' || !mapObj || !mapObj.getContainer) return;
+    var grp = document.querySelector('#mapBox .kb-zoomgrp');
+    if (!grp) return;
+    var gr = grp.getBoundingClientRect();
+    if (!gr.width) return;
+    var pad = 8;
+    var marks = document.querySelectorAll('#mapBox .maplibregl-marker');
+    for (var i = 0; i < marks.length; i++) {
+      var m = marks[i];
+      var body = m.querySelector('.mpin') || m.querySelector('.mcluster') || m;
+      var r = body.getBoundingClientRect();
+      if (!r.width) continue;
+      var hit = r.right > gr.left - pad && r.left < gr.right + pad &&
+                r.bottom > gr.top - pad && r.top < gr.bottom + pad;
+      if (hit) { m.style.opacity = '0.25'; m.style.pointerEvents = 'none'; }
+      else if (m.style.opacity === '0.25') { m.style.opacity = ''; m.style.pointerEvents = ''; }
+    }
+  } catch (e) {}
+}
+var _rm = renderMap;
+renderMap = function () { var r = _rm(); setTimeout(zoomGuard, 60); setTimeout(zoomGuard, 400); return r; };
+setInterval(function () {
+  try {
+    if (typeof mapObj === 'undefined' || !mapObj) return;
+    if (typeof currentPanel !== 'undefined' && currentPanel !== 2) return;
+    zoomGuard();
+  } catch (e) {}
+}, 700);
+setTimeout(zoomGuard, 1500);
+})();
+// ============================================================
+// KB QM ART v1 — мини-карточки меню как на референсах:
+// цветная градиентная карточка + 3D-«медальон» и монетки,
+// которые аккуратно выходят за рамки карточки.
+// Текст адаптируется: переносится до 3 строк, размер через
+// clamp(), высота карточки растёт сама — при увеличении
+// масштаба страницы надписи больше не вылезают за кнопки.
+// Старые data-kbq3 / .kbq3-badge / .kbqm2 сохранены: счётчики,
+// открытие панелей и ensureMenu() продолжают работать как были.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmArt) return;
+window.__kbQmArt = 1;
+
+function ic(n) { return typeof icon === 'function' ? icon(n) : ''; }
+
+// ---------- палитра и геометрия ----------
+(function css() {
+  if (document.getElementById('kbQmArtCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbQmArtCss';
+  var L = [];
+  // контейнер: прозрачный, с запасом сверху под выходящий арт
+  L.push('#kbQmMenu3{background:transparent !important;border:0 !important;box-shadow:none !important;');
+  L.push('padding:20px 2px 6px !important;gap:10px !important;overflow:visible !important;}');
+  // карточка-«плашка»
+  L.push('#kbQmMenu3 .kbq3-btn.kbqm2{position:relative !important;overflow:visible !important;');
+  L.push('display:flex !important;flex-direction:column !important;justify-content:flex-end !important;');
+  L.push('grid-template-columns:none !important;grid-template-areas:none !important;');
+  L.push('min-height:104px !important;height:auto !important;padding:34px 10px 12px !important;');
+  L.push('border-radius:18px !important;border:1px solid rgba(255,255,255,.16) !important;');
+  L.push('box-shadow:0 8px 20px rgba(4,10,26,.35),inset 0 1px 0 rgba(255,255,255,.25) !important;');
+  L.push('background:radial-gradient(120% 90% at 18% 0%,rgba(255,255,255,.26),rgba(255,255,255,0) 55%),');
+  L.push('linear-gradient(165deg,var(--qa1),var(--qa2) 55%,var(--qa3)) !important;}');
+  L.push('#kbQmMenu3 .kbqm2.g{--qa1:#2fd39a;--qa2:#0e8f66;--qa3:#0a5c44;--qmed:#19b77a;}');
+  L.push('#kbQmMenu3 .kbqm2.b{--qa1:#5b9dff;--qa2:#2465ee;--qa3:#123a9e;--qmed:#2f7bff;}');
+  L.push('#kbQmMenu3 .kbqm2.a{--qa1:#ffb46a;--qa2:#e07a2a;--qa3:#8f4a12;--qmed:#f5a05a;}');
+  // число: крупное белое слева сверху
+  L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge{position:absolute !important;top:8px !important;left:10px !important;');
+  L.push('grid-area:auto !important;margin:0 !important;padding:0 !important;background:none !important;');
+  L.push('background-image:none !important;-webkit-background-clip:border-box !important;background-clip:border-box !important;');
+  L.push('color:#fff !important;filter:none !important;font-size:clamp(18px,6vw,26px) !important;');
+  L.push('font-weight:900 !important;line-height:1 !important;letter-spacing:-.5px !important;');
+  L.push('text-shadow:0 2px 8px rgba(0,0,0,.35) !important;}');
+  L.push('#kbQmMenu3 .kbq3-btn.kbqm2 .kbq3-badge.zero{opacity:.55 !important;}');
+  // старый квадратик-иконка и подзаголовок прячем — их заменяет арт
+  L.push('#kbQmMenu3 .kbqm2-ico{display:none !important;}');
+  L.push('#kbQmMenu3 .kbqm2-tx i{display:none !important;}');
+  // подпись: белая, переносится, растёт вместе с карточкой
+  L.push('#kbQmMenu3 .kbqm2-tx{margin:0 !important;min-width:0 !important;}');
+  L.push('#kbQmMenu3 .kbqm2-tx b{color:#fff !important;font-size:clamp(11px,3.6vw,14px) !important;');
+  L.push('line-height:1.18 !important;white-space:normal !important;overflow-wrap:break-word !important;');
+  L.push('display:-webkit-box !important;-webkit-line-clamp:3 !important;-webkit-box-orient:vertical !important;');
+  L.push('overflow:hidden !important;text-shadow:0 1px 3px rgba(0,0,0,.35) !important;}');
+  // ---------- выходящий за рамки арт ----------
+  L.push('.kbq-art{position:absolute;inset:0;pointer-events:none;}');
+  L.push('.kbq-med{position:absolute;top:-18px;right:6px;width:46px;height:46px;border-radius:50%;');
+  L.push('background:#fff;padding:5px;box-shadow:0 6px 14px rgba(0,0,0,.35);transform:rotate(-10deg);}');
+  L.push('.kbq-med i{display:flex;width:100%;height:100%;border-radius:50%;align-items:center;justify-content:center;');
+  L.push('background:linear-gradient(150deg,var(--qa1),var(--qa2));color:#fff;font-style:normal;}');
+  L.push('.kbq-med .ic{width:22px;height:22px;}');
+  L.push('.kbq-coin{position:absolute;border-radius:50%;background:linear-gradient(150deg,#fff,#c9d4e4);');
+  L.push('box-shadow:0 4px 10px rgba(0,0,0,.3),inset 0 -2px 4px rgba(0,0,0,.15);}');
+  L.push('.kbq-coin.c1{left:-8px;top:32px;width:20px;height:20px;}');
+  L.push('.kbq-coin.c2{right:-6px;bottom:26px;width:14px;height:14px;opacity:.9;}');
+  // очень узкий экран / сильный зум: карточки в столбик, текст крупнее
+  L.push('@media (max-width:320px){');
+  L.push('#kbQmMenu3{grid-template-columns:1fr !important;}');
+  L.push('#kbQmMenu3 .kbq3-btn.kbqm2{min-height:88px !important;}');
+  L.push('#kbQmMenu3 .kbqm2-tx b{font-size:15px !important;-webkit-line-clamp:2 !important;}');
+  L.push('.kbq-med{top:-14px;width:40px;height:40px;}');
+  L.push('}');
+  L.push('body.kb-lite .kbq-med{transform:none;}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+// ---------- injecting the pop-out art into existing buttons ----------
+var ART = { g: 'i-pump', b: 'i-clock', a: 'i-check' };
+function inject() {
+  var menu = document.getElementById('kbQmMenu3');
+  if (!menu) return;
+  ['g', 'b', 'a'].forEach(function (k) {
+    var btn = menu.querySelector('.kbqm2.' + k);
+    if (!btn || btn.querySelector('.kbq-art')) return;
+    var el = document.createElement('span');
+    el.className = 'kbq-art';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML =
+      '<span class="kbq-coin c1"></span>' +
+      '<span class="kbq-coin c2"></span>' +
+      '<span class="kbq-med"><i>' + ic(ART[k]) + '</i></span>';
+    btn.appendChild(el);
+  });
+}
+inject();
+setTimeout(inject, 700);
+setInterval(inject, 1500);
+})();
+// ============================================================
+// KB QM ART v2 — капля бензина вместо медальона + анимация.
+// Вылетающий элемент теперь = глянцевая капля топлива в цвет
+// карточки (белая «наклейка»-контур, градиент, блик, иконка),
+// рядом две малые капли-спутника и серебристые монетки.
+// Всё дышит и покачивается: капля плавает и качается, блик
+// скользит, спутники и монетки floats в противофазе.
+// Текст и счётчики не тронуты; при зуме ничего не вылезает.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmArt2) return;
+window.__kbQmArt2 = 1;
+
+function ic(n) { return typeof icon === 'function' ? icon(n) : ''; }
+var PAL = { g: ['#3ee6a8', '#0e8f66'], b: ['#6ba6ff', '#2465ee'], a: ['#ffc07a', '#e07a2a'] };
+var ICO = { g: 'i-pump', b: 'i-clock', a: 'i-check' };
+
+(function css() {
+  if (document.getElementById('kbQmArt2Css')) return;
+  var s = document.createElement('style');
+  s.id = 'kbQmArt2Css';
+  var L = [];
+  // капля-«наклейка», выходящая за край карточки
+  L.push('.kbq-drop{position:absolute;top:-22px;right:4px;width:50px;height:58px;');
+  L.push('transform-origin:50% 82%;filter:drop-shadow(0 7px 14px rgba(0,0,0,.38));');
+  L.push('animation:kbqDropFloat 3.6s ease-in-out infinite;}');
+  L.push('.kbqm2.b .kbq-drop{animation-delay:-1.2s;}');
+  L.push('.kbqm2.a .kbq-drop{animation-delay:-2.4s;}');
+  L.push('.kbq-drop-svg{width:100%;height:100%;display:block;overflow:visible;}');
+  L.push('.kbq-drop-ico{position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);');
+  L.push('width:19px;height:19px;color:#fff;display:flex;align-items:center;justify-content:center;');
+  L.push('filter:drop-shadow(0 1px 2px rgba(0,0,0,.3));}');
+  L.push('.kbq-drop-ico .ic{width:100%;height:100%;}');
+  // скользящий блик
+  L.push('.kbq-drop-spec{animation:kbqSpec 3.6s ease-in-out infinite;}');
+  L.push('.kbqm2.b .kbq-drop-spec{animation-delay:-1.2s;}');
+  L.push('.kbqm2.a .kbq-drop-spec{animation-delay:-2.4s;}');
+  // малые капли-спутники
+  L.push('.kbq-drop-sat{position:absolute;border-radius:0 50% 50% 50%;transform:rotate(45deg);');
+  L.push('background:linear-gradient(140deg,var(--qa1),var(--qa2));box-shadow:0 3px 7px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.5);}');
+  L.push('.kbq-drop-sat.s1{left:-7px;top:30px;width:13px;height:13px;animation:kbqSat1 2.8s ease-in-out infinite;}');
+  L.push('.kbq-drop-sat.s2{right:-5px;top:6px;width:9px;height:9px;animation:kbqSat2 3.2s ease-in-out infinite;}');
+  // монетки тоже оживают
+  L.push('.kbq-coin.c1{animation:kbqCoin1 3.1s ease-in-out infinite;}');
+  L.push('.kbq-coin.c2{animation:kbqCoin2 2.6s ease-in-out infinite;}');
+  L.push('@keyframes kbqDropFloat{0%,100%{transform:translateY(0) rotate(-7deg);}50%{transform:translateY(-7px) rotate(5deg);}}');
+  L.push('@keyframes kbqSpec{0%,100%{transform:translate(0,0);opacity:.45;}50%{transform:translate(7px,-4px);opacity:.85;}}');
+  L.push('@keyframes kbqSat1{0%,100%{transform:rotate(45deg) translate(0,0);}50%{transform:rotate(45deg) translate(-3px,-5px);}}');
+  L.push('@keyframes kbqSat2{0%,100%{transform:rotate(45deg) translate(0,0);}50%{transform:rotate(45deg) translate(3px,4px);}}');
+  L.push('@keyframes kbqCoin1{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-5px) scale(1.06);}}');
+  L.push('@keyframes kbqCoin2{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(4px) scale(.94);}}');
+  L.push('body.kb-lite .kbq-drop,body.kb-lite .kbq-drop-spec,body.kb-lite .kbq-drop-sat,body.kb-lite .kbq-coin{animation:none;}');
+  L.push('@media (prefers-reduced-motion:reduce){.kbq-drop,.kbq-drop-spec,.kbq-drop-sat,.kbq-coin{animation:none;}}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+function dropHtml(kind) {
+  var c = PAL[kind] || PAL.g;
+  var gid = 'kbqDropG_' + kind;
+  return '<span class="kbq-drop">' +
+    '<svg class="kbq-drop-svg" viewBox="0 0 48 56" aria-hidden="true">' +
+    '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0.6" y2="1">' +
+    '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>' +
+    '</linearGradient></defs>' +
+    '<path d="M24 3 C24 3 7 25 7 36.5 A17 17 0 0 0 41 36.5 C41 25 24 3 24 3 Z" fill="#fff"/>' +
+    '<path d="M24 8 C24 8 10.5 26.5 10.5 36.5 A13.5 13.5 0 0 0 37.5 36.5 C37.5 26.5 24 8 24 8 Z" fill="url(#' + gid + ')"/>' +
+    '<ellipse cx="18" cy="33" rx="4.5" ry="6.5" fill="rgba(255,255,255,.4)" transform="rotate(-18 18 33)"/>' +
+    '<ellipse class="kbq-drop-spec" cx="29" cy="27" rx="2.6" ry="4.2" fill="rgba(255,255,255,.7)" transform="rotate(16 29 27)"/>' +
+    '</svg>' +
+    '<span class="kbq-drop-ico">' + ic(ICO[kind] || 'i-pump') + '</span>' +
+    '<i class="kbq-drop-sat s1"></i><i class="kbq-drop-sat s2"></i>' +
+    '</span>' +
+    '<span class="kbq-coin c1"></span><span class="kbq-coin c2"></span>';
+}
+
+function paint() {
+  var menu = document.getElementById('kbQmMenu3');
+  if (!menu) return;
+  ['g', 'b', 'a'].forEach(function (k) {
+    var btn = menu.querySelector('.kbqm2.' + k);
+    if (!btn) return;
+    var art = btn.querySelector('.kbq-art');
+    if (!art) {
+      art = document.createElement('span');
+      art.className = 'kbq-art';
+      art.setAttribute('aria-hidden', 'true');
+      btn.appendChild(art);
+    }
+    if (art.dataset.v2) return;
+    art.dataset.v2 = '1';
+    art.innerHTML = dropHtml(k);
+  });
+}
+paint();
+setTimeout(paint, 500);
+setInterval(paint, 1200);
+})();
+// ============================================================
+// KB QM ART v3 — капли без анимации + иконки белым контуром.
+// 1) Вся анимация арт-элементов выключена: капля, блик,
+//    капли-спутники и монетки стоят статично (лёгкий наклон
+//    капли сохранён как статичный pose).
+// 2) Иконка внутри капли теперь рисуется БЕЛЫМ КОНТУРОМ
+//    (fill:none + stroke:#fff) собственными линиями, а не
+//    спрайтом — чистый читаемый знак на цветном градиенте.
+// Счётчики, тапы и поведение кнопок не тронуты.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmArt3) return;
+window.__kbQmArt3 = 1;
+
+var PAL = { g: ['#3ee6a8', '#0e8f66'], b: ['#6ba6ff', '#2465ee'], a: ['#ffc07a', '#e07a2a'] };
+
+// ---------- белые контурные иконки (собственные линии) ----------
+function outlineIcon(kind) {
+  var inner = '';
+  if (kind === 'g') {           // колонка
+    inner =
+      '<path d="M6.2 21V5.2a2 2 0 0 1 2-2h4.6a2 2 0 0 1 2 2V21"/>' +
+      '<path d="M4.4 21h12.4"/>' +
+      '<path d="M8.6 7.4h4.2"/>' +
+      '<path d="M14.8 10.2h2.1a1.8 1.8 0 0 1 1.8 1.8v5.2a1.6 1.6 0 0 0 3.2 0V12l-2.3-2.5"/>';
+  } else if (kind === 'b') {    // часы
+    inner =
+      '<circle cx="12" cy="12" r="8.1"/>' +
+      '<path d="M12 7.7V12l3 1.9"/>';
+  } else {                      // галочка
+    inner = '<path d="M5.2 12.9l4.3 4.3L18.9 7.7"/>';
+  }
+  return '<svg viewBox="0 0 24 24" aria-hidden="true">' + inner + '</svg>';
+}
+
+// ---------- статичная капля ----------
+function dropHtml(kind) {
+  var c = PAL[kind] || PAL.g;
+  var gid = 'kbqDropG3_' + kind;
+  return '<span class="kbq-drop">' +
+    '<svg class="kbq-drop-svg" viewBox="0 0 48 56" aria-hidden="true">' +
+    '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0.6" y2="1">' +
+    '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>' +
+    '</linearGradient></defs>' +
+    '<path d="M24 3 C24 3 7 25 7 36.5 A17 17 0 0 0 41 36.5 C41 25 24 3 24 3 Z" fill="#fff"/>' +
+    '<path d="M24 8 C24 8 10.5 26.5 10.5 36.5 A13.5 13.5 0 0 0 37.5 36.5 C37.5 26.5 24 8 24 8 Z" fill="url(#' + gid + ')"/>' +
+    '<ellipse cx="18" cy="33" rx="4.5" ry="6.5" fill="rgba(255,255,255,.34)" transform="rotate(-18 18 33)"/>' +
+    '<ellipse cx="29" cy="27" rx="2.4" ry="4" fill="rgba(255,255,255,.5)" transform="rotate(16 29 27)"/>' +
+    '</svg>' +
+    '<span class="kbq-drop-ico">' + outlineIcon(kind) + '</span>' +
+    '<i class="kbq-drop-sat s1"></i><i class="kbq-drop-sat s2"></i>' +
+    '</span>' +
+    '<span class="kbq-coin c1"></span><span class="kbq-coin c2"></span>';
+}
+
+// ---------- CSS: стоп-анимация + контурные иконки ----------
+(function css() {
+  if (document.getElementById('kbQmArt3Css')) return;
+  var s = document.createElement('style');
+  s.id = 'kbQmArt3Css';
+  var L = [];
+  // вся анимация арта выключена, статичный pose
+  L.push('.kbq-drop,.kbq-drop-spec,.kbq-drop-sat,.kbq-coin{animation:none !important;}');
+  L.push('.kbq-drop{transform:rotate(-6deg) !important;}');
+  L.push('.kbq-drop-sat.s1{transform:rotate(45deg) !important;}');
+  L.push('.kbq-drop-sat.s2{transform:rotate(45deg) !important;}');
+  L.push('.kbq-coin.c1,.kbq-coin.c2{transform:none !important;}');
+  // иконка внутри капли — белый контур
+  L.push('.kbq-drop-ico{width:20px !important;height:20px !important;}');
+  L.push('.kbq-drop-ico svg{width:100% !important;height:100% !important;display:block;');
+  L.push('fill:none !important;stroke:#fff !important;stroke-width:2 !important;');
+  L.push('stroke-linecap:round !important;stroke-linejoin:round !important;');
+  L.push('filter:drop-shadow(0 1px 2px rgba(0,0,0,.35)) !important;}');
+  L.push('.kbq-drop-ico svg *{fill:none !important;stroke:#fff !important;}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+// ---------- пересборка арта в статичный вид ----------
+function paint() {
+  var menu = document.getElementById('kbQmMenu3');
+  if (!menu) return;
+  ['g', 'b', 'a'].forEach(function (k) {
+    var btn = menu.querySelector('.kbqm2.' + k);
+    if (!btn) return;
+    var art = btn.querySelector('.kbq-art');
+    if (!art) {
+      art = document.createElement('span');
+      art.className = 'kbq-art';
+      art.setAttribute('aria-hidden', 'true');
+      btn.appendChild(art);
+    }
+    if (art.dataset.v3) return;
+    art.dataset.v3 = '1';
+    art.dataset.v2 = '1'; // чтобы v2 не пересобирал обратно
+    art.innerHTML = dropHtml(k);
+  });
+}
+paint();
+setTimeout(paint, 400);
+setTimeout(paint, 1200);
+setInterval(paint, 1000);
+})();
+// ============================================================
+// KB CITY HEAD v1 — заголовок главной панели:
+// 1) Строка «Данные: N из M свежие / источник ещё не прислал…»
+//    полностью убрана с главной (#nowSub скрыт).
+// 2) Город уходит с верхней строки: заголовок остаётся
+//    «Обстановка в городе», а ниже, на месте убранного текста,
+//    город стоит КРУПНЫМИ заглавными буквами (фирменный синий
+//    градиент, узкий витринный шрифт).
+// Город живой: следует за тумблером региона и геолокацией.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCityHead) return;
+window.__kbCityHead = 1;
+
+(function css() {
+  if (document.getElementById('kbCityHeadCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbCityHeadCss';
+  var L = [];
+  // убираем строку свежести/пояснение целиком
+  L.push('#nowSub{display:none !important;}');
+  // крупный город-заголовок
+  L.push('#kbCityBig{font-family:\'Oswald\',\'Arial Narrow\',sans-serif;');
+  L.push('font-size:clamp(26px,9vw,42px);font-weight:700;line-height:1.05;');
+  L.push('letter-spacing:.6px;text-transform:uppercase;margin:2px 0 0;');
+  L.push('color:#2465ee;}');
+  L.push('body.kb-night #kbCityBig{color:#7db4ff;}');
+  L.push('@supports ((-webkit-background-clip:text) or (background-clip:text)){');
+  L.push('#kbCityBig{background:linear-gradient(100deg,#4b93ff,#2465ee 55%,#1746c8);');
+  L.push('-webkit-background-clip:text;background-clip:text;');
+  L.push('-webkit-text-fill-color:transparent;color:transparent;}');
+  L.push('body.kb-night #kbCityBig{background:linear-gradient(100deg,#9dc4ff,#5b9dff 50%,#2465ee);');
+  L.push('-webkit-background-clip:text;background-clip:text;}');
+  L.push('}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+function paint() {
+  var t = document.getElementById('nowTitle');
+  if (!t) return;
+  // город убираем из верхней строки
+  var city = t.querySelector('.pl-city');
+  if (city && city.parentNode) city.parentNode.removeChild(city);
+  // крупный город — на место убранной строки
+  var big = document.getElementById('kbCityBig');
+  if (!big) {
+    big = document.createElement('div');
+    big.id = 'kbCityBig';
+    t.parentNode.insertBefore(big, t.nextSibling);
+  }
+  var name = '';
+  try { name = userCityName(); } catch (e) {}
+  if (!name) name = '—';
+  if (big.textContent !== name) big.textContent = name;
+}
+
+if (window.__kbPipe) window.__kbPipe.now.push(paint);
+setTimeout(paint, 300);
+setTimeout(paint, 1200);
+setInterval(paint, 1500);
+})();
+// ============================================================
+// KB CITY FIT v2 — крупный город больше не обрезается.
+// 1) Название города выносится из узкой колонки (между иконкой и
+//    часами) в ОТДЕЛЬную строку шапки панели на всю ширину:
+//    строка 1 — иконка + «Обстановка в городе» + часы,
+//    строка 2 — город КРУПНЫМИ заглавными.
+// 2) Кегль подбирается автоматически под реальную ширину: от 44px
+//    вниз, а для очень длинных имён («Великий Новгород»,
+//    «Мариинский Посад») — перенос на две строки. Текст никогда
+//    не выходит за край и не наезжает на часы.
+// 3) Пересчёт при смене города/региона, ресайзе, повороте экрана
+//    и после догрузки шрифта.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCityFit2) return;
+window.__kbCityFit2 = 1;
+
+(function css() {
+  if (document.getElementById('kbCityFit2Css')) return;
+  var s = document.createElement('style');
+  s.id = 'kbCityFit2Css';
+  var L = [];
+  L.push('#nowSub{display:none !important;}');
+  // шапка панели: разрешаем вторую строку
+  L.push('.kb-city-head{display:flex !important;flex-wrap:wrap !important;align-items:center !important;');
+  L.push('column-gap:10px !important;row-gap:2px !important;overflow:visible !important;}');
+  L.push('.kb-city-head > *:not(#kbCityBig){min-width:0;}');
+  L.push('.kb-city-head #p1Time{flex:0 0 auto !important;margin-left:auto !important;}');
+  L.push('.kb-city-head > #kbCityBig{flex:0 0 100% !important;order:99 !important;}');
+  // сам город
+  L.push('#kbCityBig{display:block;width:100%;max-width:100%;margin:3px 0 0;position:static;');
+  L.push('font-family:\'Oswald\',\'Arial Narrow\',sans-serif;font-weight:700;line-height:.98;');
+  L.push('letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;color:#2465ee;}');
+  L.push('#kbCityBig.kb-city-wrap{white-space:normal;overflow-wrap:break-word;line-height:1.02;}');
+  L.push('body.kb-night #kbCityBig{color:#7db4ff;}');
+  L.push('@supports ((-webkit-background-clip:text) or (background-clip:text)){');
+  L.push('#kbCityBig{background:linear-gradient(100deg,#4b93ff,#2465ee 55%,#1746c8);');
+  L.push('-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;}');
+  L.push('body.kb-night #kbCityBig{background:linear-gradient(100deg,#9dc4ff,#5b9dff 50%,#2465ee);');
+  L.push('-webkit-background-clip:text;background-clip:text;}');
+  L.push('}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+function commonHost(a, b) {
+  var p = a;
+  while (p && p !== document.body) {
+    if (p.contains(b)) return p;
+    p = p.parentNode;
+  }
+  return null;
+}
+
+var big = null, host = null, lastName = '', raf = 0;
+
+function ensure() {
+  var t = document.getElementById('nowTitle');
+  if (!t) return false;
+  // город убираем из верхней строки
+  var pc = t.querySelector('.pl-city');
+  if (pc && pc.parentNode) pc.parentNode.removeChild(pc);
+
+  if (!big) {
+    big = document.getElementById('kbCityBig');
+    if (!big) {
+      big = document.createElement('div');
+      big.id = 'kbCityBig';
+    }
+  }
+  var clock = document.getElementById('p1Time');
+  var h = (clock && t.parentNode && t.parentNode.contains(clock)) ? t.parentNode
+        : (clock ? commonHost(t, clock) : null);
+  if (!h) h = t.parentNode;
+  if (!h) return false;
+  if (h !== host || big.parentNode !== h) {
+    host = h;
+    host.classList.add('kb-city-head');
+    host.appendChild(big);
+    watchHost();
+  }
+  var name = '';
+  try { name = userCityName(); } catch (e) {}
+  if (!name || name === 'регион') name = (big.textContent || '').trim();
+  if (!name) return false;
+  if (big.textContent !== name) { big.textContent = name; lastName = name; }
+  return true;
+}
+
+// подбор кегля под реальную ширину строки
+function fit() {
+  if (!big || !big.isConnected) return;
+  var w = big.clientWidth;
+  if (!w) return;
+  big.classList.remove('kb-city-wrap');
+  var size = 44;
+  big.style.fontSize = size + 'px';
+  while (size > 18 && big.scrollWidth > w) {
+    size -= 1;
+    big.style.fontSize = size + 'px';
+  }
+  if (big.scrollWidth > w) {
+    // очень длинное имя — две строки, кегль по высоте
+    big.classList.add('kb-city-wrap');
+    var s2 = 30;
+    big.style.fontSize = s2 + 'px';
+    while (s2 > 14 && big.scrollHeight > Math.ceil(s2 * 1.02 * 2) + 3) {
+      s2 -= 1;
+      big.style.fontSize = s2 + 'px';
+    }
+  }
+}
+
+function schedule() {
+  if (raf) return;
+  raf = requestAnimationFrame(function () {
+    raf = 0;
+    try { if (ensure()) fit(); } catch (e) {}
+  });
+}
+
+var mo = null;
+function watchHost() {
+  if (mo) { try { mo.disconnect(); } catch (e) {} mo = null; }
+  if (!host || !('MutationObserver' in window)) return;
+  mo = new MutationObserver(function (muts) {
+    for (var i = 0; i < muts.length; i++) {
+      if (muts[i].type !== 'attributes') { schedule(); return; }
+    }
+  });
+  mo.observe(host, { childList: true, subtree: true, characterData: true });
+}
+
+if (window.__kbPipe) window.__kbPipe.now.push(schedule);
+
+var ro = null;
+function attachRO() {
+  if (!host || ro || !('ResizeObserver' in window)) return;
+  ro = new ResizeObserver(function () { schedule(); });
+  ro.observe(host);
+}
+
+window.addEventListener('resize', schedule);
+window.addEventListener('orientationchange', function () { setTimeout(schedule, 260); });
+try {
+  if (document.fonts) {
+    if (document.fonts.ready) document.fonts.ready.then(function () { setTimeout(schedule, 40); });
+    if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', schedule);
+  }
+} catch (e) {}
+
+schedule();
+setTimeout(function () { schedule(); attachRO(); }, 400);
+setTimeout(function () { schedule(); attachRO(); }, 1400);
+setInterval(function () {
+  var n = '';
+  try { n = userCityName(); } catch (e) {}
+  if (!big || !big.isConnected || (n && n !== lastName)) schedule();
+  attachRO();
+}, 1200);
+})();
+// ============================================================
+// KB HEAD ORDER v1 — «Обстановка в городе» + крупный город
+// поднимаются НАВЕРХ, три кнопки меню встают под ними.
+// Порядок в скролле главной: заголовок с городом → 3 кнопки →
+// тепловая карта → сводка. Следим за пересборками меню
+// (оно любит вставать первым) и возвращаем порядок сразу.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbHeadOrder) return;
+window.__kbHeadOrder = 1;
+
+(function css() {
+  if (document.getElementById('kbHeadOrderCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbHeadOrderCss';
+  s.textContent =
+    '.kb-head-first{margin-bottom:10px !important;}' +
+    '#kbQmMenu3{margin-top:0 !important;}';
+  document.head.appendChild(s);
+})();
+
+var raf = 0, mo = null, moHost = null;
+
+function mainPanel() { return document.querySelectorAll('.panel')[1] || null; }
+function scrollerOf(p) { return p ? (p.querySelector('.panel-scroll') || p) : null; }
+
+function headOf(p, sc) {
+  var t = document.getElementById('nowTitle');
+  if (!t || !p || !p.contains(t)) return null;
+  var h = p.querySelector('.p1-head');
+  if (h && h.contains(t) && h.parentNode === sc) return h;
+  var n = t;
+  while (n && n.parentNode && n.parentNode !== sc) n = n.parentNode;
+  if (!n || n === sc || n.id === 'kbQmMenu3') return null;
+  if (n.querySelector && n.querySelector('#ctmCard,#kbSvCard,#kbQmMenu3')) return null;
+  return n;
+}
+
+function order() {
+  var p = mainPanel(); if (!p) return;
+  var sc = scrollerOf(p); if (!sc) return;
+  var menu = document.getElementById('kbQmMenu3');
+  var head = headOf(p, sc);
+  if (!menu || !head || menu.parentNode !== sc) return;
+  if (sc.firstChild !== head) sc.insertBefore(head, sc.firstChild);
+  if (head.nextSibling !== menu) sc.insertBefore(menu, head.nextSibling);
+  head.classList.add('kb-head-first');
+  watch(sc);
+}
+
+function schedule() {
+  if (raf) return;
+  raf = requestAnimationFrame(function () { raf = 0; try { order(); } catch (e) {} });
+}
+
+function watch(sc) {
+  if (mo && moHost === sc) return;
+  if (mo) { try { mo.disconnect(); } catch (e) {} mo = null; }
+  if (!sc || !('MutationObserver' in window)) return;
+  moHost = sc;
+  mo = new MutationObserver(function (muts) {
+    for (var i = 0; i < muts.length; i++) {
+      if (muts[i].type === 'childList') { schedule(); return; }
+    }
+  });
+  mo.observe(sc, { childList: true });
+}
+
+if (window.__kbPipe) {
+  window.__kbPipe.now.push(schedule);
+  window.__kbPipe.soft.push(schedule);
+}
+window.addEventListener('resize', schedule);
+schedule();
+setTimeout(schedule, 400);
+setTimeout(schedule, 1300);
+setTimeout(schedule, 2600);
+setInterval(schedule, 700);
+})();
