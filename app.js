@@ -21320,3 +21320,473 @@ setTimeout(paintAll, 400);
 setTimeout(paintAll, 1500);
 setTimeout(paintAll, 3200);
 })();
+// ============================================================
+// KB COUNT STABLE v1 — счётчик больше не прыгает 7 ↔ 3.
+// Причина: В ДВА писателя в один .kbq3-badge по своим таймерам —
+// badges() мини-меню писал размер топ-3 (3), пак счётчика писал
+// реальное число АЗС с топливом (7). Плюс подборщик отдавал то
+// топ-3, то полный список в зависимости от состояния панели.
+// Стало: 1) один источник списка на весь сайт; 2) советник режет
+// его до трёх сам; 3) цифра принимает только своё значение —
+// чужая запись другого числа игнорируется; 4) меняется она только
+// когда пришли новые данные, и это видно короткой вспышкой.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbCountStable) return;
+window.__kbCountStable = 1;
+
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+function ic(n, c) { return typeof icon === 'function' ? icon(n, c || 'ic-s') : ''; }
+function kmOf(st, u) {
+  if (!u || st.lat == null || st.lon == null) return null;
+  var dLa = 111 * (Number(st.lat) - u.lat);
+  var dLo = 111 * (Number(st.lon) - u.lon) * Math.cos(u.lat * Math.PI / 180);
+  return Math.sqrt(dLa * dLa + dLo * dLo);
+}
+function view(stId, o, fl) {
+  try { if (typeof window.kbFuelView === 'function') return window.kbFuelView(stId, o, fl) || { v: null, src: 'none' }; } catch (e) {}
+  var col = fl === '92' ? 'fuel_92_status' : fl === '95' ? 'fuel_95_status' : 'diesel_status';
+  var raw = o ? o[col] : null, trust = false;
+  try { trust = o ? availTrustworthy(o) : false; } catch (e) {}
+  if (trust && raw === true) return { v: true, src: 'source' };
+  if (raw === false) return { v: false, src: trust ? 'source' : 'stale-no' };
+  if (raw === true) return { v: null, src: 'stale' };
+  return { v: null, src: 'none' };
+}
+
+// ---------- ЕДИНЫЙ список: подтверждённые → прогноз → «не точно» ----------
+var L = { at: 0, city: '', fb: -1, pr: null, ob: -1, val: null };
+function LIST() {
+  var t = Date.now();
+  if (L.val && t - L.at < 2500 && L.city === userCityKey &&
+      L.fb === allFeedback.length && L.pr === allPredictions && L.ob === allObservations.length) return L.val;
+  var last = {}, city = [], u = null;
+  try { last = getLastObservations(); } catch (e) {}
+  try { city = cityStationList(); } catch (e) {}
+  try { u = loadUserLocation(); } catch (e) {}
+  var nows = [], fcs = [], stales = [];
+  for (var i = 0; i < city.length; i++) {
+    var st = city[i];
+    if (!isFinite(Number(st.lat)) || !isFinite(Number(st.lon))) continue;
+    var o = last[st.id], pred = null, km = kmOf(st, u);
+    try { pred = pickPrediction(st.id, o); } catch (e) {}
+    var yes = null, stale = false, conflict = false;
+    var order = ['95', '92', 'diesel'];
+    for (var k = 0; k < order.length; k++) {
+      var v = view(st.id, o, order[k]);
+      if (v.v === true && !yes) yes = order[k] === '95' ? 'yes' : order[k] === '92' ? 'part' : 'diesel';
+      if (v.src === 'stale') stale = true;
+      if (v.src === 'conflict') conflict = true;
+    }
+    var sc = 0;
+    try { sc = adviceCoreScore(st, o, km, pred); } catch (e) {}
+    if (yes) { nows.push({ kind: 'now', st: st, o: o, pred: pred, km: km, f: yes, score: 1000 + sc }); continue; }
+    if (stale || conflict) {
+      var spk = null;
+      try { spk = stalePinKey(o); } catch (e) {}
+      stales.push({ kind: 'stale', st: st, o: o, pred: pred, km: km, f: spk || 'yes', unverified: true, score: 500 + sc });
+      continue;
+    }
+    if (pred) {
+      var g = null;
+      try { g = getPrediction(pred); } catch (e) {}
+      if (g && g.confidence >= 35) {
+        var s2 = g.confidence;
+        if (km != null) s2 -= Math.min(15, km);
+        try {
+          var dm = demandOf(st.id);
+          s2 -= dm >= 50 ? 20 : dm >= 30 ? 10 : 0;
+          s2 -= liveQueueCount(st.id) * 2;
+        } catch (e) {}
+        fcs.push({ kind: 'forecast', st: st, o: o, pred: pred, km: km, f: null, score: s2 });
+      }
+    }
+  }
+  var byScore = function (a, b) { return b.score - a.score; };
+  nows.sort(byScore); fcs.sort(byScore); stales.sort(byScore);
+  var pool = nows.slice(0, 80).concat(fcs.slice(0, 12)).concat(stales.slice(0, 24));
+  var out = [];
+  for (var j = 0; j < pool.length; j++) {
+    var rej = false;
+    try { rej = isRejected(pool[j].st.id, adviceFocusFuel(pool[j])); } catch (e) {}
+    if (!rej) out.push(pool[j]);
+  }
+  for (var q = 0; q < out.length; q++) delete out[q].ourChoice;
+  for (var w = 0; w < out.length; w++) if (out[w].kind === 'now') { out[w].ourChoice = true; break; }
+  L.val = out; L.at = t; L.city = userCityKey;
+  L.fb = allFeedback.length; L.pr = allPredictions; L.ob = allObservations.length;
+  return out;
+}
+window.kbFuelList = LIST;
+buildAdviceList = function () { return LIST(); };
+
+// ---------- советник остаётся топ-3: режет сам, из того же списка ----------
+var rapBase = renderAdvicePop, inRap = false;
+renderAdvicePop = function () {
+  if (inRap) return rapBase();
+  inRap = true;
+  var real = buildAdviceList;
+  buildAdviceList = function () {
+    var top = real().slice(0, 3);
+    try { return rankByFinalMetrics(top); } catch (e) { return top; }
+  };
+  try { return rapBase(); }
+  catch (e) { return false; }
+  finally { buildAdviceList = real; inRap = false; }
+};
+
+// ---------- цифра принимает ТОЛЬКО своё значение ----------
+var TD = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+function nowCount() {
+  var l = LIST(), n = 0;
+  for (var i = 0; i < l.length; i++) if (l[i].kind === 'now') n++;
+  return n;
+}
+function armBadge(el) {
+  if (!el || el.__kbGuard) return;
+  el.__kbGuard = true;
+  var pass = false;
+  Object.defineProperty(el, 'textContent', {
+    configurable: true,
+    enumerable: true,
+    get: function () { return TD.get.call(el); },
+    set: function (v) {
+      // чужой код может записать только то же число — рассинхрон невозможен
+      if (pass || String(v).trim() === String(nowCount())) TD.set.call(el, v);
+    }
+  });
+  el.__kbSet = function (v) { pass = true; try { TD.set.call(el, v); } finally { pass = false; } };
+}
+function stamp() { var d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+function paintBadge() {
+  var menu = document.getElementById('kbQmMenu3');
+  if (!menu) return;
+  var btn = menu.querySelector('[data-kbq3="1"]');
+  if (!btn) return;
+  var el = btn.querySelector('.kbq3-badge');
+  if (!el) return;
+  armBadge(el);
+  var l = LIST(), n = 0, s = 0;
+  for (var i = 0; i < l.length; i++) { if (l[i].kind === 'now') n++; else if (l[i].kind === 'stale') s++; }
+  var txt = String(n);
+  if (TD.get.call(el) !== txt) {
+    el.__kbSet(txt);
+    el.classList.remove('kbq-tick'); void el.offsetWidth; el.classList.add('kbq-tick');
+  }
+  el.classList.toggle('wide', txt.length > 2);
+  el.classList.toggle('zero', n === 0);
+  var title = n + ' АЗС с подтверждённым топливом · ' + s + ' ждут проверки · обновлено ' + stamp();
+  if (btn.getAttribute('title') !== title) btn.setAttribute('title', title);
+  el.setAttribute('aria-label', title);
+}
+
+// ---------- панель «Где бензин?»: подтверждённые, затем «не точно» ----------
+function panelKind() {
+  var p = document.querySelector('.kbq3-pop');
+  if (!p) return 0;
+  var h = p.querySelector('.kbq3-head b');
+  var t = h ? (h.textContent || '') : '';
+  return t.indexOf('Где') === 0 ? 1 : t.indexOf('Топлива нет') === 0 ? 2 : t.indexOf('Возможно') === 0 ? 3 : 0;
+}
+var lastPanelSig = '';
+function paintPanel() {
+  var pop = document.querySelector('.kbq3-pop');
+  if (!pop || panelKind() !== 1) { lastPanelSig = ''; return; }
+  var list = pop.querySelector('.kbq3-list');
+  if (!list) return;
+  var l = LIST(), N = 0, F = 0, S = 0;
+  for (var i = 0; i < l.length; i++) { if (l[i].kind === 'now') N++; else if (l[i].kind === 'forecast') F++; else S++; }
+  var cards = [].slice.call(list.querySelectorAll('.kbq3-card'));
+  var sig = userCityKey + '|' + N + '|' + F + '|' + S + '|' + cards.length;
+  if (sig === lastPanelSig) return;
+  lastPanelSig = sig;
+
+  // прогнозы живут во второй карточке — здесь только факт и «не точно»
+  for (var f = N; f < N + F && f < cards.length; f++) {
+    if (cards[f] && cards[f].parentNode) cards[f].parentNode.removeChild(cards[f]);
+  }
+  cards = [].slice.call(list.querySelectorAll('.kbq3-card'));
+  var old = list.querySelector('.kbq-div');
+  if (old && old.parentNode) old.parentNode.removeChild(old);
+  for (var k = 0; k < cards.length; k++) {
+    var un = k >= N;
+    cards[k].classList.toggle('kbq-unver', un);
+    if (un && k === N && N > 0) {
+      var div = document.createElement('div');
+      div.className = 'kbq-div';
+      div.textContent = 'не точно · стоит проверить';
+      list.insertBefore(div, cards[k]);
+    }
+  }
+  var sum = pop.querySelector('.kbq-sum2');
+  if (!sum) {
+    var head = pop.querySelector('.kbq3-head');
+    if (head && head.parentNode) {
+      sum = document.createElement('div');
+      sum.className = 'kbq3-sum kbq-sum2';
+      head.parentNode.insertBefore(sum, head.nextSibling);
+    }
+  }
+  if (sum) {
+    var html = '<i class="ok">подтверждено: ' + N + '</i>' +
+      (S ? '<i class="wr">не точно: ' + S + '</i>' : '') +
+      '<i class="nt">в списке: ' + (N + S) + '</i>';
+    if (sum.__html !== html) { sum.__html = html; sum.innerHTML = html; }
+  }
+  if (!cards.length) {
+    var e = list.querySelector('.kbq3-empty');
+    if (!e) list.innerHTML = '<div class="kbq3-empty">Сейчас подтверждённого топлива нет — загляни во вторую карточку: там окна привоза.</div>';
+  }
+}
+
+// ---------- оформление ----------
+(function css() {
+  if (document.getElementById('kbCountStableCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbCountStableCss';
+  var C = [];
+  C.push('#kbQmMenu3 .kbq3-badge.kbq-tick{animation:kbqTick .55s cubic-bezier(.34,1.5,.64,1);}');
+  C.push('@keyframes kbqTick{0%{transform:scale(.72);filter:brightness(1.9);}55%{transform:scale(1.14);}100%{transform:scale(1);filter:none;}}');
+  C.push('.kbq3-sum.kbq-sum2{flex:none;display:flex;flex-wrap:wrap;gap:5px;padding:10px 14px 0;}');
+  C.push('.kbq-sum2 i{font-style:normal;border-radius:99px;padding:4px 10px;font-size:10px;font-weight:800;}');
+  C.push('.kbq-sum2 i.ok{background:rgba(47,211,154,.16);color:#2fd39a;}');
+  C.push('.kbq-sum2 i.wr{background:rgba(245,160,90,.16);color:#f5a05a;}');
+  C.push('.kbq-sum2 i.nt{background:rgba(148,180,255,.12);color:#93a0b8;}');
+  C.push('body:not(.kb-night) .kbq-sum2 i.ok{background:#e5f8ef;color:#12855c;}');
+  C.push('body:not(.kb-night) .kbq-sum2 i.wr{background:#fff6ec;color:#c26a2a;}');
+  C.push('body:not(.kb-night) .kbq-sum2 i.nt{background:#f0f3f8;color:#7487a7;}');
+  C.push('.kbq-div{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:4px 0 2px;');
+  C.push('font-size:10px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:#f5a05a;}');
+  C.push('.kbq-div::before,.kbq-div::after{content:"";height:1px;flex:1;');
+  C.push('background:linear-gradient(90deg,rgba(245,160,90,0),rgba(245,160,90,.45),rgba(245,160,90,0));}');
+  C.push('.kbq3-card.kbq-unver{border-color:rgba(245,160,90,.35) !important;');
+  C.push('background:linear-gradient(160deg,rgba(245,160,90,.12),rgba(245,160,90,.04)) !important;}');
+  C.push('body:not(.kb-night) .kbq3-card.kbq-unver{background:linear-gradient(160deg,#fff6ec,#fffcf8) !important;border-color:#f3d9b8 !important;}');
+  C.push('body.kb-lite .kbq3-badge.kbq-tick{animation:none;}');
+  C.push('@media (prefers-reduced-motion:reduce){.kbq3-badge.kbq-tick{animation:none;}}');
+  s.textContent = C.join('');
+  document.head.appendChild(s);
+})();
+
+// ---------- один такт на всех: список → цифра → панель ----------
+function tickAll() {
+  try { paintBadge(); } catch (e) {}
+  try { paintPanel(); } catch (e) {}
+}
+if (window.__kbPipe) {
+  window.__kbPipe.now.push(function () { tickAll(); requestAnimationFrame(tickAll); });
+  window.__kbPipe.soft.push(function () { L.at = 0; lastPanelSig = ''; tickAll(); requestAnimationFrame(tickAll); });
+  window.__kbPipe.advice.push(function () { requestAnimationFrame(tickAll); });
+}
+var rmf = (typeof renderMaybeFuel === 'function') ? renderMaybeFuel : null;
+if (rmf) renderMaybeFuel = function () { var r = rmf(); tickAll(); return r; };
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  if (t.closest('[data-kbq3]') || t.closest('[data-kbq3-close]') || t.closest('[data-kbq3-advice]')) {
+    lastPanelSig = '';
+    setTimeout(tickAll, 0); setTimeout(tickAll, 90); setTimeout(tickAll, 340);
+  }
+}, true);
+setInterval(function () { if (!document.hidden) tickAll(); }, 1000);
+setTimeout(tickAll, 300);
+setTimeout(tickAll, 1500);
+setTimeout(tickAll, 3200);
+})();
+// ============================================================
+// KB QM GROUPS FIX v1 — группа «не точно · стоит проверить»
+// больше не пропадает.
+// Было: декоратор сравнивал сигнатуру (город|N|F|S|кол-во карточек)
+// и выходил, если она не изменилась. Но панель перерисовывается
+// целиком (pop.innerHTML), разделитель и подсветка умирают вместе
+// со старым DOM — а сигнатура та же → их никто не возвращал.
+// Второе: прогнозы удалялись по индексам N..N+F-1; после первого
+// удаления индексы указывали уже на «не точно» и съедали их.
+// Стало: список сверяется с эталоном ПО ID и приводится к нему
+// (идемпотентно), разделитель ровно один и ровно перед первой
+// «не точно», пересборка сразу после любой мутации панели.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmGroupsFix) return;
+window.__kbQmGroupsFix = 1;
+
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+function ic(n) { return typeof icon === 'function' ? icon(n, 'ic-s') : ''; }
+
+function panelKind() {
+  var p = document.querySelector('.kbq3-pop');
+  if (!p) return 0;
+  var h = p.querySelector('.kbq3-head b');
+  var t = h ? (h.textContent || '') : '';
+  return t.indexOf('Где') === 0 ? 1 : t.indexOf('Топлива нет') === 0 ? 2 : t.indexOf('Возможно') === 0 ? 3 : 0;
+}
+function fuelPanel() {
+  var p = document.querySelector('.kbq3-pop');
+  return (p && panelKind() === 1) ? p : null;
+}
+// эталон: подтверждённые + «не точно», без прогнозов (они во 2-й карточке)
+function items() {
+  var l = [];
+  try {
+    l = (typeof window.kbFuelList === 'function' ? window.kbFuelList() : buildAdviceList()) || [];
+  } catch (e) { l = []; }
+  return l.filter(function (x) { return x && x.st && x.kind !== 'forecast'; });
+}
+function kmOf(st) {
+  try {
+    var u = loadUserLocation();
+    if (!u || st.lat == null) return null;
+    var dLa = 111 * (Number(st.lat) - u.lat);
+    var dLo = 111 * (Number(st.lon) - u.lon) * Math.cos(u.lat * Math.PI / 180);
+    return Math.sqrt(dLa * dLa + dLo * dLo);
+  } catch (e) { return null; }
+}
+function priceOf(st) {
+  try {
+    var p = allLastPrice[st.id];
+    if (!p) return '';
+    var col = p.price_95 != null ? 'price_95' : p.price_92 != null ? 'price_92' : p.price_diesel != null ? 'price_diesel' : null;
+    return col ? Number(p[col]).toFixed(1) + ' ₽' : '';
+  } catch (e) { return ''; }
+}
+function cardHtml(it) {
+  var st = it.st, km = kmOf(st), pr = priceOf(st), chips = '';
+  try { chips = window.kbq3FuelChips(it); } catch (e) {}
+  var meta = (km != null ? (km < 1 ? Math.round(km * 1000) + ' м' : km.toFixed(1) + ' км') : '') +
+    (pr ? (km != null ? ' · ' : '') + pr : '');
+  return '<div class="kbq3-card" data-kbq3-open="' + esc(st.id) + '">' +
+    '<span class="kbq3-top"><span class="kbq3-logo">' + stationLogo(st) + '</span>' +
+    '<span class="kbq3-name">' + esc(st.name || 'АЗС') + '</span>' +
+    '<button type="button" class="kbq3-route" data-kbq3-route="' + esc(st.id) + '" aria-label="Маршрут">' + ic('i-nav') + '</button></span>' +
+    '<span class="kbq3-addr">' + esc(st.address || '') + '</span>' +
+    '<span class="kbq3-chips">' + chips + '</span>' +
+    (meta ? '<span class="kbq3-meta">' + esc(meta) + '</span>' : '') + '</div>';
+}
+
+(function css() {
+  if (document.getElementById('kbQmGroupsFixCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbQmGroupsFixCss';
+  var L = [];
+  L.push('.kbq-div{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:4px 0 2px;');
+  L.push('font-size:10px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:#f5a05a;}');
+  L.push('.kbq-div::before,.kbq-div::after{content:"";height:1px;flex:1;');
+  L.push('background:linear-gradient(90deg,rgba(245,160,90,0),rgba(245,160,90,.45),rgba(245,160,90,0));}');
+  L.push('.kbq3-card.kbq-unver{border-color:rgba(245,160,90,.35) !important;');
+  L.push('background:linear-gradient(160deg,rgba(245,160,90,.12),rgba(245,160,90,.04)) !important;}');
+  L.push('body:not(.kb-night) .kbq3-card.kbq-unver{background:linear-gradient(160deg,#fff6ec,#fffcf8) !important;border-color:#f3d9b8 !important;}');
+  L.push('.kbq3-sum.kbq-sum2{flex:none;display:flex;flex-wrap:wrap;gap:5px;padding:10px 14px 0;}');
+  L.push('.kbq-sum2 i{font-style:normal;border-radius:99px;padding:4px 10px;font-size:10px;font-weight:800;}');
+  L.push('.kbq-sum2 i.ok{background:rgba(47,211,154,.16);color:#2fd39a;}');
+  L.push('.kbq-sum2 i.wr{background:rgba(245,160,90,.16);color:#f5a05a;}');
+  L.push('.kbq-sum2 i.nt{background:rgba(148,180,255,.12);color:#93a0b8;}');
+  L.push('body:not(.kb-night) .kbq-sum2 i.ok{background:#e5f8ef;color:#12855c;}');
+  L.push('body:not(.kb-night) .kbq-sum2 i.wr{background:#fff6ec;color:#c26a2a;}');
+  L.push('body:not(.kb-night) .kbq-sum2 i.nt{background:#f0f3f8;color:#7487a7;}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+var busy = false, raf = 0;
+function ensure() {
+  var pop = fuelPanel();
+  if (!pop) return;
+  var list = pop.querySelector('.kbq3-list');
+  if (!list) return;
+  var its = items();
+  var want = its.map(function (x) { return String(x.st.id); }).join(',');
+  var cards = [].slice.call(list.querySelectorAll('.kbq3-card'));
+  var have = cards.map(function (c) { return c.getAttribute('data-kbq3-open') || ''; }).join(',');
+
+  busy = true;
+
+  if (have !== want) {
+    list.innerHTML = its.length
+      ? its.map(cardHtml).join('')
+      : '<div class="kbq3-empty">Сейчас подтверждённого топлива нет — загляни во вторую карточку: там окна привоза.</div>';
+    cards = [].slice.call(list.querySelectorAll('.kbq3-card'));
+  }
+
+  var N = 0;
+  for (var i = 0; i < its.length; i++) if (its[i].kind === 'now') N++;
+  var S = its.length - N;
+
+  var firstStale = null;
+  for (var k = 0; k < cards.length; k++) {
+    var un = k >= N;
+    if (cards[k].classList.contains('kbq-unver') !== un) cards[k].classList.toggle('kbq-unver', un);
+    if (un && !firstStale) firstStale = cards[k];
+  }
+
+  var divs = [].slice.call(list.querySelectorAll('.kbq-div'));
+  if (N > 0 && firstStale) {
+    var d = divs.shift();
+    if (!d) { d = document.createElement('div'); d.className = 'kbq-div'; }
+    if (d.textContent !== 'не точно · стоит проверить') d.textContent = 'не точно · стоит проверить';
+    if (d.nextElementSibling !== firstStale) list.insertBefore(d, firstStale);
+    divs.forEach(function (x) { if (x.parentNode) x.parentNode.removeChild(x); });
+  } else {
+    divs.forEach(function (x) { if (x.parentNode) x.parentNode.removeChild(x); });
+  }
+
+  var sum = pop.querySelector('.kbq-sum2');
+  if (!sum) {
+    var head = pop.querySelector('.kbq3-head');
+    if (head && head.parentNode) {
+      sum = document.createElement('div');
+      sum.className = 'kbq3-sum kbq-sum2';
+      head.parentNode.insertBefore(sum, head.nextSibling);
+    }
+  }
+  if (sum) {
+    var html = '<i class="ok">подтверждено: ' + N + '</i>' +
+      (S ? '<i class="wr">не точно: ' + S + '</i>' : '') +
+      '<i class="nt">всего в списке: ' + (N + S) + '</i>';
+    if (sum.__h !== html) { sum.__h = html; sum.innerHTML = html; }
+  }
+
+  try {
+    var b = document.querySelector('#kbQmMenu3 [data-kbq3="1"] .kbq3-badge');
+    if (b && b.textContent !== String(N)) b.textContent = String(N);
+    if (b) { b.classList.toggle('wide', String(N).length > 2); b.classList.toggle('zero', N === 0); }
+  } catch (e) {}
+
+  // свои же мутации не должны запускать новый проход
+  setTimeout(function () { busy = false; }, 0);
+}
+function schedule() {
+  if (raf) return;
+  raf = requestAnimationFrame(function () { raf = 0; try { ensure(); } catch (e) {} });
+}
+
+var mo = ('MutationObserver' in window) ? new MutationObserver(function () {
+  if (busy) return;
+  schedule();
+}) : null;
+function attach() {
+  var p = document.querySelector('.kbq3-pop');
+  if (p && !p.__kbGF) { p.__kbGF = 1; if (mo) mo.observe(p, { childList: true, subtree: true }); }
+}
+attach();
+setInterval(attach, 700);
+
+if (window.__kbPipe) {
+  window.__kbPipe.now.push(schedule);
+  window.__kbPipe.soft.push(schedule);
+  window.__kbPipe.advice.push(schedule);
+}
+document.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  if (t.closest('[data-kbq3]') || t.closest('[data-kbq3-close]') || t.closest('[data-kbq3-advice]')) {
+    setTimeout(schedule, 0); setTimeout(schedule, 90); setTimeout(schedule, 340);
+  }
+}, true);
+setInterval(function () { if (!document.hidden) schedule(); }, 1000);
+setTimeout(schedule, 400);
+setTimeout(schedule, 1500);
+})();
