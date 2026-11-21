@@ -20879,3 +20879,444 @@ setTimeout(tickAll, 900);
 setTimeout(function () { try { renderMaybeFuel(); } catch (e) {} }, 1600);
 setTimeout(function () { try { if (typeof mapObj !== 'undefined' && mapObj && zoneReady) renderMap(); } catch (e) {} }, 2200);
 })();
+// ============================================================
+// KB QM COUNT + LOCATE v1 — счётчик и список совпадают, «Обновить» работает.
+// 1) Один источник правды: список «Где бензин?» и цифра на карточке
+//    берутся из ОДНОГО расчёта. Подтверждённые — все, сколько есть;
+//    ниже отделённая группа «не точно». Раньше список рисовался до
+//    появления класса .on и подборщик отдавал старый топ-3.
+// 2) «Обновить» = собственный запрос GPS с таймаутом, состоянием
+//    кнопки и честным ответом; рядом «Точка на карте» и «От центра».
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbQmCountLocate) return;
+window.__kbQmCountLocate = 1;
+
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+function ic(n, c) { return typeof icon === 'function' ? icon(n, c || 'ic-s') : ''; }
+function kmBetween(a, b, c, d) {
+  var dLa = (c - a) * 111, dLo = (d - b) * 111 * Math.cos(a * Math.PI / 180);
+  return Math.sqrt(dLa * dLa + dLo * dLo);
+}
+function boxesAll() {
+  try { var rb = window.kbRegionBoxes; if (rb && rb.all && rb.all.length) return rb.all; } catch (e) {}
+  try { if (typeof CITY_BOXES !== 'undefined') return CITY_BOXES; } catch (e) {}
+  return [];
+}
+function boxCenter(b) { return { lat: (Number(b.lat1) + Number(b.lat2)) / 2, lon: (Number(b.lon1) + Number(b.lon2)) / 2 }; }
+function boxOfKey(k) { var a = boxesAll(); for (var i = 0; i < a.length; i++) if (a[i].key === k) return a[i]; return null; }
+function regionOfKey(k) {
+  try {
+    var rb = window.kbRegionBoxes;
+    if (rb) { var rs = ['south', 'nw', 'ch']; for (var i = 0; i < rs.length; i++) { var a = rb[rs[i]] || []; for (var j = 0; j < a.length; j++) if (a[j].key === k) return rs[i]; } }
+  } catch (e) {}
+  return 'south';
+}
+function nearestBox(la, lo, maxKm) {
+  var a = boxesAll(), best = null, bestD = maxKm || 80;
+  for (var i = 0; i < a.length; i++) {
+    var c = boxCenter(a[i]), d = kmBetween(la, lo, c.lat, c.lon);
+    if (la >= Math.min(a[i].lat1, a[i].lat2) && la <= Math.max(a[i].lat1, a[i].lat2) &&
+        lo >= Math.min(a[i].lon1, a[i].lon2) && lo <= Math.max(a[i].lon1, a[i].lon2)) return a[i];
+    if (d < bestD) { bestD = d; best = a[i]; }
+  }
+  return best;
+}
+// СЫРАЯ точка (без подмены центром города) — нужна, чтобы честно сказать «далеко»
+function rawPoint() {
+  try { var m = manualLoc(); if (m && isFinite(Number(m.lat))) return { lat: Number(m.lat), lon: Number(m.lon), t: m.t || 0, manual: true }; } catch (e) {}
+  try {
+    var s = JSON.parse(localStorage.getItem('userLocation') || 'null');
+    if (s && isFinite(Number(s.lat)) && isFinite(Number(s.lon))) return { lat: Number(s.lat), lon: Number(s.lon), t: s.t || 0, manual: false };
+  } catch (e) {}
+  return null;
+}
+function cityCenterNow() { try { return boxCenter(cityBox()); } catch (e) { return null; } }
+
+// ---------- состояние ----------
+var FULL = false;                       // открыта панель «Где бензин?»
+var LOC = { busy: false, state: '', msg: '', acc: 0, dismissed: false };
+try { LOC.dismissed = sessionStorage.getItem('kbLocFromCenter') === '1'; } catch (e) {}
+
+// ----------.truth: один расчёт на список и на счётчик ----------
+var TC = {}, TAt = 0, TFb = -1, TEv = -1;
+function view(stId, o, fl) {
+  var now = Date.now();
+  if (now - TAt > 15000 || TFb !== allFeedback.length || TEv !== allWaveEvents.length) { TC = {}; TAt = now; TFb = allFeedback.length; TEv = allWaveEvents.length; }
+  var k = stId + '|' + fl, c = TC[k];
+  if (c && c.o === o) return c.v;
+  var v = null;
+  try { if (typeof window.kbFuelView === 'function') v = window.kbFuelView(stId, o, fl); } catch (e) {}
+  if (!v) v = { v: null, src: 'none' };
+  TC[k] = { o: o, v: v };
+  return v;
+}
+var FI = { at: 0, city: '', fb: -1, pr: null, nows: [], stales: [] };
+function fuelIndex() {
+  var t = Date.now();
+  if (t - FI.at < 2500 && FI.city === userCityKey && FI.fb === allFeedback.length && FI.pr === allPredictions) return FI;
+  var last = {}, city = [], u = null;
+  try { last = getLastObservations(); } catch (e) {}
+  try { city = cityStationList(); } catch (e) {}
+  try { u = loadUserLocation(); } catch (e) {}
+  var nows = [], stales = [];
+  for (var i = 0; i < city.length; i++) {
+    var st = city[i];
+    if (!isFinite(Number(st.lat)) || !isFinite(Number(st.lon))) continue;
+    var o = last[st.id], yes = null, stale = false, conflict = false;
+    var order = ['95', '92', 'diesel'];
+    for (var k = 0; k < order.length; k++) {
+      var v = view(st.id, o, order[k]);
+      if (v.v === true && !yes) yes = order[k] === '95' ? 'yes' : order[k] === '92' ? 'part' : 'diesel';
+      if (v.src === 'stale') stale = true;
+      if (v.src === 'conflict') conflict = true;
+    }
+    if (!yes && !stale && !conflict) continue;
+    var km = u ? kmBetween(Number(u.lat), Number(u.lon), Number(st.lat), Number(st.lon)) : null;
+    var pred = null; try { pred = pickPrediction(st.id, o); } catch (e) {}
+    var sc = 0; try { sc = adviceCoreScore(st, o, km, pred); } catch (e) {}
+    var rej = false;
+    var it = { kind: yes ? 'now' : 'stale', st: st, o: o, pred: pred, km: km,
+      f: yes || (function () { try { return stalePinKey(o) || 'yes'; } catch (e) { return 'yes'; } })(),
+      unverified: !yes, score: (yes ? 1000 : 500) + sc };
+    try { rej = isRejected(st.id, adviceFocusFuel(it)); } catch (e) {}
+    if (rej) continue;
+    if (yes) nows.push(it); else stales.push(it);
+  }
+  var byScore = function (a, b) { return b.score - a.score; };
+  nows.sort(byScore); stales.sort(byScore);
+  nows = nows.slice(0, 40); stales = stales.slice(0, 20);
+  for (var q = 0; q < nows.length; q++) delete nows[q].ourChoice;
+  if (nows.length) nows[0].ourChoice = true;
+  FI.at = t; FI.city = userCityKey; FI.fb = allFeedback.length; FI.pr = allPredictions;
+  FI.nows = nows; FI.stales = stales;
+  return FI;
+}
+function panelKind() {
+  var p = document.querySelector('.kbq3-pop');
+  if (!p) return 0;
+  var h = p.querySelector('.kbq3-head b');
+  var t = h ? (h.textContent || '') : '';
+  return t.indexOf('Где') === 0 ? 1 : t.indexOf('Топлива нет') === 0 ? 2 : t.indexOf('Возможно') === 0 ? 3 : 0;
+}
+function wantFull() {
+  var ap = document.getElementById('advicePop');
+  if (ap && ap.classList.contains('open')) return false;
+  if (FULL) return true;
+  var p = document.querySelector('.kbq3-pop.on');
+  return !!p && panelKind() === 1;
+}
+var balBase = buildAdviceList;
+buildAdviceList = function () {
+  if (wantFull()) { var f = fuelIndex(); return f.nows.concat(f.stales); }
+  return balBase();
+};
+
+// ---------- флаг панели: ставим ДО обработчика пака (window capture) ----------
+window.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var b = t.closest('[data-kbq3]');
+  if (b) { FULL = b.getAttribute('data-kbq3') === '1'; setTimeout(paintAll, 0); setTimeout(paintAll, 90); setTimeout(paintAll, 340); return; }
+  if (t.closest('[data-kbq3-close]') || t.closest('[data-kbq3-advice]') || t.closest('[data-kbq3-sv]') ||
+      t.closest('[data-kbq3-route]') || t.closest('[data-kbq3-open]') || t.closest('.kbq3-back')) { FULL = false; return; }
+}, true);
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') FULL = false; });
+setInterval(function () { if (!document.querySelector('.kbq3-pop.on')) FULL = false; }, 2000);
+
+// ---------- палитра ----------
+(function css() {
+  if (document.getElementById('kbQmCountLocateCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbQmCountLocateCss';
+  var L = [];
+  L.push('.kbq3-sum.kbq-sum2{padding:10px 14px 0;}');
+  L.push('.kbq-sum2 i{font-style:normal;border-radius:99px;padding:4px 10px;font-size:10px;font-weight:800;}');
+  L.push('.kbq-sum2 i.ok{background:rgba(47,211,154,.16);color:#2fd39a;}');
+  L.push('.kbq-sum2 i.wr{background:rgba(245,160,90,.16);color:#f5a05a;}');
+  L.push('.kbq-sum2 i.nt{background:rgba(148,180,255,.12);color:#93a0b8;}');
+  L.push('body:not(.kb-night) .kbq-sum2 i.ok{background:#e5f8ef;color:#12855c;}');
+  L.push('body:not(.kb-night) .kbq-sum2 i.wr{background:#fff6ec;color:#c26a2a;}');
+  L.push('body:not(.kb-night) .kbq-sum2 i.nt{background:#f0f3f8;color:#7487a7;}');
+  L.push('.kbq-div{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:4px 0 2px;');
+  L.push('font-size:10px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:#f5a05a;}');
+  L.push('.kbq-div::before,.kbq-div::after{content:"";height:1px;flex:1;background:linear-gradient(90deg,rgba(245,160,90,0),rgba(245,160,90,.45),rgba(245,160,90,0));}');
+  L.push('.kbq3-card.kbq-unver{border-color:rgba(245,160,90,.35) !important;background:linear-gradient(160deg,rgba(245,160,90,.12),rgba(245,160,90,.04)) !important;}');
+  L.push('body:not(.kb-night) .kbq3-card.kbq-unver{background:linear-gradient(160deg,#fff6ec,#fffcf8) !important;border-color:#f3d9b8 !important;}');
+  // блок геолокации
+  L.push('.kbt-far.kbloc{display:block !important;padding:10px 14px !important;}');
+  L.push('.kbloc-top{display:flex;align-items:flex-start;gap:8px;}');
+  L.push('.kbloc-top .ic{width:14px;height:14px;flex:none;margin-top:1px;}');
+  L.push('.kbloc-tx{flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.45;}');
+  L.push('.kbloc-tx b{font-weight:900;}');
+  L.push('.kbloc-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;}');
+  L.push('.kbloc-b{flex:1;min-width:96px;display:inline-flex;align-items:center;justify-content:center;gap:6px;');
+  L.push('border-radius:11px;padding:9px 10px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;');
+  L.push('border:1px solid rgba(245,160,90,.5);background:rgba(245,160,90,.14);color:#f5a05a;transition:transform .13s,background .18s;}');
+  L.push('.kbloc-b:active{transform:scale(.97);}');
+  L.push('.kbloc-b.p{background:linear-gradient(135deg,#ffc07a,#e07a2a);border-color:transparent;color:#fff;box-shadow:0 4px 12px rgba(224,122,42,.32);}');
+  L.push('.kbloc-b.g{border-color:rgba(148,180,255,.3);background:rgba(148,180,255,.1);color:#9dc4ff;}');
+  L.push('.kbloc-b[disabled]{opacity:.65;cursor:default;}');
+  L.push('.kbloc-b .ic{width:13px;height:13px;}');
+  L.push('.kbloc-sp{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:kblocSpin .8s linear infinite;}');
+  L.push('@keyframes kblocSpin{to{transform:rotate(360deg)}}');
+  L.push('.kbloc-res{margin-top:8px;font-size:10px;font-weight:700;line-height:1.4;border-radius:10px;padding:7px 9px;}');
+  L.push('.kbloc-res.ok{background:rgba(47,211,154,.14);color:#2fd39a;}');
+  L.push('.kbloc-res.bad{background:rgba(239,83,80,.14);color:#ff9d9d;}');
+  L.push('body:not(.kb-night) .kbloc-b{border-color:#f0cf9a;background:#fff6ec;color:#a06a15;}');
+  L.push('body:not(.kb-night) .kbloc-b.p{background:linear-gradient(135deg,#ffc07a,#e07a2a);color:#fff;}');
+  L.push('body:not(.kb-night) .kbloc-b.g{border-color:#cddffb;background:#eef4ff;color:#2465ee;}');
+  L.push('body:not(.kb-night) .kbloc-res.ok{background:#e5f8ef;color:#12855c;}');
+  L.push('body:not(.kb-night) .kbloc-res.bad{background:#fdecec;color:#c2403f;}');
+  L.push('#kbLocToast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);');
+  L.push('z-index:300;max-width:calc(100vw - 28px);border-radius:14px;padding:11px 16px;font:inherit;font-size:12.5px;font-weight:800;');
+  L.push('color:#fff;background:#14213d;box-shadow:0 14px 34px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.3s cubic-bezier(.2,.8,.2,1);text-align:center;}');
+  L.push('#kbLocToast.on{opacity:1;transform:translate(-50%,0);}');
+  L.push('#kbLocToast.ok{background:#12855c;}#kbLocToast.bad{background:#c2403f;}#kbLocToast.warn{background:#c26a2a;}');
+  L.push('body.kb-lite .kbloc-sp{animation:none;}');
+  L.push('@media (prefers-reduced-motion:reduce){.kbloc-sp{animation:none;}.kbloc-b{transition:none;}}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+function toast(msg, kind) {
+  var t = document.getElementById('kbLocToast');
+  if (!t) { t = document.createElement('div'); t.id = 'kbLocToast'; document.body.appendChild(t); }
+  t.className = 'on' + (kind ? ' ' + kind : '');
+  t.textContent = msg;
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function () { t.className = ''; }, 4200);
+}
+
+// ---------- GPS: свой запрос с таймаутом и честным ответом ----------
+function applyPoint(la, lo, acc) {
+  try { localStorage.removeItem('kbManualLoc'); } catch (e) {}
+  try { localStorage.removeItem('kbLocPlateDismissed'); } catch (e) {}
+  try { pendingFix = null; } catch (e) {}
+  try { geoRequested = true; geoFailed = false; } catch (e) {}
+  try { if (typeof setGeoSuspect === 'function') setGeoSuspect(false); } catch (e) {}
+  try { saveUserLocation(la, lo); } catch (e) {}
+  try { showUserMarker(la, lo); } catch (e) {}
+  try { localStorage.removeItem('kbRegionManual'); } catch (e) {}
+  try { sessionStorage.removeItem('kbLocFromCenter'); } catch (e) {}
+  LOC.dismissed = false;
+  var b = nearestBox(la, lo, 80);
+  var cur = 'south';
+  try { if (typeof window.kbRegionGet === 'function') cur = window.kbRegionGet(); } catch (e) {}
+  var r = b ? regionOfKey(b.key) : cur;
+  var clicked = false;
+  if (b && r !== cur) {
+    var btn = document.querySelector('[data-kbregion="' + r + '"]');
+    if (btn) { try { btn.click(); clicked = true; } catch (e) {} }
+  }
+  setTimeout(function () {
+    if (b) { try { userCityKey = b.key; } catch (e) {} }
+    try { if (typeof detectUserCity === 'function') detectUserCity(); } catch (e) {}
+    try { if (typeof hourlyCityKey !== 'undefined') hourlyCityKey = ''; } catch (e) {}
+    try { if (typeof miniFittedCity !== 'undefined') miniFittedCity = null; } catch (e) {}
+    try { if (typeof recomputeCityPrice === 'function') recomputeCityPrice(); } catch (e) {}
+    try { if (typeof refreshLocChip === 'function') refreshLocChip(); } catch (e) {}
+    FI.at = 0; TC = {};
+    try { if (typeof softRefresh === 'function') softRefresh(); } catch (e) {}
+    try { if (typeof loadPulse === 'function') loadPulse(); } catch (e) {}
+    reopenPanel();
+    paintAll();
+  }, clicked ? 140 : 0);
+  return b;
+}
+function kbLocate() {
+  if (LOC.busy) return;
+  if (!('geolocation' in navigator)) { LOC.state = 'bad'; LOC.msg = 'Браузер не отдаёт геолокацию. Поставьте точку на карте.'; paintAll(); toast(LOC.msg, 'bad'); return; }
+  if (window.isSecureContext === false) { LOC.state = 'bad'; LOC.msg = 'Сайт открыт по HTTP — координаты доступны только на HTTPS. Поставьте точку на карте.'; paintAll(); toast('Геолокация только на HTTPS', 'bad'); return; }
+  LOC.busy = true; LOC.state = ''; LOC.msg = ''; paintAll();
+  var done = false;
+  var guard = setTimeout(function () {
+    if (done) return; done = true; LOC.busy = false;
+    LOC.state = 'bad'; LOC.msg = 'GPS не ответил за 14 секунд. Поставьте точку на карте или считайте от центра.';
+    paintAll(); toast('GPS не ответил', 'warn');
+  }, 14000);
+  try {
+    navigator.geolocation.getCurrentPosition(function (p) {
+      if (done) return; done = true; clearTimeout(guard); LOC.busy = false;
+      var la = Number(p.coords.latitude), lo = Number(p.coords.longitude);
+      LOC.acc = Math.round(Number(p.coords.accuracy || 0));
+      if (!isFinite(la) || !isFinite(lo)) { LOC.state = 'bad'; LOC.msg = 'GPS прислал пустые координаты.'; paintAll(); return; }
+      var b = applyPoint(la, lo, LOC.acc);
+      var cc = cityCenterNow();
+      var far = cc ? Math.round(kmBetween(la, lo, cc.lat, cc.lon)) : 0;
+      if (b && far <= 80) {
+        LOC.state = 'ok'; LOC.msg = 'Точка обновлена' + (LOC.acc ? ' · ±' + LOC.acc + ' м' : '') + ' — расстояния считаем от вас.';
+        toast('Готово: ' + (b.name || 'город') + ' · ±' + (LOC.acc || 0) + ' м', 'ok');
+      } else {
+        LOC.state = 'bad';
+        LOC.msg = 'GPS снова даёт точку в ' + far + ' км от города ' + (function () { try { return userCityName(); } catch (e) { return ''; } })() +
+          '. Это глушилки или точка другого региона. Поставьте точку на карте — она главнее GPS.';
+        toast('Точка снова в ' + far + ' км — поставьте её на карте', 'warn');
+      }
+      paintAll();
+    }, function (err) {
+      if (done) return; done = true; clearTimeout(guard); LOC.busy = false;
+      var c = err && err.code;
+      LOC.state = 'bad';
+      LOC.msg = c === 1 ? 'Доступ к геолокации закрыт. Значок замка слева от адреса → Геолокация → Разрешить. Или поставьте точку на карте.'
+        : c === 2 ? 'Позиция недоступна: включите геолокацию в настройках телефона.'
+        : c === 3 ? 'GPS не успел ответить. Попробуйте ещё раз или поставьте точку на карте.'
+        : 'Не удалось получить точку. Поставьте её на карте.';
+      try { geoFailed = true; } catch (e) {}
+      paintAll(); toast('Точку получить не удалось', 'warn');
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  } catch (e) {
+    if (!done) { done = true; clearTimeout(guard); LOC.busy = false; LOC.state = 'bad'; LOC.msg = 'Запрос геолокации не запустился.'; paintAll(); }
+  }
+}
+function manualPoint() {
+  try { var p = document.querySelector('.kbq3-pop.on'); if (p) { var x = p.querySelector('[data-kbq3-close]'); if (x) x.click(); } } catch (e) {}
+  FULL = false;
+  try { pagerGo(2); } catch (e) {}
+  try { if (typeof ensureMap === 'function') ensureMap(); } catch (e) {}
+  setTimeout(function () {
+    try { if (typeof manualMode !== 'undefined' && !manualMode && typeof toggleManualLoc === 'function') toggleManualLoc(); } catch (e) {}
+    try { if (typeof refreshLocChip === 'function') refreshLocChip(); } catch (e) {}
+    toast('Тапните по карте в своей точке — она станет главной', 'ok');
+  }, 420);
+}
+function fromCenter() {
+  LOC.dismissed = true; LOC.state = ''; LOC.msg = '';
+  try { sessionStorage.setItem('kbLocFromCenter', '1'); } catch (e) {}
+  paintAll(); toast('Считаем от центра города', 'ok');
+}
+window.addEventListener('click', function (e) {
+  var t = e.target;
+  if (!t || !t.closest) return;
+  var b = t.closest('[data-kbloc]');
+  if (!b) return;
+  e.stopPropagation();
+  var a = b.getAttribute('data-kbloc');
+  if (a === 'fix') kbLocate();
+  else if (a === 'map') manualPoint();
+  else if (a === 'center') fromCenter();
+}, true);
+
+// ---------- блок геолокации внутри открытой панели ----------
+function locNeed() {
+  var p = rawPoint(), cc = cityCenterNow();
+  if (!p || !cc) return { need: true, why: 'none', far: 0 };
+  var d = Math.round(kmBetween(p.lat, p.lon, cc.lat, cc.lon));
+  if (d > 150) return { need: true, why: 'far', far: d };
+  if (!p.manual && p.t && Date.now() - p.t > 6 * 3600000) return { need: true, why: 'old', far: 0 };
+  return { need: false, why: '', far: 0 };
+}
+function locHtml() {
+  var n = locNeed();
+  var head, cls = '';
+  if (n.why === 'far') head = 'Точка GPS в <b>' + n.far + ' км</b> от этого города — расстояния считаем от центра. Обновите точку здесь или поставьте её на карте.';
+  else if (n.why === 'old') head = 'Точка GPS устарела — расстояния считаем от центра города. Обновите её.';
+  else head = 'Геолокация не определена — расстояния считаем от центра города.';
+  if (LOC.dismissed && !LOC.busy && !LOC.msg) {
+    return '<div class="kbloc-top">' + ic('i-pin') + '<span class="kbloc-tx">Расстояния — от центра города.</span>' +
+      '<button type="button" class="kbloc-b g" style="flex:0 0 auto;min-width:0" data-kbloc="fix">' + ic('i-nav') + 'GPS</button></div>';
+  }
+  var res = LOC.msg ? '<div class="kbloc-res ' + (LOC.state === 'ok' ? 'ok' : 'bad') + '">' + esc(LOC.msg) + '</div>' : '';
+  return '<div class="kbloc-top">' + ic('i-pin') + '<span class="kbloc-tx">' + head + '</span></div>' +
+    '<div class="kbloc-row">' +
+    '<button type="button" class="kbloc-b p" data-kbloc="fix"' + (LOC.busy ? ' disabled' : '') + '>' +
+      (LOC.busy ? '<span class="kbloc-sp"></span>Ищу…' : ic('i-nav') + 'Обновить GPS') + '</button>' +
+    '<button type="button" class="kbloc-b" data-kbloc="map">' + ic('i-pin') + 'Точка на карте</button>' +
+    '<button type="button" class="kbloc-b g" data-kbloc="center">От центра</button>' +
+    '</div>' + res;
+}
+function paintLoc() {
+  var pop = document.querySelector('.kbq3-pop');
+  if (!pop) return;
+  var head = pop.querySelector('.kbq3-head');
+  var n = locNeed();
+  var el = pop.querySelector('.kbt-far');
+  if (!n.need) { if (el && el.parentNode) el.parentNode.removeChild(el); return; }
+  if (!el) {
+    if (!head || !head.parentNode) return;
+    el = document.createElement('div');
+    el.className = 'kbt-far kbloc';
+    head.parentNode.insertBefore(el, head.nextSibling);
+  }
+  el.className = 'kbt-far kbloc';
+  var html = locHtml();
+  if (el.__html !== html) { el.__html = html; el.innerHTML = html; }
+}
+
+// ---------- счётчик + разделитель групп: цифры из одного расчёта ----------
+function paintBadge() {
+  var menu = document.getElementById('kbQmMenu3');
+  if (!menu) return;
+  var f = fuelIndex();
+  var b = menu.querySelector('[data-kbq3="1"] .kbq3-badge');
+  if (b) {
+    var txt = String(f.nows.length);
+    if (b.textContent !== txt) b.textContent = txt;
+    b.classList.toggle('wide', txt.length > 2);
+    b.classList.toggle('zero', f.nows.length === 0);
+    b.setAttribute('title', f.nows.length + ' АЗС с подтверждённым топливом · ' + f.stales.length + ' ждут проверки');
+  }
+  var sub = menu.querySelector('[data-kbq3="1"] .kbqm2-tx i');
+  if (sub) {
+    var s2 = f.nows.length + ' есть · ' + f.stales.length + ' проверить';
+    if (sub.textContent !== s2) sub.textContent = s2;
+  }
+}
+function paintGroups() {
+  var pop = document.querySelector('.kbq3-pop');
+  if (!pop || panelKind() !== 1) return;
+  var f = fuelIndex();
+  var list = pop.querySelector('.kbq3-list');
+  if (!list) return;
+  var old = pop.querySelector('.kbq-sum2');
+  var sum = '<i class="ok">подтверждено: ' + f.nows.length + '</i>' +
+    (f.stales.length ? '<i class="wr">не точно: ' + f.stales.length + '</i>' : '') +
+    '<i class="nt">всего в списке: ' + (f.nows.length + f.stales.length) + '</i>';
+  if (!old) {
+    var head = pop.querySelector('.kbq3-head');
+    if (head && head.parentNode) {
+      old = document.createElement('div');
+      old.className = 'kbq3-sum kbq-sum2';
+      head.parentNode.insertBefore(old, head.nextSibling);
+    }
+  }
+  if (old && old.__html !== sum) { old.__html = sum; old.innerHTML = sum; }
+  var cards = [].slice.call(list.querySelectorAll('.kbq3-card'));
+  var d = list.querySelector('.kbq-div');
+  if (d && d.parentNode) d.parentNode.removeChild(d);
+  for (var i = 0; i < cards.length; i++) {
+    var un = i >= f.nows.length;
+    cards[i].classList.toggle('kbq-unver', un);
+    if (un && i === f.nows.length && f.nows.length > 0) {
+      var div = document.createElement('div');
+      div.className = 'kbq-div';
+      div.textContent = 'не точно · стоит проверить';
+      list.insertBefore(div, cards[i]);
+    }
+  }
+}
+function paintAll() {
+  try { paintBadge(); } catch (e) {}
+  try { paintGroups(); } catch (e) {}
+  try { paintLoc(); } catch (e) {}
+}
+function reopenPanel() {
+  var k = panelKind();
+  if (!k) return;
+  var b = document.querySelector('#kbQmMenu3 [data-kbq3="' + k + '"]');
+  if (b) { try { b.click(); } catch (e) {} }
+}
+
+// ---------- запуск и удержание ----------
+if (window.__kbPipe) {
+  window.__kbPipe.now.push(function () { paintAll(); requestAnimationFrame(paintAll); });
+  window.__kbPipe.soft.push(function () { FI.at = 0; paintAll(); requestAnimationFrame(paintAll); });
+}
+var rmfBase = (typeof renderMaybeFuel === 'function') ? renderMaybeFuel : null;
+if (rmfBase) renderMaybeFuel = function () { var r = rmfBase(); paintAll(); return r; };
+setInterval(function () { if (!document.hidden) paintAll(); }, 1000);
+setTimeout(paintAll, 400);
+setTimeout(paintAll, 1500);
+setTimeout(paintAll, 3200);
+})();
