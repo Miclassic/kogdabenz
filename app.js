@@ -18759,3 +18759,341 @@ function cullHeat() {
 }
 var cullT = setInterval(function () { if (cullHeat()) clearInterval(cullT); }, 1200);
 })();
+// ============================================================
+// KB ADVISOR INSTANT v1 — «Куда ехать» открывается мгновенно.
+// Было: тап → синхронный пересчёт ВСЕХ АЗС города (на каждую
+// станцию заново перебирались все отметки/прогнозы + JSON.parse
+// избранного и поездок) → и только потом окно получало .open.
+// Стало: 1) окно показывается сразу (тёплый список или骨架),
+// 2) расчёт по индексам station_id, 3) повторный скан ленты
+// событий на каждом открытии убран.
+// Вставить в САМЫЙ КОНЕЦ app.js. index.html не менять.
+// ============================================================
+(function () {
+'use strict';
+if (window.__kbAdvisorInstant) return;
+window.__kbAdvisorInstant = 1;
+
+function esc(v) { return typeof escapeHtml === 'function' ? escapeHtml(v) : String(v == null ? '' : v); }
+
+// ============================================================
+// 1) ИНДЕКСЫ (ставим только если пак KB REGION SPEED не стоит —
+//    там эти же функции уже индексные)
+// ============================================================
+if (!window.__kbRegionSpeed) {
+  var IX = {
+    pRef: null, pLen: -1, pend: {},
+    fRef: null, fKey: '', fMap: {}
+  };
+  function ixPred() {
+    if (IX.pRef === allPredictions && IX.pLen === allPredictions.length) return IX.pend;
+    var m = {};
+    for (var i = 0; i < allPredictions.length; i++) {
+      var p = allPredictions[i];
+      if (p.result !== 'PENDING') continue;
+      var k = String(p.station_id);
+      (m[k] || (m[k] = [])).push(p);
+    }
+    IX.pRef = allPredictions; IX.pLen = allPredictions.length; IX.pend = m;
+    return m;
+  }
+  function ixFeed() {
+    var key = allFeedback.length + ':' + (allFeedback[0] ? (allFeedback[0].created_at || '') : '');
+    if (IX.fRef === allFeedback && IX.fKey === key) return IX.fMap;
+    var m = {};
+    for (var i = 0; i < allFeedback.length; i++) {
+      var f = allFeedback[i], k = String(f.station_id);
+      (m[k] || (m[k] = [])).push({ f: f, t: Date.parse(f.created_at) });
+    }
+    IX.fRef = allFeedback; IX.fKey = key; IX.fMap = m;
+    return m;
+  }
+  function fbOf(id) { return ixFeed()[String(id)] || null; }
+
+  // Object.keys на 8000 станций на каждый вызов demandOf — убираем
+  getLastObservations = function () {
+    for (var k in allLastObs) return allLastObs;
+    var r = {};
+    for (var i = 0; i < allObservations.length; i++) {
+      var o = allObservations[i];
+      if (!r[o.station_id]) r[o.station_id] = o;
+    }
+    return r;
+  };
+
+  pickPrediction = function (stationId, obs) {
+    var preds = ixPred()[String(stationId)];
+    if (!preds || !preds.length) return null;
+    var missing = [];
+    if (obs && obs.fuel_92_status === false) missing.push('92');
+    if (obs && obs.fuel_95_status === false) missing.push('95');
+    if (obs && obs.diesel_status === false) missing.push('diesel');
+    for (var i = 0; i < missing.length; i++)
+      for (var j = 0; j < preds.length; j++)
+        if (preds[j].fuel_type === missing[i]) return preds[j];
+    for (var k = 0; k < preds.length; k++) if (preds[k].fuel_type === '95') return preds[k];
+    return preds[0];
+  };
+
+  liveQueueCount = function (stationId) {
+    var arr = fbOf(stationId); if (!arr) return 0;
+    var since = Date.now() - LIVE_QUEUE_MIN * 60000, seen = {}, n = 0;
+    for (var i = 0; i < arr.length; i++) {
+      var it = arr[i];
+      if (it.f.feedback_type !== 'in_queue' || it.t < since) continue;
+      var d = it.f.device_id || '?';
+      if (!seen[d]) { seen[d] = 1; n++; }
+    }
+    return n;
+  };
+
+  sceneMark = function (stationId, fuel) {
+    var arr = fbOf(stationId); if (!arr) return null;
+    var since = Date.now() - 2 * 3600000, best = null;
+    for (var i = 0; i < arr.length; i++) {
+      var it = arr[i];
+      if (it.f.feedback_type !== 'available' || it.f.fuel_type !== fuel || !it.f.verified_on_site) continue;
+      if (it.t < since) continue;
+      if (!best || it.t > best.t) best = { t: it.t };
+    }
+    return best;
+  };
+
+  folkConsensus24 = function (stationId, fuel) {
+    var arr = fbOf(stationId); if (!arr) return null;
+    var since = Math.max(Date.now() - 2 * 3600000, pairLastChange(stationId, fuel));
+    var yes = {}, no = {}, ny = 0, nn = 0;
+    for (var i = 0; i < arr.length; i++) {
+      var it = arr[i];
+      if (it.f.fuel_type !== fuel || it.t < since) continue;
+      var d = it.f.device_id || '?';
+      if (it.f.feedback_type === 'available') { if (!yes[d]) { yes[d] = 1; ny++; } }
+      else if (it.f.feedback_type === 'unavailable') { if (!no[d]) { no[d] = 1; nn++; } }
+    }
+    if (ny >= 2 && ny > nn) return { verdict: 'yes', votes: ny };
+    if (nn >= 2 && nn > ny) return { verdict: 'no', votes: nn };
+    if (ny >= 1 && nn >= 1) return { verdict: 'conflict', votes: ny + nn };
+    return null;
+  };
+
+  folkFuelSignal = function (stationId, fuel) {
+    var strict = folkConsensus24(stationId, fuel);
+    if (strict) return strict;
+    var arr = fbOf(stationId); if (!arr) return null;
+    var since = Math.max(Date.now() - 24 * 3600000, pairLastChange(stationId, fuel) || 0);
+    var yes = 0, no = 0;
+    for (var i = 0; i < arr.length; i++) {
+      var it = arr[i];
+      if (it.f.fuel_type !== fuel || it.t < since) continue;
+      if (it.f.feedback_type === 'available') yes++;
+      else if (it.f.feedback_type === 'unavailable') no++;
+    }
+    if (yes >= 2 && yes > no) return { verdict: 'yes', votes: yes, soft: true };
+    if (no >= 2 && no > yes) return { verdict: 'no', votes: no, soft: true };
+    if (yes >= 1 && no >= 1) return { verdict: 'conflict', votes: yes + no, soft: true };
+    return null;
+  };
+
+  // JSON.parse из localStorage на каждой станции — парсим только при изменении
+  function lsMemo(fn, key) {
+    var raw = null, val = null, has = false;
+    return function () {
+      var s = null;
+      try { s = localStorage.getItem(key); } catch (e) {}
+      if (has && s === raw) return val;
+      raw = s; val = fn(); has = true;
+      return val;
+    };
+  }
+  getFavorites = lsMemo(getFavorites, 'favorites');
+  getDriverTrips = lsMemo(getDriverTrips, KB_TRIPS_KEY);
+  getDriverPrefs = lsMemo(getDriverPrefs, KB_PREFS_KEY);
+}
+
+// ============================================================
+// 2) СЖИГАНИЕ ГОЛОСОВ: не сканировать всю ленту на каждое открытие
+// ============================================================
+try {
+  if (window.__kbPipe && window.__kbPipe.advicePre && window.__kbPipe.advicePre.length) {
+    var preHooks = window.__kbPipe.advicePre.slice();
+    var burnSig = '';
+    window.__kbPipe.advicePre.length = 0;
+    window.__kbPipe.advicePre.push(function (ctx) {
+      var ev = allWaveEvents;
+      var sig = userCityKey + '|' + ev.length + '|' +
+        (ev[0] ? ev[0].detected_at : '') + '|' +
+        (ev.length ? ev[ev.length - 1].detected_at : '') + '|' +
+        Object.keys(adviceReactions).length + '|' +
+        (adviceList || []).map(function (x) { return x.st.id; }).join(',');
+      if (sig === burnSig) { ctx.ch = false; return; }
+      burnSig = sig;
+      for (var i = 0; i < preHooks.length; i++) { try { preHooks[i](ctx); } catch (e) {} }
+    });
+  }
+} catch (e) {}
+
+// ============================================================
+// 3) МГНОВЕННОЕ ОТКРЫТИЕ ОКНА
+// ============================================================
+(function css() {
+  if (document.getElementById('kbAdvisorInstantCss')) return;
+  var s = document.createElement('style');
+  s.id = 'kbAdvisorInstantCss';
+  var L = [];
+  L.push('.kba-title{display:flex;flex-wrap:wrap;align-items:center;gap:8px;}');
+  L.push('.kba-title em{font-style:normal;color:#2465ee;}');
+  L.push('.kba-city{display:inline-flex;align-items:center;padding:4px 11px;border-radius:99px;');
+  L.push('background:linear-gradient(135deg,#eef4ff,#dfe9ff);border:1px solid #bcd4ff;color:#1746c8;font-size:12px;font-weight:800;}');
+  L.push('.kba-wait{display:flex;align-items:center;gap:8px;margin:8px 0 10px;padding:9px 12px;border-radius:12px;');
+  L.push('background:#eef4ff;border:1px solid #dfe8f2;color:#5b6b86;font-size:11.5px;font-weight:700;}');
+  L.push('.kba-spin{flex:none;width:14px;height:14px;border-radius:50%;border:2px solid rgba(36,101,238,.25);');
+  L.push('border-top-color:#2465ee;animation:kbaSpin .8s linear infinite;}');
+  L.push('@keyframes kbaSpin{to{transform:rotate(360deg)}}');
+  L.push('.kba-sk{display:flex;flex-direction:column;gap:8px;}');
+  L.push('.kba-sk-card{position:relative;overflow:hidden;border-radius:18px;padding:12px;');
+  L.push('background:#fff;box-shadow:0 2px 14px rgba(38,69,120,.10);animation:kbaIn .3s ease both;}');
+  L.push('.kba-sk-card::after{content:"";position:absolute;inset:0;pointer-events:none;');
+  L.push('background:linear-gradient(100deg,rgba(255,255,255,0) 30%,rgba(36,101,238,.10) 50%,rgba(255,255,255,0) 70%) center/280% 100% no-repeat;');
+  L.push('animation:kbaShine 1.3s ease-in-out infinite;}');
+  L.push('@keyframes kbaIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}');
+  L.push('@keyframes kbaShine{0%{background-position-x:120%}100%{background-position-x:-40%}}');
+  L.push('.kba-sk-rank{display:block;width:20px;height:20px;border-radius:50%;background:#e7f0ff;margin-bottom:8px;}');
+  L.push('.kba-sk-lines i{display:block;height:11px;border-radius:6px;background:#eef2f8;margin-bottom:6px;}');
+  L.push('.kba-sk-lines .kba-sk-l1{width:62%;height:14px;}');
+  L.push('.kba-sk-lines .kba-sk-l2{width:84%;}');
+  L.push('.kba-sk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:8px 0;}');
+  L.push('.kba-sk-grid i{display:block;height:40px;border-radius:10px;background:#f4f7fa;}');
+  L.push('.kba-sk-btns{display:grid;grid-template-columns:1.3fr 1fr;gap:5px;}');
+  L.push('.kba-sk-btns i{display:block;height:34px;border-radius:12px;background:#eef2f8;}');
+  L.push('body.kb-night .kba-city{background:linear-gradient(135deg,rgba(57,124,255,.16),rgba(23,70,200,.22));border-color:rgba(148,180,255,.35);color:#9dc4ff;}');
+  L.push('body.kb-night .kba-title em{color:#7db4ff;}');
+  L.push('body.kb-night .kba-wait{background:rgba(91,157,255,.10);border-color:rgba(148,180,255,.22);color:#93a0b8;}');
+  L.push('body.kb-night .kba-sk-card{background:#121a2e;box-shadow:0 2px 14px rgba(0,0,0,.4);}');
+  L.push('body.kb-night .kba-sk-rank{background:rgba(91,157,255,.16);}');
+  L.push('body.kb-night .kba-sk-lines i,body.kb-night .kba-sk-btns i{background:rgba(148,180,255,.10);}');
+  L.push('body.kb-night .kba-sk-grid i{background:rgba(148,180,255,.06);}');
+  L.push('body.kb-lite .kba-sk-card::after,body.kb-lite .kba-spin{animation:none;}');
+  L.push('@media (prefers-reduced-motion:reduce){.kba-sk-card,.kba-sk-card::after,.kba-spin{animation:none;}}');
+  s.textContent = L.join('');
+  document.head.appendChild(s);
+})();
+
+var ADV = { list: null, city: '', at: 0, gen: 0, opening: false };
+
+function sigOf(list) {
+  return (list || []).map(function (x) {
+    return x.st.id + ':' + x.kind + ':' + (x.f || '') + ':' + (x.ourChoice ? 1 : 0);
+  }).join('|');
+}
+
+// запоминаем каждый успешно показанный список — следующее открытие мгновенное
+if (window.__kbPipe) {
+  window.__kbPipe.advice.push(function (ctx) {
+    if (!ctx.ok || !adviceList || !adviceList.length) return;
+    ADV.list = adviceList.slice();
+    ADV.city = userCityKey;
+    ADV.at = Date.now();
+  });
+}
+
+function shellHtml() {
+  var city = '';
+  try { city = userCityName(); } catch (e) {}
+  var sk = '';
+  for (var i = 0; i < 3; i++) {
+    sk += '<div class="kba-sk-card" style="animation-delay:' + (i * 70) + 'ms">' +
+      '<span class="kba-sk-rank"></span>' +
+      '<span class="kba-sk-lines"><i class="kba-sk-l1"></i><i class="kba-sk-l2"></i></span>' +
+      '<span class="kba-sk-grid"><i></i><i></i><i></i></span>' +
+      '<span class="kba-sk-btns"><i></i><i></i></span></div>';
+  }
+  return '<div class="hello-title kba-title">Куда ехать <em>прямо сейчас</em>' +
+    (city ? '<span class="kba-city">' + esc(city) + '</span>' : '') + '</div>' +
+    '<div class="kba-wait"><span class="kba-spin"></span><span>Смотрю свежие отметки и подбираю варианты…</span></div>' +
+    '<div class="kba-sk">' + sk + '</div>' +
+    '<button class="cta-btn ghost" style="width:100%;margin-top:10px" onclick="closeAdvicePop()">Закрыть</button>';
+}
+
+// отрисовка готовым списком без повторного подбора
+function renderWith(list) {
+  var real = buildAdviceList;
+  buildAdviceList = function () { return list; };
+  try { return renderAdvicePop(); }
+  catch (e) { return false; }
+  finally { buildAdviceList = real; }
+}
+
+function afterPaint(fn) {
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () { setTimeout(fn, 0); });
+  });
+}
+
+function openAdvisor(auto) {
+  var pop = document.getElementById('advicePop'), back = document.getElementById('adviceBack');
+  if (!pop || !back) return;
+  if (ADV.opening) return;
+  if (!allStations.length) { if (!auto) pagerGo(3); return; }
+
+  var warm = (ADV.list && ADV.list.length && ADV.city === userCityKey && Date.now() - ADV.at < 600000) ? ADV.list : null;
+  var already = pop.classList.contains('open');
+  var warmSig = warm ? sigOf(warm) : '';
+
+  if (!already) {
+    if (warm) {
+      if (!renderWith(warm)) { if (!auto) pagerGo(3); return; }
+    } else {
+      pop.innerHTML = shellHtml();
+    }
+    pop.classList.add('open');
+    back.classList.add('open');
+  }
+  if (!auto) adviceShownThisSession = true;
+
+  ADV.opening = true;
+  var gen = ++ADV.gen;
+  afterPaint(function () {
+    if (gen !== ADV.gen) { ADV.opening = false; return; }
+    var ok = false;
+    try { ok = renderAdvicePop(); } catch (e) { ok = false; }
+    ADV.opening = false;
+    if (!ok) {
+      if (warm) { renderWith(warm); }
+      else {
+        try { closeAdvicePop(); } catch (e) {}
+        if (!auto) pagerGo(3);
+        return;
+      }
+    }
+    if (auto && !adviceShownThisSession) adviceShownThisSession = true;
+    try { track('advisor_open', adviceList ? adviceList.length : 0); } catch (e) {}
+  });
+}
+
+openAdviceNow = function () { openAdvisor(false); };
+
+var advTries = 0;
+maybeAdvicePop = function () {
+  if (adviceShownThisSession || offlineMode || ADV.opening) return;
+  if (!allStations.length) { if (advTries++ < 12) setTimeout(maybeAdvicePop, 3000); return; }
+  var openNow = ['helloBack', 'installBack', 'pollBack', 'sheetBack', 'wnBack', 'mailBack', 'lifeBack', 'kbRateBack', 'kbTgWizBack', 'kbPrefsBack'].some(function (id) {
+    var el = document.getElementById(id);
+    return el && el.classList.contains('open');
+  });
+  if (openNow) { if (advTries++ < 20) setTimeout(maybeAdvicePop, 1500); return; }
+  openAdvisor(true);
+};
+
+// тёплый список готовим заранее, пока водитель читает главную
+function warmUp() {
+  try {
+    if (!allStations.length || ADV.opening) return;
+    if (ADV.city === userCityKey && Date.now() - ADV.at < 20000) return;
+    var list = buildAdviceList();
+    if (list && list.length) { ADV.list = list.slice(); ADV.city = userCityKey; ADV.at = Date.now(); }
+  } catch (e) {}
+}
+setTimeout(warmUp, 1800);
+setTimeout(warmUp, 5000);
+setInterval(function () { if (!document.hidden) warmUp(); }, 20000);
+})();
