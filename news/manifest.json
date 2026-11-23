@@ -1,39 +1,40 @@
 {
  "used": {
   "loss": [
-   "loss:5",
-   "loss:1",
-   "loss:6",
    "loss:3",
    "loss:7",
    "loss:0",
    "loss:2",
-   "loss:5"
+   "loss:5",
+   "loss:4",
+   "loss:5",
+   "loss:1"
   ],
   "ret": [
-   "ret:6",
-   "ret:5",
-   "ret:4",
    "ret:3",
    "ret:1",
    "ret:2",
    "ret:0",
-   "ret:4"
+   "ret:4",
+   "ret:7",
+   "ret:6",
+   "ret:5"
   ],
   "deficit": [
-   "deficit:6",
-   "deficit:1",
-   "deficit:6",
    "deficit:2",
    "deficit:4",
    "deficit:5",
+   "deficit:5",
+   "deficit:0",
+   "deficit:3",
    "deficit:7",
-   "deficit:0"
+   "deficit:1"
   ],
   "acc": [
    "acc:4",
    "acc:5",
-   "acc:1"
+   "acc:1",
+   "acc:7"
   ]
  },
  "volna-uhod-south-20261121": "2026-11-21T09:26:59.484Z",
@@ -101,5 +102,24 @@
  "deficit-vnovgorod-20261123": "2026-11-22T22:22:01.222Z",
  "deficit-cheboksary-20261123": "2026-11-22T22:22:01.222Z",
  "tochnost-20261123": "2026-11-22T22:22:01.222Z",
- "deficit-novocheboksarsk-20261123": "2026-11-23T08:45:53.959Z"
+ "deficit-novocheboksarsk-20261123": "2026-11-23T08:45:53.959Z",
+ "volna-uhod-south-20261124": "2026-11-23T21:00:24.978Z",
+ "volna-vozvrat-south-20261124": "2026-11-23T21:00:24.978Z",
+ "volna-uhod-northwest-20261124": "2026-11-23T21:00:24.978Z",
+ "volna-vozvrat-northwest-20261124": "2026-11-23T21:00:24.978Z",
+ "volna-uhod-chuvashia-20261124": "2026-11-23T21:00:24.978Z",
+ "volna-vozvrat-chuvashia-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-sochi-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-armavir-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-anapa-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-maykop-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-rostov-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-krasnodar-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-novorossiysk-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-kolpino-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-vnovgorod-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-gatchina-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-spb-20261124": "2026-11-23T21:00:24.978Z",
+ "deficit-cheboksary-20261124": "2026-11-23T21:00:24.978Z",
+ "tochnost-20261124": "2026-11-23T21:00:24.978Z"
 }
