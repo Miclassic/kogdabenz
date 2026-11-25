@@ -21,14 +21,14 @@
    "ret:1"
   ],
   "deficit": [
+   "deficit:4",
    "deficit:5",
-   "deficit:5",
-   "deficit:0",
    "deficit:3",
+   "deficit:0",
+   "deficit:4",
    "deficit:7",
    "deficit:1",
-   "deficit:6",
-   "deficit:2"
+   "deficit:6"
   ],
   "acc": [
    "acc:4",
@@ -131,5 +131,22 @@
  "volna-vozvrat-northwest-20261125": "2026-11-25T04:01:09.736Z",
  "volna-uhod-chuvashia-20261125": "2026-11-25T04:01:09.736Z",
  "volna-vozvrat-chuvashia-20261125": "2026-11-25T04:01:09.736Z",
- "tochnost-20261125": "2026-11-25T04:01:09.736Z"
+ "tochnost-20261125": "2026-11-25T04:01:09.736Z",
+ "deficit-sochi-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-novorossiysk-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-anapa-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-krymsk-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-maykop-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-gelendzhik-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-krasnodar-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-stavropol-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-rostov-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-armavir-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-kolpino-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-vnovgorod-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-vsevolozhsk-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-spb-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-gatchina-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-cheboksary-20261125": "2026-11-25T15:23:48.647Z",
+ "deficit-novocheboksarsk-20261125": "2026-11-25T15:23:48.647Z"
 }
