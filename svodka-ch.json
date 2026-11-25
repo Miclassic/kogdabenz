@@ -1,14 +1,14 @@
 {
- "generated": "2026-11-24T17:00:00.000Z",
+ "generated": "2026-11-25T01:00:00.000Z",
  "region": "ch",
  "totals": {
   "total": 111,
-  "known": 22,
-  "a92": 2,
-  "a95": 2,
-  "adt": 2,
+  "known": 2,
+  "a92": 0,
+  "a95": 0,
+  "adt": 0,
   "q": 0,
-  "wins": 2,
+  "wins": 5,
   "cities": 9
  },
  "cities": [
@@ -16,31 +16,19 @@
    "key": "cheboksary",
    "name": "Чебоксары",
    "total": 50,
-   "known": 11,
+   "known": 1,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
-   "level": "r"
-  },
-  {
-   "key": "novocheboksarsk",
-   "name": "Новочебоксарск",
-   "total": 17,
-   "known": 6,
-   "a92": 2,
-   "a95": 2,
-   "adt": 2,
-   "q": 0,
-   "wins": 1,
-   "level": "y"
+   "wins": 4,
+   "level": "n"
   },
   {
    "key": "kanash",
    "name": "Канаш",
    "total": 11,
-   "known": 3,
+   "known": 1,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -49,15 +37,15 @@
    "level": "n"
   },
   {
-   "key": "tsivilsk",
-   "name": "Цивильск",
-   "total": 6,
-   "known": 2,
+   "key": "novocheboksarsk",
+   "name": "Новочебоксарск",
+   "total": 17,
+   "known": 0,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 0,
+   "wins": 1,
    "level": "n"
   },
   {
@@ -76,6 +64,18 @@
    "key": "yadrin",
    "name": "Ядрин",
    "total": 7,
+   "known": 0,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "tsivilsk",
+   "name": "Цивильск",
+   "total": 6,
    "known": 0,
    "a92": 0,
    "a95": 0,
