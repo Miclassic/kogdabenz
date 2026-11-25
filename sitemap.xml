@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://kogdabenz.ru/</loc><lastmod>2026-11-25T01:00:00.000Z</lastmod><changefreq>hourly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://kogdabenz.ru/svodka.html</loc><lastmod>2026-11-25T01:00:00.000Z</lastmod><changefreq>hourly</changefreq><priority>0.9</priority></url>
-  <url><loc>https://kogdabenz.ru/svodka-sz.html</loc><lastmod>2026-11-25T01:00:00.000Z</lastmod><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://kogdabenz.ru/</loc><lastmod>2026-11-25T13:00:00.000Z</lastmod><changefreq>hourly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://kogdabenz.ru/svodka.html</loc><lastmod>2026-11-25T13:00:00.000Z</lastmod><changefreq>hourly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://kogdabenz.ru/svodka-sz.html</loc><lastmod>2026-11-25T13:00:00.000Z</lastmod><changefreq>hourly</changefreq><priority>0.9</priority></url>
   <url> <loc>https://kogdabenz.ru/novorossiysk.html</loc> <lastmod>2026-11-15</lastmod> <changefreq>weekly</changefreq> <priority>0.8</priority> </url>
   <url> <loc>https://kogdabenz.ru/ocheredi.html</loc> <lastmod>2026-11-15</lastmod> <changefreq>weekly</changefreq> <priority>0.8</priority> </url>
   <url> <loc>https://kogdabenz.ru/kogda-benzin.html</loc> <lastmod>2026-11-15</lastmod> <changefreq>weekly</changefreq> <priority>0.7</priority> </url>
@@ -128,11 +128,11 @@
   <url><loc>https://kogdabenz.ru/svodka-alatyr.html</loc><lastmod>2026-11-25</lastmod><changefreq>hourly</changefreq><priority>0.8</priority></url>
   <url><loc>https://kogdabenz.ru/svodka-kozlovka.html</loc><lastmod>2026-11-25</lastmod><changefreq>hourly</changefreq><priority>0.8</priority></url>
   <url><loc>https://kogdabenz.ru/svodka-mariinskyposad.html</loc><lastmod>2026-11-25</lastmod><changefreq>hourly</changefreq><priority>0.8</priority></url>
-<url><loc>https://kogdabenz.ru/news/volna-uhod-south-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-<url><loc>https://kogdabenz.ru/news/volna-vozvrat-south-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-<url><loc>https://kogdabenz.ru/news/volna-uhod-northwest-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-<url><loc>https://kogdabenz.ru/news/volna-vozvrat-northwest-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-<url><loc>https://kogdabenz.ru/news/volna-uhod-chuvashia-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-<url><loc>https://kogdabenz.ru/news/volna-vozvrat-chuvashia-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
-<url><loc>https://kogdabenz.ru/news/tochnost-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/volna-uhod-south-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/volna-vozvrat-south-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/volna-uhod-northwest-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/volna-vozvrat-northwest-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/volna-uhod-chuvashia-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/volna-vozvrat-chuvashia-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
+  <url><loc>https://kogdabenz.ru/news/tochnost-20261125.html</loc><changefreq>daily</changefreq><priority>0.6</priority></url>
 </urlset>
