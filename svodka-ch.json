@@ -1,17 +1,29 @@
 {
- "generated": "2026-11-27T09:00:00.000Z",
+ "generated": "2026-11-27T21:00:00.000Z",
  "region": "ch",
  "totals": {
   "total": 111,
-  "known": 35,
+  "known": 30,
   "a92": 1,
-  "a95": 1,
+  "a95": 0,
   "adt": 1,
   "q": 0,
   "wins": 4,
   "cities": 9
  },
  "cities": [
+  {
+   "key": "cheboksary",
+   "name": "Чебоксары",
+   "total": 50,
+   "known": 18,
+   "a92": 1,
+   "a95": 0,
+   "adt": 1,
+   "q": 0,
+   "wins": 3,
+   "level": "r"
+  },
   {
    "key": "novocheboksarsk",
    "name": "Новочебоксарск",
@@ -21,43 +33,19 @@
    "a95": 0,
    "adt": 0,
    "q": 0,
-   "wins": 1,
-   "level": "r"
-  },
-  {
-   "key": "cheboksary",
-   "name": "Чебоксары",
-   "total": 50,
-   "known": 21,
-   "a92": 1,
-   "a95": 1,
-   "adt": 1,
-   "q": 0,
-   "wins": 2,
+   "wins": 0,
    "level": "r"
   },
   {
    "key": "kanash",
    "name": "Канаш",
    "total": 11,
-   "known": 4,
+   "known": 3,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
    "wins": 1,
-   "level": "n"
-  },
-  {
-   "key": "shumerlya",
-   "name": "Шумерля",
-   "total": 8,
-   "known": 1,
-   "a92": 0,
-   "a95": 0,
-   "adt": 0,
-   "q": 0,
-   "wins": 0,
    "level": "n"
   },
   {
@@ -73,10 +61,22 @@
    "level": "n"
   },
   {
-   "key": "mariinskyposad",
-   "name": "Мариинский Посад",
-   "total": 3,
+   "key": "alatyr",
+   "name": "Алатырь",
+   "total": 5,
    "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
+   "level": "n"
+  },
+  {
+   "key": "shumerlya",
+   "name": "Шумерля",
+   "total": 8,
+   "known": 0,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -97,9 +97,9 @@
    "level": "n"
   },
   {
-   "key": "alatyr",
-   "name": "Алатырь",
-   "total": 5,
+   "key": "kozlovka",
+   "name": "Козловка",
+   "total": 4,
    "known": 0,
    "a92": 0,
    "a95": 0,
@@ -109,9 +109,9 @@
    "level": "n"
   },
   {
-   "key": "kozlovka",
-   "name": "Козловка",
-   "total": 4,
+   "key": "mariinskyposad",
+   "name": "Мариинский Посад",
+   "total": 3,
    "known": 0,
    "a92": 0,
    "a95": 0,
