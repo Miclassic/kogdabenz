@@ -21,14 +21,14 @@
    "ret:1"
   ],
   "deficit": [
-   "deficit:1",
-   "deficit:7",
-   "deficit:2",
    "deficit:6",
    "deficit:5",
    "deficit:3",
    "deficit:0",
-   "deficit:4"
+   "deficit:4",
+   "deficit:6",
+   "deficit:1",
+   "deficit:7"
   ],
   "acc": [
    "acc:4",
@@ -188,5 +188,8 @@
  "deficit-spb-20261127": "2026-11-26T22:12:11.031Z",
  "deficit-vnovgorod-20261127": "2026-11-26T22:12:11.031Z",
  "deficit-cheboksary-20261127": "2026-11-26T22:12:11.031Z",
- "tochnost-20261127": "2026-11-26T22:12:11.031Z"
+ "tochnost-20261127": "2026-11-26T22:12:11.031Z",
+ "deficit-stavropol-20261127": "2026-11-27T09:32:32.821Z",
+ "deficit-maykop-20261127": "2026-11-27T09:32:32.821Z",
+ "deficit-vsevolozhsk-20261127": "2026-11-27T09:32:32.821Z"
 }
