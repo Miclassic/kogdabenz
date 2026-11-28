@@ -1,11 +1,11 @@
 {
- "generated": "2026-11-27T21:00:00.000Z",
+ "generated": "2026-11-28T05:00:00.000Z",
  "region": "ch",
  "totals": {
   "total": 111,
-  "known": 30,
+  "known": 26,
   "a92": 1,
-  "a95": 0,
+  "a95": 1,
   "adt": 1,
   "q": 0,
   "wins": 4,
@@ -16,9 +16,9 @@
    "key": "cheboksary",
    "name": "Чебоксары",
    "total": 50,
-   "known": 18,
+   "known": 16,
    "a92": 1,
-   "a95": 0,
+   "a95": 1,
    "adt": 1,
    "q": 0,
    "wins": 3,
@@ -28,13 +28,13 @@
    "key": "novocheboksarsk",
    "name": "Новочебоксарск",
    "total": 17,
-   "known": 6,
+   "known": 3,
    "a92": 0,
    "a95": 0,
    "adt": 0,
    "q": 0,
    "wins": 0,
-   "level": "r"
+   "level": "n"
   },
   {
    "key": "kanash",
@@ -46,6 +46,18 @@
    "adt": 0,
    "q": 0,
    "wins": 1,
+   "level": "n"
+  },
+  {
+   "key": "shumerlya",
+   "name": "Шумерля",
+   "total": 8,
+   "known": 1,
+   "a92": 0,
+   "a95": 0,
+   "adt": 0,
+   "q": 0,
+   "wins": 0,
    "level": "n"
   },
   {
@@ -61,22 +73,10 @@
    "level": "n"
   },
   {
-   "key": "alatyr",
-   "name": "Алатырь",
-   "total": 5,
+   "key": "kozlovka",
+   "name": "Козловка",
+   "total": 4,
    "known": 1,
-   "a92": 0,
-   "a95": 0,
-   "adt": 0,
-   "q": 0,
-   "wins": 0,
-   "level": "n"
-  },
-  {
-   "key": "shumerlya",
-   "name": "Шумерля",
-   "total": 8,
-   "known": 0,
    "a92": 0,
    "a95": 0,
    "adt": 0,
@@ -97,9 +97,9 @@
    "level": "n"
   },
   {
-   "key": "kozlovka",
-   "name": "Козловка",
-   "total": 4,
+   "key": "alatyr",
+   "name": "Алатырь",
+   "total": 5,
    "known": 0,
    "a92": 0,
    "a95": 0,
